@@ -1,3 +1,5 @@
+import { isAbsolute, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { ConfigError, loadConfig } from "./config.js";
 
@@ -77,5 +79,80 @@ describe("loadConfig", () => {
     expect(() => loadConfig({ ...base, LLM_MODE: "replay", WORLD_SEED: "1.5" })).toThrow(
       /WORLD_SEED/,
     );
+  });
+
+  describe("LLM settings", () => {
+    const replay = { ...base, LLM_MODE: "replay" };
+    const repoRoot = resolve(fileURLToPath(new URL("../../..", import.meta.url)));
+
+    it("defaults both models to claude-haiku-5-5, effort to medium and fallbacks off", () => {
+      const c = loadConfig(replay);
+      expect(c.extractModel).toBe("claude-haiku-5-5");
+      expect(c.agentModel).toBe("claude-haiku-5-5");
+      expect(c.extractEffort).toBe("medium");
+      expect(c.agentEffort).toBe("medium");
+      expect(c.llmFallbacks).toBe(false);
+    });
+
+    it("treats blank values (as Compose passes them) as defaults", () => {
+      const c = loadConfig({
+        ...replay,
+        EXTRACT_MODEL: "",
+        AGENT_MODEL: " ",
+        EXTRACT_EFFORT: "",
+        AGENT_EFFORT: "",
+        LLM_FALLBACKS: "",
+        RECORDINGS_DIR: "",
+      });
+      expect(c.agentModel).toBe("claude-haiku-5-5");
+      expect(c.agentEffort).toBe("medium");
+      expect(c.llmFallbacks).toBe(false);
+      expect(c.recordingsDir).toBe(join(repoRoot, "fixtures", "llm-recordings"));
+    });
+
+    it("switches a model and effort from env without code changes", () => {
+      const c = loadConfig({
+        ...replay,
+        AGENT_MODEL: "claude-opus-5-5",
+        AGENT_EFFORT: "high",
+        EXTRACT_EFFORT: "low",
+      });
+      expect(c.agentModel).toBe("claude-opus-5-5");
+      expect(c.extractModel).toBe("claude-haiku-5-5");
+      expect(c.agentEffort).toBe("high");
+      expect(c.extractEffort).toBe("low");
+    });
+
+    it("accepts every effort level and rejects others, naming the variable", () => {
+      for (const level of ["low", "medium", "high", "xhigh", "max"]) {
+        expect(loadConfig({ ...replay, EXTRACT_EFFORT: level }).extractEffort).toBe(level);
+      }
+      expect(() => loadConfig({ ...replay, AGENT_EFFORT: "extreme" })).toThrow(/AGENT_EFFORT/);
+    });
+
+    it("rejects a model with no pricing entry, naming the variable", () => {
+      expect(() => loadConfig({ ...replay, EXTRACT_MODEL: "claude-sonnet-1" })).toThrow(
+        /EXTRACT_MODEL/,
+      );
+    });
+
+    it("parses LLM_FALLBACKS on/off", () => {
+      expect(loadConfig({ ...replay, LLM_FALLBACKS: "off" }).llmFallbacks).toBe(false);
+      expect(loadConfig({ ...replay, LLM_FALLBACKS: "on" }).llmFallbacks).toBe(true);
+      expect(() => loadConfig({ ...replay, LLM_FALLBACKS: "maybe" })).toThrow(/LLM_FALLBACKS/);
+    });
+
+    it("defaults RECORDINGS_DIR to <repo>/fixtures/llm-recordings, independent of cwd", () => {
+      const c = loadConfig(replay);
+      expect(isAbsolute(c.recordingsDir)).toBe(true);
+      expect(c.recordingsDir).toBe(join(repoRoot, "fixtures", "llm-recordings"));
+    });
+
+    it("resolves a relative RECORDINGS_DIR against the repo root and keeps an absolute one", () => {
+      expect(loadConfig({ ...replay, RECORDINGS_DIR: "tmp/rec" }).recordingsDir).toBe(
+        join(repoRoot, "tmp", "rec"),
+      );
+      expect(loadConfig({ ...replay, RECORDINGS_DIR: "/var/rec" }).recordingsDir).toBe("/var/rec");
+    });
   });
 });
