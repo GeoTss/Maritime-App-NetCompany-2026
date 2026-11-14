@@ -5,7 +5,9 @@
  *
  *   npm run eval:smoke -- [--label <name>]        (API_URL, default http://localhost:4000)
  *
- * Needs no key: the API holds it. Exits 2 if the API is not in live mode, 1 on any failed
+ * Needs no key: the API holds it. Before it starts it checks the Phase 3 budget ledger
+ * (evals/spend-ledger.jsonl) and afterwards appends its cost; any non-Haiku model in
+ * /api/llm-calls fails the run. Exits 2 if the API is not in live mode, 1 on any failed
  * assertion (all listed), 0 on success (and touches the live-smoke marker).
  */
 import { mkdir, writeFile } from "node:fs/promises";
@@ -25,6 +27,7 @@ import {
   RecommendationView,
 } from "@pharos/shared";
 import { z } from "zod";
+import { appendSpend, assertBudget, assertHaikuOnly } from "../lib/budget.js";
 
 const REPO_ROOT = fileURLToPath(new URL("../..", import.meta.url));
 
@@ -36,8 +39,10 @@ export const EXPECTED_OPTION_ID = "MTMLA-kestrel";
 /** Section 6 targets (ms). */
 export const TARGET_EMAIL_MS = 20_000;
 export const TARGET_ASK_MS = 45_000;
-/** A run costing more than this fails (and writes no marker). */
-export const SPEND_CAP_USD = 0.25;
+/** A run costing more than this fails (and writes no marker). Per run; not the $3 phase budget. */
+export const RUN_CAP_USD = 0.25;
+/** Estimated cost of one smoke run (about $0.004 measured); checked against the ledger up front. */
+export const SMOKE_ESTIMATE_USD = 0.01;
 
 /** The two demo emails, in delivery (file-name) order, with the values DEMO_SCENARIO expects. */
 const EXPECTED_EMAILS = [
@@ -62,6 +67,8 @@ export interface SmokeOptions {
   /** Per-email wait for extraction to leave pending. Default 90 s. */
   extractionTimeoutMs?: number;
   log?: (line: string) => void;
+  /** Phase 3 spend ledger: budget check before the run, cost appended after. Omit in dry tests. */
+  ledger?: { path?: string };
 }
 
 export interface StepTiming {
@@ -202,7 +209,7 @@ export function renderMarkdown(r: SmokeReport): string {
   }
   const t = r.totals;
   out.push(
-    `| **total** | | ${t.calls} | ${t.inputTokens} | ${t.outputTokens} | | | ${sec(t.latencyMs)} | ${t.costUsd.toFixed(6)} (cap ${SPEND_CAP_USD.toFixed(2)}) |`,
+    `| **total** | | ${t.calls} | ${t.inputTokens} | ${t.outputTokens} | | | ${sec(t.latencyMs)} | ${t.costUsd.toFixed(6)} (cap ${RUN_CAP_USD.toFixed(2)}) |`,
   );
   out.push("", "## Model calls", "");
   out.push(
@@ -227,12 +234,15 @@ export async function runSmoke(opts: SmokeOptions): Promise<SmokeResult> {
   const log = opts.log ?? ((line: string) => console.log(line));
   const base = opts.baseUrl.replace(/\/+$/, "");
   const startedAt = now();
+  if (opts.ledger) assertBudget(SMOKE_ESTIMATE_USD, opts.ledger.path);
 
   const failures: string[] = [];
   const steps: StepTiming[] = [];
   let calls: CallRow[] = [];
   let llmMode: LlmMode | null = null;
   let exitCode: 0 | 1 | 2 = 0;
+  const documentIds: number[] = [];
+  let askCallIds: number[] = [];
 
   const check = (cond: boolean, message: string) => {
     if (!cond) failures.push(message);
@@ -276,6 +286,40 @@ export async function runSmoke(opts: SmokeOptions): Promise<SmokeResult> {
     }
   };
 
+  /** This run's model calls: the delivered documents' extractions plus the ask's calls. */
+  const loadCalls = async () => {
+    const all = (
+      await parsed(
+        await call("GET", "/api/llm-calls"),
+        z.object({ items: z.array(LlmCallViewSchema) }),
+        "GET /api/llm-calls",
+      )
+    ).items;
+    const ours = new Set(askCallIds);
+    const rows = all
+      .filter(
+        (c: LlmCallView) =>
+          ours.has(c.id) || (c.documentId !== null && documentIds.includes(c.documentId)),
+      )
+      .sort((a, b) => a.id - b.id)
+      .map(
+        (c): CallRow => ({
+          id: c.id,
+          purpose: c.purpose,
+          model: c.model,
+          mode: c.mode,
+          inputTokens: c.inputTokens,
+          outputTokens: c.outputTokens,
+          cacheReadTokens: c.cacheReadTokens,
+          cacheWriteTokens: c.cacheWriteTokens,
+          latencyMs: c.latencyMs,
+          costUsd: c.costUsd,
+          stopReason: c.stopReason,
+        }),
+      );
+    return { all, rows };
+  };
+
   try {
     const health = await parsed(
       await call("GET", "/api/health"),
@@ -292,7 +336,6 @@ export async function runSmoke(opts: SmokeOptions): Promise<SmokeResult> {
     check(health.status === "ok", `health status is ${health.status}, expected ok`);
 
     // 1. Deliver both demo emails; time deliver -> extraction leaves pending.
-    const documentIds: number[] = [];
     for (const [i, email] of EXPECTED_EMAILS.entries()) {
       const name = i === 0 ? "email-1" : "email-2";
       await time(name, TARGET_EMAIL_MS, async () => {
@@ -424,37 +467,14 @@ export async function runSmoke(opts: SmokeOptions): Promise<SmokeResult> {
     }
 
     // 5. This run's model calls: the two documents' extractions plus the ask's calls.
-    const all = (
-      await parsed(
-        await call("GET", "/api/llm-calls"),
-        z.object({ items: z.array(LlmCallViewSchema) }),
-        "GET /api/llm-calls",
-      )
-    ).items;
-    const ours = new Set(answer.llmCallIds);
-    const mine = all
-      .filter(
-        (c: LlmCallView) =>
-          ours.has(c.id) || (c.documentId !== null && documentIds.includes(c.documentId)),
-      )
-      .sort((a, b) => a.id - b.id);
-    calls = mine.map((c) => ({
-      id: c.id,
-      purpose: c.purpose,
-      model: c.model,
-      mode: c.mode,
-      inputTokens: c.inputTokens,
-      outputTokens: c.outputTokens,
-      cacheReadTokens: c.cacheReadTokens,
-      cacheWriteTokens: c.cacheWriteTokens,
-      latencyMs: c.latencyMs,
-      costUsd: c.costUsd,
-      stopReason: c.stopReason,
-    }));
+    askCallIds = answer.llmCallIds;
+    const loaded = await loadCalls();
+    calls = loaded.rows;
+    const all = loaded.all;
     const runCost = sum(calls.map((c) => c.costUsd));
     check(
-      runCost <= SPEND_CAP_USD,
-      `run cost $${runCost.toFixed(4)} exceeds the $${SPEND_CAP_USD.toFixed(2)} cap`,
+      runCost <= RUN_CAP_USD,
+      `run cost $${runCost.toFixed(4)} exceeds the $${RUN_CAP_USD.toFixed(2)} cap`,
     );
     check(
       calls.filter((c) => c.purpose === "extract").length >= 2,
@@ -468,10 +488,35 @@ export async function runSmoke(opts: SmokeOptions): Promise<SmokeResult> {
       answer.llmCallIds.every((id) => all.some((c) => c.id === id)),
       "some of the ask's llmCallIds are not in /api/llm-calls",
     );
+    try {
+      assertHaikuOnly(calls.map((c) => c.model));
+    } catch (err) {
+      failures.push((err as Error).message);
+    }
   } catch (err) {
     if (!(err instanceof Stop)) throw err;
     failures.push(err.message);
     exitCode = err.exitCode;
+  }
+
+  // A run that stopped early may still have spent money on the calls it made: ledger those too.
+  if (calls.length === 0 && documentIds.length > 0) {
+    try {
+      calls = (await loadCalls()).rows;
+    } catch {
+      // The API is unreachable; there is nothing more to read.
+    }
+  }
+  if (opts.ledger && calls.length > 0) {
+    appendSpend(
+      {
+        at: startedAt.toISOString(),
+        run: "smoke",
+        label: opts.label,
+        costUsd: sum(calls.map((c) => c.costUsd)),
+      },
+      opts.ledger.path,
+    );
   }
 
   const ok = failures.length === 0;
@@ -524,6 +569,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       reportsDir: resolve(REPO_ROOT, "evals", "reports"),
       markersDir:
         process.env.MARKERS_DIR?.trim() || resolve(REPO_ROOT, ".claude", "state", "markers"),
+      ledger: {},
     });
     process.exit(result.exitCode);
   } catch (err) {

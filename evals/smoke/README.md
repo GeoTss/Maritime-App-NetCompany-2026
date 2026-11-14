@@ -25,6 +25,11 @@ To compare models, restart the API with `AGENT_MODEL=claude-opus-5-5` and run ag
 `--label agent-opus`; compare the "By purpose" tables of the two reports.
 
 `/api/llm-calls` returns only the newest 200 rows, so run the smoke against a freshly restarted API.
-A run costing more than $0.25 fails and writes no marker.
+A run costing more than $0.25 (`RUN_CAP_USD`, per run) fails and writes no marker.
+
+Phase 3 budget: before the first request it checks `evals/spend-ledger.jsonl` (`assertBudget(0.01)`;
+the whole phase is capped at $3.00, see `evals/lib/`), and afterwards appends the run's cost from
+`/api/llm-calls`, also when the run stopped early after making calls. Any call whose model is not
+`claude-haiku-5-5` fails the run.
 
 `run.test.ts` is the free dry test: the same runner against the in-process app in replay mode.

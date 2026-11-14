@@ -20,17 +20,25 @@ import { AskResponse } from "@pharos/shared";
 import type { AgentConfig } from "../../apps/api/src/ai/agent.js";
 import { captureLlmCall } from "../../apps/api/src/ai/call-capture.js";
 import { createLlm, type LlmFetch } from "../../apps/api/src/ai/llm.js";
-import { costUsd, promptTokensOf } from "../../apps/api/src/ai/pricing.js";
+import { costUsd } from "../../apps/api/src/ai/pricing.js";
 import { createApp } from "../../apps/api/src/app.js";
 import { prepareAskFixture } from "../../apps/api/src/ask/demo-fixture.js";
 import { DEFAULT_RECORDINGS_DIR } from "../../apps/api/src/config.js";
 import { createDbSource } from "../../apps/api/src/read/db-source.js";
 import { FIXTURE_ANCHOR, FIXTURE_SEED } from "../../apps/api/src/read/fixtures.js";
+import {
+  appendSpend,
+  assertBudget,
+  assertHaikuOnly,
+  createSpendGuard,
+  HAIKU,
+} from "../lib/budget.js";
 import { type CompareQuestion, QUESTIONS } from "./questions.js";
 
 const REPO_ROOT = fileURLToPath(new URL("../..", import.meta.url));
 
-export const DEFAULT_MODELS = ["claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5"];
+/** Haiku 5.5 only: Phase 3 refuses every other model (`assertHaikuOnly`). */
+export const DEFAULT_MODELS = [HAIKU];
 export const MODEL_CAP_USD = 1.0;
 export const TOTAL_CAP_USD = 2.0;
 export const AGENT_EFFORT = "medium" as const;
@@ -301,6 +309,8 @@ export interface CompareOptions {
   fetch?: LlmFetch;
   modelCapUsd?: number;
   totalCapUsd?: number;
+  /** Phase 3 spend ledger: budget check before the run, cost appended after. Omit in dry tests. */
+  ledger?: { path?: string };
   now?: () => Date;
   log?: (line: string) => void;
 }
@@ -453,8 +463,41 @@ async function askOne(
   return result;
 }
 
+/**
+ * Runs the comparison. With `opts.ledger` it first checks the Phase 3 budget against the estimate
+ * and afterwards appends the cost the guard saw (also when the run throws part way).
+ */
 export async function runCompare(
   opts: CompareOptions,
+): Promise<{ report: CompareReport; reportDir: string }> {
+  const tally = { usd: 0 };
+  if (opts.ledger) {
+    assertHaikuOnly(opts.models);
+    assertBudget(
+      sum(opts.models.map((m) => estimateModelUsd(m, opts.questions.length))),
+      opts.ledger.path,
+    );
+  }
+  try {
+    return await runCompareCore(opts, tally);
+  } finally {
+    if (opts.ledger && tally.usd > 0) {
+      appendSpend(
+        {
+          at: (opts.now ?? (() => new Date()))().toISOString(),
+          run: "compare",
+          label: opts.label,
+          costUsd: tally.usd,
+        },
+        opts.ledger.path,
+      );
+    }
+  }
+}
+
+async function runCompareCore(
+  opts: CompareOptions,
+  tally: { usd: number },
 ): Promise<{ report: CompareReport; reportDir: string }> {
   const now = opts.now ?? (() => new Date());
   const log = opts.log ?? ((l: string) => console.log(l));
@@ -499,56 +542,20 @@ export async function runCompare(
     // The transport reports the model each response names, so the served model can be asserted.
     // It also sums each response's cost from its usage and, once a cap is crossed, refuses the next
     // request without touching the network, so one long ask overruns by at most one request.
-    const probe: TransportProbe = { served: [], parseErrors: [], blocked: [] };
-    let guardModelCost = 0;
-    let guardTrip: { scope: "model" | "run"; reason: string } | null = null;
-    const inner: LlmFetch = opts.fetch ?? ((url, init) => fetch(url, init));
-    const transport: LlmFetch = async (url, init) => {
-      if (guardTrip === null && guardModelCost > modelCap) {
-        guardTrip = {
-          scope: "model",
-          reason: `per-request guard: model cost $${guardModelCost.toFixed(4)} > $${modelCap.toFixed(2)}`,
-        };
-      }
-      if (guardTrip === null && guardRunCost > totalCap) {
-        guardTrip = {
-          scope: "run",
-          reason: `per-request guard: run cost $${guardRunCost.toFixed(4)} > $${totalCap.toFixed(2)}`,
-        };
-      }
-      if (guardTrip !== null) {
-        probe.blocked.push(guardTrip.reason);
-        // 400 is not retried by the SDK, so the in-flight ask fails at once.
-        return new Response(
-          JSON.stringify({
-            type: "error",
-            error: {
-              type: "invalid_request_error",
-              message: `spend cap reached: ${guardTrip.reason}`,
-            },
-          }),
-          { status: 400, headers: { "content-type": "application/json" } },
-        );
-      }
-      const res = await inner(url, init);
-      try {
-        const b = (await res.clone().json()) as {
-          model?: unknown;
-          usage?: Parameters<typeof promptTokensOf>[0];
-        } | null;
-        if (typeof b?.model === "string") probe.served.push(b.model);
-        if (b?.usage) {
-          const c = costUsd(model, b.usage, promptTokensOf(b.usage));
-          guardModelCost += c;
-          guardRunCost += c;
-        }
-      } catch (err) {
-        probe.parseErrors.push(
-          `response body unreadable at the transport: ${(err as Error).message}`,
-        );
-      }
-      return res;
-    };
+    const guard = createSpendGuard({
+      capUsd: modelCap,
+      label: "model",
+      onRequest: () =>
+        guardRunCost > totalCap
+          ? `per-request guard: run cost $${guardRunCost.toFixed(4)} > $${totalCap.toFixed(2)}`
+          : null,
+      onCost: (c) => {
+        guardRunCost += c;
+        tally.usd += c;
+      },
+    });
+    const probe: TransportProbe = guard;
+    const transport = guard.wrap(opts.fetch ?? ((url, init) => fetch(url, init)), model);
     const llm = createLlm({
       mode: "live",
       apiKey: opts.apiKey,
@@ -567,17 +574,17 @@ export async function runCompare(
     /** Records the first cap crossed (per-request guard or database cost) as this model's stop. */
     const checkCaps = () => {
       if (stoppedReason !== null) return;
-      const trip = guardTrip as { scope: "model" | "run"; reason: string } | null;
-      if (trip?.scope === "model" || modelCost > modelCap) {
+      const trip = guard.trip();
+      if (trip?.source === "own" || modelCost > modelCap) {
         stoppedReason =
-          trip?.scope === "model"
+          trip?.source === "own"
             ? `model cost cap exceeded, stopped: cap (${trip.reason})`
             : `model cost cap exceeded ($${modelCost.toFixed(4)} > $${modelCap.toFixed(2)})`;
         stops.push({ scope: "model", model, reason: stoppedReason });
-      } else if (trip?.scope === "run" || runCost > totalCap) {
+      } else if (trip?.source === "outer" || runCost > totalCap) {
         runStopped = true;
         stoppedReason =
-          trip?.scope === "run"
+          trip?.source === "outer"
             ? `run cost cap exceeded, stopped: cap (${trip.reason})`
             : `run cost cap exceeded ($${runCost.toFixed(4)} > $${totalCap.toFixed(2)})`;
         stops.push({ scope: "run", model, reason: stoppedReason });
@@ -616,9 +623,9 @@ export async function runCompare(
     }
     // A cap crossed by the last question still counts as a stop for this model.
     checkCaps();
-    if (Math.abs(guardModelCost - modelCost) > 1e-9) {
+    if (Math.abs(guard.spentUsd() - modelCost) > 1e-9) {
       guardDisagreements.push(
-        `${model}: guard summed $${guardModelCost.toFixed(6)} from response usage, the database $${modelCost.toFixed(6)}`,
+        `${model}: guard summed $${guard.spentUsd().toFixed(6)} from response usage, the database $${modelCost.toFixed(6)}`,
       );
     }
     modelReports.push({
@@ -626,7 +633,7 @@ export async function runCompare(
       estimateUsd: estimates.find((e) => e.model === model)?.usd ?? 0,
       summary: summarise(results),
       stoppedReason,
-      guardCostUsd: guardModelCost,
+      guardCostUsd: guard.spentUsd(),
       results,
     });
   }
@@ -781,6 +788,8 @@ export function parseArgs(argv: string[]): {
       .map((s) => s.trim())
       .filter(Boolean);
   const label = get("--label") ?? "default";
+  const modelsArg = get("--models");
+  if (modelsArg) assertHaikuOnly(list(modelsArg));
   if (!/^[A-Za-z0-9._-]+$/.test(label)) {
     throw new Error("--label needs a name made of letters, digits, '.', '_' or '-'");
   }
@@ -809,6 +818,7 @@ async function main() {
       questions,
       label: args.label,
       reportsDir: resolve(REPO_ROOT, "evals", "reports"),
+      ledger: {},
     });
   } finally {
     await sql.end();

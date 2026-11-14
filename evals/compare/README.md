@@ -8,8 +8,7 @@ computed**. Outcomes are release-gate and tool facts; answer quality is for huma
 ## Run
 
 ```bash
-npm run eval:compare -- [--models claude-haiku-5-5,claude-sonnet-5-5,claude-opus-5-5] \
-                        [--questions q1,q2,...] [--label name]
+npm run eval:compare -- [--models claude-haiku-5-5] [--questions q1,q2,...] [--label name]
 ```
 
 Needs `ANTHROPIC_API_KEY` in `.env` (loaded by `tsx --env-file=.env`; never printed) and Postgres up
@@ -22,7 +21,16 @@ the CLI and the test must not run at the same time; seed 20261114, anchor
 anchor, `createLlm` in live mode, effort `medium`, fallbacks off, and each question through
 `POST /api/ask` on the in-process app.
 
+Phase 3: **Haiku 5.5 only.** `--models` defaults to `claude-haiku-5-5` and any other model is
+refused (`assertHaikuOnly` in `evals/lib/budget.ts`). The pricing table still prices Sonnet and
+Opus for the dry tests, but no live run may use them.
+
 ## Cost and caps
+
+Budget: before the first call the run checks `evals/spend-ledger.jsonl` against its estimate
+(`assertBudget`: ledger total + estimate must stay within the $3.00 Phase 3 cap) and afterwards
+appends the cost the guard saw, also when the run throws part way. The per-request guard is
+`createSpendGuard` in `evals/lib/budget.ts`.
 
 Before the first call it prints a per-model estimate (an assumed 4 calls of 5,000 input and 1,200
 output tokens per question, priced from `apps/api/src/ai/pricing.ts`; a rough guide, not a quote).

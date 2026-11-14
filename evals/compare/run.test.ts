@@ -1,5 +1,5 @@
 /** Dry test of the comparison runner: scripted transport, real agent, app route and database. */
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { connectTestDb, testDbLabel } from "@pharos/db/testing";
@@ -13,6 +13,7 @@ import {
   textReply,
   toolCall,
 } from "../../apps/api/src/ai/scripted-llm.js";
+import { readLedger } from "../lib/budget.js";
 import type { CompareQuestion } from "./questions.js";
 import { QUESTIONS } from "./questions.js";
 import {
@@ -110,12 +111,18 @@ describe("pure measurement logic", () => {
   });
   it("parses the CLI", () => {
     expect(parseArgs([])).toMatchObject({ questions: null, label: "default" });
-    expect(parseArgs(["--models", "a,b", "--questions", "q1,q2", "--label", "x"])).toEqual({
-      models: ["a", "b"],
+    expect(parseArgs([]).models).toEqual(["claude-haiku-5-5"]);
+    expect(
+      parseArgs(["--models", "claude-haiku-5-5", "--questions", "q1,q2", "--label", "x"]),
+    ).toEqual({
+      models: ["claude-haiku-5-5"],
       questions: ["q1", "q2"],
       label: "x",
     });
     expect(() => parseArgs(["--label", "bad label"])).toThrow();
+    expect(() => parseArgs(["--models", "claude-haiku-5-5,claude-sonnet-5-5"])).toThrow(
+      /claude-sonnet-5-5/,
+    );
   });
 });
 
@@ -262,6 +269,39 @@ describe.skipIf(!sql)("comparison runner (scripted, database)", () => {
     expect(md).toContain("refusal");
     const transcripts = JSON.parse(await readFile(join(reportDir, "transcripts.json"), "utf8"));
     expect(transcripts.length).toBe(8);
+  });
+
+  it("with a ledger: refuses a non-Haiku model, checks the budget, and ledgers the cost", async () => {
+    const ledger = join(await dir(), "ledger.jsonl");
+    const base = {
+      sql: db,
+      apiKey: "test-key",
+      questions: [QS[0] as CompareQuestion],
+      label: "ledgered",
+      fetch: fakeTransport(),
+      log,
+      ledger: { path: ledger },
+    };
+    await expect(
+      runCompare({ ...base, models: ["claude-sonnet-5-5"], reportsDir: await dir() }),
+    ).rejects.toThrow(/claude-sonnet-5-5/);
+    await writeFile(
+      ledger,
+      `${JSON.stringify({ at: "2026-11-14T10:00:00Z", run: "x", label: "x", costUsd: 3 })}\n`,
+    );
+    await expect(
+      runCompare({ ...base, models: ["claude-haiku-5-5"], reportsDir: await dir() }),
+    ).rejects.toThrow(/exceeds the \$3\.00 cap/);
+    await writeFile(ledger, "");
+    const { report } = await runCompare({
+      ...base,
+      models: ["claude-haiku-5-5"],
+      reportsDir: await dir(),
+    });
+    const rows = readLedger(ledger);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ run: "compare", label: "ledgered" });
+    expect(rows[0]?.costUsd).toBeCloseTo(report.models[0]?.guardCostUsd ?? -1, 9);
   });
 
   it("flags a served model that differs from the requested one", async () => {

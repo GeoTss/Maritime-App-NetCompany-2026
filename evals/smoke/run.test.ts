@@ -1,4 +1,4 @@
-import { access, mkdtemp, readFile, rm } from "node:fs/promises";
+import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { seedDatabase } from "@pharos/db";
@@ -16,7 +16,8 @@ import { DEMO_RECORDING_CONFIG } from "../../apps/api/src/ingest/record-demo-ext
 import { createDbSource } from "../../apps/api/src/read/db-source.js";
 import { FIXTURE_ANCHOR, FIXTURE_SEED } from "../../apps/api/src/read/fixtures.js";
 import { createErpApp } from "../../services/erp-sim/src/app.js";
-import { runSmoke, type SmokeResult, SPEND_CAP_USD } from "./run.js";
+import { BudgetError, ledgerTotal, readLedger } from "../lib/budget.js";
+import { RUN_CAP_USD, runSmoke, type SmokeResult } from "./run.js";
 
 const sql = await connectTestDb("smoke");
 
@@ -184,7 +185,7 @@ describe.skipIf(!sql)("live smoke runner (in-process, replay)", () => {
     expect(result.ok).toBe(false);
     expect(result.exitCode).toBe(1);
     expect(result.failures.join("\n")).toMatch(/run cost \$.* exceeds the \$0\.25 cap/);
-    expect(SPEND_CAP_USD).toBe(0.25);
+    expect(RUN_CAP_USD).toBe(0.25);
     expect(await readFile(join(result.reportDir, "report.md"), "utf8")).toContain("(cap 0.25)");
     await expect(access(join(dir, "markers", "live-smoke"))).rejects.toThrow();
   });
@@ -240,5 +241,70 @@ describe.skipIf(!sql)("live smoke runner (in-process, replay)", () => {
     expect(result.report.steps.map((s) => s.name)).toEqual(["email-1"]);
     await access(join(result.reportDir, "report.json"));
     await expect(access(join(dir, "markers", "live-smoke"))).rejects.toThrow();
+  });
+
+  describe("budget ledger and Haiku-only guard", () => {
+    it("refuses to start when the ledger has no room, before any request", async () => {
+      const { dir, options } = await build();
+      const ledger = join(dir, "ledger.jsonl");
+      await writeFile(
+        ledger,
+        `${JSON.stringify({ at: "2026-11-14T10:00:00Z", run: "x", label: "x", costUsd: 2.995 })}\n`,
+      );
+      const seen: string[] = [];
+      const spy = rewriting(options.fetch, () => undefined, seen);
+      await expect(runSmoke({ ...options, fetch: spy, ledger: { path: ledger } })).rejects.toThrow(
+        BudgetError,
+      );
+      expect(seen).toEqual([]);
+    });
+
+    it("appends the run's cost to the ledger", async () => {
+      const { dir, options } = await build();
+      const ledger = join(dir, "ledger.jsonl");
+      await writeFile(ledger, "");
+      const result = await runSmoke({ ...options, ledger: { path: ledger } });
+      expect(result.failures).toEqual([]);
+      const rows = readLedger(ledger);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ run: "smoke", label: "dryrun" });
+      expect(rows[0]?.costUsd).toBeCloseTo(result.report.totals.costUsd, 9);
+    });
+
+    it("fails the run when a call was served by another model", async () => {
+      const { dir, options } = await build();
+      const ledger = join(dir, "ledger.jsonl");
+      await writeFile(ledger, "");
+      const other = rewriting(options.fetch, (path, body) => {
+        if (path !== "/api/llm-calls") return undefined;
+        const b = body as { items: { model: string }[] };
+        for (const c of b.items) c.model = "claude-sonnet-5-5";
+        return b;
+      });
+      const result = await runSmoke({ ...options, fetch: other, ledger: { path: ledger } });
+      expect(result.ok).toBe(false);
+      expect(result.failures.join("\n")).toMatch(
+        /only claude-haiku-5-5 is allowed.*claude-sonnet-5-5/,
+      );
+      await expect(access(join(dir, "markers", "live-smoke"))).rejects.toThrow();
+      expect(ledgerTotal(ledger)).toBeGreaterThan(0);
+    });
+
+    it("ledgers the calls made by a run that stopped early", async () => {
+      const { dir, options } = await build();
+      const ledger = join(dir, "ledger.jsonl");
+      await writeFile(ledger, "");
+      const reviewing = rewriting(options.fetch, (path, body) =>
+        /^\/api\/inbox\/\d+$/.test(path) &&
+        (body as { extractionStatus: string }).extractionStatus !== "pending"
+          ? { ...(body as object), extractionStatus: "needs_review", checkResults: [] }
+          : undefined,
+      );
+      const result = await runSmoke({ ...options, fetch: reviewing, ledger: { path: ledger } });
+      expect(result.exitCode).toBe(1);
+      expect(result.report.calls.length).toBeGreaterThan(0);
+      expect(readLedger(ledger)).toHaveLength(1);
+      expect(ledgerTotal(ledger)).toBeGreaterThan(0);
+    });
   });
 });
