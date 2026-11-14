@@ -4,9 +4,9 @@
  * next port call.
  */
 import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
-import { loadWorld } from "@pharos/db";
+import { fobProjectionInput, loadWorld, voyageState } from "@pharos/db";
 import { DOMAIN_CODE_VERSION, projectFuelOnBoard } from "@pharos/domain";
-import { type Fact, type FobProjectionInput, FUEL_GRADES, type ToolResult } from "@pharos/shared";
+import { type Fact, FUEL_GRADES, type ToolResult } from "@pharos/shared";
 import { z } from "zod";
 import {
   calcFact,
@@ -14,10 +14,7 @@ import {
   dbFact,
   findVessel,
   json,
-  latestNoonReport,
-  remainingLegs,
   runTool,
-  SAFETY_MARGIN_DAYS,
   type ToolContext,
 } from "./common.js";
 
@@ -38,7 +35,6 @@ export function getVesselStatus(ctx: ToolContext, input: VesselStatusInput): Pro
   return runTool(ctx, TOOL, input, async () => {
     const world = await loadWorld(ctx.sql);
     const vessel = findVessel(world, input.vessel);
-    const report = latestNoonReport(world, vessel);
     const facts: Fact[] = [
       dbFact(
         TOOL,
@@ -54,6 +50,21 @@ export function getVesselStatus(ctx: ToolContext, input: VesselStatusInput): Pro
         vessel.imo,
         null,
       ),
+    ];
+    const voyage = currentVoyage(world, vessel);
+    if (!voyage) {
+      return {
+        facts,
+        data: {
+          vessel: { name: vessel.name, imo: vessel.imo },
+          voyage: null,
+          message: `${vessel.name} has no current voyage.`,
+        },
+      };
+    }
+    // The latest noon report and the legs still to sail, as the planner sees them.
+    const { report, remainingLegs } = voyageState(world, voyage.id);
+    facts.push(
       ...FUEL_GRADES.map((g) =>
         dbFact(
           TOOL,
@@ -63,12 +74,6 @@ export function getVesselStatus(ctx: ToolContext, input: VesselStatusInput): Pro
           "mt",
         ),
       ),
-    ];
-    const voyage = currentVoyage(world, vessel);
-    if (!voyage) {
-      return { facts, data: { vessel: { name: vessel.name, imo: vessel.imo }, voyage: null } };
-    }
-    facts.push(
       dbFact(
         TOOL,
         { table: "voyages", rowId: voyage.id, field: "voyageNo" },
@@ -78,13 +83,7 @@ export function getVesselStatus(ctx: ToolContext, input: VesselStatusInput): Pro
       ),
     );
 
-    const fobInput: FobProjectionInput = {
-      robMt: report.robMt,
-      legs: remainingLegs(world, vessel, voyage, report.ts),
-      speedKn: voyage.plannedSpeedKn,
-      curve: vessel.consumptionCurve,
-      safetyMarginDays: SAFETY_MARGIN_DAYS,
-    };
+    const fobInput = fobProjectionInput(world, voyage.id, remainingLegs);
     const fob = projectFuelOnBoard(fobInput);
     const [calc] = await ctx.sql<{ id: number }[]>`
       insert into calculations (kind, inputs, outputs, code_version, voyage_id, weather_snapshot_id, created_at)
@@ -107,7 +106,7 @@ export function getVesselStatus(ctx: ToolContext, input: VesselStatusInput): Pro
           TOOL,
           ref,
           `safetyMarginMt.${g}`,
-          `${g} safety margin (${SAFETY_MARGIN_DAYS} days)`,
+          `${g} safety margin to keep on arrival`,
           fob.safetyMarginMt[g],
           "mt",
         ),

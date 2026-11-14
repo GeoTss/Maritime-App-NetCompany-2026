@@ -7,9 +7,7 @@
  * because tool results are part of the next model request and so of its replay key.
  */
 import type { Sql, World } from "@pharos/db";
-import { DEMO_SCENARIO } from "@pharos/db";
-import { legsForRoute, remainingFobLegs, sailedNmAt, type VoyagePath } from "@pharos/domain";
-import type { Fact, FactId, FobLeg, Id, ToolResult, Vessel, Voyage } from "@pharos/shared";
+import type { Fact, FactId, Id, ToolResult, Vessel, Voyage } from "@pharos/shared";
 import { resolveVessel } from "../../ingest/resolve.js";
 
 export interface ToolCallLog {
@@ -128,9 +126,9 @@ export function runTool(
 /** jsonb parameter, sent as JSON text and cast with `::jsonb` at the call site. */
 export const json = (value: unknown): string => JSON.stringify(value);
 
-/** A fleet vessel from free text: a 7-digit IMO anywhere in it, otherwise the name. */
+/** A fleet vessel from free text: a standalone 7-digit IMO in it, otherwise the name. */
 export function findVessel(world: World, text: string): Vessel {
-  const imo = text.match(/\d{7}/)?.[0] ?? null;
+  const imo = text.match(/(?<!\d)\d{7}(?!\d)/)?.[0] ?? null;
   const { vessel, detail } = resolveVessel(world, imo ? { name: null, imo } : { name: text, imo });
   if (!vessel) throw new Error(detail ?? `No fleet vessel matches "${text}".`);
   return vessel;
@@ -140,33 +138,3 @@ export function findVessel(world: World, text: string): Vessel {
 export function currentVoyage(world: World, vessel: Vessel): Voyage | null {
   return world.voyages.find((v) => v.vesselId === vessel.id && v.status !== "completed") ?? null;
 }
-
-/** The vessel's latest noon report. */
-export function latestNoonReport(world: World, vessel: Vessel) {
-  const report = world.noonReports
-    .filter((r) => r.vesselId === vessel.id)
-    .sort((a, b) => b.ts.getTime() - a.ts.getTime())[0];
-  if (!report) throw new Error(`${vessel.name} has no noon report.`);
-  return report;
-}
-
-/** Legs still to sail at `at` (the same rule the seed uses to place the vessel). */
-export function remainingLegs(world: World, vessel: Vessel, voyage: Voyage, at: Date): FobLeg[] {
-  const port = (id: number) => {
-    const p = world.ports.find((x) => x.id === id);
-    if (!p) throw new Error(`world has no port ${id}`);
-    return p;
-  };
-  const path: VoyagePath = {
-    voyage,
-    legs: legsForRoute(voyage.plannedRoute, world.routeLegs),
-    origin: port(voyage.originPortId),
-    destination: port(voyage.destinationPortId),
-    curve: vessel.consumptionCurve,
-    departAt: voyage.departedAt ?? world.meta.anchor,
-  };
-  return remainingFobLegs(path, sailedNmAt(path, at));
-}
-
-/** Days of consumption the vessel must still have on arrival (the planner uses the same margin). */
-export const SAFETY_MARGIN_DAYS = DEMO_SCENARIO.safetyMarginDays;

@@ -108,6 +108,18 @@ describe.skipIf(!sql)("get_vessel_status (Postgres)", () => {
     for (const f of result.facts) expect(FactId.safeParse(f.id).success).toBe(true);
   });
 
+  it("reads an IMO only as a standalone 7-digit number", async () => {
+    // Eight digits are not an IMO, so the text is taken as a name.
+    await expect(getVesselStatus(ctx(), { vessel: `${DEMO_SCENARIO.vesselImo}1` })).rejects.toThrow(
+      /No fleet vessel is named/,
+    );
+  });
+
+  it("fact labels carry no numbers (an uncited number in a label would reach the operator)", async () => {
+    const result = await getVesselStatus(ctx(), { vessel: "Aegean Pioneer" });
+    for (const f of result.facts) expect(f.label).not.toMatch(/\d/);
+  });
+
   it("fails with a reason for an unknown vessel and logs the failed call", async () => {
     const c = ctx();
     await expect(getVesselStatus(c, { vessel: "MV Nonexistent" })).rejects.toThrow(

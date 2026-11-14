@@ -288,6 +288,55 @@ describe.skipIf(!sql)("runAgent (Postgres)", () => {
     expect(calls).toHaveLength(1);
   });
 
+  it("a recommendation made before the ask fails is linked to the ask's message", async () => {
+    const { deps } = scriptedDeps([
+      toolCall(1, "plan_bunkering", { vessel: "Aegean Pioneer" }),
+      (req: ScriptedRequest) => {
+        const plan = lastToolResult(req) as { facts: Fact[]; data: { calculationId: number } };
+        const best = plan.facts.find((f) => f.id.endsWith("_bestOptionId"));
+        return toolCall(2, "propose_action", {
+          type: "purchase_order",
+          calculationId: plan.data.calculationId,
+          optionId: best?.value,
+          factRefs: [best?.id],
+          rationale: "Lowest total delivered cost.",
+        });
+      },
+      scriptedMessage(3, [], "refusal"),
+    ]);
+    await expect(runAgent(deps, DEMO_QUESTION)).rejects.toBeInstanceOf(AgentError);
+    const [assistant] = await db<{ id: number; content: { error: string } }[]>`
+      select id, content from messages where role = 'assistant' order by id desc limit 1`;
+    expect(assistant?.content.error).toMatch(/refusal/);
+    const recs = await db<{ status: string; message_id: number | null }[]>`
+      select status, message_id from recommendations`;
+    expect(recs).toEqual([{ status: "pending", message_id: assistant?.id }]);
+  });
+
+  it("a recommendation made in a withheld ask is linked to the ask's message", async () => {
+    const { deps } = scriptedDeps([
+      toolCall(1, "plan_bunkering", { vessel: "Aegean Pioneer" }),
+      (req: ScriptedRequest) => {
+        const plan = lastToolResult(req) as { facts: Fact[]; data: { calculationId: number } };
+        const best = plan.facts.find((f) => f.id.endsWith("_bestOptionId"));
+        return toolCall(2, "propose_action", {
+          type: "purchase_order",
+          calculationId: plan.data.calculationId,
+          optionId: best?.value,
+          factRefs: [best?.id],
+          rationale: "Lowest total delivered cost.",
+        });
+      },
+      textReply(3, "Kestrel saves about 8,000 dollars."),
+      textReply(4, "Kestrel saves eight thousand dollars."),
+    ]);
+    const res = await runAgent(deps, DEMO_QUESTION);
+    expect(res.answer).toBeNull();
+    expect(res.gate.ungroundedNumbers).toEqual(["eight thousand"]);
+    const recs = await db<{ message_id: number | null }[]>`select message_id from recommendations`;
+    expect(recs).toEqual([{ message_id: res.messageId }]);
+  });
+
   it("a truncated answer fails the ask with AgentError", async () => {
     const { deps } = scriptedDeps([
       scriptedMessage(1, [{ type: "text", text: "Bunk" }], "max_tokens"),

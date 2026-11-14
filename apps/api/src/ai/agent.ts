@@ -128,10 +128,11 @@ function answerOf(final: Message): string {
 export function repairMessage(ungrounded: string[]): string {
   const list = ungrounded.map((n) => `"${n}"`).join(", ");
   return (
-    `Your answer was withheld because these numbers are not backed by a tool fact cited right ` +
-    `after them: ${list}. Write the answer again using only numbers that are values of facts the ` +
-    "tools returned, each followed in the same sentence by its fact id in square brackets. Do not " +
-    "work out any number yourself; leave out anything no fact supports."
+    `Your answer was withheld because these numbers or citations are not backed by a tool fact: ` +
+    `${list}. Write the answer again using only numbers that are values of facts the tools ` +
+    "returned, in ASCII digits, each followed in the same sentence by its fact id in square " +
+    "brackets, and cite only fact ids the tools returned. Do not work out any number yourself; " +
+    "leave out anything no fact supports."
   );
 }
 
@@ -238,9 +239,24 @@ export async function runAgent(
   }
 
   const meta = { model: deps.config.agentModel, promptVersion: PROMPT_VERSION };
+  /** Every recommendation proposed during this ask traces back to the ask's assistant message. */
+  const linkRecommendations = async (messageId: Id) => {
+    if (ctx.recommendationIds.length === 0) return;
+    await sql`
+      update recommendations set message_id = ${messageId}
+      where id in ${sql(ctx.recommendationIds)} and message_id is null`;
+  };
+
   if (!run.ok) {
     const error = run.error instanceof Error ? run.error.message : String(run.error);
-    await insertMessage(sql, convId, "assistant", { answer: null, error, ...meta }, now());
+    const messageId = await insertMessage(
+      sql,
+      convId,
+      "assistant",
+      { answer: null, error, ...meta },
+      now(),
+    );
+    await linkRecommendations(messageId);
     deps.log?.(`[agent] conversation ${convId}: ${error}`);
     throw run.error;
   }
@@ -261,11 +277,7 @@ export async function runAgent(
     },
     now(),
   );
-  if (ctx.recommendationIds.length > 0) {
-    await sql`
-      update recommendations set message_id = ${messageId}
-      where id in ${sql(ctx.recommendationIds)} and message_id is null`;
-  }
+  await linkRecommendations(messageId);
   if (!gate.passed) {
     deps.log?.(
       `[agent] conversation ${convId}: answer withheld, ungrounded ${gate.ungroundedNumbers.join(" | ")}`,

@@ -17,6 +17,7 @@ import type {
   Currency,
   FobLeg,
   FobProjection,
+  FobProjectionInput,
   Id,
   Port,
   Supplier,
@@ -100,15 +101,20 @@ export function demoVoyageState(world: World) {
   return voyageState(world, voyage.id);
 }
 
-function projectVoyage(world: World, voyageId: Id, legs: FobLeg[]): FobProjection {
+/** Fuel-on-board projection input for a voyage over `legs`, from its latest noon report. */
+export function fobProjectionInput(world: World, voyageId: Id, legs: FobLeg[]): FobProjectionInput {
   const { vessel, voyage, report } = voyageState(world, voyageId);
-  return projectFuelOnBoard({
+  return {
     robMt: report.robMt,
     legs,
     speedKn: voyage.plannedSpeedKn,
     curve: vessel.consumptionCurve,
     safetyMarginDays: SAFETY_MARGIN_DAYS,
-  });
+  };
+}
+
+function projectVoyage(world: World, voyageId: Id, legs: FobLeg[]): FobProjection {
+  return projectFuelOnBoard(fobProjectionInput(world, voyageId, legs));
 }
 
 export function projectDemo(world: World, legs: FobLeg[]): FobProjection {

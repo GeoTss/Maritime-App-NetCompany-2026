@@ -157,7 +157,8 @@ describe.skipIf(!sql)("propose_action (Postgres)", () => {
 
   it("a feasible option that is not the best is proposed without an expected saving", async () => {
     const other = plan.options.find((o) => o.feasible && o.optionId !== plan.bestOptionId);
-    if (!other) return; // the demo plan may have no second feasible option
+    expect(other).toBeDefined();
+    if (!other) throw new Error("the demo plan has no second feasible option");
     await proposeAction(ctx, { ...valid(), optionId: other.optionId });
     const [row] = await recommendations();
     expect(row?.expected_saving_usd).toBeNull();

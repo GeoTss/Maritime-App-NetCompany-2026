@@ -21,11 +21,42 @@ const str = (id: string, value: string): Fact => ({
 describe("numericTokens", () => {
   it("reads thousands commas, decimals, a leading currency sign and a trailing percent", () => {
     expect(numericTokens("$233,851.20 and €9,000 and 12.5% and 7")).toEqual([
-      { text: "233,851.20", value: 233851.2, decimals: 2, percent: false },
-      { text: "9,000", value: 9000, decimals: 0, percent: false },
-      { text: "12.5%", value: 12.5, decimals: 1, percent: true },
-      { text: "7", value: 7, decimals: 0, percent: false },
+      { text: "233,851.20", value: 233851.2, decimals: 2, multiplier: 1, percent: false },
+      { text: "9,000", value: 9000, decimals: 0, multiplier: 1, percent: false },
+      { text: "12.5%", value: 12.5, decimals: 1, multiplier: 1, percent: true },
+      { text: "7", value: 7, decimals: 0, multiplier: 1, percent: false },
     ]);
+  });
+
+  it("reads a scale suffix as a multiplier", () => {
+    expect(numericTokens("$16k, 1.2M, 3 mn, €2bn, 8 thousand, 5 million, 2 billion")).toEqual([
+      { text: "16k", value: 16_000, decimals: 0, multiplier: 1_000, percent: false },
+      { text: "1.2M", value: 1_200_000, decimals: 1, multiplier: 1_000_000, percent: false },
+      { text: "3 mn", value: 3_000_000, decimals: 0, multiplier: 1_000_000, percent: false },
+      { text: "2bn", value: 2e9, decimals: 0, multiplier: 1e9, percent: false },
+      { text: "8 thousand", value: 8_000, decimals: 0, multiplier: 1_000, percent: false },
+      { text: "5 million", value: 5e6, decimals: 0, multiplier: 1e6, percent: false },
+      { text: "2 billion", value: 2e9, decimals: 0, multiplier: 1e9, percent: false },
+    ]);
+  });
+
+  it("does not read units that start like a suffix as one", () => {
+    expect(numericTokens("300 mt, 5 min, 10 Kestrel, 4 Marsaxlokk").map((t) => t.text)).toEqual([
+      "300",
+      "5",
+      "10",
+      "4",
+    ]);
+  });
+
+  it("ignores the markers of a numbered list at the start of lines", () => {
+    expect(numericTokens("1. Kestrel\n2. Strait Line\n3) Nordwind").map((t) => t.text)).toEqual([]);
+  });
+
+  it("keeps a line-start number that does not continue a list", () => {
+    expect(numericTokens("2. Kestrel").map((t) => t.text)).toEqual(["2"]);
+    expect(numericTokens("1. Kestrel\n3. Strait Line").map((t) => t.text)).toEqual(["3"]);
+    expect(numericTokens("Saves\n1.5 h").map((t) => t.text)).toEqual(["1.5"]);
   });
 
   it("splits a comma run that is not thousands grouping into separate numbers", () => {
@@ -143,7 +174,7 @@ describe("checkNumbers", () => {
     {
       name: "numbers inside citations are ignored",
       answer: "See [f_plan_bunkering_12_options.0.rank].",
-      facts: [],
+      facts: [calc("f_plan_bunkering_12_options.0.rank", 3)],
       passed: true,
     },
     {
@@ -181,11 +212,110 @@ describe("checkNumbers", () => {
       ungrounded: ["233,851"],
     },
     {
-      name: "a number cited with an unknown fact id fails",
+      name: "a number cited with an unknown fact id fails, and so does the citation",
       answer: "Total $233,851 [f_nope].",
       facts: [calc("f_x", 233851.2)],
       passed: false,
-      ungrounded: ["233,851"],
+      ungrounded: ["233,851", "[f_nope]"],
+    },
+    {
+      name: "a citation of an unknown fact fails even with no number before it",
+      answer: "Kestrel is [f_8000_usd] cheaper.",
+      facts: [],
+      passed: false,
+      ungrounded: ["[f_8000_usd]"],
+    },
+    {
+      name: "an unknown id next to a known one in a citation fails",
+      answer: "Total $233,851 [f_x, f_bogus].",
+      facts: [calc("f_x", 233851.2)],
+      passed: false,
+      ungrounded: ["[f_bogus]"],
+    },
+    {
+      name: "a citation of a known fact with no number passes",
+      answer: "Best is Kestrel at Marsaxlokk [f_best].",
+      facts: [str("f_best", "MTMLA-kestrel")],
+      passed: true,
+    },
+    {
+      name: "a scaled number within its displayed precision passes",
+      answer: "Saves $16k [f_saving].",
+      facts: [calc("f_saving", 16_230)],
+      passed: true,
+    },
+    {
+      name: "a scaled number cited with an unrelated fact fails",
+      answer: "Costs $6k [f_delay] more.",
+      facts: [calc("f_delay", 11.12)],
+      passed: false,
+      ungrounded: ["6k"],
+    },
+    {
+      name: "a scaled number is not matched by its bare digits",
+      answer: "Saves $16k [f_x].",
+      facts: [calc("f_x", 16)],
+      passed: false,
+      ungrounded: ["16k"],
+    },
+    {
+      name: "a scaled number outside its displayed precision fails",
+      answer: "Saves 1.2M [f_x] and 8 thousand [f_y].",
+      facts: [calc("f_x", 1_260_000), calc("f_y", 8_400)],
+      passed: false,
+      ungrounded: ["1.2M"],
+    },
+    {
+      name: "a scaled number never matches a string fact",
+      answer: "ETA 15k [f_eta]",
+      facts: [str("f_eta", "2026-11-15T10:30:00.000Z")],
+      passed: false,
+      ungrounded: ["15k"],
+    },
+    {
+      name: "non-ASCII digits are always ungrounded",
+      answer: "Saves \u0668\u0660\u0660\u0660 dollars and \uff18\uff10 more [f_x].",
+      facts: [calc("f_x", 8000), calc("f_y", 80)],
+      passed: false,
+      ungrounded: ["\u0668\u0660\u0660\u0660", "\uff18\uff10"],
+    },
+    {
+      name: "a spelled-out number with a scale word fails",
+      answer: "Kestrel is about eight thousand dollars cheaper.",
+      facts: [],
+      passed: false,
+      ungrounded: ["eight thousand"],
+    },
+    {
+      name: "spelled-out numbers next to a unit, currency or percent fail",
+      answer:
+        "It is five percent dearer, needs twelve tonnes, takes three hours, waits twenty-five days, " +
+        "costs $ nine more, adds a dozen mt and two hundred tonnes, and is 4 % [f_p] or seven % off.",
+      facts: [calc("f_p", 4)],
+      passed: false,
+      ungrounded: [
+        "five",
+        "twelve",
+        "three",
+        "twenty-five",
+        "nine",
+        "dozen",
+        "two hundred",
+        "seven",
+      ],
+    },
+    {
+      name: "bare spelled-out counts pass",
+      answer: "I compared two options from three suppliers; one is feasible.",
+      facts: [],
+      passed: true,
+    },
+    {
+      name: "list markers of a numbered list pass; a broken sequence does not",
+      answer: "1. Kestrel at Marsaxlokk\n2. Strait Line at Gibraltar\n4. Nordwind",
+      facts: [],
+      passed: false,
+      ungrounded: ["4"],
     },
     {
       name: "several numbers before one multi-id citation pass",

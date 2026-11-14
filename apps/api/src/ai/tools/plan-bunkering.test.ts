@@ -94,6 +94,7 @@ describe.skipIf(!sql)("plan_bunkering (Postgres)", () => {
     for (const f of result.facts) {
       expect(() => Fact.parse(f)).not.toThrow();
       expect(FactId.safeParse(f.id).success).toBe(true);
+      expect(f.label).not.toMatch(/\d/);
     }
     plan.options.forEach((o, i) => {
       for (const field of [

@@ -7,7 +7,9 @@ export {
   buildBunkerPlanInput,
   buildDemoBunkerPlanInput,
   DEFAULT_BUNKERING_HOURS,
+  fobProjectionInput,
   optionIdFor,
+  voyageState,
 } from "./seed/demo-plan.js";
 export { DEMO_SCENARIO } from "./seed/scenario.js";
 export { type SeedOptions, seedDatabase } from "./seed/seed.js";
