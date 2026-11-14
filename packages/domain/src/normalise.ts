@@ -88,7 +88,36 @@ export function normaliseGrade(raw: string | null): FuelGrade | null {
 
 const collapse = (x: string): string => x.replace(/\s+/g, " ").trim().toLowerCase();
 
-/** Evidence must appear in the source, and the as-written value must appear in the evidence. */
+const isAlnum = (c: string | undefined): boolean => c !== undefined && /[\p{L}\p{N}]/u.test(c);
+const isDigit = (c: string | undefined): boolean => c !== undefined && /\d/.test(c);
+
+/**
+ * True when `needle` occurs in `haystack` on a token boundary. The boundary rule applies at an
+ * alphanumeric edge of the needle ("30" is not in "300"; "$738" is in "US$738"). A match that
+ * continues a number is also rejected: followed by [.,]digit or preceded by digit[.,]
+ * ("738" is not in "738.50", "500" is not in "2,500"). Every occurrence is tried.
+ */
+function containsToken(haystack: string, needle: string): boolean {
+  let from = 0;
+  for (;;) {
+    const at = haystack.indexOf(needle, from);
+    if (at === -1) return false;
+    from = at + 1;
+    const end = at + needle.length;
+    const before = haystack[at - 1];
+    const after = haystack[end];
+    if (isAlnum(needle[0]) && isAlnum(before)) continue;
+    if (isAlnum(needle[needle.length - 1]) && isAlnum(after)) continue;
+    if (/[.,]/.test(after ?? "") && isDigit(haystack[end + 1])) continue;
+    if (/[.,]/.test(before ?? "") && isDigit(haystack[at - 2])) continue;
+    return true;
+  }
+}
+
+/**
+ * Evidence must appear in the source, and the as-written value must appear in the evidence on
+ * token boundaries (case- and whitespace-folded).
+ */
 export function evidenceSupports(
   source: string,
   evidence: string | null,
@@ -99,6 +128,7 @@ export function evidenceSupports(
   if (ev === "") return false;
   if (!collapse(source).includes(ev)) return false;
   if (asWritten === null) return true;
-  if (collapse(asWritten) === "") return false;
-  return ev.includes(collapse(asWritten));
+  const value = collapse(asWritten);
+  if (value === "") return false;
+  return containsToken(ev, value);
 }

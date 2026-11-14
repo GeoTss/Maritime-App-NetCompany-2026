@@ -197,3 +197,36 @@ describe("evidenceSupports", () => {
     expect(evidenceSupports(source, "Basis Rotterdam.", null)).toBe(a);
   });
 });
+
+describe("evidenceSupports token boundaries", () => {
+  const src = "Quantity: 300 mt";
+  const rows: [string, string, string, boolean][] = [
+    ["Quantity: 300 mt", "30", "partial number", false],
+    ["Quantity: 300 mt", "300", "whole number", true],
+    ["Quantity: 300 mt", "300 mt", "number and unit", true],
+    ["Quantity: 300 mt", "Quantity", "leading word", true],
+    ["Quantity: 300 mt", "uantity", "inside a word", false],
+    ["Quantity: 300 mt", "m", "single letter inside word", false],
+    ["Price US$738 pmt", "$738", "symbol edge is not alphanumeric", true],
+    ["Price US$738 pmt", "738", "digit after symbol", true],
+    ["Price USD 738.50 pmt", "738", "decimal tail", false],
+    ["Price USD 738.50 pmt", "738.50", "full decimal", true],
+    ["Qty 2,500 mt", "500", "thousands group tail", false],
+    ["Qty 2,500 mt", "2,500", "full grouped number", true],
+    ["Qty 2,500 mt", "2", "head of grouped number", false],
+    ["Qty 2.500 mt", "500", "dot-group tail", false],
+    ["Sentence ends 300. Next", "300", "full stop then space is fine", true],
+    ["Qty 300, then 30 mt", "30", "later standalone occurrence", true],
+    ["Qty 300 and 30.", "30", "later occurrence at end", true],
+    ["Qty 300 mt", "300 MT", "case folded", true],
+    ["Qty 300\n  mt", "300 mt", "whitespace folded", true],
+    ["Rate USD612.50", "612.50", "letters glued before a digit edge", false],
+    ["Rate USD612.50", "USD", "letters before digit", false],
+  ];
+  it.each(rows)("%s | %s (%s) -> %s", (evidence, asWritten, _why, expected) => {
+    expect(evidenceSupports(evidence, evidence, asWritten)).toBe(expected);
+  });
+  it("still requires the evidence to be in the source", () => {
+    expect(evidenceSupports("other text", src, "300")).toBe(false);
+  });
+});
