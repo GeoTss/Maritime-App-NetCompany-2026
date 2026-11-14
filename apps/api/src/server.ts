@@ -7,7 +7,7 @@ import { createApp } from "./app.js";
 import { ConfigError, loadConfig } from "./config.js";
 import { createErpClient } from "./executor/erp-client.js";
 import { DEMO_INBOX_DIR, type InboxDeps } from "./inbox/routes.js";
-import { processDocument } from "./ingest/workflow.js";
+import { failInterruptedExtractions, processDocument } from "./ingest/workflow.js";
 import { createDbSource } from "./read/db-source.js";
 
 async function main() {
@@ -61,9 +61,14 @@ async function main() {
     llmCalls: { sql },
   });
 
-  // Finish extractions a crash or restart interrupted (processDocument skips any no longer pending).
+  // An extraction claimed but still pending was cut off mid-way by a crash or restart: mark it
+  // failed so it waits in the review queue for a retry, instead of being silently re-run.
+  const interrupted = await failInterruptedExtractions(sql);
+  if (interrupted > 0) console.log(`[api] marked ${interrupted} interrupted extraction(s) failed`);
+  // Extractions stored but never started are processed now (processDocument claims each one).
   const pending = await sql<{ document_id: number }[]>`
-    select distinct document_id from extractions where status = 'pending' order by document_id`;
+    select distinct document_id from extractions
+    where status = 'pending' and claimed_at is null order by document_id`;
   void (async () => {
     for (const { document_id } of pending) await processDocument(inbox, document_id);
   })();

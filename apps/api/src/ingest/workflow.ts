@@ -1,15 +1,16 @@
 /**
  * The ingestion workflow: fixed steps, no agent.
  *
- *   ingestRaw:       parse -> dedupe by sha256 -> insert `documents` + a `pending` extraction
- *   processDocument: extract (LLM 1) -> record the call(s) -> checks in code (`evaluate.ts`)
- *                    -> quote or review
+ *   ingestRaw:       parse (body + attachment text) -> dedupe by sha256
+ *                    -> insert `documents` + a `pending` extraction
+ *   processDocument: claim the latest extraction -> extract (LLM 1) -> record the call(s)
+ *                    -> checks in code (`evaluate.ts`) -> quote or review
  *
  * The model only transcribes. Every stored number is parsed from the as-written text by
  * `packages/domain`, and every value must be backed by evidence found verbatim in the email.
  */
 import { loadWorld, type Sql } from "@pharos/db";
-import type { CheckResult, ExtractionOutput, Id, IsoDate } from "@pharos/shared";
+import type { ExtractionOutput, Id, IsoDate } from "@pharos/shared";
 import { type ExtractInput, ExtractionError, type Extractor } from "../ai/extract.js";
 import { type CallMetrics, recordLlmCall } from "../ai/llm.js";
 import { evaluateExtraction } from "./evaluate.js";
@@ -45,7 +46,9 @@ const dayStart = (day: IsoDate | null): string | null =>
 
 /**
  * Stores a new email and its `pending` extraction, or returns the existing document for the same
- * bytes (`duplicate: true`). The caller starts `processDocument` for a new document.
+ * bytes (`duplicate: true`). The stored text is the body followed by each readable attachment's
+ * section; an attachment that yielded no text sets `has_unreadable_attachment`. The caller starts
+ * `processDocument` for a new document.
  */
 export async function ingestRaw(
   deps: IngestDeps,
@@ -61,9 +64,11 @@ export async function ingestRaw(
   const now = clock(deps);
   return sql.begin(async (tx) => {
     const inserted = await tx<{ id: number }[]>`
-      insert into documents (kind, source, sha256, sender, subject, filename, body_text, received_at)
+      insert into documents (kind, source, sha256, sender, subject, filename, body_text, received_at,
+                             has_unreadable_attachment)
       values ('email', ${source}, ${email.sha256}, ${email.sender}, ${email.subject}, null,
-              ${email.bodyText}, ${iso(email.receivedAt ?? now)}::timestamptz)
+              ${email.bodyText}, ${iso(email.receivedAt ?? now)}::timestamptz,
+              ${email.hasUnreadableAttachment})
       on conflict (sha256) do nothing
       returning id`;
     const doc = inserted[0];
@@ -83,9 +88,25 @@ export async function ingestRaw(
   });
 }
 
-interface PendingRow {
+/** The error stored on an extraction the API was processing when it stopped. */
+export const INTERRUPTED_ERROR = "interrupted: the API restarted during processing";
+
+/**
+ * Boot sweep: a `pending` extraction that was claimed can only still be pending if the process
+ * that claimed it stopped mid-way, so it is marked `failed` (it then waits in the review queue
+ * for a retry). Unclaimed pending extractions are left for `processDocument`. Assumes one API
+ * process: run it before this process starts any processing. Returns how many rows it failed.
+ */
+export async function failInterruptedExtractions(sql: Sql): Promise<number> {
+  const failed = await sql`
+    update extractions set status = 'failed', error = ${INTERRUPTED_ERROR}
+    where status = 'pending' and claimed_at is not null
+    returning id`;
+  return failed.length;
+}
+
+interface LatestRow {
   extraction_id: number;
-  status: string;
   sender: string | null;
   subject: string | null;
   body_text: string;
@@ -95,21 +116,37 @@ interface PendingRow {
 }
 
 /**
- * Runs extraction and checks for a document whose latest extraction is `pending`; a no-op
- * otherwise. Never rejects: any error leaves the extraction `failed` with its message.
+ * Claims the document's latest extraction: one atomic update, so of any number of concurrent
+ * callers exactly one gets the row. Undefined when it is not pending or someone else claimed it.
+ */
+async function claimLatestExtraction(sql: Sql, documentId: Id): Promise<LatestRow | undefined> {
+  const [latest] = await sql<LatestRow[]>`
+    select e.id as extraction_id, d.sender, d.subject, d.body_text, d.received_at,
+           d.has_unreadable_attachment
+    from documents d join extractions e on e.document_id = d.id
+    where d.id = ${documentId}
+    order by e.id desc limit 1`;
+  if (!latest) return undefined;
+  const claimed = await sql`
+    update extractions set claimed_at = now()
+    where id = ${latest.extraction_id} and status = 'pending' and claimed_at is null
+    returning id`;
+  return claimed.length === 1 ? latest : undefined;
+}
+
+/**
+ * Runs extraction and checks for the document's latest extraction once this call has claimed
+ * it; a no-op when that extraction is not pending or is already claimed (so the extractor is
+ * never called twice for one row). Never rejects: an error after the claim leaves the
+ * extraction `failed` with the message in `error`.
  */
 export async function processDocument(deps: IngestDeps, documentId: Id): Promise<void> {
   const { sql } = deps;
   let extractionId: number | undefined;
   let rawOutput: ExtractionOutput | null = null;
   try {
-    const [row] = await sql<PendingRow[]>`
-      select e.id as extraction_id, e.status, d.sender, d.subject, d.body_text, d.received_at,
-             d.has_unreadable_attachment
-      from documents d join extractions e on e.document_id = d.id
-      where d.id = ${documentId}
-      order by e.id desc limit 1`;
-    if (row?.status !== "pending") return;
+    const row = await claimLatestExtraction(sql, documentId);
+    if (!row) return;
     extractionId = row.extraction_id;
     const doc: ExtractInput = { sender: row.sender, subject: row.subject, bodyText: row.body_text };
 
@@ -157,16 +194,17 @@ export async function processDocument(deps: IngestDeps, documentId: Id): Promise
       return;
     }
     deps.log?.(`[ingest] document ${documentId}: extraction failed: ${message}`);
-    const failed: CheckResult[] = [{ check: "processing", passed: false, detail: message }];
     try {
+      // check_results is left as inserted: nothing was stored, and the reason is in `error`.
       await sql`
         update extractions set
           status = 'failed',
+          error = ${message},
           kind = ${rawOutput?.kind ?? null},
-          raw_output = ${rawOutput === null ? null : json(rawOutput)}::jsonb,
-          check_results = ${json(failed)}::jsonb
+          raw_output = ${rawOutput === null ? null : json(rawOutput)}::jsonb
         where id = ${extractionId}`;
     } catch (writeErr) {
+      // The row stays pending and claimed: the next boot sweep marks it failed.
       deps.log?.(
         `[ingest] document ${documentId}: could not mark extraction failed: ${(writeErr as Error).message}`,
       );

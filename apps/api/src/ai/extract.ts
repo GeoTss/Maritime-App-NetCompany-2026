@@ -16,6 +16,7 @@ import { EXTRACT_QUOTE_SYSTEM, PROMPT_VERSION } from "./prompts/extract-quote.js
 export interface ExtractInput {
   subject: string | null;
   sender: string | null;
+  /** The body, then each readable attachment under a `--- attachment: <name> ---` line. */
   bodyText: string;
 }
 
@@ -72,7 +73,10 @@ export function renderEmailDocument(doc: ExtractInput): string {
   return `${OPEN}\n${escapeDelimiters(sourceText(doc))}\n${CLOSE}`;
 }
 
-/** The text the model reads (sender, subject, body), unescaped: what evidence must quote. */
+/**
+ * The text the model reads (sender, subject, body with its attachment sections), unescaped:
+ * what evidence must quote.
+ */
 export function sourceText(doc: ExtractInput): string {
   return `From: ${doc.sender ?? ""}\nSubject: ${doc.subject ?? ""}\n\n${doc.bodyText}`;
 }

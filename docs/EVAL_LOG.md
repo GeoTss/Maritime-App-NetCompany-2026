@@ -1,0 +1,63 @@
+# Eval log
+
+Results log for the Pharos benchmarks (extraction and Q&A). Procedure: the `eval-bench` project
+skill (`.claude/skills/eval-bench/SKILL.md`); strategy: `docs/MASTER_PLAN.md` §7.
+
+Prompt-change protocol (every entry follows it):
+
+1. One hypothesis per change, written here **before** the run that tests it.
+2. Bump `PROMPT_VERSION` with the change.
+3. Iterate on the **dev** split only. The held-out split runs once, in Phase 7 (`--final`).
+4. Keep a change only if dev improves beyond run-to-run noise without regressions in critical
+   fields.
+5. Log the date, the change, the dev score before → after and the cost. Live spend is also
+   ledgered in `evals/spend-ledger.jsonl`.
+
+Errors (API, truncation, refusal, replay miss) are reported separately and never counted as wrong
+answers. Ground truth is never written by a model and never edited to make a score pass.
+
+---
+
+## 2026-11-14 — `extract-quote/v2` (Phase 3 Task 7)
+
+**Change** (`apps/api/src/ai/prompts/extract-quote.ts`, v1 → v2). Three edits, one hypothesis each.
+The untrusted-data paragraph is unchanged.
+
+- **H1 — attachment sections.** v1 said attachments "may be absent" and that the body is
+  authoritative. Since Task 5 the document text carries each readable attachment after a
+  `--- attachment: <name> ---` line. v2 says those sections are part of the document and as
+  authoritative as the body (evidence may be copied from them), and that a mentioned attachment
+  with no section must never be guessed. *Expected:* PDF-attachment cases transcribe their
+  values from the section with evidence that passes `evidence_found`, rather than coming back
+  null or not_a_quote. An image-only PDF still ends `needs_review` (the code check
+  `attachment_text_found`), with no values invented for it.
+- **H2 — newest offer in a thread.** v2 adds: in a reply or forwarded chain, transcribe only the
+  supplier's most recent offer, and never a value from an older quoted offer, not even for a
+  field the newest offer leaves out. *Expected:* stale-revision thread cases store the newest
+  values or go to review. A stale value is never stored, so these cases add no unsafe
+  auto-accepts.
+- **H3 — dates as written.** v1 said the date's `asWritten` is the text "exactly as written". v2
+  adds: times included, no reformatting, no year added. *Expected:* fewer date `asWritten` spans
+  that are missing from the evidence or carry an invented year, so the date checks in
+  `packages/domain` work on the supplier's own text.
+
+**Dev score before → after:** not measured yet. The golden set (Task 9) and runner (Task 10) do
+not exist yet, so there is no v1 dev baseline. The first dev pass is Task 11, which measures v2.
+
+**Checks for this change** (demo regression only, not accuracy):
+
+- Demo extraction replays re-recorded with v2 (Haiku 5.5, effort medium, `LLM_FALLBACKS=off`):
+  **$0.001216**, 2 calls, both `end_turn`, both `kind=quote`. Kestrel: USD 738 per mt, 300 mt
+  LSMGO, barge USD 2,800 lump sum, Marsaxlokk. Strait Line: USD 712 PMT, 300 MT LSMGO, barge
+  USD 9,000 lump sum, Gibraltar. Dates null, notes null. The "PDF attached" mention with no
+  attachment section added nothing. The full replay suite passes on the new recordings, the
+  agent replays included (no agent re-record).
+- Live smoke `phase3-prompt-v2` (Haiku 5.5, report
+  `evals/reports/20261114T185117Z-smoke-phase3-prompt-v2`): **PASS, $0.003776**, 6 calls
+  (2 extract $0.001295, 4 agent $0.002481). email-1 `extracted` in 3.1 s and email-2
+  `extracted` in 5.0 s, each with 0 failed checks and its demo quote (Kestrel USD 738/mt 300 mt
+  barge 2,800; Strait Line USD 712/mt 300 mt barge 9,000). Ask 10.6 s, approve OK.
+- Phase 3 ledger after this change: $0.0050 of $3.00 spent ($2.9950 left).
+
+**Decision:** keep v2 pending the Task 11 dev pass. The demo regression is clean. H1–H3 are not
+yet tested against a golden set.

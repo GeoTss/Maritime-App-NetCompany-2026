@@ -3,6 +3,7 @@ import { DEMO_SCENARIO, generateWorld, type Sql, seedDatabase } from "@pharos/db
 import { connectTestDb, testDbLabel } from "@pharos/db/testing";
 import { parseAmount } from "@pharos/domain";
 import type { ExtractionOutput, QuoteExtraction } from "@pharos/shared";
+import { PDFDocument, StandardFonts } from "pdf-lib";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { captureLlmCall } from "../ai/call-capture.js";
 import { createLlmExtractor, ExtractionError, type Extractor } from "../ai/extract.js";
@@ -11,7 +12,13 @@ import { DEFAULT_RECORDINGS_DIR } from "../config.js";
 import { buildDemoEmails, FIXTURE_ANCHOR, FIXTURE_SEED } from "../read/fixtures.js";
 import { writtenIn } from "./evaluate.js";
 import { DEMO_RECORDING_CONFIG } from "./record-demo-extractions.js";
-import { type IngestDeps, ingestRaw, processDocument } from "./workflow.js";
+import {
+  failInterruptedExtractions,
+  INTERRUPTED_ERROR,
+  type IngestDeps,
+  ingestRaw,
+  processDocument,
+} from "./workflow.js";
 
 const INBOX = new URL("../../../../fixtures/demo-inbox/", import.meta.url);
 const kestrelRaw = new Uint8Array(await readFile(new URL("01-kestrel-marsaxlokk.eml", INBOX)));
@@ -125,6 +132,9 @@ if (!sql) {
     it.skip(`all tests skipped: Postgres unreachable for ${testDbLabel("ingest_workflow")}`, () => {});
   });
 }
+afterAll(async () => {
+  await sql?.end();
+});
 
 describe.skipIf(!sql)("ingestion workflow (Postgres)", () => {
   if (!sql) return;
@@ -135,25 +145,27 @@ describe.skipIf(!sql)("ingestion workflow (Postgres)", () => {
   beforeEach(async () => {
     await seedDatabase(db, { seed: FIXTURE_SEED, anchor: FIXTURE_ANCHOR, mode: "reset" });
   });
-  afterAll(async () => {
-    await db.end();
-  });
 
+  interface ExtractionRow {
+    id: number;
+    status: string;
+    kind: string | null;
+    model: string;
+    prompt_version: string;
+    check_results: { check: string; passed: boolean; detail: string | null }[];
+    field_evidence: Record<string, string | null>;
+    raw_output: unknown;
+    error: string | null;
+    claimed_at: string | null;
+  }
+  const extractionsOf = (documentId: number) => db<ExtractionRow[]>`
+    select id, status, kind, model, prompt_version, check_results, field_evidence, raw_output,
+           error, claimed_at
+    from extractions where document_id = ${documentId} order by id`;
   const extractionOf = async (documentId: number) => {
-    const rows = await db`
-      select id, status, kind, model, prompt_version, check_results, field_evidence, raw_output
-      from extractions where document_id = ${documentId} order by id`;
+    const rows = await extractionsOf(documentId);
     expect(rows).toHaveLength(1);
-    return rows[0] as {
-      id: number;
-      status: string;
-      kind: string | null;
-      model: string;
-      prompt_version: string;
-      check_results: { check: string; passed: boolean; detail: string | null }[];
-      field_evidence: Record<string, string | null>;
-      raw_output: unknown;
-    };
+    return rows[0] as ExtractionRow;
   };
   const failedChecks = (checks: { check: string; passed: boolean }[]) =>
     checks.filter((c) => !c.passed).map((c) => c.check);
@@ -506,10 +518,9 @@ describe.skipIf(!sql)("ingestion workflow (Postgres)", () => {
     const { documentId } = await ingestRaw(d, kestrelRaw, "upload");
     await processDocument(d, documentId);
     const ex = await extractionOf(documentId);
-    expect(ex.status).toBe("failed");
-    expect(ex.check_results).toEqual([
-      { check: "processing", passed: false, detail: "model refused (stop_reason refusal)" },
-    ]);
+    expect(ex).toMatchObject({ status: "failed", error: "model refused (stop_reason refusal)" });
+    // The message lives in the error column; check_results no longer carries a "processing" check.
+    expect(ex.check_results).toEqual([]);
     expect(await quoteCount()).toBe(0);
     expect(Number((await db`select count(*)::int as n from llm_calls`)[0]?.n)).toBe(1);
   });
@@ -577,6 +588,210 @@ describe.skipIf(!sql)("ingestion workflow (Postgres)", () => {
     await expect(processDocument(d, documentId)).resolves.toBeUndefined();
     const ex = await extractionOf(documentId);
     expect(ex.status).toBe("failed");
-    expect(ex.check_results[0]?.detail).toContain("LLM replay miss");
+    expect(ex.error).toContain("LLM replay miss");
+    expect(ex.check_results).toEqual([]);
+  });
+
+  it("two concurrent processDocument calls on one document make one extraction call and one quote", async () => {
+    const extractor = fakeExtractor(async () => {
+      // Hold the first call inside the extractor so the second one runs while it is in flight.
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      return kestrelOutput();
+    });
+    const d = deps(extractor);
+    const { documentId } = await ingestRaw(d, kestrelRaw, "upload");
+    await Promise.all([processDocument(d, documentId), processDocument(d, documentId)]);
+    expect(extractor.calls).toBe(1);
+    expect(await quoteCount()).toBe(1);
+    const ex = await extractionOf(documentId);
+    expect(ex.status).toBe("extracted");
+    expect(ex.claimed_at).not.toBeNull();
+    expect(Number((await db`select count(*)::int as n from llm_calls`)[0]?.n)).toBe(1);
+  });
+
+  it("a pending extraction another worker has claimed is left alone, without an extractor call", async () => {
+    const extractor = fakeExtractor(kestrelOutput);
+    const d = deps(extractor);
+    const { documentId } = await ingestRaw(d, kestrelRaw, "upload");
+    await db`update extractions set claimed_at = now() where document_id = ${documentId}`;
+    await processDocument(d, documentId);
+    expect(extractor.calls).toBe(0);
+    expect((await extractionOf(documentId)).status).toBe("pending");
+    expect(await quoteCount()).toBe(0);
+  });
+
+  it("works on the document's latest extraction: a retry row is processed, the failed one is kept", async () => {
+    const failing: Extractor = {
+      model: "claude-haiku-5-5",
+      promptVersion: "extract-quote/v1",
+      async extract() {
+        throw new ExtractionError("truncated (stop_reason max_tokens)", [METRICS]);
+      },
+    };
+    const { documentId } = await ingestRaw(deps(failing), kestrelRaw, "upload");
+    await processDocument(deps(failing), documentId);
+    // What a retry does (Task 8): a new pending extraction for the same document.
+    await db`
+      insert into extractions
+        (document_id, kind, raw_output, field_evidence, check_results, status, model, prompt_version, created_at)
+      values (${documentId}, null, null, '{}'::jsonb, '[]'::jsonb, 'pending', 'claude-haiku-5-5',
+              'extract-quote/v1', now())`;
+    const extractor = fakeExtractor(kestrelOutput);
+    await processDocument(deps(extractor), documentId);
+    expect(extractor.calls).toBe(1);
+    const [first, latest] = await extractionsOf(documentId);
+    expect(first).toMatchObject({ status: "failed", error: "truncated (stop_reason max_tokens)" });
+    expect(latest).toMatchObject({ status: "extracted", error: null });
+    expect(await quoteCount()).toBe(1);
+    // The latest is no longer pending, so another call does nothing.
+    await processDocument(deps(extractor), documentId);
+    expect(extractor.calls).toBe(1);
+  });
+
+  it("boot sweep: a claimed pending extraction (interrupted) becomes failed; unclaimed and finished rows are untouched", async () => {
+    const extractor = fakeExtractor(kestrelOutput);
+    const d = deps(extractor);
+    const done = await ingestRaw(d, kestrelRaw, "upload");
+    await processDocument(d, done.documentId);
+    const interrupted = await ingestRaw(
+      d,
+      kestrelWith("Port: Marsaxlokk", "Port: Valletta"),
+      "upload",
+    );
+    await db`update extractions set claimed_at = now() where document_id = ${interrupted.documentId}`;
+    const waiting = await ingestRaw(
+      d,
+      kestrelWith("Quantity: 300 mt", "Quantity: 310 mt"),
+      "upload",
+    );
+
+    expect(await failInterruptedExtractions(db)).toBe(1);
+
+    expect(await extractionOf(interrupted.documentId)).toMatchObject({
+      status: "failed",
+      error: INTERRUPTED_ERROR,
+    });
+    expect(INTERRUPTED_ERROR).toBe("interrupted: the API restarted during processing");
+    expect(await extractionOf(waiting.documentId)).toMatchObject({
+      status: "pending",
+      claimed_at: null,
+      error: null,
+    });
+    expect(await extractionOf(done.documentId)).toMatchObject({ status: "extracted", error: null });
+    // Run again: nothing left to sweep.
+    expect(await failInterruptedExtractions(db)).toBe(0);
+  });
+});
+
+describe.skipIf(!sql)("ingestion workflow: attachments (Postgres)", () => {
+  if (!sql) return;
+  const db: Sql = sql;
+  const NOW = new Date("2026-11-14T08:05:00.000Z");
+
+  beforeEach(async () => {
+    await seedDatabase(db, { seed: FIXTURE_SEED, anchor: FIXTURE_ANCHOR, mode: "reset" });
+  });
+
+  /** A 1x1 PNG: the page of a scanned quote, with no text layer. */
+  const PNG_1X1 = Uint8Array.from(
+    Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
+      "base64",
+    ),
+  );
+
+  async function pdf(content: { text?: string; image?: boolean }): Promise<Uint8Array> {
+    const doc = await PDFDocument.create({ updateMetadata: false });
+    const page = doc.addPage();
+    if (content.image) {
+      const png = await doc.embedPng(PNG_1X1);
+      page.drawImage(png, { x: 50, y: 400, width: 400, height: 300 });
+    }
+    if (content.text) {
+      const font = await doc.embedFont(StandardFonts.Helvetica);
+      page.drawText(content.text, { font, size: 12, x: 50, y: 700 });
+    }
+    return doc.save();
+  }
+
+  /** The Kestrel email body with one PDF attachment. */
+  function kestrelWithPdf(pdfBytes: Uint8Array): Uint8Array {
+    const text = new TextDecoder().decode(kestrelRaw).replace(/\r\n/g, "\n");
+    const split = text.indexOf("\n\n");
+    const headers = text
+      .slice(0, split)
+      .split("\n")
+      .filter((h) => !/^Content-(Type|Transfer-Encoding):/i.test(h));
+    const body = text.slice(split + 2);
+    return new TextEncoder().encode(
+      [
+        ...headers,
+        'Content-Type: multipart/mixed; boundary="B"',
+        "",
+        "--B",
+        "Content-Type: text/plain; charset=utf-8",
+        "",
+        body,
+        "--B",
+        'Content-Type: application/pdf; name="quote.pdf"',
+        "Content-Transfer-Encoding: base64",
+        'Content-Disposition: attachment; filename="quote.pdf"',
+        "",
+        Buffer.from(pdfBytes).toString("base64"),
+        "--B--",
+        "",
+      ].join("\r\n"),
+    );
+  }
+
+  const documentOf = async (documentId: number) => {
+    const [doc] = await db<{ body_text: string; has_unreadable_attachment: boolean }[]>`
+      select body_text, has_unreadable_attachment from documents where id = ${documentId}`;
+    return doc;
+  };
+
+  it("an image-only PDF is flagged at ingest; processing ends needs_review with attachment_text_found failed, not failed", async () => {
+    const extractor = fakeExtractor(kestrelOutput);
+    const d: IngestDeps = { sql: db, extractor, now: () => NOW };
+    const { documentId } = await ingestRaw(d, kestrelWithPdf(await pdf({ image: true })), "upload");
+    const doc = await documentOf(documentId);
+    expect(doc?.has_unreadable_attachment).toBe(true);
+    expect(doc?.body_text).toContain("Price: USD 738 per mt");
+    expect(doc?.body_text).not.toContain("--- attachment:");
+
+    await processDocument(d, documentId);
+    expect(extractor.calls).toBe(1);
+    const [ex] = await db<
+      {
+        status: string;
+        error: string | null;
+        check_results: { check: string; passed: boolean }[];
+      }[]
+    >`
+      select status, error, check_results from extractions where document_id = ${documentId}`;
+    expect(ex?.status).toBe("needs_review");
+    expect(ex?.error).toBeNull();
+    expect(ex?.check_results.filter((c) => !c.passed).map((c) => c.check)).toEqual([
+      "attachment_text_found",
+    ]);
+    expect(
+      Number(
+        (await db`select count(*)::int as n from quotes where extraction_id is not null`)[0]?.n,
+      ),
+    ).toBe(0);
+  });
+
+  it("a PDF with text is stored as an attachment section of the document text, not flagged", async () => {
+    const d: IngestDeps = { sql: db, extractor: fakeExtractor(kestrelOutput), now: () => NOW };
+    const { documentId } = await ingestRaw(
+      d,
+      kestrelWithPdf(await pdf({ text: "Delivery: 18-19 Nov" })),
+      "upload",
+    );
+    const doc = await documentOf(documentId);
+    expect(doc?.has_unreadable_attachment).toBe(false);
+    expect(doc?.body_text).toMatch(
+      /Kestrel Marine Fuels trading desk\n\n--- attachment: quote\.pdf ---\nDelivery: 18-19 Nov$/,
+    );
   });
 });
