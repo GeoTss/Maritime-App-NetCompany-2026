@@ -34,3 +34,7 @@ export type ShipType = z.infer<typeof ShipType>;
 /** ISO-8601 timestamp with offset, as sent over HTTP. */
 export const IsoDateTime = z.iso.datetime({ offset: true });
 export type IsoDateTime = z.infer<typeof IsoDateTime>;
+
+/** EU ETS coverage factor: EU↔EU 1, EU↔non-EU 0.5, non-EU↔non-EU 0. */
+export const EtsCoverageFactor = z.union([z.literal(0), z.literal(0.5), z.literal(1)]);
+export type EtsCoverageFactor = z.infer<typeof EtsCoverageFactor>;

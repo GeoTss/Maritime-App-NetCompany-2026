@@ -5,14 +5,19 @@
 import { z } from "zod";
 import { ConsumptionCurve } from "./calculators.js";
 import { FactId } from "./facts.js";
-import { Currency, FuelGrade, GradeAmounts, Id, LatLon, ShipType } from "./primitives.js";
+import {
+  Currency,
+  EtsCoverageFactor,
+  FuelGrade,
+  GradeAmounts,
+  Id,
+  LatLon,
+  ShipType,
+} from "./primitives.js";
 
 const NonNeg = z.number().nonnegative();
 const Ts = z.date();
 const Json = z.unknown();
-
-export const EtsCoverageFactor = z.union([z.literal(0), z.literal(0.5), z.literal(1)]);
-export type EtsCoverageFactor = z.infer<typeof EtsCoverageFactor>;
 
 export const Port = z.object({
   id: Id,

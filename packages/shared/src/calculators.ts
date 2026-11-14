@@ -1,5 +1,12 @@
 import { z } from "zod";
-import { Currency, FuelGrade, GradeAmounts, Id, ShipType } from "./primitives.js";
+import {
+  Currency,
+  EtsCoverageFactor,
+  FuelGrade,
+  GradeAmounts,
+  Id,
+  ShipType,
+} from "./primitives.js";
 
 const Positive = z.number().positive();
 const NonNeg = z.number().nonnegative();
@@ -102,7 +109,7 @@ export const BunkerPlanInput = z
     speedKn: Positive,
     curve: ConsumptionCurve,
     dailyCostUsd: NonNeg,
-    voyageEtsCoverage: z.union([z.literal(0), z.literal(0.5), z.literal(1)]),
+    voyageEtsCoverage: EtsCoverageFactor,
     berthWindowSlackHours: z.number(),
     market: z
       .object({

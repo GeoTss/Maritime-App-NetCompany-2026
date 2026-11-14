@@ -42,7 +42,7 @@ export const Provenance = z.discriminatedUnion("source", [
       documentId: Id,
       extractionId: Id,
       field: z.string().min(1),
-      evidence: z.string(),
+      evidence: z.string().min(1),
     })
     .strict(),
   z.object({ source: z.literal("ais"), mmsi: z.string().min(1), ts: IsoDateTime }).strict(),

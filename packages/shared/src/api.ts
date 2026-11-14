@@ -3,7 +3,6 @@ import { z } from "zod";
 import { ConsumptionCurve, FobProjection } from "./calculators.js";
 import {
   CheckResult,
-  EtsCoverageFactor,
   PortCallPurpose,
   QuoteStatus,
   RecommendationStatus,
@@ -14,6 +13,7 @@ import { ExtractionOutput } from "./extraction/index.js";
 import { Fact, FactId } from "./facts.js";
 import {
   Currency,
+  EtsCoverageFactor,
   FuelGrade,
   GradeAmounts,
   Id,
