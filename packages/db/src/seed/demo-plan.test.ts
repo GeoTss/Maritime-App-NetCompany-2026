@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { planBunkers } from "@pharos/domain";
 import { describe, expect, it } from "vitest";
 import {
@@ -44,6 +45,28 @@ describe("buildBunkerPlanInput", () => {
     const demo = buildDemoBunkerPlanInput(world);
     expect(JSON.stringify(fromOffers)).toBe(JSON.stringify(demo));
     expect(JSON.stringify(planBunkers(fromOffers))).toBe(JSON.stringify(planBunkers(demo)));
+  });
+
+  it("demo plan matches the Phase 1 output pinned from commit 5da5fe9", () => {
+    // Values taken by running the Phase 1 demo-plan.ts (git show 5da5fe9) on seed 20261114 /
+    // anchor 2026-11-14T08:00:00Z, not from the current code.
+    const plan = planBunkers(buildDemoBunkerPlanInput(world));
+    expect(createHash("sha256").update(JSON.stringify(plan)).digest("hex")).toBe(
+      "67d3caa309202c43ca6636e66abbd1d313c30c9a6bc153aa4f81aa9a7c1511d2",
+    );
+    expect(plan.bestOptionId).toBe("MTMLA-kestrel");
+    expect(plan.cheapestHeadlineOptionId).toBe("GIGIB-straitline");
+    expect(plan.savingVsCheapestHeadlineUsd).toBeCloseTo(16171.542878224107, 6);
+    expect(plan.options.map((o) => [o.optionId, o.rank, o.feasible, o.totalCostUsd])).toEqual([
+      ["MTMLA-kestrel", 1, true, 233914.44900287892],
+      ["ESALG-nordwind", 2, true, 239202.82313363682],
+      ["GIGIB-straitline", 3, true, 250085.99188110302],
+    ]);
+  });
+
+  it("rejects an offer from a supplier that is not in the world", () => {
+    const offers = demoOffers().map((o, i) => (i === 0 ? { ...o, supplierId: 987_654 } : o));
+    expect(() => buildBunkerPlanInput(world, voyage.id, offers)).toThrow(/supplier 987654/);
   });
 
   it("is deterministic", () => {

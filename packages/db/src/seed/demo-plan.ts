@@ -188,6 +188,10 @@ export function buildBunkerPlanInput(
       year: world.meta.anchor.getUTCFullYear(),
     },
     options: offers.map((o) => {
+      must(
+        world.suppliers.find((s) => s.id === o.supplierId),
+        `supplier ${o.supplierId}`,
+      );
       const port = must(
         world.ports.find((p) => p.id === o.portId),
         `port ${o.portId}`,

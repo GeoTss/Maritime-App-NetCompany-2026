@@ -2,16 +2,16 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { loadWorld } from "./load-world.js";
 import { seedDatabase } from "./seed/seed.js";
 import { generateWorld } from "./seed/world.js";
-import { connectTestDb } from "./testing.js";
+import { connectTestDb, testDbLabel } from "./testing.js";
 
 const SEED = 20261114;
 const ANCHOR = new Date("2026-11-14T08:00:00.000Z");
 
-const sql = await connectTestDb("load_world").catch(() => null);
+const sql = await connectTestDb("load_world");
 
 if (!sql) {
   describe("loadWorld (Postgres)", () => {
-    it.skip("all tests skipped: Postgres unreachable", () => {});
+    it.skip(`all tests skipped: Postgres unreachable for ${testDbLabel("load_world")}`, () => {});
   });
 }
 

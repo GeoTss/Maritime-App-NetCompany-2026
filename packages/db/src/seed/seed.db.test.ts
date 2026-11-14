@@ -4,18 +4,18 @@ import { PgTable } from "drizzle-orm/pg-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDb } from "../client.js";
 import * as schema from "../schema.js";
-import { connectTestDb } from "../testing.js";
+import { connectTestDb, testDbLabel } from "../testing.js";
 import { seedDatabase } from "./seed.js";
 import { generateWorld } from "./world.js";
 
 const SEED = 20261114;
 const ANCHOR = new Date("2026-11-14T08:00:00.000Z");
 
-const sql = await connectTestDb("seed").catch(() => null);
+const sql = await connectTestDb("seed");
 
 if (!sql) {
   describe("seedDatabase (Postgres)", () => {
-    it.skip("all tests skipped: Postgres unreachable", () => {});
+    it.skip(`all tests skipped: Postgres unreachable for ${testDbLabel("seed")}`, () => {});
   });
 }
 
