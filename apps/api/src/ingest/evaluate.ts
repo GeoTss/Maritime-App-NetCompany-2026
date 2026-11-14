@@ -459,56 +459,61 @@ const namesSender = (value: string) =>
   value !== "" && (value.includes("@") || !mentionsDate(value));
 
 /**
- * The line index where a quoted older message starts, or -1. Separators: an original-message or
- * forwarded-message line (localized), an attribution ("On … wrote:", "Am … schrieb …:", "Le … a
- * écrit :", "Il … ha scritto:", "El … escribió:", also wrapped over two lines), a From header line
- * (localized, bold markers allowed) naming a sender with another header line within the next 6
- * non-empty lines, or two or more consecutive lines starting with ">".
+ * The line index of every place a quoted older message starts, in order. Separators: an
+ * original-message or forwarded-message line (localized), an attribution ("On … wrote:", "Am …
+ * schrieb …:", "Le … a écrit :", "Il … ha scritto:", "El … escribió:", also wrapped over two
+ * lines), a From header line (localized, bold markers allowed) naming a sender with another
+ * header line within the next 6 non-empty lines, or the first of two or more consecutive lines
+ * starting with ">".
  */
-function firstSeparatorLine(lines: string[]): number {
+function separatorLines(lines: string[]): number[] {
   const folded = lines.map((l) => l.trim().toLowerCase());
   const nonEmptyAfter = (i: number, n: number) =>
     folded
       .slice(i + 1)
       .filter((l) => l !== "")
       .slice(0, n);
-  for (const [i, l] of folded.entries()) {
-    if (ORIGINAL_MESSAGE.test(l)) return i;
+  const isSeparator = (i: number, l: string): boolean => {
+    if (ORIGINAL_MESSAGE.test(l)) return true;
     if (ATTRIBUTION_START.test(l)) {
-      if (ATTRIBUTION_END.test(l)) return i;
       const next = folded[i + 1];
-      if (next !== undefined && ATTRIBUTION_END.test(next)) return i;
+      if (ATTRIBUTION_END.test(l) || (next !== undefined && ATTRIBUTION_END.test(next)))
+        return true;
     }
     const from = FROM_HEADER.exec(l);
     if (from && namesSender(from[1] ?? "")) {
-      if (nonEmptyAfter(i, HEADER_BLOCK_REACH).some((x) => NEXT_HEADER.test(x))) return i;
+      if (nonEmptyAfter(i, HEADER_BLOCK_REACH).some((x) => NEXT_HEADER.test(x))) return true;
     }
-    if (l.startsWith(">") && folded[i + 1]?.startsWith(">")) return i;
-  }
-  return -1;
+    // Only the first line of a run of ">" lines starts a quoted message.
+    const quoted = (j: number) => folded[j]?.startsWith(">") ?? false;
+    return quoted(i) && quoted(i + 1) && !quoted(i - 1);
+  };
+  return folded.flatMap((l, i) => (isSeparator(i, l) ? [i] : []));
 }
 
 /**
- * The source split at the first reply or forward separator in the body above any attachment
- * section: the quoted thread is the body from the separator to the first attachment; the newest
- * message is the rest (the From and Subject lines, the body above the separator, and the
- * attachments, which the newest email carries). Null when there is no separator.
+ * The email's messages, newest first, split at every reply or forward separator in the body
+ * above any attachment section. The first is the newest message: the From and Subject lines, the
+ * body above the first separator, and the attachments (the newest email carries them). Each
+ * other is the body from one separator to the next (the last ends at the first attachment).
+ * Null when there is no separator.
  */
-function threadSplit(doc: ExtractInput): { newest: string; quoted: string } | null {
+function threadMessages(doc: ExtractInput): string[] | null {
   const body = doc.bodyText;
   const marker = body.search(ATTACHMENT_MARKER);
-  const text = marker === -1 ? body : body.slice(0, marker);
-  const lines = text.split("\n");
-  const line = firstSeparatorLine(lines);
-  if (line === -1) return null;
-  const at = lines.slice(0, line).reduce((n, l) => n + l.length + 1, 0);
   const end = marker === -1 ? body.length : marker;
+  const lines = body.slice(0, end).split("\n");
+  const starts = separatorLines(lines);
+  if (starts.length === 0) return null;
+  const offsetOf = (line: number) => lines.slice(0, line).reduce((n, l) => n + l.length + 1, 0);
+  const cuts = [...starts.map(offsetOf), end];
   const source = sourceText(doc);
-  const offset = source.length - body.length;
-  return {
-    newest: source.slice(0, offset + at) + source.slice(offset + end),
-    quoted: source.slice(offset + at, offset + end),
-  };
+  const at = source.length - body.length;
+  const first = cuts[0] ?? end;
+  return [
+    source.slice(0, at + first) + source.slice(at + end),
+    ...cuts.slice(0, -1).map((c, k) => source.slice(at + c, at + (cuts[k + 1] ?? end))),
+  ];
 }
 
 /**
@@ -537,27 +542,27 @@ function offerEvidence(q: QuoteExtraction): [string, string][] {
  * offer value whose evidence occurs only in the quoted thread below is a stale value.
  */
 function newestOfferCheck(doc: ExtractInput, q: QuoteExtraction): CheckResult {
-  const thread = threadSplit(doc);
-  if (thread === null) return check("newest_offer_only", [], "no quoted thread");
-  if (!PRICE_IN_TEXT.test(thread.newest)) {
-    return check(
-      "newest_offer_only",
-      [],
-      "the newest message names no price; the quoted offer is the only one",
-    );
-  }
-  const newest = foldText(thread.newest);
-  const quoted = foldText(thread.quoted);
+  const messages = threadMessages(doc);
+  if (messages === null) return check("newest_offer_only", [], "no quoted thread");
+  // The offer is the newest message that names a price: a forward ("FYI, see below") defers to
+  // the first quoted message that does, and anything older than that offer is stale.
+  const offer = messages.findIndex((m) => PRICE_IN_TEXT.test(m));
+  if (offer === -1) return check("newest_offer_only", [], "no message in the thread names a price");
+  const current = foldText(messages.slice(0, offer + 1).join("\n"));
+  const older = foldText(messages.slice(offer + 1).join("\n"));
   const stale = offerEvidence(q)
-    .filter(([, ev]) => !newest.includes(foldText(ev)) && quoted.includes(foldText(ev)))
+    .filter(([, ev]) => !current.includes(foldText(ev)) && older.includes(foldText(ev)))
     .map(([path]) => path);
+  const where =
+    offer === 0 ? "below the newest offer" : "below the first quoted message that names a price";
   return check(
     "newest_offer_only",
     stale.length === 0
       ? []
-      : [
-          `Evidence for ${stale.join(", ")} is only in the quoted older message, below the newest offer.`,
-        ],
+      : [`Evidence for ${stale.join(", ")} is only in an older quoted message, ${where}.`],
+    offer === 0
+      ? null
+      : "the newest message names no price; the first quoted message that does is the offer",
   );
 }
 

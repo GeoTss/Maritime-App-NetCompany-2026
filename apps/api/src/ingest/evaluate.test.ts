@@ -827,6 +827,47 @@ describe("newest_offer_only (I3): stale values from a quoted thread", () => {
     expect(detailOf(r, "newest_offer_only")).toContain("names no price");
   });
 
+  it("a forward with no price on top: the first quoted message with a price is the offer", () => {
+    // FYI on top, then the revised offer, then the older offer it replaced.
+    const doc: ExtractInput = {
+      sender: "bunkers@kestrel-fuels.example",
+      subject: "FW: LSMGO offer",
+      bodyText: [
+        "FYI, see below.",
+        "",
+        "---------- Forwarded message ---------",
+        "From: Kestrel Desk <bunkers@kestrel-fuels.example>",
+        "Date: Fri, 13 Nov 2026 at 09:12",
+        "Subject: RE: LSMGO offer",
+        "",
+        BODY,
+        ...NEWEST,
+        "",
+        "-----Original Message-----",
+        "From: Kestrel Desk <bunkers@kestrel-fuels.example>",
+        "Sent: Thursday, 12 November 2026 10:00",
+        "",
+        ...OLDER,
+      ].join("\n"),
+    };
+    const revised = run(newest(), doc);
+    expect(failed(revised)).toEqual([]);
+    expect(detailOf(revised, "newest_offer_only")).toContain("names no price");
+
+    const stale = newest();
+    const first = must(stale.lines[0], "line");
+    first.price = {
+      ...first.price,
+      value: 734,
+      asWritten: "USD 734 per mt",
+      evidence: "Price: USD 734 per mt",
+    };
+    const r = run(stale, doc);
+    expect(r.status).toBe("needs_review");
+    expect(failed(r)).toEqual(["newest_offer_only"]);
+    expect(detailOf(r, "newest_offer_only")).toContain("lines.0.price");
+  });
+
   it("evidence repeated in the newest message and the quoted one passes", () => {
     // The older message quoted the same quantity line the newest one repeats.
     const doc = email({
