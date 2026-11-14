@@ -92,7 +92,8 @@ function parseCleanParts(s: string, allowBareDay: boolean): Parts | null {
   // "-" with a two-digit year is refused: "5-6/11" and "7-8-11" are day spans, not DD-MM-YY.
   m = new RegExp(`^(\\d{1,2})([/.-])(\\d{1,2})(?:\\2${YEAR_PATTERN})?$`).exec(s);
   if (m) {
-    if (m[2] === "-" && m[4] !== undefined && m[4].length === 2) return null;
+    // A bare "5-6" / "18-11" is ambiguous between a day span and day-month: null.
+    if (m[2] === "-" && (m[4] === undefined || m[4].length === 2)) return null;
     return { d: Number(m[1]), m: Number(m[3]), y: m[4] ? fullYear(m[4]) : null };
   }
 

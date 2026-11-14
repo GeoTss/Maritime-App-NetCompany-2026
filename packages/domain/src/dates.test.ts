@@ -63,6 +63,8 @@ describe("parseQuoteDate", () => {
     "5-6/11",
     "7-8.11",
     "15-11-26",
+    "5-6",
+    "18-11",
   ])("returns null for %j", (input) => {
     expect(parseQuoteDate(input, REF)).toBeNull();
   });
@@ -104,12 +106,18 @@ describe("parseDeliveryWindow", () => {
     expect(parseDeliveryWindow(input, REF)).toEqual(expected);
   });
 
-  it.each(["20-19 Nov", "19 Nov - 18 Nov", "soon", "", "31/02-02/03", "ETA 18 Nov +/- x day"])(
-    "returns null for %j",
-    (input) => {
-      expect(parseDeliveryWindow(input, REF)).toBeNull();
-    },
-  );
+  it.each([
+    "5-6",
+    "18-11",
+    "20-19 Nov",
+    "19 Nov - 18 Nov",
+    "soon",
+    "",
+    "31/02-02/03",
+    "ETA 18 Nov +/- x day",
+  ])("returns null for %j", (input) => {
+    expect(parseDeliveryWindow(input, REF)).toBeNull();
+  });
 
   it("returns null for null", () => {
     expect(parseDeliveryWindow(null, REF)).toBeNull();
