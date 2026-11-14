@@ -139,6 +139,8 @@ export type WindowPhrase =
 
 /** A delivery window as written, from ISO days (from < to, both in the same or next month). */
 export function phraseWindow(prng: Prng, from: string, to: string): WindowPhrase {
+  // Before any draw: a single date fills only its own end, so generated windows are real spans.
+  if (from >= to) throw new RangeError(`a delivery window needs from < to (${from}, ${to})`);
   const a = partsOf(from);
   const b = partsOf(to);
   if (prng() < 0.2) {
@@ -149,7 +151,6 @@ export function phraseWindow(prng: Prng, from: string, to: string): WindowPhrase
     );
     return { kind: "two", from: formatDay(from, style), to: formatDay(to, style), form: "two" };
   }
-  if (from >= to) throw new RangeError(`a delivery window needs from < to (${from}, ${to})`);
   const spanDays = (Date.parse(to) - Date.parse(from)) / DAY_MS;
   if (spanDays === 2 && prng() < 0.3) {
     return {

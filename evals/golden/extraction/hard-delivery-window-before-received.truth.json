@@ -1,6 +1,6 @@
 {
   "id": "hard-delivery-window-before-received",
-  "tags": ["hard", "delivery-window-before-received", "plain"],
+  "tags": ["hard", "delivery-window-before-received", "plain", "layout:labels"],
   "source": "hard",
   "expected": {
     "kind": "quote",
@@ -18,7 +18,7 @@
       "lines": [
         {
           "grade": "HSFO",
-          "qtyMt": 300,
+          "qtyMt": 275,
           "pricePerMt": 483
         }
       ]

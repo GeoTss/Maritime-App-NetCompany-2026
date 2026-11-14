@@ -18,11 +18,11 @@
   },
   "deliveryFrom": {
     "asWritten": "15-16 Nov",
-    "evidence": "Delivery: 15-16 Nov"
+    "evidence": "Delivery period: 15-16 Nov"
   },
   "deliveryTo": {
     "asWritten": "15-16 Nov",
-    "evidence": "Delivery: 15-16 Nov"
+    "evidence": "Delivery period: 15-16 Nov"
   },
   "validUntil": {
     "asWritten": "12 Nov 2026 17:00 LT",
@@ -39,7 +39,7 @@
     {
       "grade": {
         "value": "LSMGO",
-        "evidence": "Grade: LSMGO"
+        "evidence": "Product: LSMGO"
       },
       "quantity": {
         "value": 100,
@@ -52,7 +52,7 @@
         "currency": "USD",
         "perUnit": "per mt",
         "asWritten": "USD 739 per mt",
-        "evidence": "Price: USD 739 per mt"
+        "evidence": "Unit price: USD 739 per mt"
       }
     }
   ],

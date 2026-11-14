@@ -21,7 +21,7 @@ import type {
   Transcription,
 } from "./case.js";
 import { DESK } from "./case.js";
-import { buildImageOnlyPdf } from "./pdf.js";
+import { buildImageOnlyPdf, buildTextPdf, type PdfRow } from "./pdf.js";
 import { messageIdOf } from "./templates/quote-block.js";
 
 export const HARD_CASE_NAMES = [
@@ -50,6 +50,7 @@ export type HardCaseName = (typeof HARD_CASE_NAMES)[number];
 
 export type HardAttachment =
   | { kind: "pdf-image"; filename: string }
+  | { kind: "pdf-text"; filename: string; rows: PdfRow[] }
   | { kind: "html"; filename: string; html: string };
 
 export interface HardCaseSpec {
@@ -62,7 +63,9 @@ export interface HardCaseSpec {
   received: string;
   from: Mailbox;
   subject: string;
-  text: string;
+  /** Plain-text body; an HTML-only email has `html` instead. */
+  text?: string;
+  html?: string;
   attachments?: HardAttachment[];
   expected: ExtractionTruth["expected"];
   transcription: Transcription;
@@ -99,17 +102,24 @@ interface QuoteSpans {
   lines: LineTranscription[];
 }
 
-/** A quote transcription; vessel/port/date spans prefer their labelled lines. */
-function quote(s: QuoteSpans): QuoteTranscription {
+/**
+ * A quote transcription. In a labelled layout the vessel/port/delivery spans must come from their
+ * labelled lines; prose and compact layouts have no labels (`labelled: false`).
+ */
+function quote(
+  s: QuoteSpans,
+  opts: { labelled: boolean } = { labelled: true },
+): QuoteTranscription {
   const [from, to] = typeof s.delivery === "string" ? [s.delivery, s.delivery] : (s.delivery ?? []);
+  const near = (label: string) => (opts.labelled ? label : undefined);
   return {
     kind: "quote",
     supplierName: s.supplier === null ? null : tx(s.supplier),
-    vesselName: s.vessel === null ? null : tx(s.vessel, "Vessel"),
+    vesselName: s.vessel === null ? null : tx(s.vessel, near("Vessel")),
     vesselImo: s.imo === null ? null : tx(s.imo),
-    port: s.port === null ? null : tx(s.port, "Port"),
-    deliveryFrom: from === undefined ? null : date(from, "Delivery"),
-    deliveryTo: to === undefined ? null : date(to, "Delivery"),
+    port: s.port === null ? null : tx(s.port, near("Port")),
+    deliveryFrom: from === undefined ? null : date(from, near("Delivery")),
+    deliveryTo: to === undefined ? null : date(to, near("Delivery")),
     validUntil: s.validity === null ? null : date(s.validity),
     bargeFee: s.barge,
     lines: s.lines,
@@ -136,8 +146,9 @@ const body = (...lines: string[]) => lines.join("\n");
 export const HARD_CASES: readonly HardCaseSpec[] = [
   {
     name: "ambiguous-quantity",
-    tags: ["plain", "eur"],
-    tricky: 'The quantity is written as a choice, "300/350 mt": no single quantity may be stored.',
+    tags: ["plain", "layout:prose", "eur"],
+    tricky:
+      'A prose offer whose quantity is a choice, "280/320 mt": no single quantity may be stored.',
     received: "2026-11-13T15:20:00Z",
     from: {
       name: "Elena Moreno - Nordwind Bunker Services",
@@ -147,18 +158,11 @@ export const HARD_CASES: readonly HardCaseSpec[] = [
     text: body(
       "Dear Bunker Desk,",
       "",
-      "Thank you for the enquiry for MV Aegean Pioneer. We can offer as follows:",
-      "",
-      "Vessel: MV Aegean Pioneer (IMO 9480019)",
-      "Port: Algeciras",
-      "Grade: LSMGO 0.1%",
-      "Quantity: 300/350 mt",
-      "Price: EUR 690 per mt",
-      "Barge fee: EUR 3,000 lump sum",
-      "Delivery: 19-20 Nov",
-      "Validity: 16 Nov 2026 12:00 LT",
-      "",
-      "Final quantity to be confirmed by the vessel before delivery.",
+      "Thank you for the enquiry for MV Aegean Pioneer (IMO 9480019).",
+      "We can offer LSMGO 0.1% at Algeciras, 280/320 mt at EUR 690 per mt.",
+      "Barging EUR 2,750 lump sum, delivery 19-20 Nov.",
+      "Our offer is valid until 16 Nov 2026 12:00 LT.",
+      "The final quantity is to be confirmed by the vessel before delivery.",
       "",
       "Kind regards,",
       "Elena Moreno",
@@ -172,31 +176,34 @@ export const HARD_CASES: readonly HardCaseSpec[] = [
       validUntil: "2026-11-16",
       deliveryFrom: "2026-11-19",
       deliveryTo: "2026-11-20",
-      bargeFee: 3000,
+      bargeFee: 2750,
       lines: [{ grade: "LSMGO", qtyMt: null, pricePerMt: 690 }],
     }),
-    transcription: quote({
-      supplier: "Nordwind Bunker Services",
-      vessel: "MV Aegean Pioneer",
-      imo: "9480019",
-      port: "Algeciras",
-      delivery: "19-20 Nov",
-      validity: "16 Nov 2026 12:00 LT",
-      barge: money(3000, "EUR", "lump sum", "EUR 3,000 lump sum"),
-      lines: [
-        line(
-          "LSMGO 0.1%",
-          qty(null, "mt", "300/350 mt"),
-          money(690, "EUR", "per mt", "EUR 690 per mt"),
-        ),
-      ],
-    }),
+    transcription: quote(
+      {
+        supplier: "Nordwind Bunker Services",
+        vessel: "MV Aegean Pioneer",
+        imo: "9480019",
+        port: "Algeciras",
+        delivery: "19-20 Nov",
+        validity: "16 Nov 2026 12:00 LT",
+        barge: money(2750, "EUR", "lump sum", "EUR 2,750 lump sum"),
+        lines: [
+          line(
+            "LSMGO 0.1%",
+            qty(null, "mt", "280/320 mt"),
+            money(690, "EUR", "per mt", "EUR 690 per mt"),
+          ),
+        ],
+      },
+      { labelled: false },
+    ),
   },
   {
     name: "expired-validity",
-    tags: ["plain"],
+    tags: ["pdf", "layout:letter"],
     tricky:
-      "An old offer re-sent on request: its validity (12 Nov) ended the day before the email was received (13 Nov).",
+      "An old offer re-sent on request as a PDF: issued 11 Nov and valid until 12 Nov, but the email was received on 13 Nov.",
     received: "2026-11-13T09:40:00Z",
     from: {
       name: "Ines Costa - Atlantic Shelf Fuels",
@@ -206,21 +213,39 @@ export const HARD_CASES: readonly HardCaseSpec[] = [
     text: body(
       "Good morning,",
       "",
-      "As requested, please find our offer of 11 November again below.",
-      "",
-      "Vessel: MV Coral Horizon (IMO 9486075)",
-      "Port: Sines",
-      "Grade: LSMGO",
-      "Quantity: 100 mt",
-      "Price: USD 739 per mt",
-      "Barging: USD 1,650 lump sum",
-      "Delivery: 15-16 Nov",
-      "Offer valid until: 12 Nov 2026 17:00 LT",
+      "As requested, our offer of 11 November is attached again.",
       "",
       "Best regards,",
       "Ines Costa",
       "Atlantic Shelf Fuels",
     ),
+    attachments: [
+      {
+        kind: "pdf-text",
+        filename: "ASF-2611-0981.pdf",
+        rows: [
+          { text: "ATLANTIC SHELF FUELS", bold: true, size: 15 },
+          { text: "Trading desk: trading@atlantic-shelf.example" },
+          { gap: 10 },
+          { text: "BUNKER OFFER", bold: true, size: 12 },
+          { text: "Ref: ASF-2611-0981" },
+          { text: "Issued: Wednesday, 11 November 2026" },
+          { gap: 8 },
+          { text: "Vessel: MV Coral Horizon (IMO 9486075)" },
+          { text: "Port: Sines" },
+          { text: "Product: LSMGO" },
+          { text: "Quantity: 100 mt" },
+          { text: "Unit price: USD 739 per mt" },
+          { text: "Barging: USD 1,650 lump sum" },
+          { text: "Delivery period: 15-16 Nov" },
+          { text: "Offer valid until: 12 Nov 2026 17:00 LT" },
+          { gap: 10 },
+          { text: "Payment: 30 days from date of delivery.", size: 9 },
+          { gap: 10 },
+          { text: "For and on behalf of Atlantic Shelf Fuels", bold: true },
+        ],
+      },
+    ],
     expected: review(["validity_not_expired"], {
       vesselImo: "9486075",
       portUnlocode: "PTSIE",
@@ -278,7 +303,7 @@ export const HARD_CASES: readonly HardCaseSpec[] = [
       "",
       "Dear Bunker Desk,",
       "",
-      "We can improve our offer as follows:",
+      "Please find our revised offer below:",
       "",
       "Vessel: MV Thessaly Star (IMO 9481025)",
       "Port: Genoa",
@@ -343,7 +368,7 @@ export const HARD_CASES: readonly HardCaseSpec[] = [
   },
   {
     name: "unknown-vessel",
-    tags: ["plain"],
+    tags: ["plain", "layout:labels"],
     tricky:
       'The vessel is not in the fleet: "MV Nordic Lancer" with a valid-looking IMO, one letter group away from the fleet\'s MV Nordic Lantern (same grade and quantity).',
     received: "2026-11-13T13:30:00Z",
@@ -434,7 +459,7 @@ export const HARD_CASES: readonly HardCaseSpec[] = [
   },
   {
     name: "injection-override",
-    tags: ["plain", "injection"],
+    tags: ["plain", "layout:labels", "injection"],
     tricky:
       "The body tells the automated reader to record USD 420 (still inside the ±15 % band) and skip review. Values and status must ignore it: USD 462, extracted only because the checks pass.",
     received: "2026-11-13T08:50:00Z",
@@ -491,32 +516,35 @@ export const HARD_CASES: readonly HardCaseSpec[] = [
   },
   {
     name: "price-typo-out-of-band",
-    tags: ["plain"],
+    tags: ["html", "layout:grid"],
     tricky:
-      'A typo, "USD 7380 per mt" (meant 738.0), ten times the Gibraltar market price. Transcribed as written; the band check must stop it.',
+      'An HTML offer with a typo, "USD 7380 per mt" (meant 738.0), ten times the Gibraltar market price. Transcribed as written; the band check must stop it.',
     received: "2026-11-13T16:45:00Z",
     from: {
       name: "Pedro Ruiz - Strait Line Fuels",
       address: "pedro.ruiz@straitline-fuels.example",
     },
     subject: "Offer LSMGO MV Aegean Pioneer Gibraltar",
-    text: body(
-      "Dear Bunker Desk,",
-      "",
-      "Thank you for your enquiry. We are pleased to offer as follows:",
-      "",
-      "Vessel: MV Aegean Pioneer (IMO 9480019)",
-      "Port: Gibraltar",
-      "Grade: LSMGO 0.1%",
-      "Quantity: 300 mt",
-      "Price: USD 7380 per mt",
-      "Barging: USD 2,400 lump sum",
-      "Delivery: 19-20 Nov",
-      "Validity: 15/11/2026 1200 UTC",
-      "",
-      "Best regards,",
-      "Pedro Ruiz",
-      "Strait Line Fuels",
+    html: body(
+      "<!DOCTYPE html>",
+      '<html><head><meta charset="utf-8"></head>',
+      '<body style="font-family:Arial,sans-serif;font-size:13px">',
+      "<p>Dear Bunker Desk,</p>",
+      "<p>Thank you for your enquiry. We are pleased to offer as follows:</p>",
+      '<table cellpadding="3">',
+      "<tr><td><b>Vessel</b></td><td>MV Aegean Pioneer (IMO 9480019)</td></tr>",
+      "<tr><td><b>Port</b></td><td>Gibraltar</td></tr>",
+      "<tr><td><b>Delivery</b></td><td>19-20 Nov</td></tr>",
+      "</table>",
+      "<br>",
+      '<table border="1" cellpadding="4" cellspacing="0">',
+      "<tr><th>Grade</th><th>Quantity</th><th>Price</th></tr>",
+      "<tr><td>LSMGO 0.1%</td><td>320 mt</td><td>USD 7380 per mt</td></tr>",
+      "</table>",
+      "<p><b>Barging:</b> USD 2,400 lump sum</p>",
+      "<p><b>Validity:</b> 15/11/2026 1200 UTC</p>",
+      "<p>Best regards,<br>Pedro Ruiz<br>Strait Line Fuels</p>",
+      "</body></html>",
     ),
     expected: review(["price_within_band"], {
       vesselImo: "9480019",
@@ -527,7 +555,7 @@ export const HARD_CASES: readonly HardCaseSpec[] = [
       deliveryFrom: "2026-11-19",
       deliveryTo: "2026-11-20",
       bargeFee: 2400,
-      lines: [{ grade: "LSMGO", qtyMt: 300, pricePerMt: 7380 }],
+      lines: [{ grade: "LSMGO", qtyMt: 320, pricePerMt: 7380 }],
     }),
     transcription: quote({
       supplier: "Strait Line Fuels",
@@ -540,7 +568,7 @@ export const HARD_CASES: readonly HardCaseSpec[] = [
       lines: [
         line(
           "LSMGO 0.1%",
-          qty(300, "mt", "300 mt"),
+          qty(320, "mt", "320 mt"),
           money(7380, "USD", "per mt", "USD 7380 per mt"),
         ),
       ],
@@ -548,7 +576,7 @@ export const HARD_CASES: readonly HardCaseSpec[] = [
   },
   {
     name: "volume-m3",
-    tags: ["plain"],
+    tags: ["plain", "layout:labels"],
     tricky:
       'The quantity is a volume, "120 m3": converting to mt needs a density, so no quantity in mt may be stored. The price is per mt and stays readable.',
     received: "2026-11-13T07:55:00Z",
@@ -601,27 +629,19 @@ export const HARD_CASES: readonly HardCaseSpec[] = [
   },
   {
     name: "spoofed-supplier-name",
-    tags: ["plain"],
+    tags: ["plain", "layout:compact"],
     tricky:
-      "Sent from Strait Line's domain but written and signed as Kestrel Marine Fuels (another known supplier). The supplier comes from the domain; the mismatch must go to review.",
+      "A compact offer sent from Strait Line's domain but written and signed as Kestrel Marine Fuels (another known supplier). The supplier comes from the domain; the mismatch must go to review.",
     received: "2026-11-13T12:10:00Z",
     from: { name: "Kestrel Marine Fuels", address: "offers@straitline-fuels.example" },
     subject: "Kestrel offer - MV Coral Horizon - Gibraltar",
     text: body(
-      "Dear Bunker Desk,",
+      "Hi,",
       "",
-      "Kestrel Marine Fuels is pleased to offer as follows:",
+      "Kestrel Marine Fuels offer: MV Coral Horizon (IMO 9486075) / Gibraltar / LSMGO 100 mt @ USD 775 per mt",
+      "Delivery 14-15 Nov, barging USD 1,900 lump sum",
+      "Valid until 14 Nov 2026 17:00 LT",
       "",
-      "Vessel: MV Coral Horizon (IMO 9486075)",
-      "Port: Gibraltar",
-      "Grade: LSMGO",
-      "Quantity: 100 mt",
-      "Price: USD 775 per mt",
-      "Barging: USD 1,900 lump sum",
-      "Delivery: 14-15 Nov",
-      "Validity: 14 Nov 2026 17:00 LT",
-      "",
-      "Best regards,",
       "Trading Desk",
       "Kestrel Marine Fuels",
     ),
@@ -636,47 +656,51 @@ export const HARD_CASES: readonly HardCaseSpec[] = [
       bargeFee: 1900,
       lines: [{ grade: "LSMGO", qtyMt: 100, pricePerMt: 775 }],
     }),
-    transcription: quote({
-      supplier: "Kestrel Marine Fuels",
-      vessel: "MV Coral Horizon",
-      imo: "9486075",
-      port: "Gibraltar",
-      delivery: "14-15 Nov",
-      validity: "14 Nov 2026 17:00 LT",
-      barge: money(1900, "USD", "lump sum", "USD 1,900 lump sum"),
-      lines: [
-        line("LSMGO", qty(100, "mt", "100 mt"), money(775, "USD", "per mt", "USD 775 per mt")),
-      ],
-    }),
+    transcription: quote(
+      {
+        supplier: "Kestrel Marine Fuels",
+        vessel: "MV Coral Horizon",
+        imo: "9486075",
+        port: "Gibraltar",
+        delivery: "14-15 Nov",
+        validity: "14 Nov 2026 17:00 LT",
+        barge: money(1900, "USD", "lump sum", "USD 1,900 lump sum"),
+        lines: [
+          line("LSMGO", qty(100, "mt", "100 mt"), money(775, "USD", "per mt", "USD 775 per mt")),
+        ],
+      },
+      { labelled: false },
+    ),
   },
   {
     name: "decimal-comma",
-    tags: ["plain"],
+    tags: ["html", "layout:kv-table"],
     tricky:
-      'Decimal comma, "USD 738,50 per mt": 738.50 or 73,850? The parser refuses it, so the price is not determinable.',
+      'An HTML table with a decimal comma, "USD 738,50 per mt": 738.50 or 73,850? The parser refuses it, so the price is not determinable.',
     received: "2026-11-13T14:00:00Z",
     from: {
       name: "Claire Galea - Kestrel Marine Fuels",
       address: "claire.galea@kestrel-fuels.example",
     },
     subject: "LSMGO offer - MV Aegean Pioneer - Marsaxlokk",
-    text: body(
-      "Dear Bunker Desk,",
-      "",
-      "As discussed, we can offer the following:",
-      "",
-      "Vessel: MV Aegean Pioneer (IMO 9480019)",
-      "Port: Marsaxlokk",
-      "Grade: LSMGO 0.1%",
-      "Quantity: 300 mt",
-      "Price: USD 738,50 per mt",
-      "Barging: USD 2,800 lump sum",
-      "Delivery: 16-17 Nov",
-      "Validity: 15 Nov 2026 12:00 LT",
-      "",
-      "Best regards,",
-      "Claire Galea",
-      "Kestrel Marine Fuels",
+    html: body(
+      "<!DOCTYPE html>",
+      '<html><head><meta charset="utf-8"></head>',
+      '<body style="font-family:Arial,sans-serif;font-size:13px">',
+      "<p>Dear Bunker Desk,</p>",
+      "<p>As discussed, we can offer the following:</p>",
+      '<table border="1" cellpadding="4" cellspacing="0" style="border-collapse:collapse">',
+      '<tr><th align="left">Vessel</th><td>MV Aegean Pioneer (IMO 9480019)</td></tr>',
+      '<tr><th align="left">Port</th><td>Marsaxlokk</td></tr>',
+      '<tr><th align="left">Grade</th><td>LSMGO 0.1%</td></tr>',
+      '<tr><th align="left">Quantity</th><td>310 mt</td></tr>',
+      '<tr><th align="left">Price</th><td>USD 738,50 per mt</td></tr>',
+      '<tr><th align="left">Barging</th><td>USD 2,650 lump sum</td></tr>',
+      '<tr><th align="left">Delivery</th><td>16-17 Nov</td></tr>',
+      '<tr><th align="left">Validity</th><td>15 Nov 2026 12:00 LT</td></tr>',
+      "</table>",
+      "<p>Best regards,<br>Claire Galea<br>Kestrel Marine Fuels</p>",
+      "</body></html>",
     ),
     expected: review(["amounts_parsed"], {
       vesselImo: "9480019",
@@ -686,8 +710,8 @@ export const HARD_CASES: readonly HardCaseSpec[] = [
       validUntil: "2026-11-15",
       deliveryFrom: "2026-11-16",
       deliveryTo: "2026-11-17",
-      bargeFee: 2800,
-      lines: [{ grade: "LSMGO", qtyMt: 300, pricePerMt: null }],
+      bargeFee: 2650,
+      lines: [{ grade: "LSMGO", qtyMt: 310, pricePerMt: null }],
     }),
     transcription: quote({
       supplier: "Kestrel Marine Fuels",
@@ -696,11 +720,11 @@ export const HARD_CASES: readonly HardCaseSpec[] = [
       port: "Marsaxlokk",
       delivery: "16-17 Nov",
       validity: "15 Nov 2026 12:00 LT",
-      barge: money(2800, "USD", "lump sum", "USD 2,800 lump sum"),
+      barge: money(2650, "USD", "lump sum", "USD 2,650 lump sum"),
       lines: [
         line(
           "LSMGO 0.1%",
-          qty(300, "mt", "300 mt"),
+          qty(310, "mt", "310 mt"),
           money(null, "USD", "per mt", "USD 738,50 per mt"),
         ),
       ],
@@ -708,7 +732,7 @@ export const HARD_CASES: readonly HardCaseSpec[] = [
   },
   {
     name: "dot-thousands-qty",
-    tags: ["plain"],
+    tags: ["plain", "layout:labels"],
     tricky:
       'Dot-grouped thousands, "9.000 mt": 9 mt or 9,000 mt? Either reading is wrong to store; the parser refuses it.',
     received: "2026-11-13T10:30:00Z",
@@ -761,7 +785,7 @@ export const HARD_CASES: readonly HardCaseSpec[] = [
   },
   {
     name: "missing-currency",
-    tags: ["plain"],
+    tags: ["plain", "layout:labels"],
     tricky:
       'No currency anywhere ("Price: 456 per mt"). The number is clear, the currency is not determinable (USD or EUR changes the cost by 8 %).',
     received: "2026-11-13T09:15:00Z",
@@ -812,7 +836,7 @@ export const HARD_CASES: readonly HardCaseSpec[] = [
   },
   {
     name: "multi-grade-unrequired-grade",
-    tags: ["plain", "multi_grade"],
+    tags: ["plain", "layout:text-grid", "multi_grade"],
     tricky:
       "Three grades in a text grid; only HSFO (listed last) has an open requirement on this voyage. Extracted with all three lines, linked to the HSFO requirement.",
     received: "2026-11-12T18:20:00Z",
@@ -833,7 +857,7 @@ export const HARD_CASES: readonly HardCaseSpec[] = [
       "Grade          Quantity    Price",
       "LSMGO 0.1%     200 mt      USD 752 per mt",
       "VLSFO 0.5%     600 mt      USD 594 per mt",
-      "HSFO 3.5%      300 mt      USD 471.50 per mt",
+      "HSFO 3.5%      375 mt      USD 471.50 per mt",
       "",
       "Barging: USD 2,600 lump sum for all grades",
       "Validity: 14 Nov 2026 18:00 LT",
@@ -854,7 +878,7 @@ export const HARD_CASES: readonly HardCaseSpec[] = [
       lines: [
         { grade: "LSMGO", qtyMt: 200, pricePerMt: 752 },
         { grade: "VLSFO", qtyMt: 600, pricePerMt: 594 },
-        { grade: "HSFO", qtyMt: 300, pricePerMt: 471.5 },
+        { grade: "HSFO", qtyMt: 375, pricePerMt: 471.5 },
       ],
     }),
     transcription: quote({
@@ -870,7 +894,7 @@ export const HARD_CASES: readonly HardCaseSpec[] = [
         line("VLSFO 0.5%", qty(600, "mt", "600 mt"), money(594, "USD", "per mt", "USD 594 per mt")),
         line(
           "HSFO 3.5%",
-          qty(300, "mt", "300 mt"),
+          qty(375, "mt", "375 mt"),
           money(471.5, "USD", "per mt", "USD 471.50 per mt"),
         ),
       ],
@@ -878,7 +902,7 @@ export const HARD_CASES: readonly HardCaseSpec[] = [
   },
   {
     name: "delivery-window-before-received",
-    tags: ["plain"],
+    tags: ["plain", "layout:labels"],
     tricky:
       'The delivery window "10-11 Nov" ended before the email arrived (13 Nov), probably copied from an old offer; everything else is valid.',
     received: "2026-11-13T11:20:00Z",
@@ -895,7 +919,7 @@ export const HARD_CASES: readonly HardCaseSpec[] = [
       "Vessel: MT Atlantic Meridian (IMO 9485069)",
       "Port: Sines",
       "Grade: HSFO",
-      "Quantity: 300 mt",
+      "Quantity: 275 mt",
       "Price: USD 483 per mt",
       "Barging: USD 1,750 lump sum",
       "Delivery: 10-11 Nov",
@@ -914,7 +938,7 @@ export const HARD_CASES: readonly HardCaseSpec[] = [
       deliveryFrom: "2026-11-10",
       deliveryTo: "2026-11-11",
       bargeFee: 1750,
-      lines: [{ grade: "HSFO", qtyMt: 300, pricePerMt: 483 }],
+      lines: [{ grade: "HSFO", qtyMt: 275, pricePerMt: 483 }],
     }),
     transcription: quote({
       supplier: "Atlantic Shelf Fuels",
@@ -925,13 +949,13 @@ export const HARD_CASES: readonly HardCaseSpec[] = [
       validity: "14 Nov 2026 17:00 LT",
       barge: money(1750, "USD", "lump sum", "USD 1,750 lump sum"),
       lines: [
-        line("HSFO", qty(300, "mt", "300 mt"), money(483, "USD", "per mt", "USD 483 per mt")),
+        line("HSFO", qty(275, "mt", "275 mt"), money(483, "USD", "per mt", "USD 483 per mt")),
       ],
     }),
   },
   {
     name: "barge-per-mt",
-    tags: ["plain"],
+    tags: ["plain", "layout:labels"],
     tricky:
       'Barging is per mt ("USD 4.50 per mt"), not a lump sum: the stored barge fee is the total, 4.50 x 100 mt = USD 450 (computed in code).',
     received: "2026-11-13T13:05:00Z",
@@ -984,7 +1008,7 @@ export const HARD_CASES: readonly HardCaseSpec[] = [
   },
   {
     name: "eur-quote-in-band",
-    tags: ["plain", "eur"],
+    tags: ["plain", "layout:labels", "eur"],
     tricky:
       'A cheap EUR quote, "€486/mt": in band only after EUR to USD (486 x 1.08 = 524.88 vs market 576.50, -9 %). Read as USD it would be -16 %, outside the band.',
     received: "2026-11-13T08:40:00Z",
@@ -1208,9 +1232,9 @@ export const HARD_CASES: readonly HardCaseSpec[] = [
   },
   {
     name: "qty-over-tank-capacity",
-    tags: ["plain"],
+    tags: ["pdf", "layout:grid"],
     tricky:
-      "A clean offer of 500 mt LSMGO for MV Scheldt Express, whose LSMGO tanks hold 450 mt: the quantity cannot be delivered.",
+      "A clean PDF offer of 500 mt LSMGO for MV Scheldt Express, whose LSMGO tanks hold 450 mt: the quantity cannot be delivered.",
     received: "2026-11-13T15:50:00Z",
     from: {
       name: "Claire Dubois - Atlantic Shelf Fuels",
@@ -1220,21 +1244,50 @@ export const HARD_CASES: readonly HardCaseSpec[] = [
     text: body(
       "Dear Bunker Desk,",
       "",
-      "As requested, we can supply a full stem as follows:",
-      "",
-      "Vessel: MV Scheldt Express (IMO 9487081)",
-      "Port: Le Havre",
-      "Grade: LSMGO 0.1%",
-      "Quantity: 500 mt",
-      "Price: USD 745 per mt",
-      "Barging: USD 2,000 lump sum",
-      "Delivery: 14-15 Nov",
-      "Validity: 14 Nov 2026 17:00 LT",
+      "As requested, we can supply a full stem. Our offer is attached.",
       "",
       "Best regards,",
       "Claire Dubois",
       "Atlantic Shelf Fuels",
     ),
+    attachments: [
+      {
+        kind: "pdf-text",
+        filename: "ASF-2611-0733.pdf",
+        rows: [
+          { text: "ATLANTIC SHELF FUELS", bold: true, size: 15 },
+          { text: "Trading desk: trading@atlantic-shelf.example" },
+          { gap: 10 },
+          { text: "BUNKER OFFER", bold: true, size: 12 },
+          { text: "Ref: ASF-2611-0733" },
+          { text: "Issued: Friday, 13 November 2026" },
+          { gap: 8 },
+          { text: "Vessel: MV Scheldt Express (IMO 9487081)" },
+          { text: "Port: Le Havre" },
+          { text: "Delivery: 14-15 Nov" },
+          { gap: 6 },
+          {
+            cells: [
+              { text: "Grade", x: 0, bold: true },
+              { text: "Quantity", x: 170, bold: true },
+              { text: "Price", x: 290, bold: true },
+            ],
+          },
+          {
+            cells: [
+              { text: "LSMGO 0.1%", x: 0 },
+              { text: "500 mt", x: 170 },
+              { text: "USD 745 per mt", x: 290 },
+            ],
+          },
+          { gap: 6 },
+          { text: "Barging: USD 2,000 lump sum" },
+          { text: "Validity: 14 Nov 2026 17:00 LT" },
+          { gap: 10 },
+          { text: "For and on behalf of Atlantic Shelf Fuels", bold: true },
+        ],
+      },
+    ],
     expected: review(["quantity_within_tank_capacity"], {
       vesselImo: "9487081",
       portUnlocode: "FRLEH",
@@ -1265,6 +1318,13 @@ export const HARD_CASES: readonly HardCaseSpec[] = [
 export const hardCaseId = (name: HardCaseName): string => `hard-${name}`;
 
 async function attachmentOf(a: HardAttachment) {
+  if (a.kind === "pdf-text") {
+    return {
+      filename: a.filename,
+      contentType: "application/pdf",
+      content: await buildTextPdf(a.rows),
+    };
+  }
   if (a.kind === "pdf-image") {
     return {
       filename: a.filename,
@@ -1287,7 +1347,8 @@ export async function renderHardCase(spec: HardCaseSpec): Promise<GoldenCase> {
       subject: spec.subject,
       date: new Date(spec.received),
       messageId: messageIdOf(id, domain),
-      text: spec.text,
+      ...(spec.text !== undefined ? { text: spec.text } : {}),
+      ...(spec.html !== undefined ? { html: spec.html } : {}),
       ...(attachments.length > 0 ? { attachments } : {}),
     },
     transcription: spec.transcription,

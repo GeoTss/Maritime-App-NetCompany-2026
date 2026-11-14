@@ -1,6 +1,6 @@
 {
   "id": "hard-ambiguous-quantity",
-  "tags": ["hard", "ambiguous-quantity", "plain", "eur"],
+  "tags": ["hard", "ambiguous-quantity", "plain", "layout:prose", "eur"],
   "source": "hard",
   "expected": {
     "kind": "quote",
@@ -14,7 +14,7 @@
       "validUntil": "2026-11-16",
       "deliveryFrom": "2026-11-19",
       "deliveryTo": "2026-11-20",
-      "bargeFee": 3000,
+      "bargeFee": 2750,
       "lines": [
         {
           "grade": "LSMGO",

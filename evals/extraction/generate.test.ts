@@ -296,6 +296,25 @@ describe("golden extraction set: hygiene", () => {
     expect(leaks).toEqual([]);
   });
 
+  it("leak check: no hard case's quantity, price or barge span appears in the prompt", async () => {
+    const prompt = (
+      await readFile(join(ROOT, "apps/api/src/ai/prompts/extract-quote.ts"), "utf8")
+    ).toLowerCase();
+    const spans: string[] = [];
+    for (const c of cases.filter((x) => x.truth.source === "hard")) {
+      if (c.oracle.kind !== "quote") continue;
+      for (const f of [
+        c.oracle.bargeFee,
+        ...c.oracle.lines.flatMap((l) => [l.quantity, l.price]),
+      ]) {
+        if (f.asWritten !== null) spans.push(`${c.truth.id}: ${f.asWritten}`);
+      }
+    }
+    expect(spans.length).toBeGreaterThan(40);
+    const leaks = spans.filter((s) => prompt.includes((s.split(": ")[1] ?? "").toLowerCase()));
+    expect(leaks).toEqual([]);
+  });
+
   it("REVIEW.md shows all 20 hard cases and 15 generated cases drawn by stratum", () => {
     const review = onDisk.get("REVIEW.md") ?? "";
     const sample = reviewSample(cases.map((c) => c.truth));

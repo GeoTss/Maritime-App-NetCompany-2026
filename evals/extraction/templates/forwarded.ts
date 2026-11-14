@@ -30,13 +30,14 @@ function olderFacts(ctx: TemplateContext, newest: QuoteFacts): QuoteFacts {
   const receivedAt = new Date(newest.receivedAt.getTime() - hoursBefore * 3_600_000);
   let price = drawPrice(prng, world, newest.port.id, newest.lines[0]?.grade ?? "LSMGO", "USD");
   if (price === newest.lines[0]?.pricePerMt) price += 4;
-  const validUntil = addDays(isoDay(receivedAt), prngInt(prng, 0, 1));
+  // Valid at its own send time: at least the day after it was sent, whatever the hour.
+  const validUntil = addDays(isoDay(receivedAt), prngInt(prng, 1, 2));
   const shift = prngPick(prng, [-1, 1, 2]);
   return {
     ...newest,
     lines: newest.lines.map((l) => ({ ...l, pricePerMt: price })),
     receivedAt,
-    validUntil: validUntil === newest.validUntil ? addDays(validUntil, -1) : validUntil,
+    validUntil: validUntil === newest.validUntil ? addDays(validUntil, 1) : validUntil,
     deliveryFrom: addDays(newest.deliveryFrom, shift),
     deliveryTo: addDays(newest.deliveryTo, shift),
   };

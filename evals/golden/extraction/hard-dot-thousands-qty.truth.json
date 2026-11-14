@@ -1,6 +1,6 @@
 {
   "id": "hard-dot-thousands-qty",
-  "tags": ["hard", "dot-thousands-qty", "plain"],
+  "tags": ["hard", "dot-thousands-qty", "plain", "layout:labels"],
   "source": "hard",
   "expected": {
     "kind": "quote",

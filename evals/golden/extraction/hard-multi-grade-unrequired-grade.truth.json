@@ -1,6 +1,6 @@
 {
   "id": "hard-multi-grade-unrequired-grade",
-  "tags": ["hard", "multi-grade-unrequired-grade", "plain", "multi_grade"],
+  "tags": ["hard", "multi-grade-unrequired-grade", "plain", "layout:text-grid", "multi_grade"],
   "source": "hard",
   "expected": {
     "kind": "quote",
@@ -28,7 +28,7 @@
         },
         {
           "grade": "HSFO",
-          "qtyMt": 300,
+          "qtyMt": 375,
           "pricePerMt": 471.5
         }
       ]

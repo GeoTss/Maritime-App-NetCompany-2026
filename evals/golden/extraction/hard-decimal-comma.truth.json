@@ -1,6 +1,6 @@
 {
   "id": "hard-decimal-comma",
-  "tags": ["hard", "decimal-comma", "plain"],
+  "tags": ["hard", "decimal-comma", "html", "layout:kv-table"],
   "source": "hard",
   "expected": {
     "kind": "quote",
@@ -14,11 +14,11 @@
       "validUntil": "2026-11-15",
       "deliveryFrom": "2026-11-16",
       "deliveryTo": "2026-11-17",
-      "bargeFee": 2800,
+      "bargeFee": 2650,
       "lines": [
         {
           "grade": "LSMGO",
-          "qtyMt": 300,
+          "qtyMt": 310,
           "pricePerMt": null
         }
       ]

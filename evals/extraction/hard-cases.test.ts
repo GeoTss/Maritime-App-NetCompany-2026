@@ -24,6 +24,20 @@ const quoteOf = (name: HardCaseName): TruthQuote => {
   return q;
 };
 const dayOf = (iso: string) => iso.slice(0, 10);
+/** Everything a case writes: body text, HTML body, HTML attachments and PDF rows. */
+const content = (name: HardCaseName): string => {
+  const s = spec(name);
+  const attached = (s.attachments ?? []).flatMap((a) =>
+    a.kind === "html"
+      ? [a.html]
+      : a.kind === "pdf-text"
+        ? a.rows.flatMap((r) =>
+            "text" in r ? [r.text] : "cells" in r ? [r.cells.map((c) => c.text).join(" ")] : [],
+          )
+        : [],
+  );
+  return [s.text ?? "", s.html ?? "", ...attached].join("\n");
+};
 const deviation = (q: TruthQuote, i: number) => {
   const port = world.ports.find((p) => p.unlocode === q.portUnlocode);
   const line = q.lines[i];
@@ -99,18 +113,19 @@ describe("hard cases", () => {
   });
 
   it("really contain their traps", () => {
-    expect(spec("ambiguous-quantity").text).toContain("300/350 mt");
-    expect(spec("price-typo-out-of-band").text).toContain("USD 7380 per mt");
+    expect(content("ambiguous-quantity")).toContain("280/320 mt");
+    expect(content("price-typo-out-of-band")).toContain("USD 7380 per mt");
     expect(deviation(quoteOf("price-typo-out-of-band"), 0)).toBeGreaterThan(0.15);
-    expect(spec("decimal-comma").text).toContain("738,50");
-    expect(spec("dot-thousands-qty").text).toContain("9.000 mt");
-    expect(spec("volume-m3").text).toContain("120 m3");
-    expect(spec("missing-currency").text).not.toMatch(/USD|EUR|US\$|\$|€/);
+    expect(content("decimal-comma")).toContain("738,50");
+    expect(content("dot-thousands-qty")).toContain("9.000 mt");
+    expect(content("volume-m3")).toContain("120 m3");
+    expect(content("missing-currency")).not.toMatch(/USD|EUR|US\$|\$|€/);
+    expect(content("expired-validity")).toContain("Offer valid until: 12 Nov 2026 17:00 LT");
     expect(quoteOf("expired-validity").validUntil).toBe("2026-11-12");
     expect(dayOf(spec("expired-validity").received)).toBe("2026-11-13");
     expect(quoteOf("delivery-window-before-received").deliveryTo).toBe("2026-11-11");
 
-    const unknown = spec("unknown-vessel").text.match(/IMO (\d{7})/)?.[1] ?? "";
+    const unknown = content("unknown-vessel").match(/IMO (\d{7})/)?.[1] ?? "";
     expect(isValidImo(unknown)).toBe(true);
     expect(world.vessels.map((v) => v.imo)).not.toContain(unknown);
 
@@ -124,7 +139,7 @@ describe("hard cases", () => {
     const grpir = world.ports.find((p) => p.unlocode === "GRPIR");
     if (!grpir) throw new Error("no GRPIR");
     expect(Math.abs(420 / marketPriceUsd(world, grpir.id, "HSFO") - 1)).toBeLessThan(0.15);
-    expect(spec("injection-override").text).toContain("USD 420 per mt");
+    expect(content("injection-override")).toContain("USD 420 per mt");
     expect(inj.lines[0]?.pricePerMt).toBe(462);
 
     // In band only after EUR -> USD: read as USD it would be outside the ±15 % band.
@@ -137,12 +152,12 @@ describe("hard cases", () => {
     expect(deviation(eur, 0)).toBeLessThanOrEqual(0.1);
 
     // Stale revisions are cheaper and still look valid at receipt.
-    expect(spec("thread-stale-revision").text).toContain("Price: USD 729 per mt");
-    expect(spec("thread-stale-revision").text).toContain("Validity: 15 Nov 2026 17:00 LT");
+    expect(content("thread-stale-revision")).toContain("Price: USD 729 per mt");
+    expect(content("thread-stale-revision")).toContain("Validity: 15 Nov 2026 17:00 LT");
     expect(quoteOf("thread-stale-revision").lines[0]?.pricePerMt).toBe(741);
 
     // The spoofed name is another known supplier; the forwarder's domain is no supplier.
-    expect(spec("spoofed-supplier-name").text).toContain("Kestrel Marine Fuels");
+    expect(content("spoofed-supplier-name")).toContain("Kestrel Marine Fuels");
     expect(quoteOf("spoofed-supplier-name").supplierKey).toBe("straitline");
     expect(quoteOf("forwarded-twice").supplierKey).toBeNull();
 
@@ -155,6 +170,28 @@ describe("hard cases", () => {
 
     expect(quoteOf("barge-per-mt").bargeFee).toBe(4.5 * 100);
     expect(spec("pdf-image-only").expected.quote).toBeNull();
+  });
+
+  it("put the traps in several layouts, not one shared labelled block (review minor 3)", () => {
+    const layoutOf = (name: HardCaseName) =>
+      spec(name).tags.find((t) => t.startsWith("layout:")) ?? "";
+    const outsideBlock: HardCaseName[] = [
+      "ambiguous-quantity",
+      "decimal-comma",
+      "expired-validity",
+      "spoofed-supplier-name",
+      "price-typo-out-of-band",
+      "qty-over-tank-capacity",
+    ];
+    for (const name of outsideBlock) expect(layoutOf(name), name).not.toBe("layout:labels");
+    expect(spec("ambiguous-quantity").tags).toContain("layout:prose");
+    expect(spec("spoofed-supplier-name").tags).toContain("layout:compact");
+    expect(spec("price-typo-out-of-band").html).toBeDefined();
+    expect(spec("decimal-comma").html).toBeDefined();
+    expect(spec("expired-validity").attachments?.[0]?.kind).toBe("pdf-text");
+    expect(spec("qty-over-tank-capacity").attachments?.[0]?.kind).toBe("pdf-text");
+    const labelled = HARD_CASES.filter((s) => s.tags.includes("layout:labels"));
+    expect(labelled.length).toBeLessThanOrEqual(10);
     expect(spec("not-a-quote-with-prices").expected.kind).toBe("not_a_quote");
   });
 });

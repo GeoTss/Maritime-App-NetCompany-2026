@@ -1,6 +1,6 @@
 {
   "id": "hard-price-typo-out-of-band",
-  "tags": ["hard", "price-typo-out-of-band", "plain"],
+  "tags": ["hard", "price-typo-out-of-band", "html", "layout:grid"],
   "source": "hard",
   "expected": {
     "kind": "quote",
@@ -18,7 +18,7 @@
       "lines": [
         {
           "grade": "LSMGO",
-          "qtyMt": 300,
+          "qtyMt": 320,
           "pricePerMt": 7380
         }
       ]

@@ -2,57 +2,57 @@
   "kind": "quote",
   "supplierName": {
     "value": "Kestrel Marine Fuels",
-    "evidence": "Kestrel Marine Fuels is pleased to offer as follows:"
+    "evidence": "Kestrel Marine Fuels offer: MV Coral Horizon (IMO 9486075) / Gibraltar / LSMGO 100 mt @ USD 775 per mt"
   },
   "vesselName": {
     "value": "MV Coral Horizon",
-    "evidence": "Vessel: MV Coral Horizon (IMO 9486075)"
+    "evidence": "Kestrel Marine Fuels offer: MV Coral Horizon (IMO 9486075) / Gibraltar / LSMGO 100 mt @ USD 775 per mt"
   },
   "vesselImo": {
     "value": "9486075",
-    "evidence": "Vessel: MV Coral Horizon (IMO 9486075)"
+    "evidence": "Kestrel Marine Fuels offer: MV Coral Horizon (IMO 9486075) / Gibraltar / LSMGO 100 mt @ USD 775 per mt"
   },
   "port": {
     "value": "Gibraltar",
-    "evidence": "Port: Gibraltar"
+    "evidence": "Kestrel Marine Fuels offer: MV Coral Horizon (IMO 9486075) / Gibraltar / LSMGO 100 mt @ USD 775 per mt"
   },
   "deliveryFrom": {
     "asWritten": "14-15 Nov",
-    "evidence": "Delivery: 14-15 Nov"
+    "evidence": "Delivery 14-15 Nov, barging USD 1,900 lump sum"
   },
   "deliveryTo": {
     "asWritten": "14-15 Nov",
-    "evidence": "Delivery: 14-15 Nov"
+    "evidence": "Delivery 14-15 Nov, barging USD 1,900 lump sum"
   },
   "validUntil": {
     "asWritten": "14 Nov 2026 17:00 LT",
-    "evidence": "Validity: 14 Nov 2026 17:00 LT"
+    "evidence": "Valid until 14 Nov 2026 17:00 LT"
   },
   "bargeFee": {
     "value": 1900,
     "currency": "USD",
     "perUnit": "lump sum",
     "asWritten": "USD 1,900 lump sum",
-    "evidence": "Barging: USD 1,900 lump sum"
+    "evidence": "Delivery 14-15 Nov, barging USD 1,900 lump sum"
   },
   "lines": [
     {
       "grade": {
         "value": "LSMGO",
-        "evidence": "Grade: LSMGO"
+        "evidence": "Kestrel Marine Fuels offer: MV Coral Horizon (IMO 9486075) / Gibraltar / LSMGO 100 mt @ USD 775 per mt"
       },
       "quantity": {
         "value": 100,
         "unit": "mt",
         "asWritten": "100 mt",
-        "evidence": "Quantity: 100 mt"
+        "evidence": "Kestrel Marine Fuels offer: MV Coral Horizon (IMO 9486075) / Gibraltar / LSMGO 100 mt @ USD 775 per mt"
       },
       "price": {
         "value": 775,
         "currency": "USD",
         "perUnit": "per mt",
         "asWritten": "USD 775 per mt",
-        "evidence": "Price: USD 775 per mt"
+        "evidence": "Kestrel Marine Fuels offer: MV Coral Horizon (IMO 9486075) / Gibraltar / LSMGO 100 mt @ USD 775 per mt"
       }
     }
   ],

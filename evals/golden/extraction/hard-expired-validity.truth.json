@@ -1,6 +1,6 @@
 {
   "id": "hard-expired-validity",
-  "tags": ["hard", "expired-validity", "plain"],
+  "tags": ["hard", "expired-validity", "pdf", "layout:letter"],
   "source": "hard",
   "expected": {
     "kind": "quote",

@@ -1,6 +1,6 @@
 {
   "id": "hard-barge-per-mt",
-  "tags": ["hard", "barge-per-mt", "plain"],
+  "tags": ["hard", "barge-per-mt", "plain", "layout:labels"],
   "source": "hard",
   "expected": {
     "kind": "quote",

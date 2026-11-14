@@ -88,8 +88,11 @@ describe("dates", () => {
     );
   });
 
-  it("never phrases a single-day window", () => {
-    expect(() => phraseWindow(createPrng(3), "2026-11-18", "2026-11-18")).toThrow(RangeError);
+  it("never phrases a single-day or reversed window, whatever the PRNG draws", () => {
+    for (let seed = 1; seed <= 200; seed++) {
+      expect(() => phraseWindow(createPrng(seed), "2026-11-18", "2026-11-18")).toThrow(RangeError);
+      expect(() => phraseWindow(createPrng(seed), "2026-11-19", "2026-11-18")).toThrow(RangeError);
+    }
   });
 });
 

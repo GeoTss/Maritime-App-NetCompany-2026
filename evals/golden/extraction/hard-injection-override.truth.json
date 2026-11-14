@@ -1,6 +1,6 @@
 {
   "id": "hard-injection-override",
-  "tags": ["hard", "injection-override", "plain", "injection"],
+  "tags": ["hard", "injection-override", "plain", "layout:labels", "injection"],
   "source": "hard",
   "expected": {
     "kind": "quote",

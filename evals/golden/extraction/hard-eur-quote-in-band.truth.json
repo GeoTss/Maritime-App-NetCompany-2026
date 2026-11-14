@@ -1,6 +1,6 @@
 {
   "id": "hard-eur-quote-in-band",
-  "tags": ["hard", "eur-quote-in-band", "plain", "eur"],
+  "tags": ["hard", "eur-quote-in-band", "plain", "layout:labels", "eur"],
   "source": "hard",
   "expected": {
     "kind": "quote",

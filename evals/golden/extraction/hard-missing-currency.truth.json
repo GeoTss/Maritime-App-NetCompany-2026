@@ -1,6 +1,6 @@
 {
   "id": "hard-missing-currency",
-  "tags": ["hard", "missing-currency", "plain"],
+  "tags": ["hard", "missing-currency", "plain", "layout:labels"],
   "source": "hard",
   "expected": {
     "kind": "quote",

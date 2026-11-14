@@ -1,6 +1,6 @@
 {
   "id": "hard-volume-m3",
-  "tags": ["hard", "volume-m3", "plain"],
+  "tags": ["hard", "volume-m3", "plain", "layout:labels"],
   "source": "hard",
   "expected": {
     "kind": "quote",

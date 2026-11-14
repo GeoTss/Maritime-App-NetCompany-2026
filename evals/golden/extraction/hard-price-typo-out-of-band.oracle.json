@@ -6,23 +6,23 @@
   },
   "vesselName": {
     "value": "MV Aegean Pioneer",
-    "evidence": "Vessel: MV Aegean Pioneer (IMO 9480019)"
+    "evidence": "Vessel     MV Aegean Pioneer (IMO 9480019)"
   },
   "vesselImo": {
     "value": "9480019",
-    "evidence": "Vessel: MV Aegean Pioneer (IMO 9480019)"
+    "evidence": "Vessel     MV Aegean Pioneer (IMO 9480019)"
   },
   "port": {
     "value": "Gibraltar",
-    "evidence": "Port: Gibraltar"
+    "evidence": "Port       Gibraltar"
   },
   "deliveryFrom": {
     "asWritten": "19-20 Nov",
-    "evidence": "Delivery: 19-20 Nov"
+    "evidence": "Delivery   19-20 Nov"
   },
   "deliveryTo": {
     "asWritten": "19-20 Nov",
-    "evidence": "Delivery: 19-20 Nov"
+    "evidence": "Delivery   19-20 Nov"
   },
   "validUntil": {
     "asWritten": "15/11/2026 1200 UTC",
@@ -39,20 +39,20 @@
     {
       "grade": {
         "value": "LSMGO 0.1%",
-        "evidence": "Grade: LSMGO 0.1%"
+        "evidence": "LSMGO 0.1%   320 mt     USD 7380 per mt"
       },
       "quantity": {
-        "value": 300,
+        "value": 320,
         "unit": "mt",
-        "asWritten": "300 mt",
-        "evidence": "Quantity: 300 mt"
+        "asWritten": "320 mt",
+        "evidence": "LSMGO 0.1%   320 mt     USD 7380 per mt"
       },
       "price": {
         "value": 7380,
         "currency": "USD",
         "perUnit": "per mt",
         "asWritten": "USD 7380 per mt",
-        "evidence": "Price: USD 7380 per mt"
+        "evidence": "LSMGO 0.1%   320 mt     USD 7380 per mt"
       }
     }
   ],

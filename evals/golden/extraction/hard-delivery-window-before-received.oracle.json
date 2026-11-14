@@ -42,10 +42,10 @@
         "evidence": "Grade: HSFO"
       },
       "quantity": {
-        "value": 300,
+        "value": 275,
         "unit": "mt",
-        "asWritten": "300 mt",
-        "evidence": "Quantity: 300 mt"
+        "asWritten": "275 mt",
+        "evidence": "Quantity: 275 mt"
       },
       "price": {
         "value": 483,

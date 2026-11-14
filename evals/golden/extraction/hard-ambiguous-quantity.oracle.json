@@ -6,53 +6,53 @@
   },
   "vesselName": {
     "value": "MV Aegean Pioneer",
-    "evidence": "Vessel: MV Aegean Pioneer (IMO 9480019)"
+    "evidence": "Thank you for the enquiry for MV Aegean Pioneer (IMO 9480019)."
   },
   "vesselImo": {
     "value": "9480019",
-    "evidence": "Vessel: MV Aegean Pioneer (IMO 9480019)"
+    "evidence": "Thank you for the enquiry for MV Aegean Pioneer (IMO 9480019)."
   },
   "port": {
     "value": "Algeciras",
-    "evidence": "Port: Algeciras"
+    "evidence": "We can offer LSMGO 0.1% at Algeciras, 280/320 mt at EUR 690 per mt."
   },
   "deliveryFrom": {
     "asWritten": "19-20 Nov",
-    "evidence": "Delivery: 19-20 Nov"
+    "evidence": "Barging EUR 2,750 lump sum, delivery 19-20 Nov."
   },
   "deliveryTo": {
     "asWritten": "19-20 Nov",
-    "evidence": "Delivery: 19-20 Nov"
+    "evidence": "Barging EUR 2,750 lump sum, delivery 19-20 Nov."
   },
   "validUntil": {
     "asWritten": "16 Nov 2026 12:00 LT",
-    "evidence": "Validity: 16 Nov 2026 12:00 LT"
+    "evidence": "Our offer is valid until 16 Nov 2026 12:00 LT."
   },
   "bargeFee": {
-    "value": 3000,
+    "value": 2750,
     "currency": "EUR",
     "perUnit": "lump sum",
-    "asWritten": "EUR 3,000 lump sum",
-    "evidence": "Barge fee: EUR 3,000 lump sum"
+    "asWritten": "EUR 2,750 lump sum",
+    "evidence": "Barging EUR 2,750 lump sum, delivery 19-20 Nov."
   },
   "lines": [
     {
       "grade": {
         "value": "LSMGO 0.1%",
-        "evidence": "Grade: LSMGO 0.1%"
+        "evidence": "We can offer LSMGO 0.1% at Algeciras, 280/320 mt at EUR 690 per mt."
       },
       "quantity": {
         "value": null,
         "unit": "mt",
-        "asWritten": "300/350 mt",
-        "evidence": "Quantity: 300/350 mt"
+        "asWritten": "280/320 mt",
+        "evidence": "We can offer LSMGO 0.1% at Algeciras, 280/320 mt at EUR 690 per mt."
       },
       "price": {
         "value": 690,
         "currency": "EUR",
         "perUnit": "per mt",
         "asWritten": "EUR 690 per mt",
-        "evidence": "Price: EUR 690 per mt"
+        "evidence": "We can offer LSMGO 0.1% at Algeciras, 280/320 mt at EUR 690 per mt."
       }
     }
   ],

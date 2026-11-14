@@ -1,6 +1,6 @@
 {
   "id": "hard-unknown-vessel",
-  "tags": ["hard", "unknown-vessel", "plain"],
+  "tags": ["hard", "unknown-vessel", "plain", "layout:labels"],
   "source": "hard",
   "expected": {
     "kind": "quote",

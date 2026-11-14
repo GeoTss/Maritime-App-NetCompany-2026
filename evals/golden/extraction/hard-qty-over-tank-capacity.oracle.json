@@ -39,20 +39,20 @@
     {
       "grade": {
         "value": "LSMGO 0.1%",
-        "evidence": "Grade: LSMGO 0.1%"
+        "evidence": "LSMGO 0.1% 500 mt USD 745 per mt"
       },
       "quantity": {
         "value": 500,
         "unit": "mt",
         "asWritten": "500 mt",
-        "evidence": "Quantity: 500 mt"
+        "evidence": "LSMGO 0.1% 500 mt USD 745 per mt"
       },
       "price": {
         "value": 745,
         "currency": "USD",
         "perUnit": "per mt",
         "asWritten": "USD 745 per mt",
-        "evidence": "Price: USD 745 per mt"
+        "evidence": "LSMGO 0.1% 500 mt USD 745 per mt"
       }
     }
   ],

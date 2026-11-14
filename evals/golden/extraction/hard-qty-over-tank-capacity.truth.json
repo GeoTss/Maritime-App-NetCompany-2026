@@ -1,6 +1,6 @@
 {
   "id": "hard-qty-over-tank-capacity",
-  "tags": ["hard", "qty-over-tank-capacity", "plain"],
+  "tags": ["hard", "qty-over-tank-capacity", "pdf", "layout:grid"],
   "source": "hard",
   "expected": {
     "kind": "quote",

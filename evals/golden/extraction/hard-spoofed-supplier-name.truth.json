@@ -1,6 +1,6 @@
 {
   "id": "hard-spoofed-supplier-name",
-  "tags": ["hard", "spoofed-supplier-name", "plain"],
+  "tags": ["hard", "spoofed-supplier-name", "plain", "layout:compact"],
   "source": "hard",
   "expected": {
     "kind": "quote",

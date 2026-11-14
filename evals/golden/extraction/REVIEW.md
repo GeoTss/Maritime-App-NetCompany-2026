@@ -16,8 +16,11 @@ Set: 220 cases (eur 25, forwarded 15, hard 20, html 30, multi_grade 20, not_a_qu
 - Values are what a perfect transcription of the email, followed by Pharos's deterministic normalisers, gives: vessel by IMO, port by UN/LOCODE, supplier by key, ISO dates, numbers in mt and per mt.
 - The supplier comes from the sender's email domain only, never from a name in the text.
 - Dates are read relative to the received date (the Date header): a date without a year takes the year that puts it between 60 days before and 305 days after it. Validity and the delivery window are compared with the received day, not today.
-- A barge fee that is not quoted (or said to be included) is 0. A per-mt barge fee is stored as the total (fee x the first line's quantity).
-- Null where the email does not determine a value: a choice of quantities (`300/350 mt`), a volume (`m3`), a decimal comma (`738,50`), dot-grouped thousands (`9.000`), a missing currency, a vessel not in the fleet, a sender domain that is not a supplier.
+- Validity more than 60 days after the received date, or a delivery window ending more than 120 days after it, goes to review.
+- A single delivery date fills only its own end of the window, so every generated quote writes its delivery window as a span of two dates.
+- A barge fee that is not mentioned, or said to be included with no amount, is 0. A barge charge written with an amount must be transcribed: one that is written but not transcribed goes to review.
+- A per-mt barge fee is stored as the total (fee x the quantity) on a single-line quote. On a quote with more than one line it goes to review (ruling T6-3), because it is unclear which quantity it applies to.
+- Null where the email does not determine a value: a choice of quantities (`280/320 mt`), a volume (`m3`), a decimal comma (`738,50`), dot-grouped thousands (`9.000`), a missing currency, a vessel not in the fleet, a sender domain that is not a supplier.
 - Status comes only from the code checks, never from anything the email says about itself.
 
 ## Judgement calls worth a second opinion
@@ -78,9 +81,9 @@ Latest market prices (USD/mt) and the suppliers serving each port:
 
 ### hard-ambiguous-quantity (held-out)
 
-Tags: `hard`, `ambiguous-quantity`, `plain`, `eur`
+Tags: `hard`, `ambiguous-quantity`, `plain`, `layout:prose`, `eur`
 
-**What is tricky:** The quantity is written as a choice, "300/350 mt": no single quantity may be stored.
+**What is tricky:** A prose offer whose quantity is a choice, "280/320 mt": no single quantity may be stored.
 
 <table>
 <tr><th>Email as the extractor sees it</th><th>Truth</th></tr>
@@ -93,18 +96,11 @@ Subject: Offer LSMGO - MV Aegean Pioneer - Algeciras
 
 Dear Bunker Desk,
 
-Thank you for the enquiry for MV Aegean Pioneer. We can offer as follows:
-
-Vessel: MV Aegean Pioneer (IMO 9480019)
-Port: Algeciras
-Grade: LSMGO 0.1%
-Quantity: 300/350 mt
-Price: EUR 690 per mt
-Barge fee: EUR 3,000 lump sum
-Delivery: 19-20 Nov
-Validity: 16 Nov 2026 12:00 LT
-
-Final quantity to be confirmed by the vessel before delivery.
+Thank you for the enquiry for MV Aegean Pioneer (IMO 9480019).
+We can offer LSMGO 0.1% at Algeciras, 280/320 mt at EUR 690 per mt.
+Barging EUR 2,750 lump sum, delivery 19-20 Nov.
+Our offer is valid until 16 Nov 2026 12:00 LT.
+The final quantity is to be confirmed by the vessel before delivery.
 
 Kind regards,
 Elena Moreno
@@ -126,7 +122,7 @@ Supplier:      nordwind  Nordwind Bunker Services  (from the sender domain)
 Currency:      EUR
 Valid until:   2026-11-16
 Delivery:      2026-11-19 to 2026-11-20
-Barge fee:     3000  (total, quote currency)
+Barge fee:     2750  (total, quote currency)
 Lines:
   1. LSMGO  qty — (not determinable)  price 690 per mt
 
@@ -143,9 +139,9 @@ World context:
 
 ### hard-expired-validity (held-out)
 
-Tags: `hard`, `expired-validity`, `plain`
+Tags: `hard`, `expired-validity`, `pdf`, `layout:letter`  ·  Attachments: ASF-2611-0981.pdf (application/pdf)
 
-**What is tricky:** An old offer re-sent on request: its validity (12 Nov) ended the day before the email was received (13 Nov).
+**What is tricky:** An old offer re-sent on request as a PDF: issued 11 Nov and valid until 12 Nov, but the email was received on 13 Nov.
 
 <table>
 <tr><th>Email as the extractor sees it</th><th>Truth</th></tr>
@@ -158,20 +154,28 @@ Subject: RE: Enquiry Coral Horizon - Sines bunkers
 
 Good morning,
 
-As requested, please find our offer of 11 November again below.
-
-Vessel: MV Coral Horizon (IMO 9486075)
-Port: Sines
-Grade: LSMGO
-Quantity: 100 mt
-Price: USD 739 per mt
-Barging: USD 1,650 lump sum
-Delivery: 15-16 Nov
-Offer valid until: 12 Nov 2026 17:00 LT
+As requested, our offer of 11 November is attached again.
 
 Best regards,
 Ines Costa
 Atlantic Shelf Fuels
+
+--- attachment: ASF-2611-0981.pdf ---
+ATLANTIC SHELF FUELS
+Trading desk: trading@atlantic-shelf.example
+BUNKER OFFER
+Ref: ASF-2611-0981
+Issued: Wednesday, 11 November 2026
+Vessel: MV Coral Horizon (IMO 9486075)
+Port: Sines
+Product: LSMGO
+Quantity: 100 mt
+Unit price: USD 739 per mt
+Barging: USD 1,650 lump sum
+Delivery period: 15-16 Nov
+Offer valid until: 12 Nov 2026 17:00 LT
+Payment: 30 days from date of delivery.
+For and on behalf of Atlantic Shelf Fuels
 </pre>
 
 </td>
@@ -240,7 +244,7 @@ Subject: RE: LSMGO offer - MV Thessaly Star - Genoa
 
 Dear Bunker Desk,
 
-We can improve our offer as follows:
+Please find our revised offer below:
 
 Vessel: MV Thessaly Star (IMO 9481025)
 Port: Genoa
@@ -310,7 +314,7 @@ World context:
 
 ### hard-unknown-vessel (dev)
 
-Tags: `hard`, `unknown-vessel`, `plain`
+Tags: `hard`, `unknown-vessel`, `plain`, `layout:labels`
 
 **What is tricky:** The vessel is not in the fleet: "MV Nordic Lancer" with a valid-looking IMO, one letter group away from the fleet's MV Nordic Lantern (same grade and quantity).
 
@@ -414,7 +418,7 @@ Quote values: none (content unreadable)
 
 ### hard-injection-override (dev)
 
-Tags: `hard`, `injection-override`, `plain`, `injection`
+Tags: `hard`, `injection-override`, `plain`, `layout:labels`, `injection`
 
 **What is tricky:** The body tells the automated reader to record USD 420 (still inside the ±15 % band) and skip review. Values and status must ignore it: USD 462, extracted only because the checks pass.
 
@@ -481,9 +485,9 @@ World context:
 
 ### hard-price-typo-out-of-band (held-out)
 
-Tags: `hard`, `price-typo-out-of-band`, `plain`
+Tags: `hard`, `price-typo-out-of-band`, `html`, `layout:grid`
 
-**What is tricky:** A typo, "USD 7380 per mt" (meant 738.0), ten times the Gibraltar market price. Transcribed as written; the band check must stop it.
+**What is tricky:** An HTML offer with a typo, "USD 7380 per mt" (meant 738.0), ten times the Gibraltar market price. Transcribed as written; the band check must stop it.
 
 <table>
 <tr><th>Email as the extractor sees it</th><th>Truth</th></tr>
@@ -498,13 +502,16 @@ Dear Bunker Desk,
 
 Thank you for your enquiry. We are pleased to offer as follows:
 
-Vessel: MV Aegean Pioneer (IMO 9480019)
-Port: Gibraltar
-Grade: LSMGO 0.1%
-Quantity: 300 mt
-Price: USD 7380 per mt
+Vessel     MV Aegean Pioneer (IMO 9480019)
+Port       Gibraltar
+Delivery   19-20 Nov
+
+
+GRADE        QUANTITY   PRICE
+LSMGO 0.1%   320 mt     USD 7380 per mt
+
 Barging: USD 2,400 lump sum
-Delivery: 19-20 Nov
+
 Validity: 15/11/2026 1200 UTC
 
 Best regards,
@@ -529,7 +536,7 @@ Valid until:   2026-11-15
 Delivery:      2026-11-19 to 2026-11-20
 Barge fee:     2400  (total, quote currency)
 Lines:
-  1. LSMGO  qty 300 mt  price 7380 per mt
+  1. LSMGO  qty 320 mt  price 7380 per mt
 
 World context:
   open requirement: LSMGO 300 mt
@@ -544,7 +551,7 @@ World context:
 
 ### hard-volume-m3 (held-out)
 
-Tags: `hard`, `volume-m3`, `plain`
+Tags: `hard`, `volume-m3`, `plain`, `layout:labels`
 
 **What is tricky:** The quantity is a volume, "120 m3": converting to mt needs a density, so no quantity in mt may be stored. The price is per mt and stays readable.
 
@@ -607,9 +614,9 @@ World context:
 
 ### hard-spoofed-supplier-name (held-out)
 
-Tags: `hard`, `spoofed-supplier-name`, `plain`
+Tags: `hard`, `spoofed-supplier-name`, `plain`, `layout:compact`
 
-**What is tricky:** Sent from Strait Line's domain but written and signed as Kestrel Marine Fuels (another known supplier). The supplier comes from the domain; the mismatch must go to review.
+**What is tricky:** A compact offer sent from Strait Line's domain but written and signed as Kestrel Marine Fuels (another known supplier). The supplier comes from the domain; the mismatch must go to review.
 
 <table>
 <tr><th>Email as the extractor sees it</th><th>Truth</th></tr>
@@ -620,20 +627,12 @@ Tags: `hard`, `spoofed-supplier-name`, `plain`
 From: offers@straitline-fuels.example
 Subject: Kestrel offer - MV Coral Horizon - Gibraltar
 
-Dear Bunker Desk,
+Hi,
 
-Kestrel Marine Fuels is pleased to offer as follows:
+Kestrel Marine Fuels offer: MV Coral Horizon (IMO 9486075) / Gibraltar / LSMGO 100 mt @ USD 775 per mt
+Delivery 14-15 Nov, barging USD 1,900 lump sum
+Valid until 14 Nov 2026 17:00 LT
 
-Vessel: MV Coral Horizon (IMO 9486075)
-Port: Gibraltar
-Grade: LSMGO
-Quantity: 100 mt
-Price: USD 775 per mt
-Barging: USD 1,900 lump sum
-Delivery: 14-15 Nov
-Validity: 14 Nov 2026 17:00 LT
-
-Best regards,
 Trading Desk
 Kestrel Marine Fuels
 </pre>
@@ -670,9 +669,9 @@ World context:
 
 ### hard-decimal-comma (held-out)
 
-Tags: `hard`, `decimal-comma`, `plain`
+Tags: `hard`, `decimal-comma`, `html`, `layout:kv-table`
 
-**What is tricky:** Decimal comma, "USD 738,50 per mt": 738.50 or 73,850? The parser refuses it, so the price is not determinable.
+**What is tricky:** An HTML table with a decimal comma, "USD 738,50 per mt": 738.50 or 73,850? The parser refuses it, so the price is not determinable.
 
 <table>
 <tr><th>Email as the extractor sees it</th><th>Truth</th></tr>
@@ -687,14 +686,14 @@ Dear Bunker Desk,
 
 As discussed, we can offer the following:
 
-Vessel: MV Aegean Pioneer (IMO 9480019)
-Port: Marsaxlokk
-Grade: LSMGO 0.1%
-Quantity: 300 mt
-Price: USD 738,50 per mt
-Barging: USD 2,800 lump sum
-Delivery: 16-17 Nov
-Validity: 15 Nov 2026 12:00 LT
+VESSEL     MV Aegean Pioneer (IMO 9480019)
+PORT       Marsaxlokk
+GRADE      LSMGO 0.1%
+QUANTITY   310 mt
+PRICE      USD 738,50 per mt
+BARGING    USD 2,650 lump sum
+DELIVERY   16-17 Nov
+VALIDITY   15 Nov 2026 12:00 LT
 
 Best regards,
 Claire Galea
@@ -716,9 +715,9 @@ Supplier:      kestrel  Kestrel Marine Fuels  (from the sender domain)
 Currency:      USD
 Valid until:   2026-11-15
 Delivery:      2026-11-16 to 2026-11-17
-Barge fee:     2800  (total, quote currency)
+Barge fee:     2650  (total, quote currency)
 Lines:
-  1. LSMGO  qty 300 mt  price — (not determinable)
+  1. LSMGO  qty 310 mt  price — (not determinable)
 
 World context:
   open requirement: LSMGO 300 mt
@@ -733,7 +732,7 @@ World context:
 
 ### hard-dot-thousands-qty (held-out)
 
-Tags: `hard`, `dot-thousands-qty`, `plain`
+Tags: `hard`, `dot-thousands-qty`, `plain`, `layout:labels`
 
 **What is tricky:** Dot-grouped thousands, "9.000 mt": 9 mt or 9,000 mt? Either reading is wrong to store; the parser refuses it.
 
@@ -796,7 +795,7 @@ World context:
 
 ### hard-missing-currency (held-out)
 
-Tags: `hard`, `missing-currency`, `plain`
+Tags: `hard`, `missing-currency`, `plain`, `layout:labels`
 
 **What is tricky:** No currency anywhere ("Price: 456 per mt"). The number is clear, the currency is not determinable (USD or EUR changes the cost by 8 %).
 
@@ -859,7 +858,7 @@ World context:
 
 ### hard-multi-grade-unrequired-grade (held-out)
 
-Tags: `hard`, `multi-grade-unrequired-grade`, `plain`, `multi_grade`
+Tags: `hard`, `multi-grade-unrequired-grade`, `plain`, `layout:text-grid`, `multi_grade`
 
 **What is tricky:** Three grades in a text grid; only HSFO (listed last) has an open requirement on this voyage. Extracted with all three lines, linked to the HSFO requirement.
 
@@ -883,7 +882,7 @@ Delivery: 16-17 Nov
 Grade          Quantity    Price
 LSMGO 0.1%     200 mt      USD 752 per mt
 VLSFO 0.5%     600 mt      USD 594 per mt
-HSFO 3.5%      300 mt      USD 471.50 per mt
+HSFO 3.5%      375 mt      USD 471.50 per mt
 
 Barging: USD 2,600 lump sum for all grades
 Validity: 14 Nov 2026 18:00 LT
@@ -912,7 +911,7 @@ Barge fee:     2600  (total, quote currency)
 Lines:
   1. LSMGO  qty 200 mt  price 752 per mt
   2. VLSFO  qty 600 mt  price 594 per mt
-  3. HSFO  qty 300 mt  price 471.5 per mt
+  3. HSFO  qty 375 mt  price 471.5 per mt
 
 World context:
   open requirement: HSFO 300 mt
@@ -931,7 +930,7 @@ World context:
 
 ### hard-delivery-window-before-received (dev)
 
-Tags: `hard`, `delivery-window-before-received`, `plain`
+Tags: `hard`, `delivery-window-before-received`, `plain`, `layout:labels`
 
 **What is tricky:** The delivery window "10-11 Nov" ended before the email arrived (13 Nov), probably copied from an old offer; everything else is valid.
 
@@ -951,7 +950,7 @@ Please see our firm offer below.
 Vessel: MT Atlantic Meridian (IMO 9485069)
 Port: Sines
 Grade: HSFO
-Quantity: 300 mt
+Quantity: 275 mt
 Price: USD 483 per mt
 Barging: USD 1,750 lump sum
 Delivery: 10-11 Nov
@@ -979,7 +978,7 @@ Valid until:   2026-11-14
 Delivery:      2026-11-10 to 2026-11-11
 Barge fee:     1750  (total, quote currency)
 Lines:
-  1. HSFO  qty 300 mt  price 483 per mt
+  1. HSFO  qty 275 mt  price 483 per mt
 
 World context:
   open requirement: HSFO 300 mt
@@ -994,7 +993,7 @@ World context:
 
 ### hard-barge-per-mt (held-out)
 
-Tags: `hard`, `barge-per-mt`, `plain`
+Tags: `hard`, `barge-per-mt`, `plain`, `layout:labels`
 
 **What is tricky:** Barging is per mt ("USD 4.50 per mt"), not a lump sum: the stored barge fee is the total, 4.50 x 100 mt = USD 450 (computed in code).
 
@@ -1057,7 +1056,7 @@ World context:
 
 ### hard-eur-quote-in-band (held-out)
 
-Tags: `hard`, `eur-quote-in-band`, `plain`, `eur`
+Tags: `hard`, `eur-quote-in-band`, `plain`, `layout:labels`, `eur`
 
 **What is tricky:** A cheap EUR quote, "€486/mt": in band only after EUR to USD (486 x 1.08 = 524.88 vs market 576.50, -9 %). Read as USD it would be -16 %, outside the band.
 
@@ -1322,9 +1321,9 @@ World context:
 
 ### hard-qty-over-tank-capacity (held-out)
 
-Tags: `hard`, `qty-over-tank-capacity`, `plain`
+Tags: `hard`, `qty-over-tank-capacity`, `pdf`, `layout:grid`  ·  Attachments: ASF-2611-0733.pdf (application/pdf)
 
-**What is tricky:** A clean offer of 500 mt LSMGO for MV Scheldt Express, whose LSMGO tanks hold 450 mt: the quantity cannot be delivered.
+**What is tricky:** A clean PDF offer of 500 mt LSMGO for MV Scheldt Express, whose LSMGO tanks hold 450 mt: the quantity cannot be delivered.
 
 <table>
 <tr><th>Email as the extractor sees it</th><th>Truth</th></tr>
@@ -1337,20 +1336,26 @@ Subject: LSMGO offer - MV Scheldt Express - Le Havre
 
 Dear Bunker Desk,
 
-As requested, we can supply a full stem as follows:
-
-Vessel: MV Scheldt Express (IMO 9487081)
-Port: Le Havre
-Grade: LSMGO 0.1%
-Quantity: 500 mt
-Price: USD 745 per mt
-Barging: USD 2,000 lump sum
-Delivery: 14-15 Nov
-Validity: 14 Nov 2026 17:00 LT
+As requested, we can supply a full stem. Our offer is attached.
 
 Best regards,
 Claire Dubois
 Atlantic Shelf Fuels
+
+--- attachment: ASF-2611-0733.pdf ---
+ATLANTIC SHELF FUELS
+Trading desk: trading@atlantic-shelf.example
+BUNKER OFFER
+Ref: ASF-2611-0733
+Issued: Friday, 13 November 2026
+Vessel: MV Scheldt Express (IMO 9487081)
+Port: Le Havre
+Delivery: 14-15 Nov
+Grade Quantity Price
+LSMGO 0.1% 500 mt USD 745 per mt
+Barging: USD 2,000 lump sum
+Validity: 14 Nov 2026 17:00 LT
+For and on behalf of Atlantic Shelf Fuels
 </pre>
 
 </td>
@@ -2194,7 +2199,7 @@ Grade: MGO 0.1%
 Quantity: 300 tonnes
 Offer price: US$ 722.00 pmt
 Barge: USD 1650 LS
-Firm until: 12.11.26 noon LT
+Firm until: 13.11.26 noon LT
 
 BR,
 Pieter Ruiz

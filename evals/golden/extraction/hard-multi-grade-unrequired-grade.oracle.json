@@ -77,20 +77,20 @@
     {
       "grade": {
         "value": "HSFO 3.5%",
-        "evidence": "HSFO 3.5%      300 mt      USD 471.50 per mt"
+        "evidence": "HSFO 3.5%      375 mt      USD 471.50 per mt"
       },
       "quantity": {
-        "value": 300,
+        "value": 375,
         "unit": "mt",
-        "asWritten": "300 mt",
-        "evidence": "HSFO 3.5%      300 mt      USD 471.50 per mt"
+        "asWritten": "375 mt",
+        "evidence": "HSFO 3.5%      375 mt      USD 471.50 per mt"
       },
       "price": {
         "value": 471.5,
         "currency": "USD",
         "perUnit": "per mt",
         "asWritten": "USD 471.50 per mt",
-        "evidence": "HSFO 3.5%      300 mt      USD 471.50 per mt"
+        "evidence": "HSFO 3.5%      375 mt      USD 471.50 per mt"
       }
     }
   ],
