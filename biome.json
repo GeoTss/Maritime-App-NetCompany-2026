@@ -12,6 +12,7 @@
       "!**/dist",
       "!evals/reports",
       "!fixtures/**/*.eml",
+      "!fixtures/llm-recordings",
       "!.npm-cache",
       "!**/*.pdf",
       "!**/*.md"
