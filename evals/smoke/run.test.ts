@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { seedDatabase } from "@pharos/db";
 import { connectTestDb, testDbLabel } from "@pharos/db/testing";
-import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import { captureLlmCall } from "../../apps/api/src/ai/call-capture.js";
 import { createLlmExtractor } from "../../apps/api/src/ai/extract.js";
 import { createLlm } from "../../apps/api/src/ai/llm.js";
@@ -31,9 +31,17 @@ describe.skipIf(!sql)("live smoke runner (in-process, replay)", () => {
   if (!sql) return;
   const db = sql;
   const tmp: string[] = [];
+  /** The `processDocument` runs that deliveries start in the background (they never reject). */
+  const background: Promise<void>[] = [];
 
   beforeEach(async () => {
     await seedDatabase(db, { seed: FIXTURE_SEED, anchor: FIXTURE_ANCHOR, mode: "reset" });
+  });
+  // A run that stops early (a rewritten status) leaves its delivery's extraction running. Let it
+  // finish inside its own test: the next reset truncates with RESTART IDENTITY, and a leftover
+  // run would then write by a reused id (FK violation on quotes, or the next test's row 1).
+  afterEach(async () => {
+    await Promise.all(background.splice(0));
   });
   afterAll(async () => {
     await db.end();
@@ -55,6 +63,7 @@ describe.skipIf(!sql)("live smoke runner (in-process, replay)", () => {
         sql: db,
         extractor: createLlmExtractor(llm, DEMO_RECORDING_CONFIG),
         inboxDir: DEMO_INBOX_DIR,
+        track: (processing) => background.push(processing),
       },
       ask: {
         sql: db,

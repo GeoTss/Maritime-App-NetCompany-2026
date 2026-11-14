@@ -105,8 +105,7 @@ export async function failInterruptedExtractions(sql: Sql): Promise<number> {
   return failed.length;
 }
 
-interface LatestRow {
-  extraction_id: number;
+interface DocumentRow {
   sender: string | null;
   subject: string | null;
   body_text: string;
@@ -116,22 +115,18 @@ interface LatestRow {
 }
 
 /**
- * Claims the document's latest extraction: one atomic update, so of any number of concurrent
- * callers exactly one gets the row. Undefined when it is not pending or someone else claimed it.
+ * Claims the document's latest extraction in one statement, so of any number of concurrent
+ * callers exactly one gets the row, and a row inserted meanwhile (a retry) is never passed over
+ * for an older one. Returns the claimed extraction id, or undefined when the latest extraction
+ * is not pending or is already claimed.
  */
-async function claimLatestExtraction(sql: Sql, documentId: Id): Promise<LatestRow | undefined> {
-  const [latest] = await sql<LatestRow[]>`
-    select e.id as extraction_id, d.sender, d.subject, d.body_text, d.received_at,
-           d.has_unreadable_attachment
-    from documents d join extractions e on e.document_id = d.id
-    where d.id = ${documentId}
-    order by e.id desc limit 1`;
-  if (!latest) return undefined;
-  const claimed = await sql`
+async function claimLatestExtraction(sql: Sql, documentId: Id): Promise<number | undefined> {
+  const [claimed] = await sql<{ id: number }[]>`
     update extractions set claimed_at = now()
-    where id = ${latest.extraction_id} and status = 'pending' and claimed_at is null
+    where id = (select max(id) from extractions where document_id = ${documentId})
+      and status = 'pending' and claimed_at is null
     returning id`;
-  return claimed.length === 1 ? latest : undefined;
+  return claimed?.id;
 }
 
 /**
@@ -139,15 +134,27 @@ async function claimLatestExtraction(sql: Sql, documentId: Id): Promise<LatestRo
  * it; a no-op when that extraction is not pending or is already claimed (so the extractor is
  * never called twice for one row). Never rejects: an error after the claim leaves the
  * extraction `failed` with the message in `error`.
+ *
+ * Both final writes apply only while the row is still `pending`. If another writer (the boot
+ * sweep, a reviewer) has already settled it, this call's result is discarded and logged: no
+ * quote is stored and that row's status and error are kept.
  */
 export async function processDocument(deps: IngestDeps, documentId: Id): Promise<void> {
   const { sql } = deps;
   let extractionId: number | undefined;
   let rawOutput: ExtractionOutput | null = null;
+  const discarded = (what: string) =>
+    deps.log?.(
+      `[ingest] document ${documentId}: extraction ${extractionId} is no longer pending; ${what}`,
+    );
   try {
-    const row = await claimLatestExtraction(sql, documentId);
-    if (!row) return;
-    extractionId = row.extraction_id;
+    extractionId = await claimLatestExtraction(sql, documentId);
+    if (extractionId === undefined) return;
+    const claimedId = extractionId;
+    const [row] = await sql<DocumentRow[]>`
+      select sender, subject, body_text, received_at, has_unreadable_attachment
+      from documents where id = ${documentId}`;
+    if (!row) throw new Error(`document ${documentId} not found`);
     const doc: ExtractInput = { sender: row.sender, subject: row.subject, bodyText: row.body_text };
 
     const output = await extractAndRecord(deps, documentId, doc);
@@ -157,8 +164,19 @@ export async function processDocument(deps: IngestDeps, documentId: Id): Promise
       receivedAt: new Date(row.received_at),
       hasUnreadableAttachment: row.has_unreadable_attachment,
     });
-    await sql.begin(async (tx) => {
-      let quoteId: number | null = null;
+    const stored = await sql.begin(async (tx) => {
+      // The status write goes first and only while the row is pending: when it matches nothing,
+      // the transaction has written nothing and no quote is inserted.
+      const updated = await tx`
+        update extractions set
+          kind = ${output.kind},
+          raw_output = ${json(output)}::jsonb,
+          field_evidence = ${json(result.fieldEvidence)}::jsonb,
+          check_results = ${json(result.checks)}::jsonb,
+          status = ${result.status}
+        where id = ${claimedId} and status = 'pending'
+        returning id`;
+      if (updated.length === 0) return false;
       if (result.status === "extracted") {
         const q = result.quote;
         const [quote] = await tx<{ id: number }[]>`
@@ -167,26 +185,18 @@ export async function processDocument(deps: IngestDeps, documentId: Id): Promise
           values (${q.supplierId}, ${q.portId}, ${q.requirementId},
                   ${dayStart(q.deliveryFrom)}::timestamptz, ${dayStart(q.deliveryTo)}::timestamptz,
                   ${dayStart(q.validUntil)}::timestamptz,
-                  ${q.currency}, ${q.bargeFee}, 'received', ${row.extraction_id}, ${row.received_at}::timestamptz)
+                  ${q.currency}, ${q.bargeFee}, 'received', ${claimedId}, ${row.received_at}::timestamptz)
           returning id`;
         if (!quote) throw new Error("quotes insert returned no row");
-        quoteId = quote.id;
         for (const line of q.lines) {
           await tx`
             insert into quote_lines (quote_id, grade, qty_mt, price_per_mt)
-            values (${quoteId}, ${line.grade}, ${line.qtyMt}, ${line.pricePerMt})`;
+            values (${quote.id}, ${line.grade}, ${line.qtyMt}, ${line.pricePerMt})`;
         }
       }
-      await tx`
-        update extractions set
-          kind = ${output.kind},
-          raw_output = ${json(output)}::jsonb,
-          field_evidence = ${json(result.fieldEvidence)}::jsonb,
-          check_results = ${json(result.checks)}::jsonb,
-          status = ${result.status}
-        where id = ${row.extraction_id}`;
-      return quoteId;
+      return true;
     });
+    if (!stored) discarded(`its ${result.status} result was discarded`);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     if (extractionId === undefined) {
@@ -196,13 +206,15 @@ export async function processDocument(deps: IngestDeps, documentId: Id): Promise
     deps.log?.(`[ingest] document ${documentId}: extraction failed: ${message}`);
     try {
       // check_results is left as inserted: nothing was stored, and the reason is in `error`.
-      await sql`
+      const marked = await sql`
         update extractions set
           status = 'failed',
           error = ${message},
           kind = ${rawOutput?.kind ?? null},
           raw_output = ${rawOutput === null ? null : json(rawOutput)}::jsonb
-        where id = ${extractionId}`;
+        where id = ${extractionId} and status = 'pending'
+        returning id`;
+      if (marked.length === 0) discarded("its failure was not recorded over its current status");
     } catch (writeErr) {
       // The row stays pending and claimed: the next boot sweep marks it failed.
       deps.log?.(

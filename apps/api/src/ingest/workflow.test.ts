@@ -681,6 +681,71 @@ describe.skipIf(!sql)("ingestion workflow (Postgres)", () => {
     // Run again: nothing left to sweep.
     expect(await failInterruptedExtractions(db)).toBe(0);
   });
+
+  it("claims only the latest extraction: an older pending row stays pending and unclaimed", async () => {
+    const extractor = fakeExtractor(kestrelOutput);
+    const d = deps(extractor);
+    const { documentId } = await ingestRaw(d, kestrelRaw, "upload");
+    await db`
+      insert into extractions
+        (document_id, kind, raw_output, field_evidence, check_results, status, model, prompt_version, created_at)
+      values (${documentId}, null, null, '{}'::jsonb, '[]'::jsonb, 'pending', 'claude-haiku-5-5',
+              'extract-quote/v1', now())`;
+    await processDocument(d, documentId);
+    await processDocument(d, documentId);
+    expect(extractor.calls).toBe(1);
+    const [older, latest] = await extractionsOf(documentId);
+    expect(older).toMatchObject({ status: "pending", claimed_at: null });
+    expect(latest?.status).toBe("extracted");
+    expect(latest?.claimed_at).not.toBeNull();
+  });
+
+  /** Deps whose log lines are kept, to check what processDocument reported. */
+  const loggingDeps = (extractor: Extractor) => {
+    const logged: string[] = [];
+    return { d: { ...deps(extractor), log: (m: string) => logged.push(m) }, logged };
+  };
+
+  it("a row failed behind processDocument's back mid-call stays failed: no quote, its error kept", async () => {
+    // The sweep (or any other writer) fails the claimed row while the model call is in flight.
+    const extractor = fakeExtractor(async () => {
+      expect(await failInterruptedExtractions(db)).toBe(1);
+      return kestrelOutput();
+    });
+    const { d, logged } = loggingDeps(extractor);
+    const { documentId } = await ingestRaw(d, kestrelRaw, "upload");
+    await processDocument(d, documentId);
+    expect(extractor.calls).toBe(1);
+    const ex = await extractionOf(documentId);
+    expect(ex).toMatchObject({
+      status: "failed",
+      error: INTERRUPTED_ERROR,
+      kind: null,
+      raw_output: null,
+      check_results: [],
+    });
+    expect(await quoteCount()).toBe(0);
+    expect(logged.join("\n")).toMatch(/no longer pending/);
+  });
+
+  it("a failure after the row was failed elsewhere does not overwrite that row's error", async () => {
+    const extractor: Extractor = {
+      model: "claude-haiku-5-5",
+      promptVersion: "extract-quote/v1",
+      async extract() {
+        await failInterruptedExtractions(db);
+        throw new ExtractionError("truncated (stop_reason max_tokens)", [METRICS]);
+      },
+    };
+    const { d, logged } = loggingDeps(extractor);
+    const { documentId } = await ingestRaw(d, kestrelRaw, "upload");
+    await processDocument(d, documentId);
+    expect(await extractionOf(documentId)).toMatchObject({
+      status: "failed",
+      error: INTERRUPTED_ERROR,
+    });
+    expect(logged.join("\n")).toMatch(/no longer pending/);
+  });
 });
 
 describe.skipIf(!sql)("ingestion workflow: attachments (Postgres)", () => {
