@@ -1,4 +1,10 @@
-import { buildDemoBunkerPlanInput, DEMO_SCENARIO, loadWorld, type Sql } from "@pharos/db";
+import {
+  buildDemoBunkerPlanInput,
+  DEMO_SCENARIO,
+  loadWorld,
+  type Sql,
+  seedDatabase,
+} from "@pharos/db";
 import { connectTestDb, testDbLabel } from "@pharos/db/testing";
 import { planBunkers } from "@pharos/domain";
 import { BunkerPlan, DecisionResult, ERP_IDEMPOTENCY_HEADER } from "@pharos/shared";
@@ -7,16 +13,34 @@ import { createErpApp } from "../../../../services/erp-sim/src/app.js";
 import { createToolContext } from "../ai/tools/common.js";
 import { planBunkering } from "../ai/tools/plan-bunkering.js";
 import { proposeAction } from "../ai/tools/propose-action.js";
-import { ASK_FIXTURE_NOW, prepareAskFixture } from "../ask/demo-fixture.js";
+import { ASK_FIXTURE_NOW, insertDemoQuotes, prepareAskFixture } from "../ask/demo-fixture.js";
+import { FIXTURE_ANCHOR, FIXTURE_SEED } from "../read/fixtures.js";
 import { createErpClient, type ErpFetch } from "./erp-client.js";
 import {
   approveRecommendation,
   DecisionError,
   type ExecutorDeps,
+  idempotencyKeyFor,
   rejectRecommendation,
 } from "./execute.js";
 
 const NOW = new Date("2026-11-14T08:20:00.000Z");
+/** The fixture world's anchor in epoch seconds, the world part of every idempotency key. */
+const ANCHOR_S = Math.floor(FIXTURE_ANCHOR.getTime() / 1000);
+
+describe("idempotencyKeyFor", () => {
+  it("is rec-<recommendationId>-<world anchor epoch seconds>", () => {
+    expect(idempotencyKeyFor(7, new Date("2026-11-14T08:00:00.000Z"))).toBe("rec-7-1794643200");
+    // Sub-second parts of the anchor do not change the key.
+    expect(idempotencyKeyFor(7, new Date("2026-11-14T08:00:00.900Z"))).toBe("rec-7-1794643200");
+  });
+
+  it("differs between worlds with different anchors for the same recommendation id", () => {
+    const a = idempotencyKeyFor(1, new Date("2026-11-14T08:00:00Z"));
+    const b = idempotencyKeyFor(1, new Date("2026-11-15T09:30:00Z"));
+    expect(a).not.toBe(b);
+  });
+});
 
 const sql = await connectTestDb("executor");
 
@@ -115,7 +139,7 @@ describe.skipIf(!sql)("executor (Postgres)", () => {
       status: "confirmed",
       erp_po_number: "PO-000001",
       erp_sync_status: "synced",
-      idempotency_key: `rec-${recId}`,
+      idempotency_key: `rec-${recId}-${ANCHOR_S}`,
     });
 
     // Quantity from the stored plan option; price, currency and barge fee from the quote.
@@ -138,7 +162,7 @@ describe.skipIf(!sql)("executor (Postgres)", () => {
         vessels v where q.id = ${kestrelQuoteId} and v.imo = ${DEMO_SCENARIO.vesselImo}`;
     expect(erp.requests).toEqual([
       {
-        key: `rec-${recId}`,
+        key: `rec-${recId}-${ANCHOR_S}`,
         body: {
           supplierErpCode: codes?.erp_code,
           vesselImo: DEMO_SCENARIO.vesselImo,
@@ -146,7 +170,7 @@ describe.skipIf(!sql)("executor (Postgres)", () => {
           currency: quote?.currency,
           lines: [{ grade: "LSMGO", qtyMt: option?.qtyMt, pricePerMt: quote?.price_per_mt }],
           bargeFee: quote?.barge_fee,
-          reference: `rec-${recId}`,
+          reference: `rec-${recId}-${ANCHOR_S}`,
         },
       },
     ]);
@@ -165,6 +189,37 @@ describe.skipIf(!sql)("executor (Postgres)", () => {
       "order.created",
       "order.synced",
     ]);
+  });
+
+  it("a reset world's first recommendation gets a new key, so the kept ERP store makes a new PO", async () => {
+    const first = await approveRecommendation(deps, recId, "alice");
+    expect(first.erpPoNumber).toBe("PO-000001");
+
+    // Reboot: a new world (new anchor, ids restarted), the same ERP store.
+    const anchor = new Date(FIXTURE_ANCHOR.getTime() + 26 * 3_600_000);
+    await seedDatabase(db, { seed: FIXTURE_SEED, anchor, mode: "reset" });
+    await insertDemoQuotes(db);
+    const ctx = createToolContext({ sql: db, now: () => anchor });
+    const planned = await planBunkering(ctx, { vessel: "Aegean Pioneer" });
+    const best = planned.facts.find((f) => f.id.endsWith("_bestOptionId"));
+    const proposed = await proposeAction(ctx, {
+      type: "purchase_order",
+      calculationId: (planned.data as { calculationId: number }).calculationId,
+      optionId: "MTMLA-kestrel",
+      factRefs: [best?.id ?? ""],
+      rationale: "Lowest total delivered cost.",
+    });
+    const again = (proposed.data as { recommendationId: number }).recommendationId;
+    expect(again).toBe(recId);
+
+    const second = await approveRecommendation(deps, again, "alice");
+    expect(second).toMatchObject({ erpSyncStatus: "synced", erpPoNumber: "PO-000002" });
+    const keys = erp.requests.map((r) => r.key);
+    expect(keys).toEqual([
+      `rec-${recId}-${ANCHOR_S}`,
+      `rec-${recId}-${Math.floor(anchor.getTime() / 1000)}`,
+    ]);
+    expect((await ordersOf(again))[0]?.idempotency_key).toBe(keys[1]);
   });
 
   it("approve twice creates one order and one ERP call", async () => {
@@ -190,7 +245,7 @@ describe.skipIf(!sql)("executor (Postgres)", () => {
     expect(orders).toHaveLength(1);
     expect(results.map((r) => r.orderId)).toEqual([orders[0]?.id, orders[0]?.id]);
     expect(new Set(results.map((r) => r.erpPoNumber))).toEqual(new Set(["PO-000001"]));
-    expect(new Set(erp.requests.map((r) => r.key))).toEqual(new Set([`rec-${recId}`]));
+    expect(new Set(erp.requests.map((r) => r.key))).toEqual(new Set([`rec-${recId}-${ANCHOR_S}`]));
     const kinds = await auditKinds(recId);
     expect(kinds.filter((k) => k === "recommendation.approved")).toHaveLength(1);
     expect(kinds.filter((k) => k === "order.created")).toHaveLength(1);
@@ -231,7 +286,10 @@ describe.skipIf(!sql)("executor (Postgres)", () => {
       erpSyncStatus: "synced",
     });
     expect(await ordersOf(recId)).toHaveLength(1);
-    expect(erp.requests.map((r) => r.key)).toEqual([`rec-${recId}`, `rec-${recId}`]);
+    expect(erp.requests.map((r) => r.key)).toEqual([
+      `rec-${recId}-${ANCHOR_S}`,
+      `rec-${recId}-${ANCHOR_S}`,
+    ]);
     expect(erp.requests[1]?.body).toEqual(erp.requests[0]?.body);
     expect((await recommendation(recId))?.decided_by).toBe("alice");
     expect(await quoteStatus(kestrelQuoteId)).toBe("ordered");

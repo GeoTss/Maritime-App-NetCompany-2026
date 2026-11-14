@@ -18,7 +18,8 @@ touches `.claude/state/markers/live-smoke` (`MARKERS_DIR` overrides the director
 0 pass, 1 failed assertion(s) (all listed), 2 API not in live mode.
 
 The demo inbox can be delivered once per world. A second run exits 1 with "inbox already
-delivered"; reset with `docker compose up -d --force-recreate api` (SEED_ON_BOOT=reset).
+delivered"; reset with `docker compose up -d --force-recreate api erp` (SEED_ON_BOOT=reset; recreating the
+ERP simulator clears its in-memory orders too).
 
 To compare models, restart the API with `AGENT_MODEL=claude-opus-5-5` and run again with
 `--label agent-opus`; compare the "By purpose" tables of the two reports.

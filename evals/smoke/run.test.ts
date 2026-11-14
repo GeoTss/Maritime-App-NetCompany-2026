@@ -127,7 +127,7 @@ describe.skipIf(!sql)("live smoke runner (in-process, replay)", () => {
     expect(second.ok).toBe(false);
     expect(second.exitCode).toBe(1);
     expect(second.failures.join("\n")).toContain(
-      "inbox already delivered — restart the API (docker compose up -d --force-recreate api) to reset the demo world",
+      "inbox already delivered — restart the API and ERP (docker compose up -d --force-recreate api erp) to reset the demo world",
     );
     await expect(access(join(first.dir, "m2", "live-smoke"))).rejects.toThrow();
   });

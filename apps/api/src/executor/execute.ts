@@ -5,7 +5,8 @@
  * plan option's `qtyMt`; price, currency and barge fee come from the quote the option points at;
  * supplier ERP code, vessel IMO and port UN/LOCODE from their rows. The order is written once per
  * recommendation (row lock + unique idempotency key) and pushed to the ERP after the commit, with
- * `idempotencyKey = "rec-<id>"`, so a retry after an outage can never create a second order.
+ * `idempotencyKey = "rec-<id>-<world anchor epoch seconds>"`, minted once and stored on the order,
+ * so a retry after an outage can never create a second order.
  */
 import type { Sql } from "@pharos/db";
 import {
@@ -39,8 +40,14 @@ export class DecisionError extends Error {
   }
 }
 
-/** The ERP idempotency key (and our order reference) for a recommendation. */
-export const idempotencyKeyFor = (recommendationId: Id) => `rec-${recommendationId}`;
+/**
+ * The ERP idempotency key (and our order reference) for a recommendation in a world. Every boot
+ * reseeds the world with restarted ids while the ERP keeps its keys, so the world's anchor (epoch
+ * seconds, from `world_meta`) keeps "recommendation 1" of one world apart from that of the next.
+ * Deterministic for the same world and recommendation.
+ */
+export const idempotencyKeyFor = (recommendationId: Id, worldAnchor: Date) =>
+  `rec-${recommendationId}-${Math.floor(worldAnchor.getTime() / 1000)}`;
 
 /** Audit actor for what the executor does on its own after a decision. */
 const EXECUTOR = "executor";
@@ -182,7 +189,10 @@ async function createOrder(tx: Tx, rec: RecommendationRow, now: Date): Promise<I
     order by id limit 1`;
   if (!line) refuse(`quote ${quote.id} has no ${grade} line.`);
 
-  const key = idempotencyKeyFor(rec.id);
+  const [world] = await tx<{ anchor: Date | string }[]>`
+    select anchor from world_meta order by id limit 1`;
+  if (!world) throw new Error("world_meta is empty; seed the database first");
+  const key = idempotencyKeyFor(rec.id, new Date(world.anchor));
   const [order] = await tx<{ id: number }[]>`
     insert into purchase_orders (quote_id, recommendation_id, status, erp_po_number,
                                  erp_sync_status, idempotency_key, created_at)

@@ -46,7 +46,7 @@ const EXPECTED_EMAILS = [
 ] as const;
 
 export const INBOX_ALREADY_DELIVERED =
-  "inbox already delivered — restart the API (docker compose up -d --force-recreate api) to reset the demo world";
+  "inbox already delivered — restart the API and ERP (docker compose up -d --force-recreate api erp) to reset the demo world";
 
 export interface SmokeOptions {
   baseUrl: string;
