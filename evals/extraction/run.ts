@@ -19,7 +19,8 @@
  * `--oracle` and `--empty` make no model calls and need no key. `--split heldout` needs `--final`.
  * The key comes from `ANTHROPIC_API_KEY` (via `tsx --env-file-if-exists=.env`) and is never printed.
  */
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { appendFileSync, writeFileSync } from "node:fs";
+import { mkdir, readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { APIError } from "@anthropic-ai/sdk";
@@ -55,6 +56,7 @@ import {
   RecordingFile,
   ReplayMissError,
 } from "../../apps/api/src/ai/llm.js";
+import { readBodyOnce } from "../../apps/api/src/ai/read-body.js";
 import { DEFAULT_RECORDINGS_DIR } from "../../apps/api/src/config.js";
 import { normaliseExtraction } from "../../apps/api/src/ingest/evaluate.js";
 import { type IngestDeps, ingestRaw, processDocument } from "../../apps/api/src/ingest/workflow.js";
@@ -77,13 +79,7 @@ import {
   gradeCase,
   type PipelineStatus,
 } from "./grade.js";
-import {
-  type GradedRun,
-  renderScorecardMd,
-  type Scorecard,
-  type ScorecardMeta,
-  scorecard,
-} from "./scorecard.js";
+import { renderScorecardMd, type Scorecard, type ScorecardMeta, scorecard } from "./scorecard.js";
 import { GOLDEN_DIR } from "./split.js";
 import { EVAL_ANCHOR, EVAL_SEED, evalExtraRequirements } from "./world.js";
 
@@ -339,9 +335,8 @@ export interface Exchange {
 
 /**
  * Records each request body (never headers, so never the key) and response in `into`. Like the
- * gateway in apps/api/src/ai/llm.ts, it reads a body once and returns a new Response over the same
- * bytes, never a read through `clone()`. Node 22's fetch (undici 6.21) cancels the original body
- * when the clone is garbage collected. An error response is returned unread; the SDK's error
+ * LLM gateway it reads a body once (`readBodyOnce`) and returns a new Response over the same
+ * bytes, never a read through `clone()`. An error response is returned unread; the SDK's error
  * message (in the case's error) carries its body.
  */
 export function capturing(inner: LlmFetch, into: Exchange[]): LlmFetch {
@@ -359,23 +354,16 @@ export function capturing(inner: LlmFetch, into: Exchange[]): LlmFetch {
       into.push({ ...exchange, response: "(error response: returned to the SDK unread)" });
       return transported;
     }
-    const bytes = await transported.arrayBuffer();
-    // A 204 or 205 may not carry a body, not even an empty one.
-    const nullBody = transported.status === 204 || transported.status === 205;
-    let response: unknown = null;
-    if (!nullBody) {
-      try {
-        response = JSON.parse(new TextDecoder().decode(bytes));
-      } catch (err) {
-        response = `(response body unreadable: ${(err as Error).message})`;
-      }
-    }
-    into.push({ ...exchange, response });
-    return new Response(nullBody ? null : bytes, {
-      status: transported.status,
-      statusText: transported.statusText,
-      headers: transported.headers,
+    const { json, response, nullBody } = await readBodyOnce(transported);
+    into.push({
+      ...exchange,
+      response: nullBody
+        ? null
+        : json.ok
+          ? json.value
+          : `(response body unreadable: ${json.error.message})`,
     });
+    return response;
   };
 }
 
@@ -723,6 +711,15 @@ async function runCase(
 
 // ---------- the run ----------
 
+/** Where interrupt signals come from (`process` by default; tests inject an emitter). */
+export interface SignalSource {
+  once(signal: "SIGINT" | "SIGTERM", listener: () => void): unknown;
+  off(signal: "SIGINT" | "SIGTERM", listener: () => void): unknown;
+}
+
+/** Exit status after SIGINT or SIGTERM is handled (128 + 2, the shell's interrupt status). */
+export const INTERRUPT_EXIT = 130;
+
 export interface EvalOptions {
   sql: Sql;
   split: SplitName;
@@ -745,6 +742,10 @@ export interface EvalOptions {
   ledgerPath?: string;
   now?: () => Date;
   log?: (line: string) => void;
+  /** Interrupt signals; default `process`. */
+  signals?: SignalSource;
+  /** Called with 130 once an interrupt is handled; default `process.exit`. */
+  exit?: (code: number) => void;
 }
 
 export interface EvalResult {
@@ -760,7 +761,36 @@ const stamp = (d: Date) =>
     .replace(/[-:]/g, "")
     .replace(/\.\d+Z$/, "Z");
 
-const jsonl = (xs: readonly unknown[]) => xs.map((x) => `${JSON.stringify(x)}\n`).join("");
+/** Creates `<reportsDir>/<name>`, or `<name>-2`, `-3`, ... when it exists: never over a report. */
+export async function createReportDir(reportsDir: string, name: string): Promise<string> {
+  await mkdir(reportsDir, { recursive: true });
+  for (let n = 1; n < 1000; n++) {
+    const dir = join(reportsDir, n === 1 ? name : `${name}-${n}`);
+    try {
+      await mkdir(dir);
+      return dir;
+    } catch (err) {
+      if ((err as { code?: unknown }).code !== "EEXIST") throw err;
+    }
+  }
+  throw new Error(`no free report directory for ${name} in ${reportsDir}`);
+}
+
+/** What a run shares with its interrupt handler and its ledger. */
+interface RunContext {
+  guard: SpendGuard | null;
+  /** Requests sent whose response (and so whose cost) the guard has not seen yet. */
+  inflight: { n: number };
+  /** Appends the run's spend to the ledger unless it already has; synchronous. */
+  settle: () => void;
+  /** What `settle` appended, or null (nothing yet, or an unpaid run). */
+  ledgered: () => number | null;
+  /** Set by the interrupt handler. */
+  interrupted: { reason: string | null };
+  /** Writes the report for the rows so far, synchronously; set once the report directory exists. */
+  writePartial: ((aborted: string) => void) | null;
+  now: () => Date;
+}
 
 export async function runExtractionEval(opts: EvalOptions): Promise<EvalResult> {
   assertSplitAllowed(opts.split, opts.final ?? false);
@@ -793,19 +823,58 @@ export async function runExtractionEval(opts: EvalOptions): Promise<EvalResult> 
     guard = createSpendGuard({ capUsd: Math.min(RUN_CAP_USD, remaining), label: "run" });
   }
 
-  // From here a paid run may spend: its cost is ledgered exactly once, whatever happens next.
-  const ledger = { done: false };
+  // From here a paid run may spend. Its cost is ledgered exactly once: at the end, in the
+  // `finally` below, or by the interrupt handler, whichever comes first.
+  const inflight = { n: 0 };
+  let appended: number | null = null;
   const settle = () => {
-    if (!paid || !guard || ledger.done) return;
-    ledger.done = true;
+    if (!paid || !guard || appended !== null) return;
+    // A request still in flight has no usage yet: it is counted at the per-case estimate.
+    const costUsd = guard.spentUsd() + inflight.n * ESTIMATE_PER_CASE_RUN_USD;
     appendSpend(
-      { at: now().toISOString(), run: LEDGER_RUN, label: opts.label, costUsd: guard.spentUsd() },
+      { at: now().toISOString(), run: LEDGER_RUN, label: opts.label, costUsd },
       opts.ledgerPath,
     );
+    appended = costUsd;
   };
+  const ctx: RunContext = {
+    guard,
+    inflight,
+    settle,
+    ledgered: () => appended,
+    interrupted: { reason: null },
+    writePartial: null,
+    now,
+  };
+
+  // Ctrl-C or a kill during a paid run must not lose its spend from the ledger: the handler
+  // ledgers it and writes the report so far synchronously, then exits 130.
+  const signals = opts.signals ?? process;
+  const exit = opts.exit ?? ((code: number) => process.exit(code));
+  const onSignal = (signal: "SIGINT" | "SIGTERM") => () => {
+    const reason = `interrupted by ${signal}`;
+    ctx.interrupted.reason = reason;
+    try {
+      settle();
+    } catch (err) {
+      console.error(`[eval] ${reason}: could not ledger the spend: ${(err as Error).message}`);
+    }
+    try {
+      ctx.writePartial?.(reason);
+    } catch (err) {
+      console.error(`[eval] ${reason}: could not write the report: ${(err as Error).message}`);
+    }
+    exit(INTERRUPT_EXIT);
+  };
+  const onInt = onSignal("SIGINT");
+  const onTerm = onSignal("SIGTERM");
+  signals.once("SIGINT", onInt);
+  signals.once("SIGTERM", onTerm);
   try {
-    return await withRunLock(opts.sql, () => runPlan(opts, plan, guard, settle, now));
+    return await withRunLock(opts.sql, () => runPlan(opts, plan, ctx));
   } finally {
+    signals.off("SIGINT", onInt);
+    signals.off("SIGTERM", onTerm);
     settle();
   }
 }
@@ -813,13 +882,24 @@ export async function runExtractionEval(opts: EvalOptions): Promise<EvalResult> 
 async function runPlan(
   opts: EvalOptions,
   plan: { c: GoldenCase; run: number }[],
-  guard: SpendGuard | null,
-  settle: () => void,
-  now: () => Date,
+  run: RunContext,
 ): Promise<EvalResult> {
+  const { guard, now } = run;
   const log = opts.log ?? ((l: string) => console.log(l));
   const startedAt = now();
   const recordingsDir = opts.recordingsDir ?? DEFAULT_RECORDINGS_DIR;
+  const llm = opts.extractor === "llm";
+
+  // The report directory exists before the first call; rows and transcripts are appended as each
+  // case finishes, so a run that fails or is stopped part way keeps what it paid for.
+  const reportDir = await createReportDir(
+    opts.reportsDir,
+    `${stamp(startedAt)}-extraction-${opts.split}-${opts.label}`,
+  );
+  const file = (name: string) => join(reportDir, name);
+  writeFileSync(file("rows.jsonl"), "");
+  writeFileSync(file("transcripts.jsonl"), "");
+
   const { world, baseline } = await prepareEvalDb(opts.sql);
 
   const slot: CaseSlot = { oracle: null, errorKind: null };
@@ -834,12 +914,22 @@ async function runPlan(
           }
         : (opts.fetch ?? ((input, init) => fetch(input, init)));
     const tapped = capturing(network, exchanges);
+    const guarded = guard ? guard.wrap(tapped, HAIKU) : tapped;
+    // Counts requests the guard has not costed yet (for the interrupt handler's ledger row).
+    const counted: LlmFetch = async (input, init) => {
+      run.inflight.n++;
+      try {
+        return await guarded(input, init);
+      } finally {
+        run.inflight.n--;
+      }
+    };
     const client = createLlm({
       mode: opts.mode,
       apiKey: opts.apiKey,
       recordingsDir,
       onCall: captureLlmCall,
-      fetch: guard ? guard.wrap(tapped, HAIKU) : tapped,
+      fetch: counted,
     });
     const inner = createLlmExtractor(client, EVAL_EXTRACTOR_CONFIG);
     promptVersion = inner.promptVersion;
@@ -862,82 +952,94 @@ async function runPlan(
   };
 
   const rows: CaseRow[] = [];
-  const transcripts: Transcript[] = [];
+  /** Plan steps finished; the rest (an interrupted case included) are not run. */
+  let done = 0;
+  const remaining = () =>
+    plan.slice(done).map((s) => (s.run === 1 ? s.c.truth.id : `${s.c.truth.id}#${s.run}`));
+
+  /** Scores the rows so far and writes scorecard.json and scorecard.md (synchronously). */
+  const writeScorecard = (aborted: string | null, notRun: string[]) => {
+    const card = scorecard(
+      rows.map((r) => ({
+        run: r.run,
+        grade: r.grade,
+        latencyMs: r.latencyMs,
+        llmLatencyMs: r.llmLatencyMs,
+        costUsd: r.costUsd,
+      })),
+    );
+    const meta: ScorecardMeta = {
+      suite: "extraction",
+      split: opts.split,
+      label: opts.label,
+      mode: opts.extractor === "llm" ? opts.mode : opts.extractor,
+      extractor: opts.extractor,
+      model: llm ? EVAL_EXTRACTOR_CONFIG.extractModel : null,
+      effort: llm ? EVAL_EXTRACTOR_CONFIG.extractEffort : null,
+      fallbacks: llm ? EVAL_EXTRACTOR_CONFIG.llmFallbacks : null,
+      promptVersion,
+      seed: EVAL_SEED,
+      anchor: EVAL_ANCHOR.toISOString(),
+      startedAt: startedAt.toISOString(),
+      finishedAt: now().toISOString(),
+      selected: new Set(plan.map((s) => s.c.truth.id)).size,
+      repeatHard: opts.repeatHard ?? 1,
+      notRun,
+      aborted,
+      servedModels: [...new Set(rows.flatMap((r) => r.servedModels))].sort(),
+      spend: {
+        guardUsd: guard ? guard.spentUsd() : null,
+        dbUsd: card.cost.totalUsd,
+        ledgerUsd: run.ledgered(),
+        parseErrors: guard ? [...guard.parseErrors] : [],
+      },
+    };
+    writeFileSync(
+      file("scorecard.json"),
+      `${JSON.stringify({ meta, scorecard: card }, null, 2)}\n`,
+    );
+    writeFileSync(file("scorecard.md"), `${renderScorecardMd(card, meta)}\n`);
+    return { card, meta };
+  };
+  run.writePartial = (aborted) => writeScorecard(aborted, remaining());
+
   let aborted: string | null = null;
   let notRun: string[] = [];
-  for (const [i, step] of plan.entries()) {
-    const stop = guard ? (guard.overCap() ?? guard.trip()?.reason ?? null) : null;
+  for (const step of plan) {
+    const spendStop = guard ? (guard.overCap() ?? guard.trip()?.reason ?? null) : null;
+    const stop = run.interrupted.reason ?? (spendStop === null ? null : `spend cap: ${spendStop}`);
     if (stop !== null) {
-      aborted = `spend cap: ${stop}`;
-      notRun = plan.slice(i).map((s) => (s.run === 1 ? s.c.truth.id : `${s.c.truth.id}#${s.run}`));
+      aborted = stop;
+      notRun = remaining();
       log(`[eval] stopped before ${notRun[0]}: ${aborted}`);
       break;
     }
     const { row, transcript } = await runCase(ctx, step.c, step.run);
     rows.push(row);
-    transcripts.push(transcript);
+    appendFileSync(file("rows.jsonl"), `${JSON.stringify(row)}\n`);
+    appendFileSync(file("transcripts.jsonl"), `${JSON.stringify(transcript)}\n`);
+    done++;
     const what = row.errorKind ? `error ${row.errorKind}` : row.status;
     log(
       `[eval] ${row.id}${step.run > 1 ? ` #${step.run}` : ""}: ${what} ${(row.latencyMs / 1000).toFixed(1)}s $${row.costUsd.toFixed(5)}`,
     );
   }
   await cleanupCases(opts.sql, baseline);
-  settle();
-
-  const runs: GradedRun[] = rows.map((r) => ({
-    run: r.run,
-    grade: r.grade,
-    latencyMs: r.latencyMs,
-    llmLatencyMs: r.llmLatencyMs,
-    costUsd: r.costUsd,
-  }));
-  const card = scorecard(runs);
-  const servedModels = [...new Set(rows.flatMap((r) => r.servedModels))].sort();
-  const requestedModels = [...new Set(rows.flatMap((r) => r.calls.map((c) => c.model)))].sort();
-  const llm = opts.extractor === "llm";
-  const meta: ScorecardMeta = {
-    suite: "extraction",
-    split: opts.split,
-    label: opts.label,
-    mode: opts.extractor === "llm" ? opts.mode : opts.extractor,
-    extractor: opts.extractor,
-    model: llm ? EVAL_EXTRACTOR_CONFIG.extractModel : null,
-    effort: llm ? EVAL_EXTRACTOR_CONFIG.extractEffort : null,
-    fallbacks: llm ? EVAL_EXTRACTOR_CONFIG.llmFallbacks : null,
-    promptVersion,
-    seed: EVAL_SEED,
-    anchor: EVAL_ANCHOR.toISOString(),
-    startedAt: startedAt.toISOString(),
-    finishedAt: now().toISOString(),
-    selected: new Set(plan.map((s) => s.c.truth.id)).size,
-    repeatHard: opts.repeatHard ?? 1,
-    notRun,
-    aborted,
-    servedModels,
-    spend: {
-      guardUsd: guard ? guard.spentUsd() : null,
-      dbUsd: card.cost.totalUsd,
-      ledgerUsd: guard ? guard.spentUsd() : null,
-    },
-  };
-
-  await mkdir(opts.reportsDir, { recursive: true });
-  const reportDir = join(
-    opts.reportsDir,
-    `${stamp(startedAt)}-extraction-${opts.split}-${opts.label}`,
-  );
-  await mkdir(reportDir); // never over an existing report
-  await writeFile(join(reportDir, "rows.jsonl"), jsonl(rows));
-  await writeFile(join(reportDir, "transcripts.jsonl"), jsonl(transcripts));
-  await writeFile(
-    join(reportDir, "scorecard.json"),
-    `${JSON.stringify({ meta, scorecard: card }, null, 2)}\n`,
-  );
-  await writeFile(join(reportDir, "scorecard.md"), `${renderScorecardMd(card, meta)}\n`);
+  run.settle();
+  const { card, meta } = writeScorecard(aborted, notRun);
   log(`[eval] report: ${reportDir}`);
 
   // A call served (or requested) by any model but Haiku fails the run; the report above says where.
-  if (llm) assertHaikuOnly([...servedModels, ...requestedModels]);
+  if (llm) {
+    const requested = rows.flatMap((r) => r.calls.map((c) => c.model));
+    assertHaikuOnly([...meta.servedModels, ...requested]);
+  }
+  // A response body the guard could not read has an uncounted cost: the ledger may be short.
+  if (meta.spend.parseErrors.length > 0) {
+    throw new Error(
+      `the spend guard could not read ${meta.spend.parseErrors.length} response bodies, so their cost is not counted: ${meta.spend.parseErrors.join("; ")}`,
+    );
+  }
   return { reportDir, meta, scorecard: card, rows };
 }
 

@@ -158,7 +158,7 @@ describe("scorecard", () => {
     expect(card.failures).toEqual([{ id: "d", message: "boom" }]);
   });
 
-  it("needs_review recall: truth-review cases not auto-accepted, with the misses named", () => {
+  it("needs_review recall: truth-review cases sent to review (needs_review or failed), misses named", () => {
     const review = (id: string, over: Partial<CaseGrade>) =>
       grade({ id, truthStatus: "needs_review", status: "needs_review", ...over });
     const card = scorecard([
@@ -167,10 +167,29 @@ describe("scorecard", () => {
       run(review("r2", { status: "failed", kind: null, reviewCheckMatched: false })),
       run(review("r3", { status: "extracted", unsafeAutoAccept: true, reviewCheckMatched: false })),
     ]);
-    expect(card.needsReviewRecall).toMatchObject({ k: 2, n: 3, autoAcceptedIds: ["r3"] });
+    expect(card.needsReviewRecall).toMatchObject({ k: 2, n: 3, missedIds: ["r3"] });
     expect(card.needsReviewRecall.ci95?.low).toBeGreaterThan(0.2);
     expect(card.needsReviewRecall.ci95?.high).toBeLessThan(0.95);
     expect(card.reviewCheckMatched).toMatchObject({ k: 1, n: 3, missedIds: ["r2", "r3"] });
+  });
+
+  it("needs_review recall: a not_a_quote answer on a truth-review case is a miss (no human sees it)", () => {
+    const card = scorecard([
+      run(
+        grade({
+          id: "r-naq",
+          truthStatus: "needs_review",
+          status: "not_a_quote",
+          kind: "not_a_quote",
+          reviewCheckMatched: false,
+        }),
+      ),
+      run(grade({ id: "r-ok", truthStatus: "needs_review", status: "needs_review" })),
+    ]);
+    expect(card.needsReviewRecall).toMatchObject({ k: 1, n: 2, missedIds: ["r-naq"] });
+    expect(renderScorecardMd(card, META)).toContain(
+      "Truth needs_review but not sent to review: r-naq.",
+    );
   });
 
   it("errors are listed apart and excluded from every accuracy denominator", () => {
@@ -266,7 +285,7 @@ describe("scorecard", () => {
         criticalAgreed: false,
         criticalAllCorrect: [true, true, true],
         unsafeRuns: 1,
-        notAutoAcceptedRuns: null,
+        reviewedRuns: null,
         reviewCheckMatchedRuns: null,
       },
       // A non-critical difference (supplier) does not count as disagreement.
@@ -278,7 +297,7 @@ describe("scorecard", () => {
         criticalAgreed: true,
         criticalAllCorrect: [true, true],
         unsafeRuns: 0,
-        notAutoAcceptedRuns: null,
+        reviewedRuns: null,
         reviewCheckMatchedRuns: null,
       },
     ]);
@@ -308,7 +327,7 @@ describe("scorecard", () => {
     expect(card.needsReviewRecall).toMatchObject({ k: 1, n: 1 });
     expect(card.variance?.cases[0]).toMatchObject({
       truthStatus: "needs_review",
-      notAutoAcceptedRuns: { k: 2, n: 3 },
+      reviewedRuns: { k: 2, n: 3 },
       reviewCheckMatchedRuns: { k: 2, n: 3 },
     });
     expect(card.variance?.needsReviewRecall).toMatchObject({ k: 2, n: 3 });
@@ -358,7 +377,7 @@ const META: ScorecardMeta = {
   notRun: [],
   aborted: null,
   servedModels: ["claude-haiku-5-5"],
-  spend: { guardUsd: null, dbUsd: 0.002, ledgerUsd: null },
+  spend: { guardUsd: null, dbUsd: 0.002, ledgerUsd: null, parseErrors: [] },
 };
 
 describe("renderScorecardMd", () => {

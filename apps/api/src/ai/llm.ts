@@ -17,6 +17,7 @@ import { createDb, type Sql, schema } from "@pharos/db";
 import type { Id, LlmCall, LlmMode } from "@pharos/shared";
 import { z } from "zod";
 import { costUsd, type LlmUsage, promptTokensOf } from "./pricing.js";
+import { readBodyOnce } from "./read-body.js";
 
 export type LlmFetch = NonNullable<ClientOptions["fetch"]>;
 
@@ -218,23 +219,14 @@ function gateway(opts: CreateLlmOptions): Middleware {
     const transported = await next(request);
     // Errors go back to the SDK (which may retry); they are neither recorded nor costed.
     if (!transported.ok) return transported;
-    // Read the body once and hand the SDK a new Response over the same bytes. Never read through
-    // `clone()`: Node 22's fetch (undici 6.21) cancels the original body when the clone is
-    // garbage collected, so a collection before the SDK reads it fails the call with "middleware
-    // consumed the response body" (seen as an intermittent failure under load).
-    const bytes = await transported.arrayBuffer();
+    // Read the body once and hand the SDK a new Response over the same bytes, never a read
+    // through `clone()` (see read-body.ts: a collected clone cancels the original body).
+    const read = await readBodyOnce(transported);
     const latencyMs = performance.now() - started;
-    // A 204 or 205 may not carry a body, not even an empty one.
-    const nullBody = transported.status === 204 || transported.status === 205;
-    const response = new Response(nullBody ? null : bytes, {
-      status: transported.status,
-      statusText: transported.statusText,
-      headers: transported.headers,
-    });
+    const { response, json } = read;
     let responseBody: unknown;
-    try {
-      responseBody = JSON.parse(new TextDecoder().decode(bytes));
-    } catch {
+    if (json.ok) responseBody = json.value;
+    else {
       if (mode === "record") {
         throw new UnsupportedLlmRequestError(
           `Cannot record a non-JSON LLM response (request key ${key}).`,

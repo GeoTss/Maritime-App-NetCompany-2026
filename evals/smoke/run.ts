@@ -28,6 +28,7 @@ import {
 } from "@pharos/shared";
 import { z } from "zod";
 import { appendSpend, assertBudget, assertHaikuOnly } from "../lib/budget.js";
+import { TARGET_EMAIL_MS } from "../lib/targets.js";
 
 const REPO_ROOT = fileURLToPath(new URL("../..", import.meta.url));
 
@@ -36,8 +37,7 @@ export const DEMO_QUESTION = "Where should Aegean Pioneer bunker, and who should
 /** The option the agent must propose a purchase for. */
 export const EXPECTED_OPTION_ID = "MTMLA-kestrel";
 
-/** Section 6 targets (ms). */
-export const TARGET_EMAIL_MS = 20_000;
+/** Section 6 targets (ms); the email target lives in evals/lib/targets.ts. */
 export const TARGET_ASK_MS = 45_000;
 /** A run costing more than this fails (and writes no marker). Per run; not the $3 phase budget. */
 export const RUN_CAP_USD = 0.25;

@@ -207,23 +207,45 @@ describe("alignLines (by grade when both sides have one, otherwise in order)", (
     ]);
   });
 
-  it("an extra predicted line counts as three wrong critical fields", () => {
-    const g = gradeCase(
+  const extraLine = (line: {
+    grade: "VLSFO" | null;
+    qtyMt: number | null;
+    pricePerMt: number | null;
+  }) =>
+    gradeCase(
       truth(),
       outcome({
-        normalised: view({
-          lines: [
-            { grade: "LSMGO", qtyMt: 300, pricePerMt: 738.5 },
-            { grade: "VLSFO", qtyMt: 200, pricePerMt: 600 },
-          ],
-        }),
+        normalised: view({ lines: [{ grade: "LSMGO", qtyMt: 300, pricePerMt: 738.5 }, line] }),
       }),
       KEYS,
     );
-    expect(
-      g.fields.filter((f) => f.path.startsWith("lines.extra.1.")).map((f) => f.verdict),
-    ).toEqual(["wrong", "wrong", "wrong"]);
+  const extraVerdicts = (g: ReturnType<typeof gradeCase>) =>
+    g.fields.filter((f) => f.path.startsWith("lines.extra.1.")).map((f) => [f.field, f.verdict]);
+
+  it("an extra predicted line's values are graded against null: each value is wrong", () => {
+    const g = extraLine({ grade: "VLSFO", qtyMt: 200, pricePerMt: 600 });
+    expect(extraVerdicts(g)).toEqual([
+      ["grade", "wrong"],
+      ["quantity", "wrong"],
+      ["price", "wrong"],
+    ]);
     expect(g.unsafeAutoAccept).toBe(true);
+  });
+
+  it("an extra predicted line's null fields are correct (both null), its values wrong", () => {
+    expect(extraVerdicts(extraLine({ grade: null, qtyMt: null, pricePerMt: null }))).toEqual([
+      ["grade", "correct"],
+      ["quantity", "correct"],
+      ["price", "correct"],
+    ]);
+    const partial = extraLine({ grade: null, qtyMt: 200, pricePerMt: null });
+    expect(extraVerdicts(partial)).toEqual([
+      ["grade", "correct"],
+      ["quantity", "wrong"],
+      ["price", "correct"],
+    ]);
+    expect(partial.unsafeAutoAccept).toBe(true);
+    expect(partial.criticalAllCorrect).toBe(false);
   });
 
   it("a multi-grade quote in another order grades as correct", () => {

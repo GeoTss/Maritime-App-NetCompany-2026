@@ -11,6 +11,7 @@ import { IsoDateTime } from "@pharos/shared";
 import { z } from "zod";
 import type { LlmFetch } from "../../apps/api/src/ai/llm.js";
 import { costUsd, type LlmUsage, promptTokensOf } from "../../apps/api/src/ai/pricing.js";
+import { readBodyOnce } from "../../apps/api/src/ai/read-body.js";
 
 /** Hard cap for all live LLM spend in Phase 3 (evals, smokes, recordings). */
 export const SPEND_CAP_USD = 3;
@@ -160,33 +161,23 @@ export function createSpendGuard(opts: SpendGuardOptions): SpendGuard {
       const transported = await inner(url, init);
       // An error response carries no usage: hand it back unread.
       if (!transported.ok) return transported;
-      // Read the body once and return a new Response over the same bytes. Never read through
-      // `clone()`: Node 22's fetch (undici 6.21) cancels the original body when the clone is
-      // garbage collected, which fails the caller's read (as in apps/api/src/ai/llm.ts).
-      const bytes = await transported.arrayBuffer();
-      // A 204 or 205 may not carry a body, not even an empty one; there is nothing to cost.
-      const nullBody = transported.status === 204 || transported.status === 205;
-      if (!nullBody) {
-        try {
-          const b = JSON.parse(new TextDecoder().decode(bytes)) as {
-            model?: unknown;
-            usage?: LlmUsage;
-          } | null;
-          if (typeof b?.model === "string") served.push(b.model);
-          if (b?.usage) {
-            const c = costUsd(model, b.usage, promptTokensOf(b.usage));
-            spent += c;
-            opts.onCost?.(c);
-          }
-        } catch (err) {
-          parseErrors.push(`response body unreadable at the transport: ${(err as Error).message}`);
-        }
+      // Read the body once and return a new Response over the same bytes, never a read through
+      // `clone()` (see apps/api/src/ai/read-body.ts: a collected clone cancels the original body).
+      const { json, response, nullBody } = await readBodyOnce(transported);
+      // A 204 or 205 carries no body: there is nothing to cost.
+      if (nullBody) return response;
+      if (!json.ok) {
+        parseErrors.push(`response body unreadable at the transport: ${json.error.message}`);
+        return response;
       }
-      return new Response(nullBody ? null : bytes, {
-        status: transported.status,
-        statusText: transported.statusText,
-        headers: transported.headers,
-      });
+      const b = json.value as { model?: unknown; usage?: LlmUsage } | null;
+      if (typeof b?.model === "string") served.push(b.model);
+      if (b?.usage) {
+        const c = costUsd(model, b.usage, promptTokensOf(b.usage));
+        spent += c;
+        opts.onCost?.(c);
+      }
+      return response;
     },
   };
 }

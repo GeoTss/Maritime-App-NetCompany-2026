@@ -1,5 +1,7 @@
 /** The extraction runner: argument refusals, spend refusals and dry runs on a real database. */
-import { mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
+import { EventEmitter } from "node:events";
+import { readdirSync, readFileSync } from "node:fs";
+import { mkdir, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setFlagsFromString } from "node:v8";
@@ -17,9 +19,11 @@ import { BudgetError, HAIKU, ModelNotAllowedError, readLedger } from "../lib/bud
 import {
   capturing,
   classifyExtractError,
+  ESTIMATE_PER_CASE_RUN_USD,
   EVAL_RUN_LOCK,
   type EvalOptions,
   type Exchange,
+  INTERRUPT_EXIT,
   LEDGER_RUN,
   parseArgs,
   runExtractionEval,
@@ -261,7 +265,17 @@ describe("runExtractionEval refusals (before any database, network or spend)", (
 });
 
 /** A scripted Anthropic API that answers each golden email with its oracle. */
-async function oracleApi(ids: string[], reply: { model?: string; outputTokens?: number } = {}) {
+async function oracleApi(
+  ids: string[],
+  reply: {
+    model?: string;
+    outputTokens?: number;
+    /** Replaces the JSON message with this raw body. */
+    rawBody?: string;
+    /** Runs while the request is in flight, before the response is returned. */
+    onRequest?: () => void;
+  } = {},
+) {
   const byPrompt = new Map<string, unknown>();
   for (const id of ids) {
     const email = await parseEmail(new Uint8Array(await readFile(join(GOLDEN_DIR, `${id}.eml`))));
@@ -288,7 +302,8 @@ async function oracleApi(ids: string[], reply: { model?: string; outputTokens?: 
       stop_details: null,
       usage,
     };
-    return new Response(JSON.stringify(message), {
+    reply.onRequest?.();
+    return new Response(reply.rawBody ?? JSON.stringify(message), {
       status: 200,
       headers: { "content-type": "application/json" },
     });
@@ -354,7 +369,7 @@ describe.skipIf(!sql)("extraction runner (database)", () => {
     // Every case's status is the truth's: the oracle through the pipeline reproduces the truth.
     for (const row of r.rows) expect(row.status).toBe(row.grade.truthStatus);
     expect(r.meta).toMatchObject({ mode: "oracle", model: null, servedModels: [] });
-    expect(r.meta.spend).toEqual({ guardUsd: null, dbUsd: 0, ledgerUsd: null });
+    expect(r.meta.spend).toEqual({ guardUsd: null, dbUsd: 0, ledgerUsd: null, parseErrors: [] });
 
     const files = (await readdir(r.reportDir)).sort();
     expect(files).toEqual(["rows.jsonl", "scorecard.json", "scorecard.md", "transcripts.jsonl"]);
@@ -466,8 +481,134 @@ describe.skipIf(!sql)("extraction runner (database)", () => {
         ledgerPath,
       }),
     ).rejects.toBeInstanceOf(ModelNotAllowedError);
-    expect(await readdir(reportsDir)).toHaveLength(1);
+    const [dir] = await readdir(reportsDir);
+    // The paid rows were written as the case finished, before the run failed.
+    const rows = await readFile(join(reportsDir, dir ?? "", "rows.jsonl"), "utf8");
+    expect(rows.trim().split("\n")).toHaveLength(1);
     expect(readLedger(ledgerPath).at(-1)?.costUsd).toBeCloseTo(api.costPerCall, 12);
+  }, 120_000);
+
+  it("a response body the spend guard cannot read fails the run and is listed", async () => {
+    const api = await oracleApi([firstOf("plain")], { rawBody: "not json" });
+    const reportsDir = await temp("reports");
+    await expect(
+      dry({
+        extractor: "llm",
+        mode: "live",
+        label: "unreadable",
+        ids: [firstOf("plain")],
+        apiKey: "test-key",
+        fetch: api.fetch,
+        reportsDir,
+        ledgerPath: await tempLedger(0),
+      }),
+    ).rejects.toThrow(/spend guard could not read 1 response bodies/);
+    const [dir] = await readdir(reportsDir);
+    const json = JSON.parse(await readFile(join(reportsDir, dir ?? "", "scorecard.json"), "utf8"));
+    expect(json.meta.spend.parseErrors).toHaveLength(1);
+    const md = await readFile(join(reportsDir, dir ?? "", "scorecard.md"), "utf8");
+    expect(md).toContain("Spend guard could not read 1 response bodies");
+  }, 120_000);
+
+  it("never writes over a report: an existing directory name gets a suffix", async () => {
+    const reportsDir = await temp("reports");
+    const at = new Date("2026-11-14T10:00:00Z");
+    const name = "20261114T100000Z-extraction-dev-same";
+    await mkdir(join(reportsDir, name));
+    const r = await dry({ label: "same", ids: [firstOf("eur")], reportsDir, now: () => at });
+    expect(r.reportDir).toBe(join(reportsDir, `${name}-2`));
+    expect(await readdir(join(reportsDir, name))).toEqual([]);
+  }, 120_000);
+
+  describe("SIGINT / SIGTERM during a paid run", () => {
+    const interrupted = async (
+      signal: "SIGINT" | "SIGTERM",
+      when: "between cases" | "in flight",
+    ) => {
+      const ids = [firstOf("eur"), firstOf("plain")];
+      const signals = new EventEmitter();
+      const ledgerPath = await tempLedger(0);
+      const reportsDir = await temp("reports");
+      let atExit: { ledger: number; scorecard: unknown; rows: number } | null = null;
+      const exit = vi.fn((_code: number) => {
+        // What a real exit would leave behind, read at the moment of the exit.
+        const [dir] = readdirSync(reportsDir);
+        const base = join(reportsDir, dir ?? "");
+        atExit = {
+          ledger: readLedger(ledgerPath).length,
+          scorecard: JSON.parse(readFileSync(join(base, "scorecard.json"), "utf8")),
+          rows: readFileSync(join(base, "rows.jsonl"), "utf8").split("\n").filter(Boolean).length,
+        };
+      });
+      let sent = false;
+      const fire = () => {
+        if (sent) return;
+        sent = true;
+        signals.emit(signal);
+      };
+      const api = await oracleApi(ids, when === "in flight" ? { onRequest: fire } : {});
+      const r = await dry({
+        extractor: "llm",
+        mode: "live",
+        label: `signal-${signal}`,
+        ids,
+        apiKey: "test-key",
+        fetch: api.fetch,
+        reportsDir,
+        ledgerPath,
+        signals,
+        exit,
+        log: (line) => {
+          if (when === "between cases" && line.includes(`${ids[0]}:`)) fire();
+        },
+      });
+      return { r, exit, atExit, api, ledgerPath, signals, ids };
+    };
+
+    it("between cases: ledgers the spend once, writes the report so far, exits 130", async () => {
+      const { r, exit, atExit, api, ledgerPath, signals, ids } = await interrupted(
+        "SIGINT",
+        "between cases",
+      );
+      expect(exit).toHaveBeenCalledTimes(1);
+      expect(exit).toHaveBeenCalledWith(INTERRUPT_EXIT);
+      const ledger = readLedger(ledgerPath);
+      expect(ledger).toHaveLength(2); // the earlier row and exactly one for this run
+      expect(ledger.at(-1)).toMatchObject({ run: LEDGER_RUN, label: "signal-SIGINT" });
+      expect(ledger.at(-1)?.costUsd).toBeCloseTo(api.costPerCall, 12);
+      expect(atExit).toMatchObject({
+        ledger: 2,
+        rows: 1,
+        scorecard: { meta: { aborted: "interrupted by SIGINT", notRun: [ids[1]] } },
+      });
+      expect(api.fetch).toHaveBeenCalledTimes(1);
+      expect(r.meta).toMatchObject({ aborted: "interrupted by SIGINT", notRun: [ids[1]] });
+      expect(r.meta.spend.ledgerUsd).toBeCloseTo(api.costPerCall, 12);
+      expect(signals.listenerCount("SIGINT") + signals.listenerCount("SIGTERM")).toBe(0);
+    }, 120_000);
+
+    it("in flight: the uncosted request is ledgered at the per-case estimate, once", async () => {
+      const { r, exit, atExit, api, ledgerPath, ids } = await interrupted("SIGTERM", "in flight");
+      expect(exit).toHaveBeenCalledWith(INTERRUPT_EXIT);
+      const ledger = readLedger(ledgerPath);
+      expect(ledger).toHaveLength(2);
+      expect(ledger.at(-1)?.costUsd).toBeCloseTo(ESTIMATE_PER_CASE_RUN_USD, 12);
+      expect(ESTIMATE_PER_CASE_RUN_USD).toBeGreaterThan(api.costPerCall);
+      // At the exit the first case had not finished: no rows, both cases not run.
+      expect(atExit).toMatchObject({
+        ledger: 2,
+        rows: 0,
+        scorecard: { meta: { aborted: "interrupted by SIGTERM", notRun: ids } },
+      });
+      expect(r.meta.spend.ledgerUsd).toBeCloseTo(ESTIMATE_PER_CASE_RUN_USD, 12);
+      expect(r.meta.spend.guardUsd).toBeCloseTo(api.costPerCall, 12);
+    }, 120_000);
+  });
+
+  it("an unpaid run registers the handlers too and removes them afterwards", async () => {
+    const signals = new EventEmitter();
+    await dry({ label: "handlers", ids: [firstOf("eur")], signals });
+    expect(signals.listenerCount("SIGINT") + signals.listenerCount("SIGTERM")).toBe(0);
   }, 120_000);
 
   it("refuses to start while another run holds the database", async () => {

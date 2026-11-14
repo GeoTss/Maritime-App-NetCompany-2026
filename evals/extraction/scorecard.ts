@@ -4,7 +4,7 @@
  * cases. Headline metrics use each case's first run only; errors (API, truncation, refusal,
  * replay miss) are listed apart and are in no accuracy denominator.
  */
-import { TARGET_EMAIL_MS } from "../smoke/run.js";
+import { TARGET_EMAIL_MS } from "../lib/targets.js";
 import {
   type CaseGrade,
   type ErrorKind,
@@ -98,8 +98,8 @@ export interface VarianceRow {
   criticalAgreed: boolean | null;
   criticalAllCorrect: (boolean | null)[];
   unsafeRuns: number;
-  /** Truth needs_review only, over its graded runs: not auto-accepted / a listed check failed. */
-  notAutoAcceptedRuns: { k: number; n: number } | null;
+  /** Truth needs_review only, over its graded runs: sent to review / a listed check failed. */
+  reviewedRuns: { k: number; n: number } | null;
   reviewCheckMatchedRuns: { k: number; n: number } | null;
 }
 
@@ -135,10 +135,11 @@ export interface Scorecard {
   /** Over truth-extracted cases. */
   falseReview: Rate & { ids: string[] };
   /**
-   * Over truth needs_review cases: not auto-accepted (status anything but extracted). Small N on
-   * dev, so read it with its interval. `autoAcceptedIds` are the misses.
+   * Over truth needs_review cases: sent to review, i.e. status needs_review or failed (what the
+   * review queue lists). Extracted or not_a_quote is a miss: no human sees it. Small N on dev, so
+   * read it with its interval.
    */
-  needsReviewRecall: Rate & { autoAcceptedIds: string[] };
+  needsReviewRecall: Rate & { missedIds: string[] };
   /** Over truth needs_review cases: at least one of the truth's review checks failed. */
   reviewCheckMatched: Rate & { missedIds: string[] };
   latency: { endToEnd: Dist; model: Dist; targetMs: number };
@@ -170,15 +171,18 @@ function criticalSignature(g: CaseGrade): string {
   });
 }
 
+/** The statuses the review queue lists: a case in one of them is seen by a human. */
+const REVIEWED: ReadonlySet<CaseGrade["status"]> = new Set(["needs_review", "failed"]);
+
 /** needs_review recall and review-check matching over the graded truth-needs_review grades. */
 function reviewRates(grades: readonly CaseGrade[]) {
   const review = grades.filter((g) => g.error === null && g.truthStatus === "needs_review");
-  const autoAccepted = review.filter((g) => g.status === "extracted").map((g) => g.id);
+  const notReviewed = review.filter((g) => !REVIEWED.has(g.status)).map((g) => g.id);
   const missed = review.filter((g) => g.reviewCheckMatched !== true).map((g) => g.id);
   return {
     needsReviewRecall: {
-      ...rateOf(review.length - autoAccepted.length, review.length),
-      autoAcceptedIds: autoAccepted,
+      ...rateOf(review.length - notReviewed.length, review.length),
+      missedIds: notReviewed,
     },
     reviewCheckMatched: {
       ...rateOf(review.length - missed.length, review.length),
@@ -205,7 +209,7 @@ function variance(runs: readonly GradedRun[]): Variance | null {
       criticalAgreed: errored ? null : new Set(ordered.map(criticalSignature)).size === 1,
       criticalAllCorrect: ordered.map((g) => g.criticalAllCorrect),
       unsafeRuns: count(ordered, (g) => g.unsafeAutoAccept === true),
-      notAutoAcceptedRuns: review
+      reviewedRuns: review
         ? { k: review.needsReviewRecall.k, n: review.needsReviewRecall.n }
         : null,
       reviewCheckMatchedRuns: review
@@ -298,7 +302,7 @@ export function scorecard(runs: readonly GradedRun[]): Scorecard {
     fieldErrors,
     unsafeAutoAccepts: { ...rateOf(unsafeIds.length, graded.length), ids: unsafeIds },
     reviewQueue: rateOf(
-      count(graded, (g) => g.status === "needs_review" || g.status === "failed"),
+      count(graded, (g) => REVIEWED.has(g.status)),
       graded.length,
     ),
     falseReview: {
@@ -345,8 +349,16 @@ export interface ScorecardMeta {
   aborted: string | null;
   /** Models the API (or the replayed recording) named as having served the calls. */
   servedModels: string[];
-  /** Spend: what the per-request guard summed, the llm_calls total, and what went to the ledger. */
-  spend: { guardUsd: number | null; dbUsd: number; ledgerUsd: number | null };
+  /**
+   * Spend: what the per-request guard summed, the llm_calls total, what went to the ledger, and
+   * response bodies the guard could not read (their cost is not counted; the run fails).
+   */
+  spend: {
+    guardUsd: number | null;
+    dbUsd: number;
+    ledgerUsd: number | null;
+    parseErrors: string[];
+  };
 }
 
 const pct = (x: number) => (x * 100).toFixed(1);
@@ -387,6 +399,11 @@ export function renderScorecardMd(card: Scorecard, meta: ScorecardMeta): string 
         ? "; nothing ledgered (no live calls)"
         : `; ledgered ${usd(meta.spend.ledgerUsd)}`),
   );
+  if (meta.spend.parseErrors.length > 0) {
+    out.push(
+      `- **Spend guard could not read ${meta.spend.parseErrors.length} response bodies** (their cost is not counted; the run failed): ${meta.spend.parseErrors.join("; ")}`,
+    );
+  }
   if (meta.aborted) {
     out.push(`- **Stopped early:** ${meta.aborted}`);
     out.push(`- Not run: ${meta.notRun.join(", ") || "none"}`);
@@ -417,7 +434,7 @@ export function renderScorecardMd(card: Scorecard, meta: ScorecardMeta): string 
   out.push(`Unsafe auto-accepts: ${card.unsafeAutoAccepts.ids.join(", ") || "none"}.`);
   out.push(`False reviews: ${card.falseReview.ids.join(", ") || "none"}.`);
   out.push(
-    `Truth needs_review but auto-accepted: ${card.needsReviewRecall.autoAcceptedIds.join(", ") || "none"}.`,
+    `Truth needs_review but not sent to review: ${card.needsReviewRecall.missedIds.join(", ") || "none"}.`,
   );
   out.push(
     `Review expected but no listed check failed: ${card.reviewCheckMatched.missedIds.join(", ") || "none"}.`,
@@ -475,7 +492,7 @@ export function renderScorecardMd(card: Scorecard, meta: ScorecardMeta): string 
   if (card.variance) {
     out.push("## Variance (hard cases repeated; not in the headline)", "");
     out.push(
-      "| Case | Truth | Runs | Statuses | Critical values agreed | All critical correct | Unsafe runs | Not auto-accepted | Review check matched |",
+      "| Case | Truth | Runs | Statuses | Critical values agreed | All critical correct | Unsafe runs | Sent to review | Review check matched |",
       "|---|---|---:|---|---|---|---:|---:|---:|",
     );
     const runsOf = (x: { k: number; n: number } | null) => (x === null ? "-" : `${x.k}/${x.n}`);
@@ -483,7 +500,7 @@ export function renderScorecardMd(card: Scorecard, meta: ScorecardMeta): string 
       const agreed =
         v.criticalAgreed === null ? "unknown (a run errored)" : v.criticalAgreed ? "yes" : "no";
       out.push(
-        `| ${v.id} | ${v.truthStatus} | ${v.runs} | ${v.statuses.join(", ")} | ${agreed} | ${v.criticalAllCorrect.map((x) => (x === null ? "-" : x ? "yes" : "no")).join(", ")} | ${v.unsafeRuns} | ${runsOf(v.notAutoAcceptedRuns)} | ${runsOf(v.reviewCheckMatchedRuns)} |`,
+        `| ${v.id} | ${v.truthStatus} | ${v.runs} | ${v.statuses.join(", ")} | ${agreed} | ${v.criticalAllCorrect.map((x) => (x === null ? "-" : x ? "yes" : "no")).join(", ")} | ${v.unsafeRuns} | ${runsOf(v.reviewedRuns)} | ${runsOf(v.reviewCheckMatchedRuns)} |`,
       );
     }
     out.push("", "Over every graded run of the repeated needs_review cases:", "");

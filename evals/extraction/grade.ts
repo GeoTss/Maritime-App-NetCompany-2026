@@ -14,7 +14,8 @@
  *
  * Line alignment: each truth line with a grade takes the first unpaired predicted line of the same
  * grade; the lines left on both sides are then paired in order. A truth line left over has every
- * field missing; a predicted line left over (an extra line) has every field wrong.
+ * field missing; a predicted line left over (an extra line) is graded against null: each value
+ * it holds is wrong, each null correct.
  */
 import { SUPPLIERS, type World } from "@pharos/db";
 import {
@@ -255,22 +256,12 @@ function gradeFields(
       add("quantity", `${at}.quantity`, t.qtyMt, v?.qtyMt ?? null, same);
       add("price", `${at}.price`, t.pricePerMt, v?.pricePerMt ?? null, sameCent);
     } else if (v) {
-      // A line the truth does not have: each of its fields is wrong, whatever it holds.
+      // A line the truth does not have: its fields are graded against null, so a value is
+      // wrong and a null is correct.
       const at = `lines.extra.${pair.predicted}`;
-      for (const [field, value] of [
-        ["grade", v.grade],
-        ["quantity", v.qtyMt],
-        ["price", v.pricePerMt],
-      ] as const) {
-        fields.push({
-          field,
-          path: `${at}.${field}`,
-          critical: isCritical(field),
-          verdict: "wrong",
-          truth: null,
-          predicted: value,
-        });
-      }
+      add("grade", `${at}.grade`, null, v.grade, same);
+      add("quantity", `${at}.quantity`, null, v.qtyMt, same);
+      add("price", `${at}.price`, null, v.pricePerMt, sameCent);
     }
   }
   return { fields, lines };
