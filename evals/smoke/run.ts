@@ -296,10 +296,15 @@ export async function runSmoke(opts: SmokeOptions): Promise<SmokeResult> {
       )
     ).items;
     const ours = new Set(askCallIds);
+    const ofDocuments = (c: LlmCallView) =>
+      c.documentId !== null && documentIds.includes(c.documentId);
+    // An ask that failed part way never returned its call ids, so its agent calls are those made
+    // after this run's first document call (the run starts on a freshly restarted API).
+    const firstDocumentCall = Math.min(...all.filter(ofDocuments).map((c) => c.id));
     const rows = all
       .filter(
         (c: LlmCallView) =>
-          ours.has(c.id) || (c.documentId !== null && documentIds.includes(c.documentId)),
+          ours.has(c.id) || ofDocuments(c) || (c.purpose === "agent" && c.id > firstDocumentCall),
       )
       .sort((a, b) => a.id - b.id)
       .map(
@@ -488,11 +493,6 @@ export async function runSmoke(opts: SmokeOptions): Promise<SmokeResult> {
       answer.llmCallIds.every((id) => all.some((c) => c.id === id)),
       "some of the ask's llmCallIds are not in /api/llm-calls",
     );
-    try {
-      assertHaikuOnly(calls.map((c) => c.model));
-    } catch (err) {
-      failures.push((err as Error).message);
-    }
   } catch (err) {
     if (!(err instanceof Stop)) throw err;
     failures.push(err.message);
@@ -506,6 +506,12 @@ export async function runSmoke(opts: SmokeOptions): Promise<SmokeResult> {
     } catch {
       // The API is unreachable; there is nothing more to read.
     }
+  }
+  // Every run checks whatever calls it loaded, so an early stop cannot hide another model.
+  try {
+    assertHaikuOnly(calls.map((c) => c.model));
+  } catch (err) {
+    failures.push((err as Error).message);
   }
   if (opts.ledger && calls.length > 0) {
     appendSpend(

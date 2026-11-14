@@ -306,5 +306,45 @@ describe.skipIf(!sql)("live smoke runner (in-process, replay)", () => {
       expect(readLedger(ledger)).toHaveLength(1);
       expect(ledgerTotal(ledger)).toBeGreaterThan(0);
     });
+
+    it("ledgers agent calls of an ask that failed after making paid calls", async () => {
+      const { dir, options } = await build();
+      const ledger = join(dir, "ledger.jsonl");
+      await writeFile(ledger, "");
+      const real = options.fetch;
+      // The ask really runs (so its agent calls are recorded) but the caller sees an HTTP 500.
+      const failing = (async (url: string, init?: RequestInit) => {
+        const res = await real(url, init);
+        return new URL(url).pathname === "/api/ask" ? new Response("boom", { status: 500 }) : res;
+      }) as typeof fetch;
+      const result = await runSmoke({ ...options, fetch: failing, ledger: { path: ledger } });
+      expect(result.exitCode).toBe(1);
+      expect(result.report.calls.some((c) => c.purpose === "agent")).toBe(true);
+      expect(result.report.calls.some((c) => c.purpose === "extract")).toBe(true);
+      expect(ledgerTotal(ledger)).toBeCloseTo(result.report.totals.costUsd, 9);
+    });
+
+    it("fails an early-stopped run whose loaded calls include a non-Haiku model", async () => {
+      const { dir, options } = await build();
+      const ledger = join(dir, "ledger.jsonl");
+      await writeFile(ledger, "");
+      const other = rewriting(options.fetch, (path, body) => {
+        if (path === "/api/llm-calls") {
+          const b = body as { items: { model: string }[] };
+          for (const c of b.items) c.model = "claude-sonnet-5-5";
+          return b;
+        }
+        return /^\/api\/inbox\/\d+$/.test(path) &&
+          (body as { extractionStatus: string }).extractionStatus !== "pending"
+          ? { ...(body as object), extractionStatus: "needs_review", checkResults: [] }
+          : undefined;
+      });
+      const result = await runSmoke({ ...options, fetch: other, ledger: { path: ledger } });
+      expect(result.report.calls.length).toBeGreaterThan(0);
+      expect(result.failures.join("\n")).toMatch(
+        /only claude-haiku-5-5 is allowed.*claude-sonnet-5-5/,
+      );
+      expect(ledgerTotal(ledger)).toBeGreaterThan(0);
+    });
   });
 });

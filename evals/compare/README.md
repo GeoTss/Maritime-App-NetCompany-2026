@@ -22,7 +22,8 @@ anchor, `createLlm` in live mode, effort `medium`, fallbacks off, and each quest
 `POST /api/ask` on the in-process app.
 
 Phase 3: **Haiku 5.5 only.** `--models` defaults to `claude-haiku-5-5` and any other model is
-refused (`assertHaikuOnly` in `evals/lib/budget.ts`). The pricing table still prices Sonnet and
+refused (`assertHaikuOnly` in `evals/lib/budget.ts`), by `parseArgs` and by `runCompare` itself. A
+response served by another model fails the run after the report is written. The pricing table still prices Sonnet and
 Opus for the dry tests, but no live run may use them.
 
 ## Cost and caps

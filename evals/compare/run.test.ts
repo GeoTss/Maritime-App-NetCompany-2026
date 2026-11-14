@@ -1,5 +1,5 @@
 /** Dry test of the comparison runner: scripted transport, real agent, app route and database. */
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { connectTestDb, testDbLabel } from "@pharos/db/testing";
@@ -13,7 +13,7 @@ import {
   textReply,
   toolCall,
 } from "../../apps/api/src/ai/scripted-llm.js";
-import { readLedger } from "../lib/budget.js";
+import { ModelNotAllowedError, readLedger } from "../lib/budget.js";
 import type { CompareQuestion } from "./questions.js";
 import { QUESTIONS } from "./questions.js";
 import {
@@ -207,7 +207,7 @@ describe.skipIf(!sql)("comparison runner (scripted, database)", () => {
     const { report, reportDir } = await runCompare({
       sql: db,
       apiKey: "test-key",
-      models: ["claude-haiku-5-5", "claude-opus-5-5"],
+      models: ["claude-haiku-5-5", "claude-haiku-5-5"],
       questions: QS,
       label: "dry",
       reportsDir,
@@ -215,7 +215,7 @@ describe.skipIf(!sql)("comparison runner (scripted, database)", () => {
       log,
     });
     expect(reportDir).toMatch(/\d{8}T\d{6}Z-agent-compare-dry$/);
-    expect(report.models.map((m) => m.model)).toEqual(["claude-haiku-5-5", "claude-opus-5-5"]);
+    expect(report.models.map((m) => m.model)).toEqual(["claude-haiku-5-5", "claude-haiku-5-5"]);
 
     for (const m of report.models) {
       const by = Object.fromEntries(m.results.map((r) => [r.questionId, r]));
@@ -249,9 +249,6 @@ describe.skipIf(!sql)("comparison runner (scripted, database)", () => {
       expect(m.summary.costUsd).toBeCloseTo(sum(m.results.map((r) => r.costUsd)), 9);
       expect(m.summary.costPerAnswered).toBeCloseTo(m.summary.costUsd / 2, 9);
     }
-    // Same scripted usage, so Opus (4 USD/MTok in) costs more than Haiku (0.1).
-    const [haiku, opus] = report.models;
-    expect(opus?.summary.costUsd).toBeGreaterThan(haiku?.summary.costUsd ?? 0);
     expect(report.totalCostUsd).toBeCloseTo(sum(report.models.map((m) => m.summary.costUsd)), 9);
 
     // The database holds the same total as the report (this run's rows only: reset per model).
@@ -304,27 +301,52 @@ describe.skipIf(!sql)("comparison runner (scripted, database)", () => {
     expect(rows[0]?.costUsd).toBeCloseTo(report.models[0]?.guardCostUsd ?? -1, 9);
   });
 
-  it("flags a served model that differs from the requested one", async () => {
-    const { report } = await runCompare({
-      sql: db,
-      apiKey: "test-key",
-      models: ["claude-sonnet-5-5"],
-      questions: [QS[0] as CompareQuestion],
-      label: "mismatch",
-      reportsDir: await dir(),
-      fetch: fakeTransport({ servedModel: () => "claude-haiku-5-5" }),
-      log,
-    });
-    const r = report.models[0]?.results[0];
-    expect(r?.servedModelOk).toBe(false);
-    expect(r?.servedModels).toEqual(["claude-haiku-5-5"]);
+  it("refuses a non-Haiku model whether or not a ledger is given", async () => {
+    for (const models of [["claude-sonnet-5-5"], ["claude-haiku-5-5", "claude-opus-5-5"]]) {
+      await expect(
+        runCompare({
+          sql: db,
+          apiKey: "test-key",
+          models,
+          questions: [QS[0] as CompareQuestion],
+          label: "refused",
+          reportsDir: await dir(),
+          fetch: fakeTransport(),
+          log,
+        }),
+      ).rejects.toThrow(ModelNotAllowedError);
+    }
+  });
+
+  it("fails the run when a response is served by a non-Haiku model, after writing the report", async () => {
+    const reportsDir = await dir();
+    const ledger = join(await dir(), "ledger.jsonl");
+    await writeFile(ledger, "");
+    await expect(
+      runCompare({
+        sql: db,
+        apiKey: "test-key",
+        models: ["claude-haiku-5-5"],
+        questions: [QS[0] as CompareQuestion],
+        label: "served",
+        reportsDir,
+        fetch: fakeTransport({ servedModel: () => "claude-sonnet-5-5" }),
+        ledger: { path: ledger },
+        log,
+      }),
+    ).rejects.toThrow(/claude-sonnet-5-5/);
+    const [stamped] = await readdir(reportsDir);
+    const json = JSON.parse(await readFile(join(reportsDir, stamped ?? "", "report.json"), "utf8"));
+    expect(json.models[0].results[0].servedModelOk).toBe(false);
+    expect(json.models[0].results[0].servedModels).toEqual(["claude-sonnet-5-5"]);
+    expect(readLedger(ledger)).toHaveLength(1);
   });
 
   it("stops a model at its cost cap and records why", async () => {
     const { report } = await runCompare({
       sql: db,
       apiKey: "test-key",
-      models: ["claude-haiku-5-5", "claude-sonnet-5-5"],
+      models: ["claude-haiku-5-5", "claude-haiku-5-5"],
       questions: [PLAIN, ...QS],
       label: "modelcap",
       reportsDir: await dir(),
@@ -394,7 +416,7 @@ describe.skipIf(!sql)("comparison runner (scripted, database)", () => {
     const { report } = await runCompare({
       sql: db,
       apiKey: "test-key",
-      models: ["claude-haiku-5-5", "claude-sonnet-5-5"],
+      models: ["claude-haiku-5-5", "claude-haiku-5-5"],
       questions: [QS[0] as CompareQuestion],
       label: "midruncap",
       reportsDir: await dir(),
@@ -450,7 +472,7 @@ describe.skipIf(!sql)("comparison runner (scripted, database)", () => {
     const { report } = await runCompare({
       sql: db,
       apiKey: "test-key",
-      models: ["claude-haiku-5-5", "claude-sonnet-5-5"],
+      models: ["claude-haiku-5-5", "claude-haiku-5-5"],
       questions: [PLAIN, ...QS],
       label: "runcap",
       reportsDir: await dir(),

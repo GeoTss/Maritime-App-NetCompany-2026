@@ -471,8 +471,8 @@ export async function runCompare(
   opts: CompareOptions,
 ): Promise<{ report: CompareReport; reportDir: string }> {
   const tally = { usd: 0 };
+  assertHaikuOnly(opts.models);
   if (opts.ledger) {
-    assertHaikuOnly(opts.models);
     assertBudget(
       sum(opts.models.map((m) => estimateModelUsd(m, opts.questions.length))),
       opts.ledger.path,
@@ -665,6 +665,8 @@ async function runCompareCore(
   await writeFile(join(reportDir, "transcripts.json"), `${JSON.stringify(transcripts, null, 2)}\n`);
   await writeFile(join(reportDir, "report.md"), renderMarkdown(report));
   log(`report: ${reportDir}`);
+  // A response served by another model fails the run (the report above records which and where).
+  assertHaikuOnly(modelReports.flatMap((m) => m.results.flatMap((r) => r.servedModels)));
   return { report, reportDir };
 }
 
