@@ -20,7 +20,7 @@ import { AskResponse } from "@pharos/shared";
 import type { AgentConfig } from "../../apps/api/src/ai/agent.js";
 import { captureLlmCall } from "../../apps/api/src/ai/call-capture.js";
 import { createLlm, type LlmFetch } from "../../apps/api/src/ai/llm.js";
-import { costUsd } from "../../apps/api/src/ai/pricing.js";
+import { costUsd, promptTokensOf } from "../../apps/api/src/ai/pricing.js";
 import { createApp } from "../../apps/api/src/app.js";
 import { prepareAskFixture } from "../../apps/api/src/ask/demo-fixture.js";
 import { DEFAULT_RECORDINGS_DIR } from "../../apps/api/src/config.js";
@@ -83,6 +83,8 @@ export interface PairResult {
   /** Models that actually served this ask's calls, and whether all match the requested model. */
   servedModels: string[];
   servedModelOk: boolean;
+  /** Set when a response body could not be read for its model or usage at the transport. */
+  servedModelParseError: string | null;
   tools: ToolCallRow[];
   factCount: number;
   citedFactCount: number;
@@ -121,6 +123,8 @@ export interface ModelReport {
   estimateUsd: number;
   summary: ModelSummary;
   stoppedReason: string | null;
+  /** Cost the per-request guard summed from response usage; the DB figure (summary) is reported. */
+  guardCostUsd: number;
   results: PairResult[];
 }
 
@@ -140,6 +144,8 @@ export interface CompareReport {
     questions: CompareQuestion[];
   };
   stops: StopRecord[];
+  /** Places where the per-request guard's cost and the DB cost differ (empty when they agree). */
+  guardDisagreements: string[];
   totalCostUsd: number;
   models: ModelReport[];
 }
@@ -272,6 +278,7 @@ const emptyResult = (model: string, questionId: string): PairResult => ({
   costUsd: 0,
   servedModels: [],
   servedModelOk: true,
+  servedModelParseError: null,
   tools: [],
   factCount: 0,
   citedFactCount: 0,
@@ -298,6 +305,13 @@ export interface CompareOptions {
   log?: (line: string) => void;
 }
 
+/** What the transport saw while an ask ran: served models, unreadable bodies, blocked requests. */
+export interface TransportProbe {
+  served: string[];
+  parseErrors: string[];
+  blocked: string[];
+}
+
 export interface Transcript {
   model: string;
   questionId: string;
@@ -312,9 +326,11 @@ async function askOne(
   q: CompareQuestion,
   conversationId: number | null,
   transcripts: Transcript[],
-  served: string[],
+  probe: TransportProbe,
 ): Promise<PairResult> {
-  const servedMark = served.length;
+  const servedMark = probe.served.length;
+  const parseMark = probe.parseErrors.length;
+  const blockedMark = probe.blocked.length;
   const callMark = await maxId(sql, "llm_calls");
   const msgMark = await maxId(sql, "messages");
   const recMark = await maxId(sql, "recommendations");
@@ -363,10 +379,12 @@ async function askOne(
   result.costUsd = sum(result.calls.map((c) => c.costUsd));
   // llm_calls stores the model that was requested; the model that served each call is the one the
   // response names, captured at the transport.
-  result.servedModels = [...new Set(served.slice(servedMark))].sort();
+  result.servedModels = [...new Set(probe.served.slice(servedMark))].sort();
   result.servedModelOk =
     result.servedModels.length > 0 &&
     result.servedModels.every((m) => m === model || m.startsWith(`${model}-`));
+
+  result.servedModelParseError = probe.parseErrors.slice(parseMark).join("; ") || null;
 
   const stored = await sql<{ id: number; role: string; content: JsonRow | null }[]>`
     select id, role, content from messages where id > ${msgMark} order by id`;
@@ -425,6 +443,11 @@ async function askOne(
       const e = classifyError(status, body);
       result.errorKind = e.kind;
       result.detail = e.message;
+      const blocked = probe.blocked.slice(blockedMark);
+      if (blocked.length > 0) {
+        result.errorKind = "spend_cap";
+        result.detail = `stopped: cap. ${blocked[0]}`;
+      }
     }
   }
   return result;
@@ -454,6 +477,8 @@ export async function runCompare(
   const modelReports: ModelReport[] = [];
   const transcripts: Transcript[] = [];
   let runCost = 0;
+  let guardRunCost = 0;
+  const guardDisagreements: string[] = [];
   let runStopped = false;
 
   for (const model of opts.models) {
@@ -472,16 +497,56 @@ export async function runCompare(
       llmFallbacks: false,
     };
     // The transport reports the model each response names, so the served model can be asserted.
-    const served: string[] = [];
+    // It also sums each response's cost from its usage and, once a cap is crossed, refuses the next
+    // request without touching the network, so one long ask overruns by at most one request.
+    const probe: TransportProbe = { served: [], parseErrors: [], blocked: [] };
+    let guardModelCost = 0;
+    let guardTrip: { scope: "model" | "run"; reason: string } | null = null;
     const inner: LlmFetch = opts.fetch ?? ((url, init) => fetch(url, init));
     const transport: LlmFetch = async (url, init) => {
+      if (guardTrip === null && guardModelCost > modelCap) {
+        guardTrip = {
+          scope: "model",
+          reason: `per-request guard: model cost $${guardModelCost.toFixed(4)} > $${modelCap.toFixed(2)}`,
+        };
+      }
+      if (guardTrip === null && guardRunCost > totalCap) {
+        guardTrip = {
+          scope: "run",
+          reason: `per-request guard: run cost $${guardRunCost.toFixed(4)} > $${totalCap.toFixed(2)}`,
+        };
+      }
+      if (guardTrip !== null) {
+        probe.blocked.push(guardTrip.reason);
+        // 400 is not retried by the SDK, so the in-flight ask fails at once.
+        return new Response(
+          JSON.stringify({
+            type: "error",
+            error: {
+              type: "invalid_request_error",
+              message: `spend cap reached: ${guardTrip.reason}`,
+            },
+          }),
+          { status: 400, headers: { "content-type": "application/json" } },
+        );
+      }
       const res = await inner(url, init);
-      const named = await res
-        .clone()
-        .json()
-        .then((b: unknown) => (b as { model?: unknown } | null)?.model)
-        .catch(() => undefined);
-      if (typeof named === "string") served.push(named);
+      try {
+        const b = (await res.clone().json()) as {
+          model?: unknown;
+          usage?: Parameters<typeof promptTokensOf>[0];
+        } | null;
+        if (typeof b?.model === "string") probe.served.push(b.model);
+        if (b?.usage) {
+          const c = costUsd(model, b.usage, promptTokensOf(b.usage));
+          guardModelCost += c;
+          guardRunCost += c;
+        }
+      } catch (err) {
+        probe.parseErrors.push(
+          `response body unreadable at the transport: ${(err as Error).message}`,
+        );
+      }
       return res;
     };
     const llm = createLlm({
@@ -499,16 +564,27 @@ export async function runCompare(
     });
 
     let modelCost = 0;
-    for (const q of opts.questions) {
-      if (stoppedReason === null && modelCost > modelCap) {
-        stoppedReason = `model cost cap exceeded ($${modelCost.toFixed(4)} > $${modelCap.toFixed(2)})`;
+    /** Records the first cap crossed (per-request guard or database cost) as this model's stop. */
+    const checkCaps = () => {
+      if (stoppedReason !== null) return;
+      const trip = guardTrip as { scope: "model" | "run"; reason: string } | null;
+      if (trip?.scope === "model" || modelCost > modelCap) {
+        stoppedReason =
+          trip?.scope === "model"
+            ? `model cost cap exceeded, stopped: cap (${trip.reason})`
+            : `model cost cap exceeded ($${modelCost.toFixed(4)} > $${modelCap.toFixed(2)})`;
         stops.push({ scope: "model", model, reason: stoppedReason });
-      }
-      if (stoppedReason === null && runCost > totalCap) {
+      } else if (trip?.scope === "run" || runCost > totalCap) {
         runStopped = true;
-        stoppedReason = `run cost cap exceeded ($${runCost.toFixed(4)} > $${totalCap.toFixed(2)})`;
+        stoppedReason =
+          trip?.scope === "run"
+            ? `run cost cap exceeded, stopped: cap (${trip.reason})`
+            : `run cost cap exceeded ($${runCost.toFixed(4)} > $${totalCap.toFixed(2)})`;
         stops.push({ scope: "run", model, reason: stoppedReason });
       }
+    };
+    for (const q of opts.questions) {
+      checkCaps();
       if (stoppedReason !== null) {
         const r = emptyResult(model, q.id);
         r.detail = stoppedReason;
@@ -529,7 +605,7 @@ export async function runCompare(
         conversationId = parent.conversationId;
       }
       log(`[${model}] ${q.id} ...`);
-      const r = await askOne(sql, app, model, q, conversationId, transcripts, served);
+      const r = await askOne(sql, app, model, q, conversationId, transcripts, probe);
       modelCost += r.costUsd;
       runCost += r.costUsd;
       log(
@@ -539,20 +615,18 @@ export async function runCompare(
       byQuestion.set(q.id, r);
     }
     // A cap crossed by the last question still counts as a stop for this model.
-    if (stoppedReason === null && modelCost > modelCap) {
-      stoppedReason = `model cost cap exceeded ($${modelCost.toFixed(4)} > $${modelCap.toFixed(2)})`;
-      stops.push({ scope: "model", model, reason: stoppedReason });
-    }
-    if (stoppedReason === null && runCost > totalCap) {
-      runStopped = true;
-      stoppedReason = `run cost cap exceeded ($${runCost.toFixed(4)} > $${totalCap.toFixed(2)})`;
-      stops.push({ scope: "run", model, reason: stoppedReason });
+    checkCaps();
+    if (Math.abs(guardModelCost - modelCost) > 1e-9) {
+      guardDisagreements.push(
+        `${model}: guard summed $${guardModelCost.toFixed(6)} from response usage, the database $${modelCost.toFixed(6)}`,
+      );
     }
     modelReports.push({
       model,
       estimateUsd: estimates.find((e) => e.model === model)?.usd ?? 0,
       summary: summarise(results),
       stoppedReason,
+      guardCostUsd: guardModelCost,
       results,
     });
   }
@@ -574,6 +648,7 @@ export async function runCompare(
       questions: opts.questions,
     },
     stops,
+    guardDisagreements,
     totalCostUsd: runCost,
     models: modelReports,
   };
@@ -611,6 +686,7 @@ function pairCell(r: PairResult | undefined): string {
         .join("; "),
     );
   }
+  if (r.servedModelParseError) parts.push(`served-model parse error: ${r.servedModelParseError}`);
   if (!r.servedModelOk) parts.push(`SERVED MODEL MISMATCH: ${r.servedModels.join(", ")}`);
   return cell(parts.join("; "));
 }
@@ -633,6 +709,12 @@ export function renderMarkdown(r: CompareReport): string {
     out.push("");
   }
 
+  out.push(
+    r.guardDisagreements.length === 0
+      ? "Spend guard: its per-request cost (from response usage) agrees with the database cost reported below."
+      : `Spend guard DISAGREES with the database cost (the database figure is the reported one): ${r.guardDisagreements.join("; ")}`,
+    "",
+  );
   out.push("## Per-model summary", "");
   out.push(
     "Released answers = answered + repaired. Cost per answered = total cost / released answers.",

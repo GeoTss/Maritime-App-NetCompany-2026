@@ -127,6 +127,9 @@ const QS: CompareQuestion[] = [
   { id: "d", kind: "unknown", text: "REFUSE this one" },
 ];
 
+/** One request, no tools: lets a cap be crossed exactly between questions. */
+const PLAIN: CompareQuestion = { id: "p", kind: "demo", text: "PLAIN first" };
+
 /** The question the model is answering now: the last plain user message that is not the repair. */
 function currentQuestion(req: ScriptedRequest): string {
   const users = req.messages.filter(
@@ -282,7 +285,7 @@ describe.skipIf(!sql)("comparison runner (scripted, database)", () => {
       sql: db,
       apiKey: "test-key",
       models: ["claude-haiku-5-5", "claude-sonnet-5-5"],
-      questions: QS,
+      questions: [PLAIN, ...QS],
       label: "modelcap",
       reportsDir: await dir(),
       fetch: fakeTransport(),
@@ -296,6 +299,7 @@ describe.skipIf(!sql)("comparison runner (scripted, database)", () => {
         "skipped",
         "skipped",
         "skipped",
+        "skipped",
       ]);
       expect(m.stoppedReason).toContain("model cost cap exceeded");
       expect(m.results[1]?.detail).toContain("model cost cap");
@@ -304,12 +308,110 @@ describe.skipIf(!sql)("comparison runner (scripted, database)", () => {
     expect(report.stops.some((s) => s.scope === "run")).toBe(false);
   });
 
+  /** Counts the requests that reach the (scripted) network. */
+  const counting = () => {
+    const base = fakeTransport();
+    const state = { n: 0 };
+    const fetch: LlmFetch = (url, init) => {
+      state.n += 1;
+      return base(url, init);
+    };
+    return { fetch, state };
+  };
+
+  it("blocks the next request once the model cap is crossed mid-question", async () => {
+    const { fetch, state } = counting();
+    const { report } = await runCompare({
+      sql: db,
+      apiKey: "test-key",
+      models: ["claude-haiku-5-5"],
+      questions: [QS[0] as CompareQuestion, QS[2] as CompareQuestion],
+      label: "midcap",
+      reportsDir: await dir(),
+      fetch,
+      modelCapUsd: 0.0001,
+      totalCapUsd: 100,
+      log,
+    });
+    // The TOOLS question needs three requests; the first one crosses the cap, so only it ran.
+    expect(state.n).toBe(1);
+    const [a, c] = report.models[0]?.results ?? [];
+    expect(a?.outcome).toBe("error");
+    expect(a?.errorKind).toBe("spend_cap");
+    expect(a?.detail).toContain("stopped: cap");
+    expect(a?.llmCalls).toBe(1);
+    expect(c?.outcome).toBe("skipped");
+    expect(report.models[0]?.stoppedReason).toContain("stopped: cap");
+    expect(report.stops).toHaveLength(1);
+    expect(report.stops[0]?.scope).toBe("model");
+    // The guard and the database agree on what was spent.
+    expect(report.guardDisagreements).toEqual([]);
+    expect(report.models[0]?.guardCostUsd).toBeCloseTo(report.models[0]?.summary.costUsd ?? -1, 9);
+  });
+
+  it("blocks the next request once the run cap is crossed mid-question", async () => {
+    const { fetch, state } = counting();
+    const { report } = await runCompare({
+      sql: db,
+      apiKey: "test-key",
+      models: ["claude-haiku-5-5", "claude-sonnet-5-5"],
+      questions: [QS[0] as CompareQuestion],
+      label: "midruncap",
+      reportsDir: await dir(),
+      fetch,
+      modelCapUsd: 100,
+      totalCapUsd: 0.0001,
+      log,
+    });
+    expect(state.n).toBe(1);
+    expect(report.models[0]?.results[0]?.errorKind).toBe("spend_cap");
+    expect(report.models[1]?.results.every((r) => r.outcome === "skipped")).toBe(true);
+    expect(report.stops[0]?.scope).toBe("run");
+  });
+
+  it("records an unreadable response body instead of swallowing it", async () => {
+    const { report } = await runCompare({
+      sql: db,
+      apiKey: "test-key",
+      models: ["claude-haiku-5-5"],
+      questions: [QS[2] as CompareQuestion],
+      label: "parse",
+      reportsDir: await dir(),
+      fetch: async () =>
+        new Response("<html>gateway</html>", {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      log,
+    });
+    const r = report.models[0]?.results[0];
+    expect(r?.outcome).toBe("error");
+    expect(r?.servedModelParseError).toContain("unreadable at the transport");
+  });
+
+  it("never writes the API key into any report file", async () => {
+    const key = "sk-ant-TEST-SECRET-0123456789";
+    const { reportDir } = await runCompare({
+      sql: db,
+      apiKey: key,
+      models: ["claude-haiku-5-5"],
+      questions: QS,
+      label: "secret",
+      reportsDir: await dir(),
+      fetch: fakeTransport(),
+      log,
+    });
+    for (const f of ["report.md", "report.json", "transcripts.json"]) {
+      expect(await readFile(join(reportDir, f), "utf8")).not.toContain(key);
+    }
+  });
+
   it("stops the run at the total cap, skipping later models entirely", async () => {
     const { report } = await runCompare({
       sql: db,
       apiKey: "test-key",
       models: ["claude-haiku-5-5", "claude-sonnet-5-5"],
-      questions: QS,
+      questions: [PLAIN, ...QS],
       label: "runcap",
       reportsDir: await dir(),
       fetch: fakeTransport(),
@@ -320,6 +422,7 @@ describe.skipIf(!sql)("comparison runner (scripted, database)", () => {
     const [first, second] = report.models;
     expect(first?.results.map((r) => r.outcome)).toEqual([
       "answered",
+      "skipped",
       "skipped",
       "skipped",
       "skipped",
