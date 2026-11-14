@@ -1,6 +1,8 @@
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { setFlagsFromString } from "node:v8";
+import { runInNewContext } from "node:vm";
 import { describe, expect, it, vi } from "vitest";
 import type { LlmFetch } from "../../apps/api/src/ai/llm.js";
 import {
@@ -129,6 +131,61 @@ describe("createSpendGuard", () => {
     const guard = createSpendGuard({ capUsd: 1 });
     await guard.wrap(async () => new Response("not json"), HAIKU)("http://x", {});
     expect(guard.parseErrors).toHaveLength(1);
+  });
+  it("passes a non-OK response through unread, and gives a 204 a null body", async () => {
+    const guard = createSpendGuard({ capUsd: 1 });
+    const failed = new Response('{"type":"error"}', { status: 529 });
+    expect(await guard.wrap(async () => failed, HAIKU)("http://x", {})).toBe(failed);
+    expect(failed.bodyUsed).toBe(false);
+    const empty = await guard.wrap(async () => new Response(null, { status: 204 }), HAIKU)(
+      "http://x",
+      {},
+    );
+    expect([empty.status, empty.body]).toEqual([204, null]);
+    expect(guard.spentUsd()).toBe(0);
+    expect(guard.parseErrors).toEqual([]);
+  });
+});
+
+setFlagsFromString("--expose-gc");
+const gc = runInNewContext("gc") as () => void;
+
+/** A full garbage collection, then a macrotask so FinalizationRegistry callbacks can run. */
+async function collectGarbage(): Promise<void> {
+  gc();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+describe("createSpendGuard under garbage collection", () => {
+  // Node 22's fetch (undici 6.21) cancels a Response's body when a clone of that Response is
+  // garbage collected. The guard reads every response for its usage, so the response it returns
+  // must have a body no collection can cancel. The collection runs after the guard has read the
+  // body and before the caller reads it.
+  const okBody = JSON.stringify({ model: HAIKU, usage: { input_tokens: 100, output_tokens: 20 } });
+  it("a collection between the guard's read and the caller's leaves the body readable", async () => {
+    const guard = createSpendGuard({ capUsd: 1 });
+    const f = guard.wrap(
+      async () =>
+        new Response(okBody, {
+          status: 200,
+          statusText: "OK",
+          headers: { "content-type": "application/json", "request-id": "req_1" },
+        }),
+      HAIKU,
+    );
+    for (let i = 0; i < 3; i++) {
+      const res = await f("http://x", {});
+      await collectGarbage();
+      expect(res.bodyUsed).toBe(false);
+      expect(await res.json()).toEqual(JSON.parse(okBody));
+      expect([res.status, res.statusText, res.headers.get("request-id")]).toEqual([
+        200,
+        "OK",
+        "req_1",
+      ]);
+    }
+    expect(guard.served).toEqual([HAIKU, HAIKU, HAIKU]);
+    expect(guard.spentUsd()).toBeGreaterThan(0);
   });
 });
 

@@ -157,19 +157,36 @@ export function createSpendGuard(opts: SpendGuardOptions): SpendGuard {
           { status: 400, headers: { "content-type": "application/json" } },
         );
       }
-      const res = await inner(url, init);
-      try {
-        const b = (await res.clone().json()) as { model?: unknown; usage?: LlmUsage } | null;
-        if (typeof b?.model === "string") served.push(b.model);
-        if (b?.usage) {
-          const c = costUsd(model, b.usage, promptTokensOf(b.usage));
-          spent += c;
-          opts.onCost?.(c);
+      const transported = await inner(url, init);
+      // An error response carries no usage: hand it back unread.
+      if (!transported.ok) return transported;
+      // Read the body once and return a new Response over the same bytes. Never read through
+      // `clone()`: Node 22's fetch (undici 6.21) cancels the original body when the clone is
+      // garbage collected, which fails the caller's read (as in apps/api/src/ai/llm.ts).
+      const bytes = await transported.arrayBuffer();
+      // A 204 or 205 may not carry a body, not even an empty one; there is nothing to cost.
+      const nullBody = transported.status === 204 || transported.status === 205;
+      if (!nullBody) {
+        try {
+          const b = JSON.parse(new TextDecoder().decode(bytes)) as {
+            model?: unknown;
+            usage?: LlmUsage;
+          } | null;
+          if (typeof b?.model === "string") served.push(b.model);
+          if (b?.usage) {
+            const c = costUsd(model, b.usage, promptTokensOf(b.usage));
+            spent += c;
+            opts.onCost?.(c);
+          }
+        } catch (err) {
+          parseErrors.push(`response body unreadable at the transport: ${(err as Error).message}`);
         }
-      } catch (err) {
-        parseErrors.push(`response body unreadable at the transport: ${(err as Error).message}`);
       }
-      return res;
+      return new Response(nullBody ? null : bytes, {
+        status: transported.status,
+        statusText: transported.statusText,
+        headers: transported.headers,
+      });
     },
   };
 }
