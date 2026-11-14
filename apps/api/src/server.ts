@@ -34,8 +34,8 @@ async function main() {
       `[api] world ${result.seeded ? "seeded" : "kept"} (SEED_ON_BOOT=${config.seedOnBoot}, seed=${config.worldSeed}, anchor=${result.anchor.toISOString()})`,
     );
   }
-  // Every model call goes through this client; calls are recorded (with their document) by the
-  // workflow from the metrics captured per call.
+  // Every model call goes through this client; calls are recorded (with their document or
+  // conversation) by the workflow and the agent from the metrics captured per call.
   const llm = createLlm({
     mode: config.llmMode,
     apiKey: config.anthropicApiKey,
@@ -52,6 +52,7 @@ async function main() {
       inboxDir: DEMO_INBOX_DIR,
       log: (message) => console.warn(message),
     },
+    ask: { sql, llm, config, log: (message) => console.warn(message) },
   });
 
   const server = serve({ fetch: app.fetch, port: config.port }, (info) => {
