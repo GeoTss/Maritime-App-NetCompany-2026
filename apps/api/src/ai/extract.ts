@@ -9,6 +9,7 @@ import { ExtractionOutput } from "@pharos/shared";
 import { z } from "zod";
 import type { AppConfig } from "../config.js";
 import { withCallCapture } from "./call-capture.js";
+import { FALLBACK_BETA, usesFallbacks } from "./fallbacks.js";
 import type { CallMetrics } from "./llm.js";
 import { EXTRACT_QUOTE_SYSTEM, PROMPT_VERSION } from "./prompts/extract-quote.js";
 
@@ -47,7 +48,6 @@ export class ExtractionError extends Error {
 
 /** Fits a non-streaming request; extraction output is a few hundred tokens plus thinking. */
 const MAX_TOKENS = 16_000;
-const FALLBACK_BETA = "server-side-fallback-2026-07-01";
 
 /**
  * The response schema: `ExtractionOutput` under one key. Structured outputs reject a root-level
@@ -77,9 +77,6 @@ export function sourceText(doc: ExtractInput): string {
   return `From: ${doc.sender ?? ""}\nSubject: ${doc.subject ?? ""}\n\n${doc.bodyText}`;
 }
 
-const usesFallbacks = (config: ExtractorConfig): boolean =>
-  config.llmFallbacks && config.extractModel.startsWith("claude-opus");
-
 export function createLlmExtractor(llm: { client: Anthropic }, config: ExtractorConfig): Extractor {
   const base = {
     model: config.extractModel,
@@ -95,7 +92,7 @@ export function createLlmExtractor(llm: { client: Anthropic }, config: Extractor
 
   const call = async (doc: ExtractInput) => {
     const messages = [{ role: "user" as const, content: renderEmailDocument(doc) }];
-    if (usesFallbacks(config)) {
+    if (usesFallbacks(config.extractModel, config.llmFallbacks)) {
       const msg = await llm.client.beta.messages.parse({
         ...base,
         messages,

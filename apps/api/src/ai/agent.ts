@@ -9,6 +9,7 @@ import type { Sql } from "@pharos/db";
 import { type AskResponse, Fact, type GateResult, type Id } from "@pharos/shared";
 import type { AppConfig } from "../config.js";
 import { withCallCapture } from "./call-capture.js";
+import { FALLBACK_BETA, usesFallbacks } from "./fallbacks.js";
 import { recordLlmCall } from "./llm.js";
 import { AGENT_SYSTEM, PROMPT_VERSION } from "./prompts/agent-system.js";
 import { checkNumbers, citedFactIds } from "./release-gate.js";
@@ -36,7 +37,6 @@ type AgentTools = BetaToolRunnerParams["tools"];
 const MAX_TOKENS = 16_000;
 /** Model requests per turn (tool calls plus the answer); bounds cost and latency. */
 export const MAX_ITERATIONS = 8;
-const FALLBACK_BETA = "server-side-fallback-2026-07-01";
 
 /** The model's turn ended without a usable answer (refusal, truncation, no finish). */
 export class AgentError extends Error {
@@ -49,9 +49,6 @@ export class ConversationNotFoundError extends Error {
     super(`Conversation ${conversationId} does not exist.`);
   }
 }
-
-const usesFallbacks = (config: AgentConfig): boolean =>
-  config.llmFallbacks && config.agentModel.startsWith("claude-opus");
 
 /**
  * The tool runner request. `thread: false` sends the full history every turn, with no server-side
@@ -73,7 +70,7 @@ export function agentRunnerParams(
     thread: false,
     max_iterations: MAX_ITERATIONS,
   };
-  if (!usesFallbacks(config)) return params;
+  if (!usesFallbacks(config.agentModel, config.llmFallbacks)) return params;
   return { ...params, betas: [FALLBACK_BETA], fallbacks: "default" };
 }
 
