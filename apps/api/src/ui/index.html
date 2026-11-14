@@ -65,6 +65,14 @@
   .card { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin: 8px 0; }
   .card p { margin: 4px 0; }
   .po { font-family: var(--mono); font-weight: 600; }
+  .checks { margin: 4px 0; padding-left: 18px; }
+  .checks li { margin: 2px 0; }
+  details.evidence { margin: 4px 0; font-size: 12px; }
+  details.evidence ul { margin: 4px 0; padding-left: 18px; }
+  .fields { display: grid; gap: 6px 10px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin: 6px 0; }
+  .fields label { display: grid; gap: 2px; font-size: 12px; color: var(--muted); }
+  .fields.line { grid-template-columns: 1fr 1fr 1fr auto; align-items: end; }
+  input, select { font: inherit; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--text); min-width: 0; width: 100%; }
 </style>
 </head>
 <body>
@@ -113,6 +121,12 @@
     <h2>Recommendations</h2>
     <div id="recommendations"></div>
     <p id="recommendations-note" class="note"></p>
+  </section>
+
+  <section class="wide">
+    <h2>Review queue</h2>
+    <div id="review"></div>
+    <p id="review-note" class="note"></p>
   </section>
 
   <section class="wide">
@@ -423,6 +437,173 @@ async function loadRecommendations() {
     r.body.items.length === 0 ? "None yet. Ask where to bunker; the agent can propose an order for you to approve." : "";
 }
 
+// ---------- review queue ----------
+
+// Extractions a person has to decide: doubtful ones (needs review) and failed ones. The Accept form
+// starts from what the code read from the email; whatever the person submits is stored as is.
+let reviewReference = null;
+let reviewSignature = null;
+
+const isProcessingFailure = (item) => item.failedChecks.some((c) => c.check === "processing");
+
+// A failed decision shows its reason in the card and leaves the form as the person filled it.
+async function decideReview(item, action, body, button, message) {
+  button.disabled = true;
+  const r = await postJson(`/api/review/${item.extractionId}/${action}`, body);
+  if (!r.ok) {
+    button.disabled = false;
+    message.textContent = `${action} failed: ${errorText(r)}`;
+    return;
+  }
+  reviewSignature = null;
+  refresh();
+}
+
+function selectOf(name, label, options, selected) {
+  const select = el("select", { "data-field": name },
+    el("option", { value: "" }, "— choose —"),
+    ...options.map(([value, text]) => el("option", { value: String(value) }, text)),
+  );
+  select.value = selected === null || selected === undefined ? "" : String(selected);
+  return el("label", {}, label, select);
+}
+
+function inputOf(name, label, type, value) {
+  const input = el("input", { "data-field": name, type });
+  if (type === "number") input.setAttribute("step", "any");
+  input.value = value === null || value === undefined ? "" : String(value);
+  return el("label", {}, label, input);
+}
+
+function lineRow(grades, line, container) {
+  const row = el("div", { class: "fields line" },
+    selectOf("grade", "Grade", grades.map((g) => [g, g]), line.grade),
+    inputOf("qtyMt", "Quantity (mt)", "number", line.qtyMt),
+    inputOf("pricePerMt", "Price per mt", "number", line.pricePerMt),
+  );
+  const remove = el("button", { type: "button" }, "Remove");
+  remove.addEventListener("click", () => {
+    if (container.children.length > 1) row.remove();
+  });
+  row.append(remove);
+  return row;
+}
+
+const GRADES = ["LSMGO", "VLSFO", "HSFO"];
+
+/** The Accept form, prefilled from `item.normalised`. Null fields stay empty until filled. */
+function acceptForm(item, ref, message) {
+  const n = item.normalised;
+  const vessel = ref.vessels.find((v) => v.id === n.vesselId);
+  const port = ref.ports.find((p) => p.id === n.portId);
+  const root = el("div", { class: "accept" });
+  const lines = el("div");
+  for (const line of n.lines.length > 0 ? n.lines : [{ grade: null, qtyMt: null, pricePerMt: null }]) {
+    lines.append(lineRow(GRADES, line, lines));
+  }
+  const submit = el("button", { class: "primary", type: "button" }, "Accept with these values");
+  const addLine = el("button", { type: "button" }, "Add line");
+  addLine.addEventListener("click", () =>
+    lines.append(lineRow(GRADES, { grade: null, qtyMt: null, pricePerMt: null }, lines)),
+  );
+  submit.addEventListener("click", () => {
+    const got = (scope, name) => scope.querySelector(`[data-field="${name}"]`).value.trim();
+    const num = (text) => (text === "" ? NaN : Number(text));
+    const body = {
+      vesselImo: got(root, "vesselImo"),
+      portUnlocode: got(root, "portUnlocode"),
+      supplierId: num(got(root, "supplierId")),
+      currency: got(root, "currency"),
+      validUntil: got(root, "validUntil") || null,
+      deliveryFrom: got(root, "deliveryFrom") || null,
+      deliveryTo: got(root, "deliveryTo") || null,
+      bargeFee: num(got(root, "bargeFee")),
+      lines: [...lines.children].map((row) => ({
+        grade: got(row, "grade"),
+        qtyMt: num(got(row, "qtyMt")),
+        pricePerMt: num(got(row, "pricePerMt")),
+      })),
+    };
+    const missing = [];
+    if (!body.vesselImo) missing.push("vessel");
+    if (!body.portUnlocode) missing.push("port");
+    if (!Number.isFinite(body.supplierId)) missing.push("supplier");
+    if (!body.currency) missing.push("currency");
+    if (!Number.isFinite(body.bargeFee) || body.bargeFee < 0) missing.push("barge fee");
+    body.lines.forEach((l, i) => {
+      if (!l.grade || !(l.qtyMt > 0) || !(l.pricePerMt > 0)) missing.push(`line ${i + 1}`);
+    });
+    if (missing.length > 0) {
+      message.textContent = `Fill in before accepting: ${missing.join(", ")}.`;
+      return;
+    }
+    message.textContent = "";
+    decideReview(item, "accept", body, submit, message);
+  });
+  root.append(
+    el("div", { class: "fields" },
+      selectOf("vesselImo", "Vessel", ref.vessels.map((v) => [v.imo, `${v.name} (${v.imo})`]), vessel ? vessel.imo : null),
+      selectOf("portUnlocode", "Port", ref.ports.map((p) => [p.unlocode, `${p.name} (${p.unlocode})`]), port ? port.unlocode : null),
+      selectOf("supplierId", "Supplier", ref.suppliers.map((s) => [s.id, s.name]), n.supplierId),
+      selectOf("currency", "Currency", ["USD", "EUR"].map((c) => [c, c]), n.currency),
+      inputOf("bargeFee", "Barge fee", "number", n.bargeFee),
+      inputOf("validUntil", "Valid until", "date", n.validUntil),
+      inputOf("deliveryFrom", "Delivery from", "date", n.deliveryFrom),
+      inputOf("deliveryTo", "Delivery to", "date", n.deliveryTo),
+    ),
+    lines,
+    el("div", { class: "row" }, submit, addLine),
+  );
+  return root;
+}
+
+function reviewCard(item, ref) {
+  const message = el("p", { class: "error" });
+  const reject = el("button", { type: "button" }, "Reject");
+  reject.addEventListener("click", () => decideReview(item, "reject", {}, reject, message));
+  const buttons = [reject];
+  if (isProcessingFailure(item)) {
+    const retry = el("button", { type: "button" }, "Retry extraction");
+    retry.addEventListener("click", () => decideReview(item, "retry", {}, retry, message));
+    buttons.push(retry);
+  }
+  const evidence = Object.entries(item.evidence);
+  return el(
+    "div",
+    { class: "card" },
+    el("div", { class: "row" }, el("b", {}, item.subject || "(no subject)"), badge(isProcessingFailure(item) ? "failed" : "needs_review")),
+    el("p", { class: "muted" }, `From ${item.sender || "—"} · received ${fmtTime(item.receivedAt)} · email #${item.documentId}`),
+    el("ul", { class: "checks" },
+      item.failedChecks.map((c) => el("li", {}, el("b", {}, c.check), c.detail ? `: ${c.detail}` : ""))),
+    evidence.length > 0
+      ? el("details", { class: "evidence" },
+          el("summary", {}, `Evidence (${evidence.length})`),
+          el("ul", {}, evidence.map(([field, text]) => el("li", {}, el("code", {}, field), `: ${text === null ? "—" : `"${text}"`}`))))
+      : null,
+    acceptForm(item, ref, message),
+    message,
+    el("div", { class: "row" }, buttons),
+  );
+}
+
+async function loadReview() {
+  const r = await api("/api/review");
+  if (!r.ok) return say("review-note", `Could not load the review queue: ${errorText(r)}`);
+  // Leave the cards alone while nothing changed, so a half-filled form survives the polling refresh.
+  const signature = JSON.stringify(r.body.items);
+  if (signature !== reviewSignature) {
+    if (reviewReference === null && r.body.items.length > 0) {
+      const ref = await api("/api/review/reference");
+      if (ref.ok) reviewReference = ref.body;
+    }
+    if (reviewReference !== null) {
+      $("review").replaceChildren(...r.body.items.map((i) => reviewCard(i, reviewReference)));
+      reviewSignature = signature;
+    }
+  }
+  $("review-note").textContent = r.body.items.length === 0 ? "Nothing is waiting for review." : "";
+}
+
 // ---------- model calls ----------
 
 async function loadLlmCalls() {
@@ -471,7 +652,7 @@ async function refresh() {
   try {
     do {
       queued = false;
-      await Promise.all([loadInbox(), loadQuotes(), loadRecommendations(), loadLlmCalls()]);
+      await Promise.all([loadInbox(), loadQuotes(), loadReview(), loadRecommendations(), loadLlmCalls()]);
     } while (queued);
   } finally {
     running = false;

@@ -74,6 +74,17 @@ describe("GET /", () => {
     expect(decide).not.toMatch(/\bapi\(/);
   });
 
+  it("has a Review queue section that decides through the review API, as JSON", async () => {
+    const { html } = await page();
+    expect(html).toContain("Review queue");
+    for (const path of ["/api/review", "/api/review/reference", "accept", "reject", "retry"]) {
+      expect(html).toContain(path);
+    }
+    const decide = html.match(/async function decideReview\([\s\S]*?\n}\n/)?.[0] ?? "";
+    expect(decide).toContain("postJson(");
+    expect(decide).not.toMatch(/\bapi\(/);
+  });
+
   it("renders gate origin and order state from the recommendation, so they survive a reload", async () => {
     const { html } = await page();
     expect(html).toContain("rec.gatePassed");

@@ -7,6 +7,7 @@ import { createInboxRoutes, type InboxDeps } from "./inbox/routes.js";
 import { createLlmCallRoutes, type LlmCallDeps } from "./llm-calls/routes.js";
 import { createReadRoutes } from "./read/routes.js";
 import type { ReadSource } from "./read/source.js";
+import { createReviewRoutes, type ReviewRouteDeps } from "./review/routes.js";
 import { createUiRoutes } from "./ui/routes.js";
 
 export interface AppDeps {
@@ -15,6 +16,8 @@ export interface AppDeps {
   read: ReadSource;
   /** Inbox intake (upload, deliver-next); omitted, those routes are not mounted. */
   inbox?: InboxDeps;
+  /** The review queue (accept with corrections, reject, retry); omitted, those routes are not mounted. */
+  review?: ReviewRouteDeps;
   /** The ops agent behind POST /api/ask; omitted, that route is not mounted. */
   ask?: AgentDeps;
   /** Approve/reject and the executor behind them; omitted, those routes are not mounted. */
@@ -40,6 +43,7 @@ export function createApp(deps: AppDeps) {
 
   // Before the read routes, whose /api/* middleware would otherwise tag these responses.
   if (deps.inbox) app.route("/api/inbox", createInboxRoutes(deps.inbox));
+  if (deps.review) app.route("/api/review", createReviewRoutes(deps.review));
   if (deps.ask) app.route("/api/ask", createAskRoutes(deps.ask));
   if (deps.approvals) app.route("/api/recommendations", createApprovalRoutes(deps.approvals));
   if (deps.llmCalls) app.route("/api/llm-calls", createLlmCallRoutes(deps.llmCalls));

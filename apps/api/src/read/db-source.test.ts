@@ -177,6 +177,18 @@ describe.skipIf(!sql)("createDbSource (Postgres)", () => {
     const pending = InboxItemDetail.parse((await get(app, `/api/inbox/${pendingDocId}`)).body);
     expect(pending.extraction).toBeNull();
     expect(pending.checkResults).toEqual([]);
+    expect(detail.error).toBeNull();
+    expect(pending.error).toBeNull();
+  });
+
+  it("returns the stored error of a failed extraction", async () => {
+    await db`update extractions set status = 'failed', error = 'model refused' where document_id = ${pendingDocId}`;
+    try {
+      const failed = InboxItemDetail.parse((await get(app, `/api/inbox/${pendingDocId}`)).body);
+      expect(failed).toMatchObject({ extractionStatus: "failed", error: "model refused" });
+    } finally {
+      await db`update extractions set status = 'pending', error = null where document_id = ${pendingDocId}`;
+    }
   });
 
   it("returns the recommendation with facts re-derived from its calculation", async () => {

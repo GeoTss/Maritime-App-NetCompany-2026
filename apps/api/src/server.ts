@@ -56,6 +56,7 @@ async function main() {
     pingDb: () => pingDb(sql),
     read: createDbSource(sql),
     inbox,
+    review: inbox,
     ask: { sql, llm, config, log },
     approvals: { sql, erp: createErpClient(config.erpBaseUrl), log },
     llmCalls: { sql },

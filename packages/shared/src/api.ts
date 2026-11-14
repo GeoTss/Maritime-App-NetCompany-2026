@@ -117,6 +117,8 @@ export const InboxItemDetail = InboxItem.extend({
   bodyText: z.string(),
   extraction: ExtractionOutput.nullable(),
   checkResults: z.array(CheckResult),
+  /** Why the extraction failed, when it did (the message stored on the extraction). */
+  error: z.string().nullable(),
 });
 export type InboxItemDetail = z.infer<typeof InboxItemDetail>;
 

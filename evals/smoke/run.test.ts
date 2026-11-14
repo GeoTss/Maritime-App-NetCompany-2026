@@ -222,6 +222,27 @@ describe.skipIf(!sql)("live smoke runner (in-process, replay)", () => {
     await expect(access(join(dir, "markers", "live-smoke"))).rejects.toThrow();
   });
 
+  it("reports the extraction's error when it failed", async () => {
+    const { options } = await build();
+    const failed = rewriting(
+      options.fetch,
+      (path, body) =>
+        /^\/api\/inbox\/\d+$/.test(path)
+          ? {
+              ...(body as object),
+              extractionStatus: "failed",
+              checkResults: [],
+              error: "model refused (stop_reason refusal)",
+            }
+          : undefined,
+      [],
+    );
+    const result = await runSmoke({ ...options, fetch: failed });
+    expect(result.exitCode).toBe(1);
+    expect(result.failures[0]).toContain("extraction ended failed");
+    expect(result.failures[0]).toContain("model refused (stop_reason refusal)");
+  });
+
   it("times out a stuck extraction, records the step, writes the report and skips the ask", async () => {
     const { dir, options } = await build();
     const seen: string[] = [];

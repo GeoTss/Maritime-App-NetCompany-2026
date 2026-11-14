@@ -360,7 +360,9 @@ export async function runSmoke(opts: SmokeOptions): Promise<SmokeResult> {
               const failed = item.checkResults
                 .filter((c) => !c.passed)
                 .map((c) => `${c.check}: ${c.detail ?? "failed"}`);
-              const processing = item.checkResults.find((c) => c.check === "processing")?.detail;
+              // A failed extraction carries its reason in `error`; older rows in a processing check.
+              const processing =
+                item.error ?? item.checkResults.find((c) => c.check === "processing")?.detail;
               const why = failed.length > 0 ? failed.join("; ") : (processing ?? "");
               // Stop here: carrying on would make a paid ask over a broken inbox.
               throw new Stop(
