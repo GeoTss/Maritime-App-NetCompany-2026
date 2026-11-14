@@ -12,4 +12,5 @@ export * from "./fob.js";
 export * from "./geo.js";
 export * from "./identity.js";
 export * from "./normalise.js";
+export * from "./price-band.js";
 export * from "./voyage.js";

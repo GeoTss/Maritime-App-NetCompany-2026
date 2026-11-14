@@ -61,7 +61,7 @@ const CLOSE = "</email_document>";
 
 /** Neutralises any delimiter tag inside untrusted text so the email cannot close its block. */
 function escapeDelimiters(text: string): string {
-  return text.replace(/<(\/?)\s*email_document\b/gi, "&lt;$1email_document");
+  return text.replace(/<\s*(\/?)\s*email_document\b/gi, "&lt;$1email_document");
 }
 
 /**

@@ -40,7 +40,8 @@ describe.skipIf(!sql)("inbox routes (Postgres)", () => {
     async extract(doc) {
       extracted.push(doc.subject ?? "");
       return {
-        output: { kind: "not_a_quote", reason: "test double", evidence: null },
+        // Evidence quoted verbatim from both demo emails, so the classification is verified.
+        output: { kind: "not_a_quote", reason: "test double", evidence: "MV Aegean Pioneer" },
         metrics: [],
       };
     },

@@ -10,7 +10,7 @@ import { type CallMetrics, createLlm } from "../ai/llm.js";
 import { DEFAULT_RECORDINGS_DIR } from "../config.js";
 import { buildDemoEmails, FIXTURE_ANCHOR, FIXTURE_SEED } from "../read/fixtures.js";
 import { DEMO_RECORDING_CONFIG } from "./record-demo-extractions.js";
-import { type IngestDeps, ingestRaw, processDocument } from "./workflow.js";
+import { type IngestDeps, ingestRaw, processDocument, writtenIn } from "./workflow.js";
 
 const INBOX = new URL("../../../../fixtures/demo-inbox/", import.meta.url);
 const kestrelRaw = new Uint8Array(await readFile(new URL("01-kestrel-marsaxlokk.eml", INBOX)));
@@ -95,6 +95,26 @@ describe("demo email as-written values parse with the domain normaliser", () => 
       expect(parseAmount(e.parts.bargeAsWritten)).toBe(e.option.bargeFee);
     });
   }
+});
+
+describe("writtenIn", () => {
+  const f = (asWritten: string | null, evidence: string | null = null) => ({ asWritten, evidence });
+  it("finds the raw string in asWritten or evidence, case- and whitespace-folded", () => {
+    expect(writtenIn("USD", f("USD 738 per mt"))).toBe(true);
+    expect(writtenIn("per  MT", f("USD 738 per mt"))).toBe(true);
+    expect(writtenIn("PMT", f("USD 712 PMT"))).toBe(true);
+    expect(writtenIn("$", f("$738/mt"))).toBe(true);
+    expect(writtenIn("/mt", f("$738/mt"))).toBe(true);
+    expect(writtenIn("EUR", f("690 / mt", "Price: EUR 690 / mt"))).toBe(true);
+  });
+  it("respects word boundaries and rejects absent or null strings", () => {
+    expect(writtenIn("mt", f("USD 712 PMT"))).toBe(false);
+    expect(writtenIn("USD", f("USDT 712 per mt"))).toBe(false);
+    expect(writtenIn("USD", f("EUR 690 per mt", "Price: EUR 690 per mt"))).toBe(false);
+    expect(writtenIn(null, f("USD 738"))).toBe(false);
+    expect(writtenIn(" ", f("USD 738"))).toBe(false);
+    expect(writtenIn("USD", f(null, null))).toBe(false);
+  });
 });
 
 const sql = await connectTestDb("ingest_workflow");
@@ -311,6 +331,93 @@ describe.skipIf(!sql)("ingestion workflow (Postgres)", () => {
     const ex = await extractionOf(documentId);
     expect(ex.status).toBe("needs_review");
     expect(failedChecks(ex.check_results)).toContain("amounts_parsed");
+  });
+
+  /** The Kestrel email with one line of its body replaced. */
+  const kestrelWith = (from: string, to: string) => {
+    const text = new TextDecoder().decode(kestrelRaw);
+    expect(text).toContain(from);
+    return new TextEncoder().encode(text.replace(from, to));
+  };
+
+  it("currency not in as-written text → needs_review", async () => {
+    // The email prices in EUR; the model claims USD while copying the EUR text verbatim.
+    const raw = kestrelWith("Price: USD 738 per mt", "Price: EUR 738 per mt");
+    const out = kestrelOutput();
+    const line = out.lines[0];
+    if (!line) throw new Error("fixture has a line");
+    line.price = {
+      value: 738,
+      currency: "USD",
+      perUnit: "per mt",
+      asWritten: "EUR 738 per mt",
+      evidence: "Price: EUR 738 per mt",
+    };
+    const d = deps(fakeExtractor(() => out));
+    const { documentId } = await ingestRaw(d, raw, "upload");
+    await processDocument(d, documentId);
+    const ex = await extractionOf(documentId);
+    expect(ex.status).toBe("needs_review");
+    // Without a verified currency the band check cannot run, so it reports "not checked".
+    expect(failedChecks(ex.check_results)).toEqual(["currency_known", "price_within_band"]);
+    expect(await quoteCount()).toBe(0);
+  });
+
+  it("quantity unit not in as-written text → needs_review", async () => {
+    // The email quotes a volume; the model claims mass units.
+    const raw = kestrelWith("Quantity: 300 mt LSMGO", "Quantity: 300 m3 LSMGO");
+    const out = kestrelOutput();
+    const line = out.lines[0];
+    if (!line) throw new Error("fixture has a line");
+    line.grade = { value: "LSMGO", evidence: "Quantity: 300 m3 LSMGO" };
+    line.quantity = {
+      value: 300,
+      unit: "mt",
+      asWritten: "300 m3",
+      evidence: "Quantity: 300 m3 LSMGO",
+    };
+    const d = deps(fakeExtractor(() => out));
+    const { documentId } = await ingestRaw(d, raw, "upload");
+    await processDocument(d, documentId);
+    const ex = await extractionOf(documentId);
+    expect(ex.status).toBe("needs_review");
+    expect(failedChecks(ex.check_results)).toEqual(["unit_known"]);
+  });
+
+  it("price perUnit not in as-written text → needs_review", async () => {
+    const raw = kestrelWith("Price: USD 738 per mt", "Price: USD 738 per m3");
+    const out = kestrelOutput();
+    const line = out.lines[0];
+    if (!line) throw new Error("fixture has a line");
+    line.price = {
+      value: 738,
+      currency: "USD",
+      perUnit: "per mt",
+      asWritten: "USD 738 per m3",
+      evidence: "Price: USD 738 per m3",
+    };
+    const d = deps(fakeExtractor(() => out));
+    const { documentId } = await ingestRaw(d, raw, "upload");
+    await processDocument(d, documentId);
+    const ex = await extractionOf(documentId);
+    expect(ex.status).toBe("needs_review");
+    expect(failedChecks(ex.check_results)).toEqual(["unit_known"]);
+  });
+
+  it("not_a_quote with evidence not in the email → needs_review, no quote", async () => {
+    const d = deps(
+      fakeExtractor(() => ({
+        kind: "not_a_quote",
+        reason: "Newsletter.",
+        evidence: "Unsubscribe from our monthly newsletter",
+      })),
+    );
+    const { documentId } = await ingestRaw(d, kestrelRaw, "upload");
+    await processDocument(d, documentId);
+    const ex = await extractionOf(documentId);
+    expect(ex).toMatchObject({ status: "needs_review", kind: "not_a_quote" });
+    expect(failedChecks(ex.check_results)).toEqual(["evidence_found:notAQuote"]);
+    expect(await quoteCount()).toBe(0);
   });
 
   it("quantity null (as-written range) → needs_review", async () => {

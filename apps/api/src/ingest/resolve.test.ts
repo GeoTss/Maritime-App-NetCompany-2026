@@ -2,10 +2,11 @@ import { DEMO_SCENARIO, generateWorld } from "@pharos/db";
 import { describe, expect, it } from "vitest";
 import { FIXTURE_ANCHOR, FIXTURE_SEED } from "../read/fixtures.js";
 import {
+  checkPriceBand,
   currentVoyage,
   latestMarketPrice,
+  latestUsdRate,
   openRequirement,
-  priceWithinBand,
   resolvePort,
   resolveSupplier,
   resolveVessel,
@@ -80,16 +81,23 @@ describe("market band and requirement", () => {
 
   it("accepts both demo prices within ±15 % of their port's market and rejects a far-off price", () => {
     for (const o of DEMO_SCENARIO.options.filter((x) => x.currency === "USD")) {
-      const band = priceWithinBand(world, portId(o.portLocode) ?? 0, "LSMGO", o.pricePerMt, "USD");
+      const band = checkPriceBand(world, portId(o.portLocode) ?? 0, "LSMGO", o.pricePerMt, "USD");
       expect(band.passed, band.detail ?? "").toBe(true);
     }
-    expect(priceWithinBand(world, portId("MTMLA") ?? 0, "LSMGO", 73.8, "USD").passed).toBe(false);
-    expect(priceWithinBand(world, portId("MTMLA") ?? 0, "LSMGO", 7380, "USD").passed).toBe(false);
+    expect(checkPriceBand(world, portId("MTMLA") ?? 0, "LSMGO", 73.8, "USD").passed).toBe(false);
+    expect(checkPriceBand(world, portId("MTMLA") ?? 0, "LSMGO", 7380, "USD").passed).toBe(false);
+  });
+
+  it("reads the latest EURUSD reference rate; USD is 1", () => {
+    expect(latestUsdRate(world, "USD")).toBe(1);
+    const fx = world.referenceRates.filter((r) => r.kind === "fx" && r.key === "EURUSD");
+    const latest = fx.sort((a, b) => b.asOf.getTime() - a.asOf.getTime())[0];
+    expect(latestUsdRate(world, "EUR")).toBe(latest?.value);
   });
 
   it("converts EUR with the reference rate before comparing", () => {
     const o = DEMO_SCENARIO.options.find((x) => x.currency === "EUR");
-    const band = priceWithinBand(
+    const band = checkPriceBand(
       world,
       portId(o?.portLocode ?? "") ?? 0,
       "LSMGO",

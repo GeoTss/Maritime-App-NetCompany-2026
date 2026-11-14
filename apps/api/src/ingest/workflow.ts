@@ -28,8 +28,8 @@ import { type ExtractInput, ExtractionError, type Extractor, sourceText } from "
 import { type CallMetrics, recordLlmCall } from "../ai/llm.js";
 import { parseEmail } from "./parse-email.js";
 import {
+  checkPriceBand,
   openRequirement,
-  priceWithinBand,
   resolvePort,
   resolveSupplier,
   resolveVessel,
@@ -270,6 +270,35 @@ function readAmount(f: { value: number | null; asWritten: string | null }): numb
   return parsed !== null && parsed === f.value ? parsed : null;
 }
 
+const foldText = (x: string): string => x.replace(/\s+/g, " ").trim().toLowerCase();
+const isWordChar = (c: string | undefined) => c !== undefined && /[a-z0-9]/.test(c);
+
+/**
+ * Was the transcribed currency/unit string actually written in the field's as-written text (or,
+ * failing that, its evidence)? Case- and whitespace-folded; an alphanumeric edge must sit on a
+ * word boundary, so "mt" is not found inside "pmt" and "usd" not inside "usdt".
+ */
+export function writtenIn(
+  raw: string | null,
+  field: { asWritten: string | null; evidence: string | null },
+): boolean {
+  if (raw === null) return false;
+  const needle = foldText(raw);
+  if (needle === "") return false;
+  return [field.asWritten, field.evidence].some((text) => {
+    if (text === null) return false;
+    const hay = foldText(text);
+    for (let at = hay.indexOf(needle); at >= 0; at = hay.indexOf(needle, at + 1)) {
+      const before = hay[at - 1];
+      const after = hay[at + needle.length];
+      const startOk = !isWordChar(needle[0]) || !isWordChar(before);
+      const endOk = !isWordChar(needle.at(-1)) || !isWordChar(after);
+      if (startOk && endOk) return true;
+    }
+    return false;
+  });
+}
+
 const check = (name: string, failures: string[]): CheckResult => ({
   check: name,
   passed: failures.length === 0,
@@ -284,9 +313,10 @@ export function evaluateExtraction(
 ): Evaluation {
   const source = sourceText(doc);
   if (output.kind === "not_a_quote") {
+    // An unverifiable "not a quote" could hide a real offer: a human looks at it.
     const found = evidenceSupports(source, output.evidence, null);
     return {
-      status: "not_a_quote",
+      status: found ? "not_a_quote" : "needs_review",
       fieldEvidence: { notAQuote: output.evidence },
       checks: [
         check("evidence_found:notAQuote", found ? [] : ["Evidence not found in the email."]),
@@ -314,11 +344,15 @@ export function evaluateExtraction(
   // currency_known: one recognised currency across every price and the barge fee.
   const currencyFailures: string[] = [];
   const currencies = [
-    ...lines.map((l, i) => [`lines.${i}.price`, l.price.currency] as const),
-    ...(bargePresent ? [["bargeFee", barge.currency] as const] : []),
-  ].map(([path, raw]) => {
+    ...lines.map((l, i) => [`lines.${i}.price`, l.price] as const),
+    ...(bargePresent ? [["bargeFee", barge] as const] : []),
+  ].map(([path, field]) => {
+    const raw = field.currency;
     const c = normaliseCurrency(raw);
     if (c === null) currencyFailures.push(`Currency "${raw ?? ""}" of ${path} is not recognised.`);
+    else if (!writtenIn(raw, field)) {
+      currencyFailures.push(`Currency "${raw}" of ${path} is not written in its text.`);
+    }
     return c;
   });
   const known = [...new Set(currencies.filter((c): c is Currency => c !== null))];
@@ -328,18 +362,26 @@ export function evaluateExtraction(
 
   // unit_known: quantities in mass, prices per mt, the barge fee a lump sum.
   const unitFailures: string[] = [];
+  const notWritten = (raw: string | null, what: string) =>
+    unitFailures.push(`${what} "${raw ?? ""}" is not written in its text.`);
   lines.forEach((l, i) => {
     if (normaliseMassUnit(l.quantity.unit) === null) {
       unitFailures.push(
         `Quantity unit "${l.quantity.unit ?? ""}" of line ${i} is not a mass unit.`,
       );
+    } else if (!writtenIn(l.quantity.unit, l.quantity)) {
+      notWritten(l.quantity.unit, `Quantity unit of line ${i}`);
     }
     if (normalisePerUnit(l.price.perUnit) !== "per_mt") {
       unitFailures.push(`Price of line ${i} is not per mt ("${l.price.perUnit ?? ""}").`);
+    } else if (!writtenIn(l.price.perUnit, l.price)) {
+      notWritten(l.price.perUnit, `Price unit of line ${i}`);
     }
   });
   if (bargePresent && normalisePerUnit(barge.perUnit) !== "lump_sum") {
     unitFailures.push(`Barge fee is not a lump sum ("${barge.perUnit ?? ""}").`);
+  } else if (bargePresent && !writtenIn(barge.perUnit, barge)) {
+    notWritten(barge.perUnit, "Barge fee unit");
   }
   checks.push(check("unit_known", unitFailures));
 
@@ -402,7 +444,7 @@ export function evaluateExtraction(
         if (!port.port || !grade || price == null || !currency) {
           return [`Line ${i} not checked: needs a resolved port, grade, price and currency.`];
         }
-        const band = priceWithinBand(world, port.port.id, grade, price, currency);
+        const band = checkPriceBand(world, port.port.id, grade, price, currency);
         return band.passed ? [] : [band.detail ?? `Line ${i} price is outside the band.`];
       }),
     ),

@@ -4,6 +4,7 @@
  * guessing when a match is missing or ambiguous.
  */
 import type { World } from "@pharos/db";
+import { PRICE_BAND_FRACTION, priceWithinBand, toUsd } from "@pharos/domain";
 import type {
   BunkerRequirement,
   Currency,
@@ -14,9 +15,6 @@ import type {
   Vessel,
   Voyage,
 } from "@pharos/shared";
-
-/** A quoted price must lie within this fraction of the port's market price. */
-export const PRICE_BAND_FRACTION = 0.15;
 
 const fold = (s: string): string => s.trim().replace(/\s+/g, " ").toLowerCase();
 
@@ -106,8 +104,8 @@ export function latestMarketPrice(
   );
 }
 
-/** USD per unit of `currency` from the latest reference rate; USD is 1. */
-function usdPer(world: World, currency: Currency): number | null {
+/** USD per unit of `currency` from the latest fx reference rate; USD is 1. */
+export function latestUsdRate(world: World, currency: Currency): number | null {
   if (currency === "USD") return 1;
   const rate = latestBy(
     world.referenceRates.filter((r) => r.kind === "fx" && r.key === `${currency}USD`),
@@ -116,8 +114,11 @@ function usdPer(world: World, currency: Currency): number | null {
   return rate?.value ?? null;
 }
 
-/** Is a quoted price per mt within ±15 % of the port's latest market price (USD/mt)? */
-export function priceWithinBand(
+/**
+ * Looks up the port's latest market price and fx rate, then asks the domain whether the quoted
+ * price per mt lies within the band (±15 %) of the market price in USD.
+ */
+export function checkPriceBand(
   world: World,
   portId: number,
   grade: FuelGrade,
@@ -126,10 +127,10 @@ export function priceWithinBand(
 ): { passed: boolean; detail: string | null } {
   const market = latestMarketPrice(world, portId, grade);
   if (!market) return { passed: false, detail: `No ${grade} market price for this port.` };
-  const fx = usdPer(world, currency);
-  if (fx === null) return { passed: false, detail: `No ${currency}USD reference rate.` };
-  const deviation = Math.abs(pricePerMt * fx - market.priceUsdPerMt) / market.priceUsdPerMt;
-  return deviation <= PRICE_BAND_FRACTION
+  const rate = latestUsdRate(world, currency);
+  if (rate === null) return { passed: false, detail: `No ${currency}USD reference rate.` };
+  const band = priceWithinBand(toUsd(pricePerMt, rate), market.priceUsdPerMt, PRICE_BAND_FRACTION);
+  return band.withinBand
     ? { passed: true, detail: null }
     : {
         passed: false,
