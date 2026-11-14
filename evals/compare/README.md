@@ -16,7 +16,8 @@ Needs `ANTHROPIC_API_KEY` in `.env` (loaded by `tsx --env-file=.env`; never prin
 (`docker compose up -d db`). The runner exits at once if the variable is absent. `--questions q3`
 also runs q1, because q3 asks inside q1's conversation.
 
-It runs in-process: per model a fresh database (`pharos_test_compare`, seed 20261114, anchor
+It runs in-process: per model a fresh database (`pharos_test_compare`, shared with `run.test.ts`:
+the CLI and the test must not run at the same time; seed 20261114, anchor
 2026-11-14T08:00:00Z, the two demo quotes inserted as in `ask/demo-fixture.ts`), the clock at the
 anchor, `createLlm` in live mode, effort `medium`, fallbacks off, and each question through
 `POST /api/ask` on the in-process app.
@@ -26,8 +27,13 @@ anchor, `createLlm` in live mode, effort `medium`, fallbacks off, and each quest
 Before the first call it prints a per-model estimate (an assumed 4 calls of 5,000 input and 1,200
 output tokens per question, priced from `apps/api/src/ai/pricing.ts`; a rough guide, not a quote).
 Caps: a model stops once its running cost exceeds **$1.00**, the run stops once the total exceeds
-**$2.00**. Remaining questions are recorded as `skipped` with the reason, and listed under Stops.
-Costs of failed asks count.
+**$2.00**. They are checked **before every model request**, through the transport: it sums each
+response's cost from its `usage` (same rate table as `llm_calls`) and, once a cap is crossed,
+refuses the next request without touching the network. The in-flight ask then fails fast (outcome
+`error`, kind `spend_cap`, "stopped: cap" with the amounts), so overrun is bounded to **one
+in-flight request**. Remaining questions are recorded as `skipped` with the reason, and listed under
+Stops. Costs of failed asks count. The reported cost is the database figure; the report says
+whether the guard's sum agrees with it.
 
 ## What is measured (code only)
 
