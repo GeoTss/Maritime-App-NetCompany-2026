@@ -96,7 +96,7 @@ describe("costUsd (per-MTok figures from the pricing page, fetched 2026-11-14)",
 
   it("throws on an unknown model and names it", () => {
     const usage = { input_tokens: 1, output_tokens: 1 };
-    expect(() => costUsd("claude-sonnet-5-5", usage, 1)).toThrow(/claude-sonnet-5-5/);
+    expect(() => costUsd("claude-sonnet-5", usage, 1)).toThrow(/claude-sonnet-5/);
     expect(() => costUsd("claude-haiku-5-5-extra", usage, 1)).toThrow();
     expect(isPricedModel("claude-haiku-5")).toBe(false);
   });
