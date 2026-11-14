@@ -101,8 +101,10 @@ function parseCleanParts(s: string, allowBareDay: boolean): Parts | null {
     return { d: Number(m[1]), m: Number(m[3]), y: m[4] ? fullYear(m[4]) : null };
   }
 
+  // Day and month name, with an optional year; spaces, dots, dashes or slashes may sit around the
+  // month name, so "20-Nov-26" and "20.Nov.2026" are one date (never the range 20..26).
   m = new RegExp(
-    `^(\\d{1,2})(?:st|nd|rd|th)?[\\s-]*([a-z]{3,9})\\.?(?:,?\\s*${YEAR_PATTERN})?$`,
+    `^(\\d{1,2})(?:st|nd|rd|th)?[\\s./-]*([a-z]{3,9})\\.?(?:[,\\s./-]*${YEAR_PATTERN})?$`,
   ).exec(s);
   if (m) {
     const month = MONTHS[m[2] as string];
@@ -238,15 +240,28 @@ const MONTH_NAMES = Object.keys(MONTHS)
   .join("|");
 const WEEKDAY_NAMES =
   "monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tues?|wed|thu(?:rs?)?|fri|sat|sun";
-/** Day and month name, month name and day, d/m, d.m (not a percentage), d.m.y, d-m-y, y-m-d, a weekday, today. */
+/** A duration or amount right after a number: "1.5 hours", "0.5%", "2.10 per mt" are not dates. */
+const NOT_A_DAY_AFTER =
+  "(?!\\s*(?:%|pct|percent|hours?|hrs?|h\\b|mins?|minutes?|days?|weeks?|mts?\\b|per\\b)|[.,]\\d)";
+/**
+ * Day and month name, month name and day, d/m, d.m, d.m.y, d-m-y, y-m-d, y/m/d, y.m.d, a US m/d
+ * or m/d/y whose day is over 12, an ordinal day ("the 14th", "22nd-24th"), part of a month
+ * ("end Nov", "mid-Dec", "1st half Dec"), a week ("week 48", "end of next week"), a weekday, today.
+ */
 const DATE_LIKE = new RegExp(
   [
     `\\b\\d{1,2}(?:st|nd|rd|th)?[\\s.-]*(?:of\\s+)?(?:${MONTH_NAMES})\\b`,
     `\\b(?:${MONTH_NAMES})\\.?\\s*\\d{1,2}(?:st|nd|rd|th)?\\b`,
     "\\b(?:0?[1-9]|[12]\\d|3[01])/(?:0?[1-9]|1[0-2])\\b",
-    "\\b(?:0?[1-9]|[12]\\d|3[01])\\.(?:0?[1-9]|1[0-2])\\b(?!\\s*%|[.,]\\d)",
+    `\\b(?:0?[1-9]|[12]\\d|3[01])\\.(?:0?[1-9]|1[0-2])\\b${NOT_A_DAY_AFTER}`,
     "\\b\\d{1,2}([.-])\\d{1,2}\\1\\d{2,4}\\b",
     "\\b20\\d{2}-\\d{1,2}-\\d{1,2}\\b",
+    "\\b20\\d{2}([/.])\\d{1,2}\\2\\d{1,2}\\b",
+    "\\b(?:0?[1-9]|1[0-2])/(?:1[3-9]|2\\d|3[01])(?:/(?:20)?\\d{2})?\\b",
+    "\\b(?:[1-9]|[12]\\d|3[01])(?:st|nd|rd|th)\\b",
+    `\\b(?:early|mid|late|end|beginning|beg\\.?|(?:1st|2nd|first|second)\\s+half|half)(?:\\s+of)?[\\s-]*(?:${MONTH_NAMES})\\b`,
+    "\\b(?:week|wk|kw)\\s*\\d{1,2}\\b",
+    "\\bend\\s+of\\s+(?:this|next)\\s+week\\b",
     `\\b(?:${WEEKDAY_NAMES}|today|tomorrow|tonight)\\b`,
   ].join("|"),
   "i",
@@ -259,6 +274,20 @@ const DATE_LIKE = new RegExp(
  */
 export function mentionsDate(text: string): boolean {
   return DATE_LIKE.test(text);
+}
+
+const DATE_WORDS = new RegExp(
+  `\\b(?:${MONTH_NAMES}|${WEEKDAY_NAMES}|today|tomorrow|at|on|of|the|den|um|kl|lt|utc|gmt|cet|hrs?|noon|am|pm|st|nd|rd|th)\\b|\\d+`,
+  "gi",
+);
+
+/**
+ * True when the text reads as a date and nothing else: "18 Nov 2026", "Friday, 13. November
+ * 2026 10:00". "Sun Marine Bunkers" holds a weekday word but names a sender.
+ */
+export function readsAsDateOnly(text: string): boolean {
+  if (!mentionsDate(text)) return false;
+  return !/\p{L}{2,}/u.test(text.replace(DATE_WORDS, " "));
 }
 
 /** The ISO day `days` whole UTC days after the reference's UTC day (negative: before). */
