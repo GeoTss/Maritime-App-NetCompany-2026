@@ -75,6 +75,10 @@ function evaluate(input: BunkerPlanInput, o: BunkerOptionInput): Unranked {
 /**
  * Rank bunker options by total cost of ownership (fuel + barge + deviation + delay + ETS),
  * not by headline price. Infeasible options are kept, ranked after all feasible ones.
+ *
+ * `savingVsCheapestHeadlineUsd` = total of the cheapest-headline option − total of the best
+ * feasible option. It is negative when the cheapest-headline option is infeasible yet cheaper in
+ * total; callers must not present a negative value as a saving.
  */
 export function planBunkers(rawInput: BunkerPlanInput): BunkerPlan {
   const input = BunkerPlanInput.parse(rawInput);

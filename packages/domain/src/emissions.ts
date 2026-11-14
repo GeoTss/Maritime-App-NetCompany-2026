@@ -47,7 +47,9 @@ export function etsCost(input: EtsCostInput): EtsCostResult {
 function reductionZPercent(year: number): number {
   const first = 2023;
   const last = 2026;
-  return CII_REDUCTION_Z_PERCENT[Math.min(Math.max(year, first), last)] as number;
+  const z = CII_REDUCTION_Z_PERCENT[Math.min(Math.max(year, first), last)];
+  if (z === undefined) throw new RangeError(`no CII reduction factor for year ${year}`);
+  return z;
 }
 
 /**

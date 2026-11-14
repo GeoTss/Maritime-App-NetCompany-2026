@@ -185,4 +185,45 @@ describe("planBunkers", () => {
     expect(JSON.stringify(planBunkers(input()))).toBe(one);
     expect(JSON.stringify(planBunkers(input({ options: [B, A] })))).toBe(one);
   });
+
+  it("adds weather delay to the stop, the delay and the port-stay emissions", () => {
+    // A with 12 h weather delay: stay 5+6+12 = 23 h → port-stay 2.5×23/24 = 2.395833 mt
+    // deviation cost (1.354167 + 2.395833) × 800 = 3000; delay 1+23 = 24 h → 16000
+    // ETS (1.354167×3.206×0.5 + 2.395833×3.206×1) × 80 × 1.1 = 866.9558
+    // total 210000 + 2000 + 3000 + 16000 + 866.9558 = 231866.9558
+    const a = opt(planBunkers(input({ options: [{ ...A, weatherDelayHours: 12 }] })), "A");
+    expect(a.portStayFuelMt).toBeCloseTo(2.395833, 5);
+    expect(a.deviationCostUsd).toBeCloseTo(3000, 4);
+    expect(a.delayHours).toBeCloseTo(24, 9);
+    expect(a.delayCostUsd).toBeCloseTo(16000, 4);
+    expect(a.etsCostUsd).toBeCloseTo(866.9558, 3);
+    expect(a.totalCostUsd).toBeCloseTo(231866.9558, 3);
+  });
+
+  it("reports every failed check, in a fixed order", () => {
+    const bad = { ...A, offeredQtyMt: 250, robAtArrivalMt: 60, waitingHours: 60 };
+    const a = opt(planBunkers(input({ tankFreeMt: 200, options: [bad] })), "A");
+    expect(a.reasons).toEqual([
+      "insufficient_quantity",
+      "exceeds_tank_capacity",
+      "unreachable_with_margin",
+      "misses_berth_window",
+    ]);
+  });
+
+  it("with voyage ETS coverage 0 only the EU port stay is charged", () => {
+    // 1.145833 mt × 3.206 × 1 × 80 × 1.1 = 323.2717
+    const a = opt(planBunkers(input({ voyageEtsCoverage: 0 })), "A");
+    expect(a.etsCostUsd).toBeCloseTo(323.2717, 3);
+  });
+
+  it("saving vs the cheapest headline is negative when that option is infeasible but cheaper", () => {
+    // B with no wait: stay 6 h → 0.625 mt → 500; delay 6 h → 4000; total 207000+6000+500+4000 = 217500.
+    // B is unreachable (ROB 60 < 65), so best = A (222514.2958); saving = 217500 − 222514.2958.
+    const b = { ...B, waitingHours: 0, robAtArrivalMt: 60 };
+    const plan = planBunkers(input({ options: [A, b] }));
+    expect(plan.bestOptionId).toBe("A");
+    expect(plan.cheapestHeadlineOptionId).toBe("B");
+    expect(plan.savingVsCheapestHeadlineUsd).toBeCloseTo(-5014.2958, 3);
+  });
 });

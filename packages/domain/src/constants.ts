@@ -1,4 +1,4 @@
-import type { FuelGrade } from "@pharos/shared";
+import type { FuelGrade, ShipType } from "@pharos/shared";
 
 /** Mean Earth radius in nautical miles (6371.0088 km / 1.852 km per nm). Haversine great-circle distance. */
 export const EARTH_RADIUS_NM = 3440.065;
@@ -17,7 +17,8 @@ export const CO2_FACTOR_T_PER_T: Record<FuelGrade, number> = {
 /**
  * EU ETS maritime phase-in: share of verified emissions to be surrendered, by reporting year.
  * Source: Directive (EU) 2023/959 amending Directive 2003/87/EC (40% of 2024, 70% of 2025, 100% from 2026).
- * Rule: any year >= 2026 is 1; years before 2024 are not covered (look up with `?? 0`).
+ * Look years up through `etsPhaseIn(year)` (emissions.ts): ≤ 2023 → 0, 2024–2026 from this table,
+ * after 2026 → 1. Do not index this table directly.
  */
 export const ETS_PHASE_IN: Record<number, number> = {
   2024: 0.4,
@@ -26,11 +27,11 @@ export const ETS_PHASE_IN: Record<number, number> = {
 };
 
 /** CII reference line parameters: reference = a × capacity^(−c). Source: IMO MEPC.353(78) (G2), Table 1. */
-export const CII_REFERENCE_PARAMS = {
+export const CII_REFERENCE_PARAMS: Record<ShipType, { readonly a: number; readonly c: number }> = {
   bulk_carrier: { a: 4745, c: 0.622 },
   tanker: { a: 5247, c: 0.61 },
   container: { a: 1984, c: 0.489 },
-} as const;
+};
 
 /** Bulk carrier reference-line capacity is capped at 279 000 DWT. Source: IMO MEPC.353(78) (G2), Table 1. */
 export const CII_BULK_CARRIER_REFERENCE_DWT_CAP = 279000;
@@ -52,10 +53,7 @@ export const CII_REDUCTION_Z_PERCENT: Record<number, number> = {
  * ratio < d1 → A, < d2 → B, < d3 → C, < d4 → D, else E.
  * Source: IMO MEPC.354(78) (G4), Table 1.
  */
-export const CII_RATING_BOUNDARIES: Record<
-  "bulk_carrier" | "tanker" | "container",
-  readonly [number, number, number, number]
-> = {
+export const CII_RATING_BOUNDARIES: Record<ShipType, readonly [number, number, number, number]> = {
   bulk_carrier: [0.86, 0.94, 1.06, 1.18],
   tanker: [0.82, 0.93, 1.08, 1.28],
   container: [0.83, 0.94, 1.07, 1.19],
