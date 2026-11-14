@@ -23,6 +23,7 @@ import {
   parseAmount,
   parseDeliveryWindow,
   parseQuoteDate,
+  readsAsDateOnly,
 } from "@pharos/domain";
 import type {
   CheckResult,
@@ -438,90 +439,167 @@ function evidenceItems(q: QuoteExtraction): EvidenceItem[] {
 
 // ---------- quoted threads ----------
 
-/** "-----Original Message-----" and its localized and forwarded forms. */
-const ORIGINAL_MESSAGE =
-  /^-{2,}\s*(?:original message|forwarded message|ursprüngliche nachricht|weitergeleitete nachricht|message d['’]origine|message transféré|messaggio originale|messaggio inoltrato|mensaje original|mensaje reenviado)\s*-{2,}|^begin forwarded message:/;
-const ATTRIBUTION_START = /^(?:on|am|le|il|el)\s/;
-/** An attribution's end: "… wrote:", "… schrieb … :", "… a écrit :", "… ha scritto:", "… escribió:". */
-const ATTRIBUTION_END = /(?:^|\s)(?:wrote|schrieb|a\s+écrit|ha\s+scritto|escribió)(?:\s.*)?:\s*$/;
-/** A "From" header label (English, German, French/Spanish, Danish/Norwegian, Italian, Greek). */
-const FROM_HEADER = /^[*_]{0,2}(?:from|von|de|fra|da|από)[*_]{0,2}\s*:[*_]{0,2}\s*(.*)$/;
+/** A forwarded-message line, localized: the message below it is a forwarded one. */
+const FORWARD_LINE =
+  /^-{2,}\s*(?:forwarded message|weitergeleitete nachricht|message transféré|messaggio inoltrato|mensaje reenviado|doorgestuurd bericht|mensagem encaminhada|vidarebefordrat meddelande)\s*-{2,}|^begin forwarded message:/;
+/** An original-message line, localized: "-----Original Message-----", "-----Oorspronkelijk bericht-----". */
+const ORIGINAL_LINE =
+  /^-{2,}\s*(?:original message|ursprüngliche nachricht|message d['’]origine|messaggio originale|mensaje original|oorspronkelijk bericht|mensagem original|ursprungligt meddelande)\s*-{2,}/;
+const ATTRIBUTION_START = /^(?:on|am|le|il|el|op|em|den)\s/;
+/** An attribution's end: "… wrote:", "… schrieb …:", "… a écrit :", "… schreef …:", "… escreveu:", "… skrev …:". */
+const ATTRIBUTION_END =
+  /(?:^|\s)(?:wrote|schrieb|a\s+écrit|ha\s+scritto|escribió|schreef|escreveu|skrev)(?:\s.*)?:\s*$/;
+/** A Lotus Notes attribution: "Luca Dubois/Harbourlight wrote on 11/11/2026 10:00:". */
+const WROTE_ON = /\swrote on\s.+:\s*$/;
+/** An attribution may wrap over this many lines (Gmail wraps a long name and address). */
+const ATTRIBUTION_LINES = 3;
+/** A "From" header label (English, German, French/Spanish/Portuguese, Danish/Norwegian, Italian, Dutch, Swedish, Greek). */
+const FROM_HEADER = /^[*_]{0,2}(?:from|von|de|fra|da|van|från|από)[*_]{0,2}\s*:[*_]{0,2}\s*(.*)$/;
 /** The header lines that follow a From line in a quoted header block, in the same languages. */
 const NEXT_HEADER =
-  /^[*_]{0,2}(?:sent|date|to|subject|cc|gesendet|datum|an|betreff|envoyé|à|objet|sendt|til|emne|inviato|a|oggetto|enviado|fecha|para|asunto|στάλθηκε|ημερομηνία|προς|θέμα|κοιν)[*_]{0,2}\s*:/;
+  /^[*_]{0,2}(?:sent|date|to|subject|cc|gesendet|datum|an|betreff|envoyé|à|objet|sendt|til|emne|inviato|a|oggetto|enviado|enviada|fecha|data|para|asunto|assunto|verzonden|aan|onderwerp|skickat|till|ämne|kopia|στάλθηκε|ημερομηνία|προς|θέμα|κοιν)[*_]{0,2}\s*:/;
 /** A header block's other lines must come within this many non-empty lines of its From line. */
 const HEADER_BLOCK_REACH = 6;
 /** The first attachment section parse-email appends; separators are only looked for above it. */
 const ATTACHMENT_MARKER = /^--- attachment: .* ---$/m;
+/** A forward's subject prefix (FW, Fwd, WG, TR, RV, ENC): its attachments are the forwarded message's. */
+const FORWARD_SUBJECT = /^\s*(?:fw|fwd|wg|tr|rv|enc)\s*:/i;
 
 /** A From header value that names a sender, not a date ("From: 22 Nov" in a delivery window). */
 const namesSender = (value: string) =>
-  value !== "" && (value.includes("@") || !mentionsDate(value));
+  value !== "" && (value.includes("@") || !readsAsDateOnly(value));
+
+type Separator = { line: number; forward: boolean; quote: boolean };
 
 /**
- * The line index of every place a quoted older message starts, in order. Separators: an
- * original-message or forwarded-message line (localized), an attribution ("On … wrote:", "Am …
- * schrieb …:", "Le … a écrit :", "Il … ha scritto:", "El … escribió:", also wrapped over two
- * lines), a From header line (localized, bold markers allowed) naming a sender with another
- * header line within the next 6 non-empty lines, or the first of two or more consecutive lines
- * starting with ">".
+ * Every place a quoted older message starts, in order. Separators: a forwarded- or
+ * original-message line (localized); an attribution ("On … wrote:", "Am … schrieb …:", "Le … a
+ * écrit :", "Il … ha scritto:", "El … escribió:", "Op … schreef …:", "Em … escreveu:", "Den …
+ * skrev …:", wrapped over up to 3 lines, or "… wrote on …:"); a From header line (localized, bold
+ * markers allowed, its value on the next line allowed) naming a sender, with another header line
+ * within the next 6 non-empty lines; or a run of two or more lines starting with ">". The header
+ * lines right after a separator belong to it and start nothing.
  */
-function separatorLines(lines: string[]): number[] {
+function separators(lines: string[]): Separator[] {
   const folded = lines.map((l) => l.trim().toLowerCase());
   const nonEmptyAfter = (i: number, n: number) =>
     folded
       .slice(i + 1)
       .filter((l) => l !== "")
       .slice(0, n);
-  const isSeparator = (i: number, l: string): boolean => {
-    if (ORIGINAL_MESSAGE.test(l)) return true;
-    if (ATTRIBUTION_START.test(l)) {
-      const next = folded[i + 1];
-      if (ATTRIBUTION_END.test(l) || (next !== undefined && ATTRIBUTION_END.test(next)))
-        return true;
+  const isHeaderLine = (l: string) =>
+    l === "" || /^_{5,}$/.test(l) || FROM_HEADER.test(l) || NEXT_HEADER.test(l);
+  const quoted = (j: number) => folded[j]?.startsWith(">") ?? false;
+  const found: Separator[] = [];
+  let skipUntil = -1;
+  for (const [i, l] of folded.entries()) {
+    if (i <= skipUntil) continue;
+    if (quoted(i)) {
+      if (quoted(i + 1) && !quoted(i - 1)) found.push({ line: i, forward: false, quote: true });
+      continue;
+    }
+    let start = false;
+    let forward = false;
+    if (FORWARD_LINE.test(l)) {
+      start = true;
+      forward = true;
+    } else if (ORIGINAL_LINE.test(l) || WROTE_ON.test(l)) start = true;
+    else if (ATTRIBUTION_START.test(l)) {
+      start = folded.slice(i, i + ATTRIBUTION_LINES).some((x) => ATTRIBUTION_END.test(x));
     }
     const from = FROM_HEADER.exec(l);
-    if (from && namesSender(from[1] ?? "")) {
-      if (nonEmptyAfter(i, HEADER_BLOCK_REACH).some((x) => NEXT_HEADER.test(x))) return true;
+    if (!start && from) {
+      const value = from[1] !== "" ? (from[1] ?? "") : (nonEmptyAfter(i, 1)[0] ?? "");
+      start =
+        namesSender(value) && nonEmptyAfter(i, HEADER_BLOCK_REACH).some((x) => NEXT_HEADER.test(x));
     }
-    // Only the first line of a run of ">" lines starts a quoted message.
-    const quoted = (j: number) => folded[j]?.startsWith(">") ?? false;
-    return quoted(i) && quoted(i + 1) && !quoted(i - 1);
-  };
-  return folded.flatMap((l, i) => (isSeparator(i, l) ? [i] : []));
+    if (!start) continue;
+    found.push({ line: i, forward, quote: false });
+    // The header block under a separator ("From: …", "Sent: …") is part of it.
+    let j = i + 1;
+    while (j < folded.length && isHeaderLine(folded[j] ?? "")) j++;
+    skipUntil = j - 1;
+  }
+  return found;
 }
 
 /**
- * The email's messages, newest first, split at every reply or forward separator in the body
- * above any attachment section. The first is the newest message: the From and Subject lines, the
- * body above the first separator, and the attachments (the newest email carries them). Each
- * other is the body from one separator to the next (the last ends at the first attachment).
- * Null when there is no separator.
+ * The email's messages, newest first, from the separators in the body above any attachment
+ * section. A separator starts a message that runs to the next one; a run of ">" lines is a
+ * message of its own, and the text after it continues the message it interrupted (so in a
+ * bottom-posted reply the new text below the quote is the newest message). The newest message
+ * also holds the From and Subject lines. The attachments belong to the newest message, or, in a
+ * forward (a forwarded-message line first, or a FW/Fwd subject), to the forwarded one. Null when
+ * there is no separator.
  */
 function threadMessages(doc: ExtractInput): string[] | null {
   const body = doc.bodyText;
   const marker = body.search(ATTACHMENT_MARKER);
   const end = marker === -1 ? body.length : marker;
   const lines = body.slice(0, end).split("\n");
-  const starts = separatorLines(lines);
-  if (starts.length === 0) return null;
-  const offsetOf = (line: number) => lines.slice(0, line).reduce((n, l) => n + l.length + 1, 0);
-  const cuts = [...starts.map(offsetOf), end];
+  const found = separators(lines);
+  if (found.length === 0) return null;
+  const messages: string[][] = [[]];
+  let current = 0;
+  let quoteEnd = -1;
+  let resume = 0;
+  const startAt = new Map(found.map((x) => [x.line, x]));
+  for (const [i, line] of lines.entries()) {
+    if (i === quoteEnd) current = resume;
+    const sep = startAt.get(i);
+    if (sep) {
+      messages.push([]);
+      if (sep.quote) {
+        resume = current;
+        quoteEnd = i;
+        while (quoteEnd < lines.length && (lines[quoteEnd] ?? "").trim().startsWith(">"))
+          quoteEnd++;
+      }
+      current = messages.length - 1;
+    }
+    messages[current]?.push(line);
+  }
+  const forward = found[0]?.forward === true || FORWARD_SUBJECT.test(doc.subject ?? "");
+  const attachments = marker === -1 ? "" : body.slice(marker);
   const source = sourceText(doc);
-  const at = source.length - body.length;
-  const first = cuts[0] ?? end;
-  return [
-    source.slice(0, at + first) + source.slice(at + end),
-    ...cuts.slice(0, -1).map((c, k) => source.slice(at + c, at + (cuts[k + 1] ?? end))),
-  ];
+  const prefix = source.slice(0, source.length - body.length);
+  const texts = messages.map((m) => m.join("\n"));
+  const owner = forward && texts.length > 1 ? 1 : 0;
+  texts[owner] = `${texts[owner] ?? ""}\n${attachments}`;
+  texts[0] = `${prefix}${texts[0] ?? ""}`;
+  return texts;
 }
 
 /**
- * A price in the text: a currency next to a number ("USD 738", "USD738/mt", "US$738", "€690",
- * "690 EUR", "USD/MT 738", "USD/mt: 738"), or a number per mt ("738 pmt", "738 per mt", "738/mt").
+ * A price in the text: a currency next to a number, labels included ("USD 738", "USD738/mt",
+ * "US$738", "€690", "690 EUR", "738 US dollars", "USD/MT 738", "Price (USD/mt): 738", "Price
+ * [USD/MT]: 738", "USD per mt: 738", "in USD/mt = 738"), or a number per mt or tonne ("738 pmt",
+ * "738 p/mt", "738 per tonne", "738/t").
  */
 const PRICE_IN_TEXT =
-  /(?:\b(?:usd|eur)|us\$|\$|€)(?:\s*\/\s*(?:mt|t|tons?|tonnes?|metric tons?)\b)?[\s.:-]*\d|\d\s*(?:(?:usd|eur|euros?|dollars?)\b|\$|€)|\d\s*(?:pmt|per\s+mt|\/\s*mt)\b/i;
+  /(?:\b(?:usd|eur)|us\$|\$|€)\s*(?:(?:\/|per)\s*(?:mt|t|tons?|tonnes?|metric\s+tons?|metric\s+tonnes?)\b)?[\s.:=)\]-]*\d|\d\s*(?:(?:usd|eur|euros?|dollars?|us\s+dollars?)\b|\$|€)|\d\s*(?:pmt|p\/mt|per\s+(?:metric\s+)?(?:mt|tonnes?|tons?)|\/\s*(?:mt|t|tonnes?|tons?))\b/i;
+const CURRENCY_LABEL = /\b(?:usd|eur)\b|us\$|\$|€/;
+/** A plain amount in a table cell (not part of a date, phone number or time). */
+const CELL_AMOUNT = /(?<![\d+/:.,-])\d{2,6}(?:[.,]\d{1,2})?(?![\d/:-])/;
+const NOT_A_ROW = /@|\b(?:tel|phone|mob|mobile|fax)\b|\+\d/;
+
+/**
+ * A message names a price: a price in its text, or a header-row table, where a currency label
+ * with no number after it on its line ("Price (USD/mt)") sits above a row with an amount.
+ */
+function namesAPrice(text: string): boolean {
+  if (PRICE_IN_TEXT.test(text)) return true;
+  const lines = text.split("\n").map((l) => l.trim().toLowerCase());
+  return lines.some((l, i) => {
+    const label = CURRENCY_LABEL.exec(l);
+    if (!label || /\d/.test(l.slice(label.index))) return false;
+    return lines
+      .slice(i + 1)
+      .filter((x) => x !== "")
+      .slice(0, 3)
+      .some((x) => CELL_AMOUNT.test(x) && !mentionsDate(x) && !NOT_A_ROW.test(x));
+  });
+}
 
 /** The evidence of every price, quantity, validity and delivery date the output states. */
 function offerEvidence(q: QuoteExtraction): [string, string][] {
@@ -546,7 +624,7 @@ function newestOfferCheck(doc: ExtractInput, q: QuoteExtraction): CheckResult {
   if (messages === null) return check("newest_offer_only", [], "no quoted thread");
   // The offer is the newest message that names a price: a forward ("FYI, see below") defers to
   // the first quoted message that does, and anything older than that offer is stale.
-  const offer = messages.findIndex((m) => PRICE_IN_TEXT.test(m));
+  const offer = messages.findIndex((m) => namesAPrice(m));
   if (offer === -1) return check("newest_offer_only", [], "no message in the thread names a price");
   const current = foldText(messages.slice(0, offer + 1).join("\n"));
   const older = foldText(messages.slice(offer + 1).join("\n"));
@@ -651,7 +729,7 @@ export function evaluateExtraction(
             `Quantity of line ${i} is not a single amount ("${l.quantity.asWritten ?? ""}").`,
           ];
         }
-        return hedgedInSource(source, l.quantity.evidence, l.quantity.asWritten)
+        return hedgedInSource(source, l.quantity.evidence, l.quantity.asWritten, "quantity")
           ? [`Quantity of line ${i} is a range or approximation on its source line.`]
           : [];
       }),
@@ -664,7 +742,7 @@ export function evaluateExtraction(
     const price = lines[i]?.price;
     if (p === null || p <= 0)
       return [`Price of line ${i} does not read as "${price?.asWritten ?? ""}".`];
-    return price && hedgedInSource(source, price.evidence, price.asWritten)
+    return price && hedgedInSource(source, price.evidence, price.asWritten, "price")
       ? [`Price of line ${i} is a range or approximation on its source line.`]
       : [];
   });

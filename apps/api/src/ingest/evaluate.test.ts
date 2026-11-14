@@ -744,6 +744,80 @@ describe("newest_offer_only (I3): stale values from a quoted thread", () => {
       ],
       (l) => l,
     ],
+    // round 3: Dutch, Portuguese and Swedish forms, and more English layouts
+    [
+      "Outlook NL header block",
+      [
+        "________________________________",
+        "Van: Kestrel Desk <bunkers@kestrel-fuels.example>",
+        "Verzonden: vrijdag 13 november 2026 09:12",
+        "Aan: Bunker Desk",
+        "Onderwerp: LSMGO offer",
+      ],
+      (l) => l,
+    ],
+    ["Dutch original message", ["-----Oorspronkelijk bericht-----"], (l) => l],
+    ["Dutch forwarded message", ["---------- Doorgestuurd bericht ---------"], (l) => l],
+    [
+      "Dutch attribution",
+      ["Op vr 13 nov. 2026 om 09:12 schreef Kestrel Desk <bunkers@kestrel-fuels.example>:"],
+      (l) => l,
+    ],
+    [
+      "Portuguese header block",
+      [
+        "De: Kestrel Desk <bunkers@kestrel-fuels.example>",
+        "Enviada: sexta-feira, 13 de novembro de 2026 09:12",
+        "Para: Bunker Desk",
+        "Assunto: LSMGO offer",
+      ],
+      (l) => l,
+    ],
+    ["Portuguese original message", ["-----Mensagem original-----"], (l) => l],
+    ["Portuguese forwarded message", ["---------- Mensagem encaminhada ---------"], (l) => l],
+    [
+      "Portuguese attribution",
+      [
+        "Em sex., 13 de nov. de 2026 às 09:12, Kestrel Desk <bunkers@kestrel-fuels.example> escreveu:",
+      ],
+      (l) => l,
+    ],
+    [
+      "Swedish header block",
+      [
+        "Från: Kestrel Desk <bunkers@kestrel-fuels.example>",
+        "Skickat: den 13 november 2026 09:12",
+        "Till: Bunker Desk",
+        "Ämne: LSMGO offer",
+      ],
+      (l) => l,
+    ],
+    ["Swedish original message", ["-----Ursprungligt meddelande-----"], (l) => l],
+    [
+      "Swedish attribution",
+      ["Den 13 nov. 2026 kl. 09:12 skrev Kestrel Desk <bunkers@kestrel-fuels.example>:"],
+      (l) => l,
+    ],
+    [
+      "sender name holding a weekday word",
+      ["From: Sun Marine Bunkers", "Sent: 13 November 2026 09:12"],
+      (l) => l,
+    ],
+    [
+      "From value on the next line",
+      ["From:", "Kestrel Desk <bunkers@kestrel-fuels.example>", "Sent:", "13 November 2026 09:12"],
+      (l) => l,
+    ],
+    [
+      "Gmail attribution wrapped over three lines",
+      [
+        "On Fri, 13 Nov 2026 at 09:12, Kestrel Marine Fuels trading desk",
+        "Marsaxlokk <",
+        "bunkers@kestrel-fuels.example> wrote:",
+      ],
+      (l) => l,
+    ],
+    ["Lotus attribution", ["Kestrel Desk/Kestrel wrote on 13/11/2026 09:12:"], (l) => l],
   ];
   const threadDoc = (separator: string[], quoteLine: (l: string) => string, top = NEWEST) =>
     email({ append: [...top, "", ...separator, ...OLDER.map(quoteLine)] });
@@ -866,6 +940,173 @@ describe("newest_offer_only (I3): stale values from a quoted thread", () => {
     expect(r.status).toBe("needs_review");
     expect(failed(r)).toEqual(["newest_offer_only"]);
     expect(detailOf(r, "newest_offer_only")).toContain("lines.0.price");
+  });
+
+  // ---- round 3: prices written as labels, tables and per-unit amounts ----
+
+  /** A thread whose newest and older message share one layout; returns stale and current runs. */
+  const sameLayout = (
+    price: (n: number) => string,
+    asWritten: (n: number) => string,
+    perUnit: string,
+  ) => {
+    const offer = (n: number, delivery: string, validity: string) => [
+      "Vessel: MV Aegean Pioneer (IMO 9480019)",
+      "Port: Marsaxlokk",
+      "Quantity: 300 mt LSMGO",
+      price(n),
+      `Delivery: ${delivery}`,
+      `Validity: ${validity}`,
+    ];
+    const doc: ExtractInput = {
+      sender: "bunkers@kestrel-fuels.example",
+      subject: "RE: LSMGO offer",
+      bodyText: [
+        "Revised:",
+        ...offer(738, "18-19 Nov", "15 Nov 2026"),
+        "Kestrel Marine Fuels trading desk",
+        "",
+        "-----Original Message-----",
+        ...offer(734, "16-17 Nov", "14 Nov 2026"),
+      ].join("\n"),
+    };
+    const out = (n: number, delivery: string, validity: string) => {
+      const o = quote();
+      o.bargeFee = { value: null, currency: null, perUnit: null, asWritten: null, evidence: null };
+      const first = must(o.lines[0], "line");
+      first.price = {
+        value: n,
+        currency: "USD",
+        perUnit,
+        asWritten: asWritten(n),
+        evidence: price(n),
+      };
+      o.deliveryFrom = dateField(delivery, `Delivery: ${delivery}`);
+      o.validUntil = dateField(validity, `Validity: ${validity}`);
+      return o;
+    };
+    return {
+      stale: run(out(734, "16-17 Nov", "14 Nov 2026"), doc),
+      current: run(out(738, "18-19 Nov", "15 Nov 2026"), doc),
+    };
+  };
+
+  it.each([
+    [
+      "Price (USD/mt): N",
+      (n: number) => `Price (USD/mt): ${n}`,
+      (n: number) => `USD/mt): ${n}`,
+      "/mt",
+    ],
+    [
+      "Price [USD/MT]: N",
+      (n: number) => `Price [USD/MT]: ${n}`,
+      (n: number) => `USD/MT]: ${n}`,
+      "/MT",
+    ],
+    [
+      "Price, USD per mt: N",
+      (n: number) => `Price, USD per mt: ${n}`,
+      (n: number) => `USD per mt: ${n}`,
+      "per mt",
+    ],
+    [
+      "USD per mt: N",
+      (n: number) => `USD per mt: ${n}`,
+      (n: number) => `USD per mt: ${n}`,
+      "per mt",
+    ],
+    [
+      "Price in USD/mt = N",
+      (n: number) => `Price in USD/mt = ${n}`,
+      (n: number) => `USD/mt = ${n}`,
+      "/mt",
+    ],
+  ] as const)(
+    "a price written as a label (%s) is the newest offer's price",
+    (_name, price, aw, unit) => {
+      const { stale, current } = sameLayout(price, aw, unit);
+      expect(stale.status).toBe("needs_review");
+      expect(failed(stale)).toContain("newest_offer_only");
+      expect(failed(current)).toEqual([]);
+    },
+  );
+
+  it.each([
+    "738 per tonne",
+    "738/t",
+    "738 p/mt",
+    "738 per metric ton",
+    "738 US dollars",
+    "738,00 USD/mt",
+  ])(
+    "a newest message pricing as %s counts as an offer (no currency next to it is fine)",
+    (price) => {
+      const doc: ExtractInput = {
+        sender: "bunkers@kestrel-fuels.example",
+        subject: "RE: LSMGO offer",
+        bodyText: [
+          `Revised: LSMGO ${price}, rest as below.`,
+          "",
+          "-----Original Message-----",
+          BODY,
+        ].join("\n"),
+      };
+      expect(failed(run(quote(), doc))).toEqual(["newest_offer_only"]);
+    },
+  );
+
+  it("a header-row table whose currency sits in the header counts as the newest offer", () => {
+    const doc: ExtractInput = {
+      sender: "bunkers@kestrel-fuels.example",
+      subject: "RE: LSMGO offer",
+      bodyText: [
+        "Revised offer below, rest as per our previous.",
+        "",
+        "Grade            Qty (mt)    Price (USD/mt)",
+        "LSMGO 0.10%S     300         741",
+        "",
+        "-----Original Message-----",
+        BODY,
+      ].join("\n"),
+    };
+    expect(failed(run(quote(), doc))).toEqual(["newest_offer_only"]);
+  });
+
+  it("a bottom-posted reply: the quoted lines on top are the older message", () => {
+    const doc: ExtractInput = {
+      sender: "bunkers@kestrel-fuels.example",
+      subject: "RE: LSMGO offer",
+      bodyText: [
+        ...BODY.split("\n").map((l) => `> ${l}`),
+        "",
+        "Revised: LSMGO USD 741 per mt, rest as above.",
+        "Kestrel Marine Fuels trading desk",
+      ].join("\n"),
+    };
+    const r = run(quote(), doc);
+    expect(r.status).toBe("needs_review");
+    expect(failed(r)).toContain("newest_offer_only");
+  });
+
+  it("a forward carries the original's attachment: it belongs to the forwarded message", () => {
+    const doc = withAttachment(
+      [
+        "Revised: LSMGO USD 741 per mt, rest as per the attached original offer.",
+        "Kestrel Marine Fuels trading desk",
+        "",
+        "---------- Forwarded message ---------",
+        "From: Kestrel Desk <bunkers@kestrel-fuels.example>",
+        "Date: Thu, 12 Nov 2026 at 10:00",
+        "Subject: LSMGO offer",
+        "",
+        "Please find our offer attached.",
+      ],
+      OFFER,
+    );
+    const r = run(newest(), doc);
+    expect(r.status).toBe("needs_review");
+    expect(failed(r)).toEqual(["newest_offer_only"]);
   });
 
   it("evidence repeated in the newest message and the quoted one passes", () => {
