@@ -4,6 +4,7 @@
  * no process.env, no hidden clock (pass `now` in), no randomness.
  */
 export const DOMAIN_CODE_VERSION = "0.0.0";
+export * from "./bunker-planner.js";
 export * from "./constants.js";
 export * from "./consumption.js";
 export * from "./emissions.js";

@@ -59,7 +59,7 @@ describe("projectFuelOnBoard", () => {
       robMt: { LSMGO: 10, VLSFO: 0, HSFO: 0 },
       legs: [{ distanceNm: 312, grade: "LSMGO" }],
     });
-    expect(p.legs[0]!.robAfterMt.LSMGO).toBe(-22.5);
+    expect(p.legs[0]?.robAfterMt.LSMGO).toBe(-22.5);
     expect(p.minRobMt.LSMGO).toBe(-22.5);
     expect(p.shortfallMt.LSMGO).toBe(55);
   });

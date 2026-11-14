@@ -1,3 +1,4 @@
+import type { LatLon } from "@pharos/shared";
 import { describe, expect, it } from "vitest";
 import { etaAfter, greatCircleNm, pointAlongPolyline, polylineNm } from "./geo.js";
 
@@ -16,26 +17,22 @@ describe("greatCircleNm", () => {
 });
 
 describe("polylineNm / pointAlongPolyline", () => {
-  const pts = [
-    { lat: 0, lon: 0 },
-    { lat: 1, lon: 0 },
-    { lat: 2, lon: 0 },
-  ];
+  const p0: LatLon = { lat: 0, lon: 0 };
+  const p1: LatLon = { lat: 1, lon: 0 };
+  const p2: LatLon = { lat: 2, lon: 0 };
+  const pts = [p0, p1, p2];
   it("polylineNm is the sum of segment distances", () => {
-    expect(polylineNm(pts)).toBeCloseTo(
-      greatCircleNm(pts[0]!, pts[1]!) + greatCircleNm(pts[1]!, pts[2]!),
-      9,
-    );
+    expect(polylineNm(pts)).toBeCloseTo(greatCircleNm(p0, p1) + greatCircleNm(p1, p2), 9);
     expect(polylineNm([])).toBe(0);
-    expect(polylineNm([pts[0]!])).toBe(0);
+    expect(polylineNm([p0])).toBe(0);
   });
   it("clamps to the ends", () => {
-    expect(pointAlongPolyline(pts, 0)).toEqual(pts[0]);
-    expect(pointAlongPolyline(pts, -5)).toEqual(pts[0]);
-    expect(pointAlongPolyline(pts, 1e6)).toEqual(pts[2]);
+    expect(pointAlongPolyline(pts, 0)).toEqual(p0);
+    expect(pointAlongPolyline(pts, -5)).toEqual(p0);
+    expect(pointAlongPolyline(pts, 1e6)).toEqual(p2);
   });
   it("halfway along a meridian segment is the mid latitude", () => {
-    const p = pointAlongPolyline([pts[0]!, pts[1]!], greatCircleNm(pts[0]!, pts[1]!) / 2);
+    const p = pointAlongPolyline([p0, p1], greatCircleNm(p0, p1) / 2);
     expect(p.lat).toBeCloseTo(0.5, 9);
     expect(p.lon).toBeCloseTo(0, 9);
   });
@@ -44,8 +41,11 @@ describe("polylineNm / pointAlongPolyline", () => {
     expect(p.lat).toBeCloseTo(1.5, 9);
   });
   it("single point and empty input", () => {
-    expect(pointAlongPolyline([pts[1]!], 10)).toEqual(pts[1]);
+    expect(pointAlongPolyline([p1], 10)).toEqual(p1);
     expect(() => pointAlongPolyline([], 1)).toThrow(RangeError);
+  });
+  it("NaN distance along the polyline throws RangeError", () => {
+    expect(() => pointAlongPolyline(pts, Number.NaN)).toThrow(RangeError);
   });
 });
 
@@ -66,5 +66,11 @@ describe("etaAfter", () => {
     expect(() => etaAfter(s, 300, 0)).toThrow(RangeError);
     expect(() => etaAfter(s, 300, -1)).toThrow(RangeError);
     expect(() => etaAfter(s, -1, 10)).toThrow(RangeError);
+  });
+  it("rejects an invalid start date or non-finite distance", () => {
+    const s = new Date("2026-11-14T00:00:00Z");
+    expect(() => etaAfter(new Date(Number.NaN), 300, 10)).toThrow(RangeError);
+    expect(() => etaAfter(s, Number.POSITIVE_INFINITY, 10)).toThrow(RangeError);
+    expect(() => etaAfter(s, Number.NaN, 10)).toThrow(RangeError);
   });
 });
