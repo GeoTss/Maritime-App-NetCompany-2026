@@ -13,7 +13,7 @@ import { currentVoyage, openRequirements, type World } from "@pharos/db";
 import {
   bargeFeeTotal,
   evidenceSupports,
-  hedgedInEvidence,
+  hedgedInSource,
   isoDayAfter,
   mentionsDate,
   normaliseCurrency,
@@ -157,6 +157,12 @@ const DELIVERY_WORD = /\bdeliver(?:y|ies)\b|\beta\b|\blaycan\b/i;
  */
 const dateWrittenWith = (source: string, word: RegExp): boolean =>
   source.split(/\r?\n/).some((l) => word.test(l) && mentionsDate(l));
+
+/** Some line of the email (subject, body, attachments) reads as naming a day. */
+const namesADate = (source: string): boolean => source.split(/\r?\n/).some((l) => mentionsDate(l));
+
+const NO_VALIDITY = "no validity determined — a human confirms";
+const NO_WINDOW = "delivery window not fully determined — a human confirms";
 
 /** A deliveryFrom text that names an end ("by 20 Nov"), not a start. */
 const END_DATE_WORDS = /^(?:by|before|no later than|until)\b/;
@@ -430,35 +436,87 @@ function evidenceItems(q: QuoteExtraction): EvidenceItem[] {
   ];
 }
 
-/**
- * Where a quoted older message starts in the body: an "-----Original Message-----" or
- * "---------- Forwarded message" line, an "On … wrote:" line, a "From:" line followed by a
- * Sent/Date/To/Subject/Cc header line, or a line starting with ">".
- */
-const THREAD_SEPARATORS = [
-  /^-{2,}\s*original message\s*-{2,}/im,
-  /^-{2,}\s*forwarded message\s*-{2,}/im,
-  /^on\s.*\bwrote:\s*$/im,
-  /^from:[^\n]*\S[^\n]*\n(?:sent|date|to|subject|cc):/im,
-  /^>/m,
-];
-/** A currency next to a number: "USD 738", "US$738", "$ 738", "€690", "690 EUR", "738 dollars". */
-const CURRENCY_AMOUNT =
-  /(?:\b(?:usd|eur)\b|us\$|\$|€)[\s.:-]*\d|\d\s*(?:(?:usd|eur|euros?|dollars?)\b|\$|€)/i;
+// ---------- quoted threads ----------
+
+/** "-----Original Message-----" and its localized and forwarded forms. */
+const ORIGINAL_MESSAGE =
+  /^-{2,}\s*(?:original message|forwarded message|ursprüngliche nachricht|weitergeleitete nachricht|message d['’]origine|message transféré|messaggio originale|messaggio inoltrato|mensaje original|mensaje reenviado)\s*-{2,}|^begin forwarded message:/;
+const ATTRIBUTION_START = /^(?:on|am|le|il|el)\s/;
+/** An attribution's end: "… wrote:", "… schrieb … :", "… a écrit :", "… ha scritto:", "… escribió:". */
+const ATTRIBUTION_END = /(?:^|\s)(?:wrote|schrieb|a\s+écrit|ha\s+scritto|escribió)(?:\s.*)?:\s*$/;
+/** A "From" header label (English, German, French/Spanish, Danish/Norwegian, Italian, Greek). */
+const FROM_HEADER = /^[*_]{0,2}(?:from|von|de|fra|da|από)[*_]{0,2}\s*:[*_]{0,2}\s*(.*)$/;
+/** The header lines that follow a From line in a quoted header block, in the same languages. */
+const NEXT_HEADER =
+  /^[*_]{0,2}(?:sent|date|to|subject|cc|gesendet|datum|an|betreff|envoyé|à|objet|sendt|til|emne|inviato|a|oggetto|enviado|fecha|para|asunto|στάλθηκε|ημερομηνία|προς|θέμα|κοιν)[*_]{0,2}\s*:/;
+/** A header block's other lines must come within this many non-empty lines of its From line. */
+const HEADER_BLOCK_REACH = 6;
+/** The first attachment section parse-email appends; separators are only looked for above it. */
+const ATTACHMENT_MARKER = /^--- attachment: .* ---$/m;
+
+/** A From header value that names a sender, not a date ("From: 22 Nov" in a delivery window). */
+const namesSender = (value: string) =>
+  value !== "" && (value.includes("@") || !mentionsDate(value));
 
 /**
- * The source split at the first reply or forward separator in the body: the newest message
- * (with the From and Subject lines) above it, the quoted thread below. Null when there is none.
+ * The line index where a quoted older message starts, or -1. Separators: an original-message or
+ * forwarded-message line (localized), an attribution ("On … wrote:", "Am … schrieb …:", "Le … a
+ * écrit :", "Il … ha scritto:", "El … escribió:", also wrapped over two lines), a From header line
+ * (localized, bold markers allowed) naming a sender with another header line within the next 6
+ * non-empty lines, or two or more consecutive lines starting with ">".
+ */
+function firstSeparatorLine(lines: string[]): number {
+  const folded = lines.map((l) => l.trim().toLowerCase());
+  const nonEmptyAfter = (i: number, n: number) =>
+    folded
+      .slice(i + 1)
+      .filter((l) => l !== "")
+      .slice(0, n);
+  for (const [i, l] of folded.entries()) {
+    if (ORIGINAL_MESSAGE.test(l)) return i;
+    if (ATTRIBUTION_START.test(l)) {
+      if (ATTRIBUTION_END.test(l)) return i;
+      const next = folded[i + 1];
+      if (next !== undefined && ATTRIBUTION_END.test(next)) return i;
+    }
+    const from = FROM_HEADER.exec(l);
+    if (from && namesSender(from[1] ?? "")) {
+      if (nonEmptyAfter(i, HEADER_BLOCK_REACH).some((x) => NEXT_HEADER.test(x))) return i;
+    }
+    if (l.startsWith(">") && folded[i + 1]?.startsWith(">")) return i;
+  }
+  return -1;
+}
+
+/**
+ * The source split at the first reply or forward separator in the body above any attachment
+ * section: the quoted thread is the body from the separator to the first attachment; the newest
+ * message is the rest (the From and Subject lines, the body above the separator, and the
+ * attachments, which the newest email carries). Null when there is no separator.
  */
 function threadSplit(doc: ExtractInput): { newest: string; quoted: string } | null {
-  const at = Math.min(
-    ...THREAD_SEPARATORS.map((re) => re.exec(doc.bodyText)?.index ?? Number.POSITIVE_INFINITY),
-  );
-  if (!Number.isFinite(at)) return null;
+  const body = doc.bodyText;
+  const marker = body.search(ATTACHMENT_MARKER);
+  const text = marker === -1 ? body : body.slice(0, marker);
+  const lines = text.split("\n");
+  const line = firstSeparatorLine(lines);
+  if (line === -1) return null;
+  const at = lines.slice(0, line).reduce((n, l) => n + l.length + 1, 0);
+  const end = marker === -1 ? body.length : marker;
   const source = sourceText(doc);
-  const cut = source.length - doc.bodyText.length + at;
-  return { newest: source.slice(0, cut), quoted: source.slice(cut) };
+  const offset = source.length - body.length;
+  return {
+    newest: source.slice(0, offset + at) + source.slice(offset + end),
+    quoted: source.slice(offset + at, offset + end),
+  };
 }
+
+/**
+ * A price in the text: a currency next to a number ("USD 738", "USD738/mt", "US$738", "€690",
+ * "690 EUR", "USD/MT 738", "USD/mt: 738"), or a number per mt ("738 pmt", "738 per mt", "738/mt").
+ */
+const PRICE_IN_TEXT =
+  /(?:\b(?:usd|eur)|us\$|\$|€)(?:\s*\/\s*(?:mt|t|tons?|tonnes?|metric tons?)\b)?[\s.:-]*\d|\d\s*(?:(?:usd|eur|euros?|dollars?)\b|\$|€)|\d\s*(?:pmt|per\s+mt|\/\s*mt)\b/i;
 
 /** The evidence of every price, quantity, validity and delivery date the output states. */
 function offerEvidence(q: QuoteExtraction): [string, string][] {
@@ -481,7 +539,7 @@ function offerEvidence(q: QuoteExtraction): [string, string][] {
 function newestOfferCheck(doc: ExtractInput, q: QuoteExtraction): CheckResult {
   const thread = threadSplit(doc);
   if (thread === null) return check("newest_offer_only", [], "no quoted thread");
-  if (!CURRENCY_AMOUNT.test(thread.newest)) {
+  if (!PRICE_IN_TEXT.test(thread.newest)) {
     return check(
       "newest_offer_only",
       [],
@@ -577,7 +635,7 @@ export function evaluateExtraction(
   checks.push(check("grade_known", gradeFailures));
 
   // quantity_unambiguous: a single number, as written, greater than zero, and not a range or
-  // approximation on its evidence line ("280" from "280/320 mt", "300 mt" from "abt 300 mt").
+  // approximation on its source line ("280" from "280/320 mt", "300 mt" from "abt 300 mt").
   checks.push(
     check(
       "quantity_unambiguous",
@@ -588,8 +646,8 @@ export function evaluateExtraction(
             `Quantity of line ${i} is not a single amount ("${l.quantity.asWritten ?? ""}").`,
           ];
         }
-        return hedgedInEvidence(l.quantity.evidence, l.quantity.asWritten)
-          ? [`Quantity of line ${i} is a range or approximation on its evidence line.`]
+        return hedgedInSource(source, l.quantity.evidence, l.quantity.asWritten)
+          ? [`Quantity of line ${i} is a range or approximation on its source line.`]
           : [];
       }),
     ),
@@ -601,8 +659,8 @@ export function evaluateExtraction(
     const price = lines[i]?.price;
     if (p === null || p <= 0)
       return [`Price of line ${i} does not read as "${price?.asWritten ?? ""}".`];
-    return price && hedgedInEvidence(price.evidence, price.asWritten)
-      ? [`Price of line ${i} is a range or approximation on its evidence line.`]
+    return price && hedgedInSource(source, price.evidence, price.asWritten)
+      ? [`Price of line ${i} is a range or approximation on its source line.`]
       : [];
   });
   if (n.barge.quoted) {
@@ -633,15 +691,27 @@ export function evaluateExtraction(
     ),
   );
 
-  // validity_not_expired: valid until the received day or later, and not implausibly far ahead
-  // (a date with no year that resolved into the wrong year).
+  // Ruling A: an email that names any date must have its validity and both ends of its delivery
+  // window determined (non-null after normalisation), or a human confirms them. Absent passes
+  // only for an email with no date at all (the demo inbox emails). The word-list detectors add
+  // the more specific reason when a validity or delivery date is written but was left out.
+  const datesInEmail = namesADate(source);
+
+  // validity_not_expired: determined (above), valid until the received day or later, and not
+  // implausibly far ahead (a date with no year that resolved into the wrong year).
   const today = isoDayAfter(ctx.receivedAt, 0);
   const validityStated = output.validUntil.asWritten !== null;
   const validityFailures: string[] = [];
-  if (!validityStated && dateWrittenWith(source, VALIDITY_WORD)) {
-    // Absent means "no validity" only when the email names none the model left out.
-    validityFailures.push("a validity is written in the email but was not transcribed");
-  } else if (view.validUntil !== null && view.validUntil < today) {
+  if (view.validUntil === null) {
+    if (datesInEmail) {
+      const omitted = !validityStated && dateWrittenWith(source, VALIDITY_WORD);
+      validityFailures.push(
+        omitted
+          ? `${NO_VALIDITY} (a validity is written in the email but was not transcribed)`
+          : NO_VALIDITY,
+      );
+    }
+  } else if (view.validUntil < today) {
     validityFailures.push(
       `The quote expired on ${view.validUntil}, before it was received on ${today}.`,
     );
@@ -656,25 +726,29 @@ export function evaluateExtraction(
       "validity_not_expired",
       validityFailures,
       !validityStated
-        ? "no validity stated"
+        ? "no validity stated; the email names no date"
         : view.validUntil === null
           ? "not checked: the validity does not read as a date"
           : null,
     ),
   );
 
-  // delivery_window_valid: no delivery date written in the email and left out; a start that is
-  // not an end ("by 20 Nov"); and once the stated dates parse, the window ends no earlier than it
-  // starts, starts no more than a day before the received day (a wrong year), ends not before the
-  // received day and not implausibly far ahead. Only one end stated: that end is judged. An
-  // unparsed date is left to dates_parsed.
+  // delivery_window_valid: both ends determined (ruling A, above); a start that is not an end
+  // ("by 20 Nov"); and once the stated dates parse, the window ends no earlier than it starts,
+  // starts no more than a day before the received day (a wrong year), ends not before the
+  // received day and not implausibly far ahead. An unparsed date also fails dates_parsed.
   const deliveryStated =
     output.deliveryFrom.asWritten !== null || output.deliveryTo.asWritten !== null;
   const deliveryUnparsed = n.unparsedDates.some((d) => d.path !== "validUntil");
   const { deliveryFrom: from, deliveryTo: to } = view;
   const windowFailures: string[] = [];
-  if (!deliveryStated && dateWrittenWith(source, DELIVERY_WORD)) {
-    windowFailures.push("a delivery date is written in the email but was not transcribed");
+  if ((from === null || to === null) && datesInEmail) {
+    const omitted = !deliveryStated && dateWrittenWith(source, DELIVERY_WORD);
+    windowFailures.push(
+      omitted
+        ? `${NO_WINDOW} (a delivery date is written in the email but was not transcribed)`
+        : NO_WINDOW,
+    );
   }
   const startWritten = output.deliveryFrom.asWritten;
   if (startWritten !== null && END_DATE_WORDS.test(foldText(startWritten))) {
@@ -704,10 +778,12 @@ export function evaluateExtraction(
       "delivery_window_valid",
       windowFailures,
       !deliveryStated
-        ? "no delivery window stated"
+        ? "no delivery window stated; the email names no date"
         : deliveryUnparsed
           ? "not checked: a delivery date does not read as a date"
-          : null,
+          : from === null || to === null
+            ? "only one end of the delivery window is stated; the email names no other date"
+            : null,
     ),
   );
 

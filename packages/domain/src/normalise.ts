@@ -117,32 +117,104 @@ function tokenOccurrences(haystack: string, needle: string): number[] {
   return found;
 }
 
-/**
- * A range or alternative ("280/320", "280-320", "280 to 320", "280 or 320") or an approximation
- * or limit (abt, about, approx., circa, ca., min, max, up to, +/-, ±, ~). Matched on the whole
- * evidence, so a marker word is a whole word there ("admin" holds no "min").
- */
-const HEDGE =
-  /\d\s*(?:\/|-|–|—|to|or)\s*\d|\b(?:abt|about|approx\w*|circa|min(?:imum)?|max(?:imum)?|up to)\b|\bca\.|\+\/-|\+-|±|~/g;
-/** How far either side of the amount a marker still qualifies it. */
-const HEDGE_RADIUS = 12;
+// ---------- ranges and approximations around an amount ----------
+
+const UNIT = String.raw`(?:metric\s+tonnes?|metric\s+tons?|tonnes?|tons?|mts?|t|m3|cbm|pmt|per\s+mt|/\s*mt)`;
+const CUR = String.raw`(?:usd|eur|us\$|\$|€)`;
+const NUM = String.raw`\d[\d,.]*`;
+
+/** Qualifies the amount right after it (ending at most 8 characters before it, no digit between). */
+const BEFORE_MARKER =
+  /\b(?:about|abt|approx(?:imately)?|around|roughly|circa|minimum|maximum|min|max|at least|up to|moloo|more or less|between)(?![a-z])\.?|\b(?:ca|c)\.|~|≈/g;
+const BEFORE_MARKER_REACH = 8;
+/** Another amount joined to it from before: "280/", "280 - ", "280 to ", "100 mt or ", "between 100 and ". */
+const BEFORE_RANGE = new RegExp(
+  String.raw`(?:${NUM}\s*${UNIT}?\s*(?:/|-|–|—|\bto\b|\bor\b)|\bbetween\s+${CUR}?\s*${NUM}\s*${UNIT}?\s*and)\s*${CUR}?\s*$`,
+);
+/** Another amount joined to it from after: "/320", " - 150 mt", " to 320", " or USD 690". */
+const AFTER_RANGE = new RegExp(String.raw`^\s*${UNIT}?\.?\s*(?:/|-|–|—|to|or)\s*${CUR}?\s*\d`);
+/** A marker right after the amount and its unit: "100 mt approx.", "100 mt max", "100 mt (abt)". */
+const AFTER_MARKER = new RegExp(
+  String.raw`^\s*${UNIT}?\.?\s*(?:(?:\(\s*)?(?:approx(?:imately)?|abt|about|circa|ca\.|c\.|moloo|more or less)|minimum|maximum|min|max)(?![a-z])`,
+);
+/** A tolerance starting within 12 characters after the amount: ±, +/-, +-, plus/minus, more or less. */
+const AFTER_TOLERANCE = /±|\+\/-|\+-|plus\/minus|plus or minus|more or less|\bmoloo\b/;
+const AFTER_TOLERANCE_REACH = 12;
+
+/** Is the amount at [at, end) of the folded line a range or an approximation? */
+function hedgedAt(line: string, at: number, end: number): boolean {
+  const before = line.slice(0, at);
+  const after = line.slice(end);
+  const markerTouches = [...before.matchAll(BEFORE_MARKER)].some((m) => {
+    const gap = before.slice(m.index + m[0].length);
+    return gap.length <= BEFORE_MARKER_REACH && !/\d/.test(gap);
+  });
+  const tolerance = AFTER_TOLERANCE.exec(after);
+  return (
+    markerTouches ||
+    BEFORE_RANGE.test(before) ||
+    AFTER_RANGE.test(after) ||
+    AFTER_MARKER.test(after) ||
+    (tolerance !== null && tolerance.index < AFTER_TOLERANCE_REACH)
+  );
+}
 
 /**
- * True when the evidence holds a range or approximation marker within 12 characters of an
- * occurrence (on token boundaries) of the as-written amount: "280" taken from "280/320 mt", or
- * "300 mt" from "abt 300 mt". Case- and whitespace-folded. The as-written text alone can read as
- * one clean number while the line it came from does not.
+ * The folded source lines each occurrence of the evidence touches (every line of an evidence that
+ * spans lines), with the evidence's span inside them. The folded evidence itself when the source
+ * does not hold it.
  */
-export function hedgedInEvidence(evidence: string | null, asWritten: string | null): boolean {
+function evidenceContexts(
+  source: string,
+  ev: string,
+): { text: string; from: number; to: number }[] {
+  const lines = source
+    .split(/\r?\n/)
+    .map(collapse)
+    .filter((l) => l !== "");
+  const starts: number[] = [];
+  let pos = 0;
+  for (const l of lines) {
+    starts.push(pos);
+    pos += l.length + 1;
+  }
+  const joined = lines.join(" ");
+  const lineAt = (offset: number) => starts.findLastIndex((s) => s <= offset);
+  const found: { text: string; from: number; to: number }[] = [];
+  for (let at = joined.indexOf(ev); at !== -1; at = joined.indexOf(ev, at + 1)) {
+    const end = at + ev.length;
+    const lo = starts[lineAt(at)] ?? 0;
+    const last = lineAt(end - 1);
+    const hi = (starts[last] ?? 0) + (lines[last]?.length ?? 0);
+    found.push({ text: joined.slice(lo, hi), from: at - lo, to: end - lo });
+  }
+  return found.length > 0 ? found : [{ text: ev, from: 0, to: ev.length }];
+}
+
+/**
+ * True when the source line(s) holding the evidence show the as-written amount as a range or an
+ * approximation: "280" from "280/320 mt", "100 mt" from "abt 100 mt", "USD 683 per mt" from
+ * "USD 683 per mt or USD 690 per mt". The whole line is read, not the model's span, so a
+ * shortened evidence ("100 mt") cannot hide the marker. Markers must touch the amount: one before
+ * it within 8 characters of the number or its currency, another amount joined by / - – to or, a
+ * marker right after the amount and its unit, or a tolerance (±, +/-, plus/minus, more or less)
+ * within 12 characters after. "(max tank capacity 400 mt)" or "ISO 8217-2017" nearby does not
+ * count. Case- and whitespace-folded; the amount is matched on token boundaries.
+ */
+export function hedgedInSource(
+  source: string,
+  evidence: string | null,
+  asWritten: string | null,
+): boolean {
   if (evidence === null || asWritten === null) return false;
   const ev = collapse(evidence);
   const value = collapse(asWritten);
-  if (value === "") return false;
-  const markers = [...ev.matchAll(HEDGE)].map((m) => [m.index, m.index + m[0].length] as const);
-  return tokenOccurrences(ev, value).some((at) => {
-    const lo = at - HEDGE_RADIUS;
-    const hi = at + value.length + HEDGE_RADIUS;
-    return markers.some(([start, end]) => start < hi && end > lo);
+  if (ev === "" || value === "") return false;
+  return evidenceContexts(source, ev).some(({ text, from, to }) => {
+    const all = tokenOccurrences(text, value);
+    // The amount the evidence points at; any on its lines when the evidence does not hold it.
+    const inside = all.filter((at) => at < to && at + value.length > from);
+    return (inside.length > 0 ? inside : all).some((at) => hedgedAt(text, at, at + value.length));
   });
 }
 

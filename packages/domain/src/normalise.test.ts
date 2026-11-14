@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   evidenceSupports,
-  hedgedInEvidence,
+  hedgedInSource,
   normaliseCurrency,
   normaliseGrade,
   normaliseMassUnit,
@@ -232,59 +232,124 @@ describe("evidenceSupports token boundaries", () => {
   });
 });
 
-describe("hedgedInEvidence", () => {
-  const rows: [string, string, boolean][] = [
-    // a range or alternative next to the transcribed amount
-    ["We can offer LSMGO 0.1% at Algeciras, 280/320 mt at EUR 690 per mt.", "280", true],
-    ["Quantity: 280-320 mt", "280", true],
-    ["Quantity: 280 – 320 mt", "280", true],
-    ["Quantity: 280 — 320 mt", "320 mt", true],
-    ["Quantity: 280 to 320 mt", "280", true],
-    ["Quantity: 280 or 320 mt", "320 mt", true],
-    // approximation and limit markers
-    ["Quantity: abt 300 mt", "300 mt", true],
-    ["Quantity: about 300 mt", "300 mt", true],
-    ["Quantity: approx. 300 mt", "300 mt", true],
-    ["Quantity: approximately 300 mt", "300 mt", true],
-    ["Quantity: circa 300 mt", "300 mt", true],
-    ["Quantity: ca. 300 mt", "300 mt", true],
-    ["Quantity: min 300 mt", "300 mt", true],
-    ["Quantity: 300 mt max", "300 mt", true],
-    ["Quantity: up to 300 mt", "300 mt", true],
-    ["Quantity: 300 mt +/- 5%", "300 mt", true],
-    ["Quantity: 300 mt +- 5%", "300 mt", true],
-    ["Quantity: 300 mt ± 5%", "300 mt", true],
-    ["Quantity: ~300 mt", "300 mt", true],
-    ["Price: USD 738/745 per mt", "USD 738", true],
-    // clean amounts
-    ["Quantity: 300 mt LSMGO", "300 mt", false],
-    ["Price: USD 738 per mt", "USD 738 per mt", false],
-    ["Price: EUR 690 / mt", "EUR 690 / mt", false],
-    ["Quantity: 1,200 mt VLSFO 0.5%", "1,200 mt", false],
-    ["LSMGO 0.1% - 300 mt", "300 mt", false],
-    ["Price: USD 712 PMT", "USD 712 PMT", false],
-    // a marker more than 12 characters away is another field's
-    ["Quantity: 300 mt LSMGO, delivery 18-19 Nov", "300 mt", false],
-    ["Quantity: 300 mt LSMGO (VLSFO up to 500 mt)", "300 mt", false],
-    // a marker word must be a whole word in the evidence, not cut out of one by the window
-    ["Contact admin 300 mt", "300 mt", false],
-    ["Maximal Fuels: 300 mt", "300 mt", false],
+describe("hedgedInSource", () => {
+  /** The line sits in a small email; the evidence is the whole line unless a span is given. */
+  const source = (line: string) => `Dear all,\n${line}\nBest regards`;
+  const hedged = (line: string, asWritten: string, evidence = line) =>
+    hedgedInSource(source(line), evidence, asWritten);
+
+  it.each([
+    // a range or alternative: another amount joined by /, -, –, —, to, or (either side)
+    ["Quantity: 100 mt / 150 mt", "100 mt"],
+    ["Quantity: 100 mt / 150 mt", "150 mt"],
+    ["Quantity: 100 mt or 150 mt", "100 mt"],
+    ["Quantity: 280/320 mt", "280"],
+    ["Quantity: 280/320 mt", "320 mt"],
+    ["Quantity: 280-320 mt", "280"],
+    ["Quantity: 280 – 320 mt", "280"],
+    ["Quantity: 280 — 320 mt", "320 mt"],
+    ["Quantity: 280 to 320 mt", "280"],
+    ["Quantity: 100mt-150mt", "100mt"],
+    ["Quantity: between 100 and 150 mt", "100"],
+    ["Quantity: between 100 and 150 mt", "150 mt"],
+    ["Price: USD 683 per mt or USD 690 per mt", "USD 683 per mt"],
+    ["Price: USD 683 per mt or USD 690 per mt", "USD 690 per mt"],
+    ["Price: USD 683-690 per mt", "USD 683"],
+    ["Price: USD 683 / USD 690 per mt", "USD 683"],
+    // a marker right before the number or its currency
+    ["Quantity: abt 100 mt", "100 mt"],
+    ["Quantity: about 100 mt", "100 mt"],
+    ["Quantity: approx. 100 mt", "100 mt"],
+    ["Quantity: approximately 100 mt", "100 mt"],
+    ["Quantity: around 100 mt", "100 mt"],
+    ["Quantity: roughly 100 mt", "100 mt"],
+    ["Quantity: circa 100 mt", "100 mt"],
+    ["Quantity: ca. 100 mt", "100 mt"],
+    ["Quantity: c. 100 mt", "100 mt"],
+    ["Quantity: ~100 mt", "100 mt"],
+    ["Quantity: ≈100 mt", "100 mt"],
+    ["Quantity: min. 100 mt", "100 mt"],
+    ["Quantity: minimum 100 mt", "100 mt"],
+    ["Quantity: max 100 mt", "100 mt"],
+    ["Quantity: maximum 100 mt", "100 mt"],
+    ["Quantity: at least 100 mt", "100 mt"],
+    ["Quantity: up to 100 mt", "100 mt"],
+    ["Quantity: MOLOO 100 mt", "100 mt"],
+    ["Quantity: more or less 100 mt", "100 mt"],
+    ["Price: around USD 683 per mt", "USD 683 per mt"],
+    ["Price: abt USD 683 per mt", "683"],
+    // a marker right after the number and unit, or a tolerance within 12 characters after
+    ["Quantity: 100 mt approx.", "100 mt"],
+    ["Quantity: 100 mt max", "100 mt"],
+    ["Quantity: 100 mt min", "100 mt"],
+    ["Quantity: 100 mt MOLOO", "100 mt"],
+    ["Quantity: 100 mt more or less", "100 mt"],
+    ["Quantity: 100 mt +/- 5%", "100 mt"],
+    ["Quantity: 100 mt ±10%", "100 mt"],
+    ["Quantity: 100 mt plus/minus 10%", "100 mt"],
+    ["Quantity: 100 mt, 10% more or less at Seller's option", "100 mt"],
+    ["Quantity: 300 mt LSMGO +/- 5%", "300 mt"],
     // case and whitespace folded
-    ["QUANTITY: ABT   300 MT", "300 mt", true],
-  ];
-  it.each(rows)("%s | %s -> %s", (evidence, asWritten, expected) => {
-    expect(hedgedInEvidence(evidence, asWritten)).toBe(expected);
+    ["QUANTITY: ABT   100 MT", "100 mt"],
+  ])("hedged: %s | %s", (line, asWritten) => {
+    expect(hedged(line, asWritten)).toBe(true);
   });
 
-  it("checks every token-boundary occurrence of the amount", () => {
-    expect(hedgedInEvidence("300 mt now; earlier abt 300 mt", "300 mt")).toBe(true);
+  it.each([
+    ["Quantity: 100 mt", "100 mt"],
+    ["Quantity: 100 mt VLSFO ISO 8217-2017", "100 mt"],
+    ["VLSFO ISO 8217-2017 100 mt", "100 mt"],
+    ["Price: USD 683 per mt (ISO 8217-2017)", "USD 683 per mt"],
+    ["Quantity: 100 mt (max tank capacity 400 mt)", "100 mt"],
+    ["Quantity: 100 mt, min. lifting 50 mt", "100 mt"],
+    ["LSMGO 0.10%S 100 mt @ USD 683/mt 22-24 Nov", "USD 683/mt"],
+    ["LSMGO 0.10%S 100 mt @ USD 683/mt 22-24 Nov", "100 mt"],
+    ["Price: USD 683 per mt, delivery 22-24 Nov", "USD 683 per mt"],
+    ["Price: USD 683 per mt, payment 30 days", "USD 683 per mt"],
+    ["Qty: 100 mt to MV Scheldt Express", "100 mt"],
+    ["Quantity: 300 mt LSMGO (VLSFO up to 500 mt)", "300 mt"],
+    ["LSMGO 0.1% - 300 mt", "300 mt"],
+    ["Contact admin 300 mt", "300 mt"],
+    ["Maximal Fuels: 300 mt", "300 mt"],
+    ["Quantity: 1,200 mt VLSFO 0.5%", "1,200 mt"],
+    ["Price: EUR 690 / mt", "EUR 690 / mt"],
+    ["Price: USD 712 PMT", "USD 712 PMT"],
+  ])("clean: %s | %s", (line, asWritten) => {
+    expect(hedged(line, asWritten)).toBe(false);
   });
-  it("ignores an occurrence inside a larger number", () => {
-    expect(hedgedInEvidence("Quantity: 2,300 mt, abt", "300 mt")).toBe(false);
+
+  it("reads the whole source line, not the model's evidence span", () => {
+    // The model cites only "100 mt"; the line it sits on says "abt 100 mt".
+    expect(hedged("Quantity: abt 100 mt", "100 mt", "100 mt")).toBe(true);
+    expect(hedged("Quantity: 100-150 mt", "150 mt", "150 mt")).toBe(true);
+    expect(hedged("Quantity: 100/150 mt", "150 mt", "150 mt")).toBe(true);
   });
+
+  it("an evidence string spanning lines reads all of them; a hedge on another line does not count", () => {
+    const src = "Quantity: 100 mt\n/ 150 mt\nVLSFO: abt 200 mt";
+    expect(hedgedInSource(src, "Quantity: 100 mt / 150 mt", "100 mt")).toBe(true);
+    expect(hedgedInSource(src, "Quantity: 100 mt", "100 mt")).toBe(false);
+  });
+
+  it("checks the occurrence of the amount inside the evidence, and every place the evidence occurs", () => {
+    expect(hedgedInSource("300 mt now; earlier abt 300 mt", "earlier abt 300 mt", "300 mt")).toBe(
+      true,
+    );
+    expect(hedgedInSource("Quantity: 2,300 mt, abt", "Quantity: 2,300 mt, abt", "300 mt")).toBe(
+      false,
+    );
+    const twice = "Quantity: 100 mt\nRepeat: abt 100 mt";
+    expect(hedgedInSource(twice, "100 mt", "100 mt")).toBe(true);
+  });
+
+  it("falls back to the evidence itself when it is not in the source", () => {
+    expect(hedgedInSource("other text", "Quantity: abt 100 mt", "100 mt")).toBe(true);
+    expect(hedgedInSource("other text", "Quantity: 100 mt", "100 mt")).toBe(false);
+  });
+
   it("is false for null or blank input", () => {
-    expect(hedgedInEvidence(null, "300")).toBe(false);
-    expect(hedgedInEvidence("abt 300 mt", null)).toBe(false);
-    expect(hedgedInEvidence("abt 300 mt", "  ")).toBe(false);
+    expect(hedgedInSource("abt 300 mt", null, "300")).toBe(false);
+    expect(hedgedInSource("abt 300 mt", "abt 300 mt", null)).toBe(false);
+    expect(hedgedInSource("abt 300 mt", "abt 300 mt", "  ")).toBe(false);
   });
 });
