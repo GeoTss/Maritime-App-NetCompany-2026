@@ -38,3 +38,7 @@ export type IsoDateTime = z.infer<typeof IsoDateTime>;
 /** EU ETS coverage factor: EU↔EU 1, EU↔non-EU 0.5, non-EU↔non-EU 0. */
 export const EtsCoverageFactor = z.union([z.literal(0), z.literal(0.5), z.literal(1)]);
 export type EtsCoverageFactor = z.infer<typeof EtsCoverageFactor>;
+
+/** ISO-8601 calendar date (`YYYY-MM-DD`). */
+export const IsoDate = z.iso.date();
+export type IsoDate = z.infer<typeof IsoDate>;

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { ConsumptionCurve, FobProjection } from "./calculators.js";
 import {
   CheckResult,
+  ExtractionStatus,
   LlmCall,
   PortCallPurpose,
   QuoteStatus,
@@ -10,6 +11,7 @@ import {
   RecommendationType,
   VoyageStatus,
 } from "./entities.js";
+import { NormalisedView } from "./evals/extraction-truth.js";
 import { ExtractionOutput } from "./extraction/index.js";
 import { Fact, FactId } from "./facts.js";
 import {
@@ -18,6 +20,7 @@ import {
   FuelGrade,
   GradeAmounts,
   Id,
+  IsoDate,
   IsoDateTime,
   LatLon,
   ShipType,
@@ -215,3 +218,49 @@ export type DecisionResult = z.infer<typeof DecisionResult>;
 
 export const LlmCallView = LlmCall.extend({ createdAt: IsoDateTime });
 export type LlmCallView = z.infer<typeof LlmCallView>;
+
+/** One extraction waiting for a human, with the checks that failed and the quoted evidence. */
+export const ReviewItem = z.object({
+  extractionId: Id,
+  documentId: Id,
+  subject: z.string(),
+  sender: z.string(),
+  receivedAt: IsoDateTime,
+  failedChecks: z.array(CheckResult),
+  normalised: NormalisedView,
+  evidence: z.record(z.string(), z.string().nullable()),
+});
+export type ReviewItem = z.infer<typeof ReviewItem>;
+
+/** The human's values for a quote under review. All fields are required. */
+export const ReviewCorrection = z
+  .object({
+    vesselImo: z.string().regex(/^\d{7}$/),
+    portUnlocode: z.string().length(5),
+    supplierId: Id,
+    currency: Currency,
+    validUntil: IsoDate.nullable(),
+    deliveryFrom: IsoDate.nullable(),
+    deliveryTo: IsoDate.nullable(),
+    bargeFee: z.number().nonnegative(),
+    lines: z
+      .array(
+        z
+          .object({
+            grade: FuelGrade,
+            qtyMt: z.number().positive(),
+            pricePerMt: z.number().positive(),
+          })
+          .strict(),
+      )
+      .min(1),
+  })
+  .strict();
+export type ReviewCorrection = z.infer<typeof ReviewCorrection>;
+
+export const ReviewDecision = z.object({
+  extractionId: Id,
+  status: ExtractionStatus,
+  quoteId: Id.nullable(),
+});
+export type ReviewDecision = z.infer<typeof ReviewDecision>;

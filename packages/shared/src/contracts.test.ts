@@ -4,11 +4,14 @@ import {
   ConsumptionCurve,
   ErpOrderRequest,
   ExtractionOutput,
+  ExtractionTruth,
   GradeAmounts,
   LlmCall,
+  NormalisedView,
   ProposedAction,
   Provenance,
   RecommendationView,
+  ReviewCorrection,
   RouteLeg,
 } from "./index.js";
 
@@ -243,5 +246,100 @@ describe("Phase 2 contracts", () => {
     };
     expect(LlmCall.safeParse(call).success).toBe(true);
     expect(LlmCall.safeParse({ ...call, outputTokens: -1 }).success).toBe(false);
+  });
+});
+
+describe("extraction truth and review contracts", () => {
+  const truthQuote = {
+    vesselImo: "9123456",
+    portUnlocode: "ESALG",
+    supplierKey: "nordwind",
+    currency: "USD",
+    validUntil: "2026-11-20",
+    deliveryFrom: "2026-11-18",
+    deliveryTo: "2026-11-19",
+    bargeFee: 500,
+    lines: [{ grade: "VLSFO", qtyMt: 800, pricePerMt: 612.5 }],
+  };
+  const truth = {
+    id: "gen-001",
+    tags: ["clean"],
+    source: "generated",
+    expected: { kind: "quote", status: "extracted", reviewChecks: [], quote: truthQuote },
+  };
+  const withExpected = (patch: object) => ({
+    ...truth,
+    expected: { ...truth.expected, ...patch },
+  });
+
+  it("parses a valid generated truth", () => {
+    expect(ExtractionTruth.safeParse(truth).success).toBe(true);
+  });
+
+  it("rejects needs_review without reviewChecks", () => {
+    expect(ExtractionTruth.safeParse(withExpected({ status: "needs_review" })).success).toBe(false);
+    expect(
+      ExtractionTruth.safeParse(withExpected({ status: "needs_review", reviewChecks: ["port"] }))
+        .success,
+    ).toBe(true);
+  });
+
+  it("rejects a quote truth without lines", () => {
+    expect(
+      ExtractionTruth.safeParse(withExpected({ quote: { ...truthQuote, lines: [] } })).success,
+    ).toBe(false);
+  });
+
+  it("rejects not_a_quote with a non-null quote", () => {
+    const bad = withExpected({ kind: "not_a_quote", status: "not_a_quote" });
+    expect(ExtractionTruth.safeParse(bad).success).toBe(false);
+    const ok = withExpected({ kind: "not_a_quote", status: "not_a_quote", quote: null });
+    expect(ExtractionTruth.safeParse(ok).success).toBe(true);
+  });
+
+  it("rejects kind quote with a null quote unless needs_review", () => {
+    expect(ExtractionTruth.safeParse(withExpected({ quote: null })).success).toBe(false);
+    expect(
+      ExtractionTruth.safeParse(
+        withExpected({ quote: null, status: "needs_review", reviewChecks: ["unreadable"] }),
+      ).success,
+    ).toBe(true);
+  });
+
+  it("rejects a bad date string", () => {
+    const bad = withExpected({ quote: { ...truthQuote, validUntil: "20/11/2026" } });
+    expect(ExtractionTruth.safeParse(bad).success).toBe(false);
+  });
+
+  it("parses a normalised view with null ids and no lines", () => {
+    const view = {
+      vesselId: null,
+      portId: null,
+      supplierId: null,
+      currency: null,
+      validUntil: null,
+      deliveryFrom: null,
+      deliveryTo: null,
+      bargeFee: null,
+      lines: [],
+    };
+    expect(NormalisedView.safeParse(view).success).toBe(true);
+  });
+
+  it("ReviewCorrection rejects qty <= 0", () => {
+    const correction = {
+      vesselImo: "9123456",
+      portUnlocode: "ESALG",
+      supplierId: 3,
+      currency: "USD",
+      validUntil: null,
+      deliveryFrom: "2026-11-18",
+      deliveryTo: null,
+      bargeFee: 0,
+      lines: [{ grade: "VLSFO", qtyMt: 800, pricePerMt: 600 }],
+    };
+    expect(ReviewCorrection.safeParse(correction).success).toBe(true);
+    const bad = { ...correction, lines: [{ grade: "VLSFO", qtyMt: 0, pricePerMt: 600 }] };
+    expect(ReviewCorrection.safeParse(bad).success).toBe(false);
   });
 });
