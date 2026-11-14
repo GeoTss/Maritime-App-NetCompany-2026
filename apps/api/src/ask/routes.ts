@@ -1,4 +1,5 @@
 /** `POST /api/ask`: one question to the ops agent (`AskRequest` -> `AskResponse`). */
+import Anthropic from "@anthropic-ai/sdk";
 import { AskRequest } from "@pharos/shared";
 import { Hono } from "hono";
 import { type AgentDeps, AgentError, ConversationNotFoundError, runAgent } from "../ai/agent.js";
@@ -36,6 +37,13 @@ export function createAskRoutes(deps: AgentDeps) {
       if (err instanceof ReplayMissError) {
         // Loud on purpose: a prompt or tool output changed without re-recording.
         return c.json({ error: "replay_miss", message: err.message }, 500);
+      }
+      if (err instanceof Anthropic.APIError) {
+        // The model API refused or could not be reached (401, 429, 529, network): say which, as JSON.
+        return c.json(
+          { error: "llm_unavailable", status: err.status ?? null, message: err.message },
+          502,
+        );
       }
       throw err;
     }
