@@ -1,14 +1,18 @@
 {
-  "phase": 1,
-  "phaseName": "Contracts, data, core calculators",
+  "phase": 2,
+  "phaseName": "Walking skeleton",
   "lastGate": {
-    "phase": 0,
+    "phase": 1,
     "result": "PASS",
     "at": "2026-11-14",
-    "note": "verify green (68 tests); compose db/erp/api healthy; PDF smoke OK on host and container; boot guard exits 1 without key; Stop gate blocks type error + purity violation"
+    "note": "verify green (290 tests, DB seed test ran); purity OK; world invariants 15/15 on real Eurostat routes (17 legs) incl. Aegean Pioneer LSMGO short + demo trap (best MTMLA-kestrel $233.9k vs cheapest-headline GIGIB $250.1k); calculators match hand examples; compose db/erp/api healthy with LLM_MODE=replay, migrate+seed at boot, 8 vessels"
   },
   "keyCheckpoints": {
-    "2": ["ANTHROPIC_API_KEY"],
-    "5": ["AISSTREAM_API_KEY"]
+    "2": [
+      "ANTHROPIC_API_KEY"
+    ],
+    "5": [
+      "AISSTREAM_API_KEY"
+    ]
   }
 }
