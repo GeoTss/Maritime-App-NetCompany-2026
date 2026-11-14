@@ -11,30 +11,36 @@ import type { Fact, GateResult } from "@pharos/shared";
 const CITATION = /\[\s*f_[A-Za-z0-9_.:-]+(?:\s*[,;]\s*f_[A-Za-z0-9_.:-]+)*\s*\]/g;
 const FACT_ID = /f_[A-Za-z0-9_.:-]+/g;
 
-/** Multipliers of a scale suffix written right after a number ("16k", "1.2M", "5 million"). */
+/**
+ * Scale suffixes written right after a number ("16k", "1.2 mln", "5 Million"), matched without
+ * regard to case. Lowercase `m` is handled in `scaleOf`: it means metres unless a currency leads.
+ */
 const SCALES: Record<string, number> = {
   k: 1e3,
-  K: 1e3,
   thousand: 1e3,
-  Thousand: 1e3,
-  m: 1e6,
-  M: 1e6,
   mn: 1e6,
+  mln: 1e6,
   million: 1e6,
-  Million: 1e6,
   bn: 1e9,
   billion: 1e9,
-  Billion: 1e9,
 };
 
+/** The multiplier of the word after a number, if it is a scale suffix. */
+function scaleOf(word: string, currencyLed: boolean): number | undefined {
+  if (word === "M") return 1e6;
+  if (word === "m") return currencyLed ? 1e6 : undefined;
+  return SCALES[word.toLowerCase()];
+}
+
 /**
- * ASCII digits with optional thousands commas and decimals, an optional leading `$`/`€`, an
- * optional scale suffix (not followed by a letter, so "300 mt" and "5 min" keep their units) and
- * an optional trailing `%`. Every ASCII digit in the text lands in some token: a comma run that is
- * not thousands grouping is read as separate numbers.
+ * ASCII digits with optional thousands commas and decimals, an optional leading `$`/`€` and an
+ * optional trailing `%`. Every ASCII digit in the text lands in some token: a comma run that is not
+ * thousands grouping is read as separate numbers. A scale suffix is read after the match.
  */
-const NUMBER =
-  /([$€])?((?:\d{1,3}(?:,\d{3})+(?!\d)|\d+)(?:\.\d+)?)(?:( ?)(thousand|Thousand|million|Million|billion|Billion|mn|bn|k|K|m|M)(?![A-Za-z]))?(%)?/gu;
+const NUMBER = /([$€])?((?:\d{1,3}(?:,\d{3})+(?!\d)|\d+)(?:\.\d+)?)(%)?/gu;
+
+/** The word right after a number (one optional space), a scale suffix candidate. */
+const WORD_AFTER = /^( ?)([A-Za-z]+)/u;
 
 /** Decimal digits outside ASCII (Arabic-Indic, fullwidth, ...): the gate cannot check them. */
 const NON_ASCII_DIGITS = /(?:(?![0-9])\p{Nd})+/gu;
@@ -45,21 +51,23 @@ const LIST_MARKER = /^([ \t]*)(\d{1,2})[.)](?=[ \t])/gmu;
 /** A sentence ends at `.`, `!` or `?` before whitespace, or at a line break. */
 const SENTENCE_END = /[.!?](?=\s)|\n/g;
 
-// Spelled-out numbers: two to ninety-nine, hundred, dozen, and the scale words.
-const ONES = "two|three|four|five|six|seven|eight|nine";
+// Spelled-out numbers: zero to ninety-nine, half, quarter, hundred, dozen, and the scale words.
+const ONES = "one|two|three|four|five|six|seven|eight|nine";
 const TEENS = "ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen";
 const TENS = "twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety";
 const SCALE_WORD = "thousand|million|billion";
-const NUMBER_WORD = `(?:(?:${TENS})(?:-(?:one|${ONES}))?|${TEENS}|${ONES}|hundred|dozen|${SCALE_WORD})`;
+const NUMBER_WORD = `(?:(?:${TENS})(?:-(?:${ONES}))?|${TEENS}|zero|${ONES}|half|quarter|hundred|dozen|${SCALE_WORD})`;
+/** Words joined into one amount: "two hundred and fifty", "half a million", "quarter of a million". */
+const JOIN = "(?:[ \\t]+(?:and|of[ \\t]+a|a)[ \\t]+|[ \\t-]+)";
 const SPELLED = new RegExp(
-  `(?<![A-Za-z])${NUMBER_WORD}(?:(?:[ \\t]+and[ \\t]+|[ \\t-]+)${NUMBER_WORD})*(?![A-Za-z])`,
+  `(?<![A-Za-z])${NUMBER_WORD}(?:${JOIN}${NUMBER_WORD})*(?![A-Za-z])`,
   "giu",
 );
 const HAS_SCALE_WORD = new RegExp(`(?<![A-Za-z])(?:${SCALE_WORD})(?![A-Za-z])`, "iu");
-/** A unit, currency or percent word or symbol right after a spelled-out number. */
+/** A unit, currency or percent word or symbol right after a spelled-out number ("half an hour"). */
 const UNIT_AFTER =
-  /^[ \t-]*(?:%|(?:dollars?|euros?|usd|eur|percent|per[ \t]?cent|tonnes?|tons?|mt|metric[ \t]+tons?|hours?|hrs?|h|days?|weeks?|minutes?|mins?|knots?|kn|kts|nm|nautical[ \t]+miles?|miles?|cents?)(?![A-Za-z]))/iu;
-/** A currency symbol or code right before a spelled-out number. */
+  /^[ \t-]*(?:an?[ \t]+)?(?:%|(?:dollars?|euros?|usd|eur|percent|per[ \t]?cent|tonnes?|tons?|mt|metric[ \t]+tons?|hours?|hrs?|h|days?|weeks?|minutes?|mins?|knots?|kn|kts|nm|nautical[ \t]+miles?|miles?|cents?)(?![A-Za-z]))/iu;
+/** A currency symbol or code right before a number. */
 const CURRENCY_BEFORE = /(?:[$€]|(?<![A-Za-z])(?:usd|eur))[ \t]*$/iu;
 
 export interface NumericToken {
@@ -97,20 +105,32 @@ function scannable(text: string): string {
 }
 
 function scan(text: string): (NumericToken & Located)[] {
+  const source = scannable(text);
   const tokens: (NumericToken & Located)[] = [];
-  for (const m of scannable(text).matchAll(NUMBER)) {
+  for (const m of source.matchAll(NUMBER)) {
     const digits = m[2] ?? "";
-    const suffix = m[4] ?? "";
-    const multiplier = suffix ? (SCALES[suffix] ?? 1) : 1;
-    const percent = m[5] === "%";
+    const percent = m[3] === "%";
+    let end = m.index + m[0].length;
+    let written = digits;
+    let multiplier = 1;
+    const after = percent ? null : WORD_AFTER.exec(source.slice(end));
+    if (after) {
+      const currencyLed = m[1] !== undefined || CURRENCY_BEFORE.test(source.slice(0, m.index));
+      const scale = scaleOf(after[2] ?? "", currencyLed);
+      if (scale !== undefined) {
+        multiplier = scale;
+        written = `${digits}${after[1]}${after[2]}`;
+        end += after[0].length;
+      }
+    }
     tokens.push({
-      text: `${digits}${suffix ? `${m[3] ?? ""}${suffix}` : ""}${percent ? "%" : ""}`,
+      text: percent ? `${digits}%` : written,
       value: Number(digits.replaceAll(",", "")) * multiplier,
       decimals: digits.includes(".") ? (digits.split(".")[1]?.length ?? 0) : 0,
       multiplier,
       percent,
       start: m.index,
-      end: m.index + m[0].length,
+      end,
     });
   }
   return tokens;
@@ -121,15 +141,29 @@ export function numericTokens(text: string): NumericToken[] {
   return scan(text).map(({ start: _s, end: _e, ...token }) => token);
 }
 
-/** Spelled-out numbers that state an amount: with a scale word, or next to a unit or currency. */
+/**
+ * Spelled-out numbers that state an amount: any phrase with a scale word ("one thousand", "a
+ * million"), or one next to a unit or currency ("one day", "five percent", "$ nine"). Bare counts
+ * ("two options", "one is feasible") pass. `text` has citations and digit tokens blanked, so a scale
+ * word that scales a digit token ("16 thousand") is checked once, with the token.
+ */
 function spelledAmounts(text: string): { start: number; text: string }[] {
   const out: { start: number; text: string }[] = [];
   for (const m of text.matchAll(SPELLED)) {
     const phrase = m[0];
-    const multiWordScale = HAS_SCALE_WORD.test(phrase) && /[ \t-]/.test(phrase);
+    const scale = HAS_SCALE_WORD.test(phrase);
     const unit = UNIT_AFTER.test(text.slice(m.index + phrase.length));
     const currency = CURRENCY_BEFORE.test(text.slice(0, m.index));
-    if (multiWordScale || unit || currency) out.push({ start: m.index, text: phrase });
+    if (scale || unit || currency) out.push({ start: m.index, text: phrase });
+  }
+  return out;
+}
+
+/** `text` with each span replaced by spaces of the same length. */
+function blankSpans(text: string, spans: Located[]): string {
+  let out = text;
+  for (const { start, end } of spans) {
+    out = out.slice(0, start) + " ".repeat(end - start) + out.slice(end);
   }
   return out;
 }
@@ -196,7 +230,8 @@ function grounded(token: NumericToken, facts: Fact[]): boolean {
 export function checkNumbers(answer: string, facts: Fact[]): GateResult {
   const byId = new Map(facts.map((f) => [f.id, f]));
   const problems: { start: number; text: string }[] = [];
-  for (const token of scan(answer)) {
+  const tokens = scan(answer);
+  for (const token of tokens) {
     const cited = citationAfter(answer, token.end).flatMap((id) => byId.get(id) ?? []);
     if (!grounded(token, cited)) problems.push({ start: token.start, text: token.text });
   }
@@ -208,7 +243,7 @@ export function checkNumbers(answer: string, facts: Fact[]): GateResult {
   for (const m of answer.matchAll(NON_ASCII_DIGITS)) {
     problems.push({ start: m.index, text: m[0] });
   }
-  problems.push(...spelledAmounts(answer.replace(CITATION, blank)));
+  problems.push(...spelledAmounts(blankSpans(answer.replace(CITATION, blank), tokens)));
 
   problems.sort((a, b) => a.start - b.start);
   const ungrounded = [...new Set(problems.map((p) => p.text))];

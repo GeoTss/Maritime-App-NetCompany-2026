@@ -40,6 +40,36 @@ describe("numericTokens", () => {
     ]);
   });
 
+  it("matches scale suffixes case-insensitively", () => {
+    expect(
+      numericTokens("16 THOUSAND, $2Bn, $2 MN, $1.2 mln, 3 Million").map((t) => [t.text, t.value]),
+    ).toEqual([
+      ["16 THOUSAND", 16_000],
+      ["2Bn", 2e9],
+      ["2 MN", 2e6],
+      ["1.2 mln", 1_200_000],
+      ["3 Million", 3e6],
+    ]);
+  });
+
+  it("reads lowercase m as million only right after a currency sign or code", () => {
+    expect(
+      numericTokens("$1.2m, €3m, USD 4m, EUR 5 m, 2.5 m, 10 m/s, 300 m³, 6 M").map((t) => [
+        t.text,
+        t.value,
+      ]),
+    ).toEqual([
+      ["1.2m", 1_200_000],
+      ["3m", 3e6],
+      ["4m", 4e6],
+      ["5 m", 5e6],
+      ["2.5", 2.5],
+      ["10", 10],
+      ["300", 300],
+      ["6 M", 6e6],
+    ]);
+  });
+
   it("does not read units that start like a suffix as one", () => {
     expect(numericTokens("300 mt, 5 min, 10 Kestrel, 4 Marsaxlokk").map((t) => t.text)).toEqual([
       "300",
@@ -308,6 +338,71 @@ describe("checkNumbers", () => {
       name: "bare spelled-out counts pass",
       answer: "I compared two options from three suppliers; one is feasible.",
       facts: [],
+      passed: true,
+    },
+    {
+      name: "other bare spelled-out words pass",
+      answer: "One of the quotes halves the delay; a quarter of the fleet is in port.",
+      facts: [],
+      passed: true,
+    },
+    ...[
+      ["Kestrel waits one day longer.", "one"],
+      ["It takes one hour longer.", "one"],
+      ["Short by one tonne.", "one"],
+      ["It is zero hours late.", "zero"],
+      ["It takes half an hour more.", "half"],
+      ["Kestrel is one thousand cheaper.", "one thousand"],
+      ["Kestrel saves one million.", "one million"],
+      ["Kestrel saves a million.", "million"],
+      ["Kestrel saves a thousand dollars.", "thousand"],
+      ["It is half a million cheaper.", "half a million"],
+      ["It saves about a quarter of a million.", "quarter of a million"],
+      ["Kestrel saves 2 billion or so.", null],
+    ].map(([answer, word]) => ({
+      name: word ? `"${answer}" fails on "${word}"` : `"${answer}" fails on its digits`,
+      answer: answer as string,
+      facts: [],
+      passed: false,
+      ungrounded: [word ?? "2 billion"],
+    })),
+    {
+      name: "a scale word that scales a digit token is checked once, with the token",
+      answer:
+        "Kestrel saves 16 thousand dollars [f_s], 1.2 million euros [f_e] and 16 thousand tonnes [f_q].",
+      facts: [calc("f_s", 16_171.5), calc("f_e", 1_234_000), calc("f_q", 16_000)],
+      passed: true,
+    },
+    {
+      name: "a digit token scaled by a word must match at its scale",
+      answer: "Kestrel saves 16 thousand dollars [f_s].",
+      facts: [calc("f_s", 16)],
+      passed: false,
+      ungrounded: ["16 thousand"],
+    },
+    {
+      name: "metres are a unit, not million",
+      answer: "Waves 2.5 m [f_w], wind 10 m/s [f_v], hold 300 m³ [f_h].",
+      facts: [calc("f_w", 2.5), calc("f_v", 10), calc("f_h", 300)],
+      passed: true,
+    },
+    {
+      name: "a currency-led lowercase m is million",
+      answer: "About $1.2m [f_c] or USD 1.2m [f_c].",
+      facts: [calc("f_c", 1_234_567)],
+      passed: true,
+    },
+    {
+      name: "a currency-led lowercase m does not match the bare digits",
+      answer: "About $1.2m [f_c].",
+      facts: [calc("f_c", 1.2)],
+      passed: false,
+      ungrounded: ["1.2m"],
+    },
+    {
+      name: "case-insensitive scale suffixes are checked at their scale",
+      answer: "Saves 16 THOUSAND [f_s], $2Bn [f_b], $2 MN [f_m] and $1.2 mln [f_l].",
+      facts: [calc("f_s", 16_171.5), calc("f_b", 2e9), calc("f_m", 2e6), calc("f_l", 1_200_000)],
       passed: true,
     },
     {
