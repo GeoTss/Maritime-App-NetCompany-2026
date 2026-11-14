@@ -32,6 +32,7 @@ const pairs: Pair[] = [
   ["Message", shared.Message, schema.messages],
   ["AuditEvent", shared.AuditEvent, schema.auditEvents],
   ["ReferenceRate", shared.ReferenceRate, schema.referenceRates],
+  ["LlmCall", shared.LlmCall, schema.llmCalls],
 ];
 
 describe("drizzle schema mirrors the shared entities", () => {
@@ -39,9 +40,9 @@ describe("drizzle schema mirrors the shared entities", () => {
     expect(Object.keys(getTableColumns(table)).sort()).toEqual(Object.keys(entity.shape).sort());
   });
 
-  it("has 25 entity tables plus world_meta (26 in all)", () => {
+  it("has 26 entity tables plus world_meta (27 in all)", () => {
     const names = [...pairs.map(([, , t]) => getTableName(t)), getTableName(schema.worldMeta)];
-    expect(new Set(names).size).toBe(26);
+    expect(new Set(names).size).toBe(27);
     expect(names).toContain("world_meta");
   });
 

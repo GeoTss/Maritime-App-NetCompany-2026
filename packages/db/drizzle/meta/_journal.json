@@ -15,6 +15,13 @@
       "when": 1794619469843,
       "tag": "0001_wild_puma",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794623031954,
+      "tag": "0002_aspiring_johnny_blaze",
+      "breakpoints": true
     }
   ]
 }

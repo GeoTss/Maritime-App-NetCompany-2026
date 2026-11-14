@@ -357,6 +357,26 @@ export const referenceRates = pgTable("reference_rates", {
   source: text().notNull(),
 });
 
+/** One model call, for latency and cost measurement. Mirrors the shared `LlmCall`. */
+export const llmCalls = pgTable("llm_calls", {
+  id: id(),
+  purpose: text().$type<"extract" | "agent">().notNull(),
+  model: text().notNull(),
+  mode: text().$type<"live" | "record" | "replay">().notNull(),
+  inputTokens: integer().notNull(),
+  outputTokens: integer().notNull(),
+  cacheReadTokens: integer().notNull(),
+  cacheWriteTokens: integer().notNull(),
+  latencyMs: doublePrecision().notNull(),
+  costUsd: doublePrecision().notNull(),
+  stopReason: text(),
+  /** sha256 of the canonical request; the key of its recording. */
+  requestKey: text().notNull(),
+  documentId: integer().references(() => documents.id, { onDelete: "restrict" }),
+  conversationId: integer().references(() => conversations.id, { onDelete: "restrict" }),
+  createdAt: ts().notNull(),
+});
+
 /** Single-row bookkeeping for the seeded synthetic world (id is always 1). */
 export const worldMeta = pgTable("world_meta", {
   id: integer().primaryKey(),

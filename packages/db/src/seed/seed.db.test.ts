@@ -3,46 +3,19 @@ import { getTableName, is } from "drizzle-orm";
 import { PgTable } from "drizzle-orm/pg-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDb } from "../client.js";
-import { runMigrations } from "../migrate.js";
 import * as schema from "../schema.js";
-import { createSql, pingDb, type Sql } from "../sql.js";
+import { connectTestDb } from "../testing.js";
 import { seedDatabase } from "./seed.js";
 import { generateWorld } from "./world.js";
 
-const TEST_URL =
-  process.env.TEST_DATABASE_URL ?? "postgres://pharos:pharos@localhost:5432/pharos_test";
 const SEED = 20261114;
 const ANCHOR = new Date("2026-11-14T08:00:00.000Z");
 
-/** Connect to the test database, creating it first if Postgres is up but the database is missing. */
-async function connect(): Promise<Sql | null> {
-  const url = new URL(TEST_URL);
-  const dbName = url.pathname.slice(1);
-  const admin = createSql(Object.assign(new URL(TEST_URL), { pathname: "/postgres" }).toString(), {
-    max: 1,
-  });
-  try {
-    if (!(await pingDb(admin))) return null;
-    const found = await admin`select 1 from pg_database where datname = ${dbName}`;
-    if (found.length === 0) await admin.unsafe(`create database "${dbName}"`);
-  } finally {
-    await admin.end();
-  }
-  return createSql(TEST_URL, { max: 2 });
-}
-
-if (new URL(TEST_URL).pathname.slice(1) === "pharos") {
-  throw new Error(
-    'TEST_DATABASE_URL points at the dev database "pharos"; tests truncate tables, use a separate database',
-  );
-}
-
-const sql = await connect().catch(() => null);
-const unreachable = `Postgres unreachable at ${new URL(TEST_URL).host}`;
+const sql = await connectTestDb("seed").catch(() => null);
 
 if (!sql) {
   describe("seedDatabase (Postgres)", () => {
-    it.skip(`all tests skipped: ${unreachable}`, () => {});
+    it.skip("all tests skipped: Postgres unreachable", () => {});
   });
 }
 
@@ -53,7 +26,6 @@ describe.skipIf(!sql)("seedDatabase (Postgres)", () => {
   const count = async (table: PgTable): Promise<number> => (await db.select().from(table)).length;
 
   beforeAll(async () => {
-    await runMigrations(sql);
     await seedDatabase(sql, { seed: SEED, anchor: ANCHOR, mode: "reset" });
   });
   afterAll(async () => {

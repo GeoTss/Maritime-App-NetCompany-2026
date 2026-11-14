@@ -1,4 +1,7 @@
-/** Assembles the Aegean Pioneer bunker-planner input from world rows and DEMO_SCENARIO. */
+/**
+ * Assembles a bunker-planner input from world rows and a list of supplier offers (live quotes or
+ * the demo scenario). Pure: no clock, network or randomness.
+ */
 import {
   etsCoverage,
   hoursBetween,
@@ -9,24 +12,57 @@ import {
   tankFreeMt,
   type VoyagePath,
 } from "@pharos/domain";
-import type { BunkerPlanInput, FobLeg, FobProjection, Port } from "@pharos/shared";
+import type {
+  BunkerPlanInput,
+  Currency,
+  FobLeg,
+  FobProjection,
+  Id,
+  Port,
+  Supplier,
+} from "@pharos/shared";
 import { DEMO_SCENARIO, SUPPLIERS } from "./scenario.js";
 import type { World } from "./types.js";
+
+/** Hours alongside while bunkering; same for every offer until a quote carries its own. */
+export const DEFAULT_BUNKERING_HOURS = 6;
+
+/** Days of consumption the vessel must still have on arrival at the bunker port. */
+const SAFETY_MARGIN_DAYS = DEMO_SCENARIO.safetyMarginDays;
+
+/** One supplier offer to evaluate: a live quote line, or a demo option (quoteId null). */
+export interface BunkerOffer {
+  optionId: string;
+  quoteId: Id | null;
+  supplierId: Id;
+  portId: Id;
+  currency: Currency;
+  pricePerMt: number;
+  bargeFee: number;
+  qtyMt: number;
+}
+
+/** Stable option id shared by live quotes and demo options, e.g. `MTMLA-kestrel`. */
+export function optionIdFor(port: Port, supplier: Supplier): string {
+  const key = SUPPLIERS.find((s) => s.name === supplier.name)?.key;
+  if (!key) throw new Error(`supplier "${supplier.name}" has no scenario key`);
+  return `${port.unlocode}-${key}`;
+}
 
 function must<T>(v: T | undefined, what: string): T {
   if (v === undefined) throw new Error(`world has no ${what}`);
   return v;
 }
 
-/** The demo voyage as a path, with the vessel, its latest noon report and remaining legs. */
-export function demoVoyageState(world: World) {
-  const vessel = must(
-    world.vessels.find((v) => v.imo === DEMO_SCENARIO.vesselImo),
-    "demo vessel",
-  );
+/** A voyage as a path, with its vessel, latest noon report and remaining legs. */
+export function voyageState(world: World, voyageId: Id) {
   const voyage = must(
-    world.voyages.find((v) => v.voyageNo === DEMO_SCENARIO.voyageNo && v.vesselId === vessel.id),
-    "demo voyage",
+    world.voyages.find((v) => v.id === voyageId),
+    `voyage ${voyageId}`,
+  );
+  const vessel = must(
+    world.vessels.find((v) => v.id === voyage.vesselId),
+    `vessel ${voyage.vesselId}`,
   );
   const port = (id: number): Port =>
     must(
@@ -45,34 +81,59 @@ export function demoVoyageState(world: World) {
     world.noonReports
       .filter((r) => r.vesselId === vessel.id)
       .sort((a, b) => b.ts.getTime() - a.ts.getTime())[0],
-    "noon report for the demo vessel",
+    `noon report for vessel ${vessel.id}`,
   );
   const sailedNm = sailedNmAt(path, report.ts);
   return { vessel, voyage, path, report, remainingLegs: remainingFobLegs(path, sailedNm) };
 }
 
-export function projectDemo(world: World, legs: FobLeg[]): FobProjection {
-  const { vessel, voyage, report } = demoVoyageState(world);
+/** The demo voyage (Aegean Pioneer, AP-2611). */
+export function demoVoyageState(world: World) {
+  const vessel = must(
+    world.vessels.find((v) => v.imo === DEMO_SCENARIO.vesselImo),
+    "demo vessel",
+  );
+  const voyage = must(
+    world.voyages.find((v) => v.voyageNo === DEMO_SCENARIO.voyageNo && v.vesselId === vessel.id),
+    "demo voyage",
+  );
+  return voyageState(world, voyage.id);
+}
+
+function projectVoyage(world: World, voyageId: Id, legs: FobLeg[]): FobProjection {
+  const { vessel, voyage, report } = voyageState(world, voyageId);
   return projectFuelOnBoard({
     robMt: report.robMt,
     legs,
     speedKn: voyage.plannedSpeedKn,
     curve: vessel.consumptionCurve,
-    safetyMarginDays: DEMO_SCENARIO.safetyMarginDays,
+    safetyMarginDays: SAFETY_MARGIN_DAYS,
   });
 }
 
-export function buildDemoBunkerPlanInput(world: World): BunkerPlanInput {
-  const { vessel, voyage, path, report, remainingLegs } = demoVoyageState(world);
-  const grade = DEMO_SCENARIO.requirement.grade;
-  const fob = projectDemo(world, remainingLegs);
+export function projectDemo(world: World, legs: FobLeg[]): FobProjection {
+  return projectVoyage(world, demoVoyageState(world).voyage.id, legs);
+}
 
+/**
+ * Planner input for a voyage's open requirement against the given offers. The deviation distance
+ * is the port's approach distance; bunkering takes DEFAULT_BUNKERING_HOURS; waits come from the
+ * latest congestion reading. Off-route ports are reached via Gibraltar.
+ */
+export function buildBunkerPlanInput(
+  world: World,
+  voyageId: Id,
+  offers: BunkerOffer[],
+): BunkerPlanInput {
+  const { vessel, voyage, path, report, remainingLegs } = voyageState(world, voyageId);
   const requirement = must(
-    world.bunkerRequirements.find(
-      (r) => r.voyageId === voyage.id && r.grade === grade && r.status === "open",
-    ),
-    "open demo requirement",
+    world.bunkerRequirements
+      .filter((r) => r.voyageId === voyage.id && r.status === "open")
+      .sort((a, b) => a.id - b.id)[0],
+    `open requirement for voyage ${voyage.id}`,
   );
+  const grade = requirement.grade;
+  const fob = projectVoyage(world, voyage.id, remainingLegs);
   const discharge = must(
     world.portCalls.find((c) => c.voyageId === voyage.id && c.purpose === "discharge"),
     "discharge port call",
@@ -126,45 +187,70 @@ export function buildDemoBunkerPlanInput(world: World): BunkerPlanInput {
       euaPriceEur: rate("EUA"),
       year: world.meta.anchor.getUTCFullYear(),
     },
-    options: DEMO_SCENARIO.options.map((o) => {
-      const port = byCode(o.portLocode);
-      const legs = legsTo(o.portLocode);
+    options: offers.map((o) => {
+      const port = must(
+        world.ports.find((p) => p.id === o.portId),
+        `port ${o.portId}`,
+      );
+      const legs = legsTo(port.unlocode);
       const arrival =
-        projectDemo(world, legs).legs.at(-1)?.robAfterMt[grade] ?? report.robMt[grade];
+        projectVoyage(world, voyage.id, legs).legs.at(-1)?.robAfterMt[grade] ?? report.robMt[grade];
       const price = must(
         world.portFuelPrices.find((p) => p.portId === port.id && p.grade === grade),
-        `${grade} price at ${o.portLocode}`,
+        `${grade} price at ${port.unlocode}`,
       );
       const congestion = must(
         world.portCongestion
           .filter((c) => c.portId === port.id)
           .sort((a, b) => b.observedAt.getTime() - a.observedAt.getTime())[0],
-        `congestion at ${o.portLocode}`,
-      );
-      const name = SUPPLIERS.find((s) => s.key === o.supplierKey)?.name;
-      const supplier = must(
-        world.suppliers.find((s) => s.name === name),
-        `supplier ${o.supplierKey}`,
+        `congestion at ${port.unlocode}`,
       );
       return {
         optionId: o.optionId,
-        quoteId: null,
-        supplierId: supplier.id,
+        quoteId: o.quoteId,
+        supplierId: o.supplierId,
         portId: port.id,
         portIsEu: port.isEu,
         currency: o.currency,
         pricePerMt: o.pricePerMt,
         bargeFee: o.bargeFee,
         offeredQtyMt: o.qtyMt,
-        deviationNm: o.deviationNm,
+        deviationNm: port.approachNm,
         deviationGrade: grade,
         deviationFuelPriceUsdPerMt: price.priceUsdPerMt,
         waitingHours: congestion.waitingHours,
-        bunkeringHours: o.bunkeringHours,
+        bunkeringHours: DEFAULT_BUNKERING_HOURS,
         weatherDelayHours: 0,
         robAtArrivalMt: arrival,
         safetyMarginMt: fob.safetyMarginMt[grade],
       };
     }),
   };
+}
+
+/** The Phase 1 demo input: DEMO_SCENARIO options as offers on the demo voyage. */
+export function buildDemoBunkerPlanInput(world: World): BunkerPlanInput {
+  const { voyage } = demoVoyageState(world);
+  const offers: BunkerOffer[] = DEMO_SCENARIO.options.map((o) => {
+    const port = must(
+      world.ports.find((p) => p.unlocode === o.portLocode),
+      `port ${o.portLocode}`,
+    );
+    const name = SUPPLIERS.find((s) => s.key === o.supplierKey)?.name;
+    const supplier = must(
+      world.suppliers.find((s) => s.name === name),
+      `supplier ${o.supplierKey}`,
+    );
+    return {
+      optionId: o.optionId,
+      quoteId: null,
+      supplierId: supplier.id,
+      portId: port.id,
+      currency: o.currency,
+      pricePerMt: o.pricePerMt,
+      bargeFee: o.bargeFee,
+      qtyMt: o.qtyMt,
+    };
+  });
+  return buildBunkerPlanInput(world, voyage.id, offers);
 }
