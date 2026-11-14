@@ -1,9 +1,12 @@
 import type { HealthResponse, LlmMode } from "@pharos/shared";
 import { Hono } from "hono";
+import { createReadRoutes } from "./read/routes.js";
+import type { ReadSource } from "./read/source.js";
 
 export interface AppDeps {
   llmMode: LlmMode;
   pingDb: () => Promise<boolean>;
+  read: ReadSource;
 }
 
 export function createApp(deps: AppDeps) {
@@ -18,6 +21,8 @@ export function createApp(deps: AppDeps) {
     };
     return c.json(body);
   });
+
+  app.route("/api", createReadRoutes(deps.read));
 
   return app;
 }

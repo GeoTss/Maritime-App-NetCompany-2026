@@ -1,0 +1,63 @@
+import { Hono } from "hono";
+import type { ReadSource } from "./source.js";
+
+/** Marks every response so the console can badge fixture data (Phase 6). */
+export const DATA_SOURCE_HEADER = "x-pharos-data";
+
+const notFound = { error: "not_found" } as const;
+
+/** Positive integer ids only; anything else is treated as unknown. */
+function parseId(raw: string): number | null {
+  if (!/^[1-9]\d{0,9}$/.test(raw)) return null;
+  return Number(raw);
+}
+
+export function createReadRoutes(read: ReadSource, dataTag = "fixture") {
+  const app = new Hono();
+
+  app.use("*", async (c, next) => {
+    c.header(DATA_SOURCE_HEADER, dataTag);
+    await next();
+  });
+
+  const resource = <T>(
+    path: string,
+    list: () => Promise<T[]>,
+    get: (id: number) => Promise<T | null>,
+  ) => {
+    app.get(`/${path}`, async (c) => c.json({ items: await list() }));
+    app.get(`/${path}/:id`, async (c) => {
+      const id = parseId(c.req.param("id"));
+      const item = id === null ? null : await get(id);
+      return item === null ? c.json(notFound, 404) : c.json(item);
+    });
+  };
+
+  resource(
+    "vessels",
+    () => read.listVessels(),
+    (id) => read.getVessel(id),
+  );
+  resource(
+    "voyages",
+    () => read.listVoyages(),
+    (id) => read.getVoyage(id),
+  );
+  resource(
+    "inbox",
+    () => read.listInbox(),
+    (id) => read.getInboxItem(id),
+  );
+  resource(
+    "quotes",
+    () => read.listQuotes(),
+    (id) => read.getQuote(id),
+  );
+  resource(
+    "recommendations",
+    () => read.listRecommendations(),
+    (id) => read.getRecommendation(id),
+  );
+
+  return app;
+}
