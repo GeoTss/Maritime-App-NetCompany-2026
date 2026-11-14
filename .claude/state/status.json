@@ -8,11 +8,7 @@
     "note": "verify green (290 tests, DB seed test ran); purity OK; world invariants 15/15 on real Eurostat routes (17 legs) incl. Aegean Pioneer LSMGO short + demo trap (best MTMLA-kestrel $233.9k vs cheapest-headline GIGIB $250.1k); calculators match hand examples; compose db/erp/api healthy with LLM_MODE=replay, migrate+seed at boot, 8 vessels"
   },
   "keyCheckpoints": {
-    "2": [
-      "ANTHROPIC_API_KEY"
-    ],
-    "5": [
-      "AISSTREAM_API_KEY"
-    ]
+    "2": ["ANTHROPIC_API_KEY"],
+    "5": ["AISSTREAM_API_KEY"]
   }
 }
