@@ -188,7 +188,7 @@ interface Parts {
   bargeEvidence: string;
 }
 
-interface DemoEmail {
+export interface DemoEmail {
   option: Option;
   supplierName: string;
   sender: string;
@@ -200,7 +200,7 @@ interface DemoEmail {
   receivedAt: Date;
 }
 
-function buildDemoEmails(world: World): DemoEmail[] {
+export function buildDemoEmails(world: World): DemoEmail[] {
   const grade = DEMO_SCENARIO.requirement.grade;
   const vesselName = must(
     world.vessels.find((v) => v.imo === DEMO_SCENARIO.vesselImo),
