@@ -63,6 +63,37 @@ describe.skipIf(!sql)("plan_bunkering (Postgres)", () => {
     expect(saving?.unit).toBe("USD");
   });
 
+  it("returns the calculation id and the voyage number as facts, so an answer can cite them", async () => {
+    const result = await planBunkering(ctx(), { vessel: "Aegean Pioneer" });
+    const calc = await latestCalc();
+    const data = result.data as { calculationId: number; voyageNo: string };
+    const calcIdFact = result.facts.find(
+      (f) => f.id === `f_plan_bunkering_${calc.id}_calculationId`,
+    );
+    expect(calcIdFact).toMatchObject({
+      value: calc.id,
+      unit: null,
+      provenance: {
+        source: "calculation",
+        calculationId: calc.id,
+        calculator: "planBunkers",
+        path: "calculationId",
+      },
+    });
+    expect(data.calculationId).toBe(calcIdFact?.value);
+
+    const [voyage] = await db<{ id: number; voyage_no: string }[]>`
+      select id, voyage_no from voyages where voyage_no = 'AP-2611'`;
+    const voyageFact = result.facts.find(
+      (f) => f.id === `f_plan_bunkering_${voyage?.id}_voyages.voyageNo`,
+    );
+    expect(voyageFact).toMatchObject({
+      value: "AP-2611",
+      provenance: { source: "db", table: "voyages", rowId: voyage?.id, field: "voyageNo" },
+    });
+    expect(data.voyageNo).toBe(voyageFact?.value);
+  });
+
   it("stores the planner input and output, and the output is the domain planner's", async () => {
     await planBunkering(ctx(), { vessel: "Aegean Pioneer" });
     const calc = await latestCalc();

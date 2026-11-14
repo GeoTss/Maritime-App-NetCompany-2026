@@ -8,7 +8,15 @@ import { type BunkerOffer, buildBunkerPlanInput, loadWorld, optionIdFor } from "
 import { DOMAIN_CODE_VERSION, planBunkers } from "@pharos/domain";
 import type { BunkerOptionResult, Fact, Quote, ToolResult } from "@pharos/shared";
 import { z } from "zod";
-import { calcFact, currentVoyage, findVessel, json, runTool, type ToolContext } from "./common.js";
+import {
+  calcFact,
+  currentVoyage,
+  dbFact,
+  findVessel,
+  json,
+  runTool,
+  type ToolContext,
+} from "./common.js";
 
 export const TOOL = "plan_bunkering";
 
@@ -154,6 +162,17 @@ export function planBunkering(ctx: ToolContext, input: PlanBunkeringInput): Prom
         ),
       );
     }
+    // The ids an answer may mention ("plan 3", "voyage AP-2611"), citable like any other number.
+    facts.push(
+      calcFact(TOOL, ref, "calculationId", "Bunker plan calculation id", calc.id, null),
+      dbFact(
+        TOOL,
+        { table: "voyages", rowId: voyage.id, field: "voyageNo" },
+        "Voyage number",
+        voyage.voyageNo,
+        null,
+      ),
+    );
 
     return {
       facts,
