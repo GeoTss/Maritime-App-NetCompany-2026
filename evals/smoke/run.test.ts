@@ -16,7 +16,7 @@ import { DEMO_RECORDING_CONFIG } from "../../apps/api/src/ingest/record-demo-ext
 import { createDbSource } from "../../apps/api/src/read/db-source.js";
 import { FIXTURE_ANCHOR, FIXTURE_SEED } from "../../apps/api/src/read/fixtures.js";
 import { createErpApp } from "../../services/erp-sim/src/app.js";
-import { runSmoke, type SmokeResult } from "./run.js";
+import { runSmoke, type SmokeResult, SPEND_CAP_USD } from "./run.js";
 
 const sql = await connectTestDb("smoke");
 
@@ -149,6 +149,96 @@ describe.skipIf(!sql)("live smoke runner (in-process, replay)", () => {
     expect(result.ok).toBe(false);
     expect(result.exitCode).toBe(1);
     expect(result.failures.join("\n")).toMatch(/price/);
+    await expect(access(join(dir, "markers", "live-smoke"))).rejects.toThrow();
+  });
+
+  /** Wraps the in-process fetch: `rewrite` may replace a response's JSON body per path. */
+  const rewriting = (
+    realFetch: typeof fetch,
+    rewrite: (path: string, body: unknown) => unknown,
+    seen: string[] = [],
+  ) =>
+    (async (url: string, init?: RequestInit) => {
+      const path = new URL(url).pathname;
+      seen.push(path);
+      const res = await realFetch(url, init);
+      const body = rewrite(
+        path,
+        await res
+          .clone()
+          .json()
+          .catch(() => undefined),
+      );
+      return body === undefined ? res : new Response(JSON.stringify(body), { status: res.status });
+    }) as typeof fetch;
+
+  it("fails a run whose cost passes the spend cap and writes no marker", async () => {
+    const { dir, options } = await build();
+    const inflated = rewriting(options.fetch, (path, body) => {
+      if (path !== "/api/llm-calls") return undefined;
+      const b = body as { items: { costUsd: number }[] };
+      for (const c of b.items) c.costUsd = 0.2;
+      return b;
+    });
+    const result = await runSmoke({ ...options, fetch: inflated });
+    expect(result.ok).toBe(false);
+    expect(result.exitCode).toBe(1);
+    expect(result.failures.join("\n")).toMatch(/run cost \$.* exceeds the \$0\.25 cap/);
+    expect(SPEND_CAP_USD).toBe(0.25);
+    expect(await readFile(join(result.reportDir, "report.md"), "utf8")).toContain("(cap 0.25)");
+    await expect(access(join(dir, "markers", "live-smoke"))).rejects.toThrow();
+  });
+
+  it("reports why an extraction ended needs_review and stops before the paid ask", async () => {
+    const { dir, options } = await build();
+    const seen: string[] = [];
+    const reviewing = rewriting(
+      options.fetch,
+      (path, body) => {
+        if (!/^\/api\/inbox\/\d+$/.test(path)) return undefined;
+        return {
+          ...(body as object),
+          extractionStatus: "needs_review",
+          checkResults: [
+            { check: "quantity", passed: false, detail: "range written as 300/350 mt" },
+            { check: "currency", passed: true, detail: null },
+          ],
+        };
+      },
+      seen,
+    );
+    const result = await runSmoke({ ...options, fetch: reviewing });
+    expect(result.exitCode).toBe(1);
+    expect(result.failures).toHaveLength(1);
+    expect(result.failures[0]).toContain("extraction ended needs_review");
+    expect(result.failures[0]).toContain("quantity: range written as 300/350 mt");
+    expect(result.failures[0]).not.toContain("currency");
+    expect(seen).not.toContain("/api/ask");
+    expect(result.report.steps.map((s) => s.name)).toEqual(["email-1"]);
+    expect(JSON.parse(await readFile(join(result.reportDir, "report.json"), "utf8")).ok).toBe(
+      false,
+    );
+    await expect(access(join(dir, "markers", "live-smoke"))).rejects.toThrow();
+  });
+
+  it("times out a stuck extraction, records the step, writes the report and skips the ask", async () => {
+    const { dir, options } = await build();
+    const seen: string[] = [];
+    const stuck = rewriting(
+      options.fetch,
+      (path, body) =>
+        /^\/api\/inbox\/\d+$/.test(path)
+          ? { ...(body as object), extractionStatus: "pending", checkResults: [] }
+          : undefined,
+      seen,
+    );
+    const result = await runSmoke({ ...options, fetch: stuck, extractionTimeoutMs: 20 });
+    expect(result.exitCode).toBe(1);
+    expect(result.failures).toHaveLength(1);
+    expect(result.failures[0]).toContain("extraction still pending");
+    expect(seen).not.toContain("/api/ask");
+    expect(result.report.steps.map((s) => s.name)).toEqual(["email-1"]);
+    await access(join(result.reportDir, "report.json"));
     await expect(access(join(dir, "markers", "live-smoke"))).rejects.toThrow();
   });
 });

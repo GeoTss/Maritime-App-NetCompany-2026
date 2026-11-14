@@ -23,4 +23,7 @@ delivered"; reset with `docker compose up -d --force-recreate api` (SEED_ON_BOOT
 To compare models, restart the API with `AGENT_MODEL=claude-opus-5-5` and run again with
 `--label agent-opus`; compare the "By purpose" tables of the two reports.
 
+`/api/llm-calls` returns only the newest 200 rows, so run the smoke against a freshly restarted API.
+A run costing more than $0.25 fails and writes no marker.
+
 `run.test.ts` is the free dry test: the same runner against the in-process app in replay mode.

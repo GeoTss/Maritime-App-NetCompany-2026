@@ -36,6 +36,8 @@ export const EXPECTED_OPTION_ID = "MTMLA-kestrel";
 /** Section 6 targets (ms). */
 export const TARGET_EMAIL_MS = 20_000;
 export const TARGET_ASK_MS = 45_000;
+/** A run costing more than this fails (and writes no marker). */
+export const SPEND_CAP_USD = 0.25;
 
 /** The two demo emails, in delivery (file-name) order, with the values DEMO_SCENARIO expects. */
 const EXPECTED_EMAILS = [
@@ -200,7 +202,7 @@ export function renderMarkdown(r: SmokeReport): string {
   }
   const t = r.totals;
   out.push(
-    `| **total** | | ${t.calls} | ${t.inputTokens} | ${t.outputTokens} | | | ${sec(t.latencyMs)} | ${t.costUsd.toFixed(6)} |`,
+    `| **total** | | ${t.calls} | ${t.inputTokens} | ${t.outputTokens} | | | ${sec(t.latencyMs)} | ${t.costUsd.toFixed(6)} (cap ${SPEND_CAP_USD.toFixed(2)}) |`,
   );
   out.push("", "## Model calls", "");
   out.push(
@@ -307,17 +309,20 @@ export async function runSmoke(opts: SmokeOptions): Promise<SmokeResult> {
           );
           if (item.extractionStatus !== "pending") {
             if (item.extractionStatus !== "extracted") {
-              const why = item.checkResults.find((c) => c.check === "processing")?.detail ?? "";
-              check(
-                false,
+              const failed = item.checkResults
+                .filter((c) => !c.passed)
+                .map((c) => `${c.check}: ${c.detail ?? "failed"}`);
+              const processing = item.checkResults.find((c) => c.check === "processing")?.detail;
+              const why = failed.length > 0 ? failed.join("; ") : (processing ?? "");
+              // Stop here: carrying on would make a paid ask over a broken inbox.
+              throw new Stop(
                 `${email.key}: extraction ended ${item.extractionStatus}, expected extracted${why ? ` (${why})` : ""}`,
               );
             }
             return;
           }
           if (now().getTime() >= deadline) {
-            check(false, `${email.key}: extraction still pending after ${sec(timeoutMs)}`);
-            return;
+            throw new Stop(`${email.key}: extraction still pending after ${sec(timeoutMs)}`);
           }
           await sleep(pollMs);
         }
@@ -446,6 +451,11 @@ export async function runSmoke(opts: SmokeOptions): Promise<SmokeResult> {
       costUsd: c.costUsd,
       stopReason: c.stopReason,
     }));
+    const runCost = sum(calls.map((c) => c.costUsd));
+    check(
+      runCost <= SPEND_CAP_USD,
+      `run cost $${runCost.toFixed(4)} exceeds the $${SPEND_CAP_USD.toFixed(2)} cap`,
+    );
     check(
       calls.filter((c) => c.purpose === "extract").length >= 2,
       "fewer than 2 extract calls recorded for this run",
