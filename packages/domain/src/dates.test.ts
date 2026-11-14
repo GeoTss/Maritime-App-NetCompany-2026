@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { bargeFeeTotal, isoDayAfter, parseDeliveryWindow, parseQuoteDate } from "./dates.js";
+import {
+  bargeFeeTotal,
+  isoDayAfter,
+  mentionsDate,
+  parseDeliveryWindow,
+  parseQuoteDate,
+} from "./dates.js";
 
 const REF = new Date("2026-11-14T09:30:00Z");
 
@@ -189,5 +195,45 @@ describe("bargeFeeTotal", () => {
   });
   it("is deterministic", () => {
     expect(bargeFeeTotal(9.5, "per_mt", 300)).toBe(bargeFeeTotal(9.5, "per_mt", 300));
+  });
+});
+
+describe("mentionsDate", () => {
+  it.each([
+    "Validity: 14 Nov 2026 17:00 LT",
+    "Valid until: 15th November 1700 LT",
+    "Valid till: Nov 16",
+    "Validity: Nov 13, 2026 18:00 UTC",
+    "Delivery: 18-19 Nov",
+    "Delivery 18 to 19 November",
+    "This offer is valid until 15/11.",
+    "Validity: 16.11.26",
+    "Validity: 16.11 1700 LT",
+    "Valid till: 2026-11-16 18:00 UTC",
+    "Delivery window 18/11-19/11",
+    "Validity: 16-11-2026",
+    "Offer valid until Monday",
+    "Valid until Sat noon",
+    "Offer firm until today 17:00",
+    "Valid until tomorrow",
+    "ETA 1st of December",
+  ])("finds a date in %j", (line) => {
+    expect(mentionsDate(line)).toBe(true);
+  });
+
+  it.each([
+    "Price: USD 738 per mt",
+    "Quantity: 300 mt LSMGO 0.1%",
+    "VLSFO 0.5% / HSFO 3.5%",
+    "280/320 mt",
+    "Barge fee: USD 2,800 lump sum",
+    "Delivery by barge",
+    "Prices are valid for 24 hours",
+    "Prices may vary",
+    "Delivery charge: EUR 1.500",
+    "IMO 9480019",
+    "",
+  ])("finds no date in %j", (line) => {
+    expect(mentionsDate(line)).toBe(false);
   });
 });

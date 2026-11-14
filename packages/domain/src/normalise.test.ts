@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   evidenceSupports,
+  hedgedInEvidence,
   normaliseCurrency,
   normaliseGrade,
   normaliseMassUnit,
@@ -228,5 +229,62 @@ describe("evidenceSupports token boundaries", () => {
   });
   it("still requires the evidence to be in the source", () => {
     expect(evidenceSupports("other text", src, "300")).toBe(false);
+  });
+});
+
+describe("hedgedInEvidence", () => {
+  const rows: [string, string, boolean][] = [
+    // a range or alternative next to the transcribed amount
+    ["We can offer LSMGO 0.1% at Algeciras, 280/320 mt at EUR 690 per mt.", "280", true],
+    ["Quantity: 280-320 mt", "280", true],
+    ["Quantity: 280 – 320 mt", "280", true],
+    ["Quantity: 280 — 320 mt", "320 mt", true],
+    ["Quantity: 280 to 320 mt", "280", true],
+    ["Quantity: 280 or 320 mt", "320 mt", true],
+    // approximation and limit markers
+    ["Quantity: abt 300 mt", "300 mt", true],
+    ["Quantity: about 300 mt", "300 mt", true],
+    ["Quantity: approx. 300 mt", "300 mt", true],
+    ["Quantity: approximately 300 mt", "300 mt", true],
+    ["Quantity: circa 300 mt", "300 mt", true],
+    ["Quantity: ca. 300 mt", "300 mt", true],
+    ["Quantity: min 300 mt", "300 mt", true],
+    ["Quantity: 300 mt max", "300 mt", true],
+    ["Quantity: up to 300 mt", "300 mt", true],
+    ["Quantity: 300 mt +/- 5%", "300 mt", true],
+    ["Quantity: 300 mt +- 5%", "300 mt", true],
+    ["Quantity: 300 mt ± 5%", "300 mt", true],
+    ["Quantity: ~300 mt", "300 mt", true],
+    ["Price: USD 738/745 per mt", "USD 738", true],
+    // clean amounts
+    ["Quantity: 300 mt LSMGO", "300 mt", false],
+    ["Price: USD 738 per mt", "USD 738 per mt", false],
+    ["Price: EUR 690 / mt", "EUR 690 / mt", false],
+    ["Quantity: 1,200 mt VLSFO 0.5%", "1,200 mt", false],
+    ["LSMGO 0.1% - 300 mt", "300 mt", false],
+    ["Price: USD 712 PMT", "USD 712 PMT", false],
+    // a marker more than 12 characters away is another field's
+    ["Quantity: 300 mt LSMGO, delivery 18-19 Nov", "300 mt", false],
+    ["Quantity: 300 mt LSMGO (VLSFO up to 500 mt)", "300 mt", false],
+    // a marker word must be a whole word in the evidence, not cut out of one by the window
+    ["Contact admin 300 mt", "300 mt", false],
+    ["Maximal Fuels: 300 mt", "300 mt", false],
+    // case and whitespace folded
+    ["QUANTITY: ABT   300 MT", "300 mt", true],
+  ];
+  it.each(rows)("%s | %s -> %s", (evidence, asWritten, expected) => {
+    expect(hedgedInEvidence(evidence, asWritten)).toBe(expected);
+  });
+
+  it("checks every token-boundary occurrence of the amount", () => {
+    expect(hedgedInEvidence("300 mt now; earlier abt 300 mt", "300 mt")).toBe(true);
+  });
+  it("ignores an occurrence inside a larger number", () => {
+    expect(hedgedInEvidence("Quantity: 2,300 mt, abt", "300 mt")).toBe(false);
+  });
+  it("is false for null or blank input", () => {
+    expect(hedgedInEvidence(null, "300")).toBe(false);
+    expect(hedgedInEvidence("abt 300 mt", null)).toBe(false);
+    expect(hedgedInEvidence("abt 300 mt", "  ")).toBe(false);
   });
 });

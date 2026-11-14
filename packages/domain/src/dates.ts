@@ -233,6 +233,34 @@ export function parseDeliveryWindow(
   return { from: toIso(range.from), to: toIso(range.to) };
 }
 
+const MONTH_NAMES = Object.keys(MONTHS)
+  .sort((a, b) => b.length - a.length)
+  .join("|");
+const WEEKDAY_NAMES =
+  "monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tues?|wed|thu(?:rs?)?|fri|sat|sun";
+/** Day and month name, month name and day, d/m, d.m (not a percentage), d.m.y, d-m-y, y-m-d, a weekday, today. */
+const DATE_LIKE = new RegExp(
+  [
+    `\\b\\d{1,2}(?:st|nd|rd|th)?[\\s.-]*(?:of\\s+)?(?:${MONTH_NAMES})\\b`,
+    `\\b(?:${MONTH_NAMES})\\.?\\s*\\d{1,2}(?:st|nd|rd|th)?\\b`,
+    "\\b(?:0?[1-9]|[12]\\d|3[01])/(?:0?[1-9]|1[0-2])\\b",
+    "\\b(?:0?[1-9]|[12]\\d|3[01])\\.(?:0?[1-9]|1[0-2])\\b(?!\\s*%|[.,]\\d)",
+    "\\b\\d{1,2}([.-])\\d{1,2}\\1\\d{2,4}\\b",
+    "\\b20\\d{2}-\\d{1,2}-\\d{1,2}\\b",
+    `\\b(?:${WEEKDAY_NAMES}|today|tomorrow|tonight)\\b`,
+  ].join("|"),
+  "i",
+);
+
+/**
+ * True when the text holds something that reads as a day: "14 Nov", "Nov 14th", "15/11",
+ * "16.11.26", "2026-11-16", a weekday or "today"/"tomorrow". A detector, not a parser: it says
+ * a date is written there, not which one ("0.5%" and "280/320" are not dates).
+ */
+export function mentionsDate(text: string): boolean {
+  return DATE_LIKE.test(text);
+}
+
 /** The ISO day `days` whole UTC days after the reference's UTC day (negative: before). */
 export function isoDayAfter(reference: Date, days: number): string {
   return toIso(refDayMs(reference) + days * MS_PER_DAY);

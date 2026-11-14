@@ -13,7 +13,9 @@ import { currentVoyage, openRequirements, type World } from "@pharos/db";
 import {
   bargeFeeTotal,
   evidenceSupports,
+  hedgedInEvidence,
   isoDayAfter,
+  mentionsDate,
   normaliseCurrency,
   normaliseGrade,
   normaliseMassUnit,
@@ -60,6 +62,7 @@ export const CHECK_NAMES = [
   "dates_parsed",
   "validity_not_expired",
   "delivery_window_valid",
+  "newest_offer_only",
   "vessel_resolved",
   "port_resolved",
   "supplier_resolved",
@@ -101,29 +104,24 @@ const foldText = (x: string): string => x.replace(/\s+/g, " ").trim().toLowerCas
 const isWordChar = (c: string | undefined) => c !== undefined && /[a-z0-9]/.test(c);
 
 /**
- * Was the transcribed currency/unit string actually written in the field's as-written text (or,
- * failing that, its evidence)? Case- and whitespace-folded; an alphanumeric edge must sit on a
- * word boundary, so "mt" is not found inside "pmt" and "usd" not inside "usdt".
+ * Was the transcribed currency/unit string written in the field's own as-written text? Not its
+ * evidence line: on "120 m3 at USD 728 per mt" the "mt" belongs to the price, not the quantity.
+ * Case- and whitespace-folded; an alphanumeric edge must sit on a word boundary, so "mt" is not
+ * found inside "pmt" and "usd" not inside "usdt".
  */
-export function writtenIn(
-  raw: string | null,
-  field: { asWritten: string | null; evidence: string | null },
-): boolean {
-  if (raw === null) return false;
+export function writtenIn(raw: string | null, asWritten: string | null): boolean {
+  if (raw === null || asWritten === null) return false;
   const needle = foldText(raw);
   if (needle === "") return false;
-  return [field.asWritten, field.evidence].some((text) => {
-    if (text === null) return false;
-    const hay = foldText(text);
-    for (let at = hay.indexOf(needle); at >= 0; at = hay.indexOf(needle, at + 1)) {
-      const before = hay[at - 1];
-      const after = hay[at + needle.length];
-      const startOk = !isWordChar(needle[0]) || !isWordChar(before);
-      const endOk = !isWordChar(needle.at(-1)) || !isWordChar(after);
-      if (startOk && endOk) return true;
-    }
-    return false;
-  });
+  const hay = foldText(asWritten);
+  for (let at = hay.indexOf(needle); at >= 0; at = hay.indexOf(needle, at + 1)) {
+    const before = hay[at - 1];
+    const after = hay[at + needle.length];
+    const startOk = !isWordChar(needle[0]) || !isWordChar(before);
+    const endOk = !isWordChar(needle.at(-1)) || !isWordChar(after);
+    if (startOk && endOk) return true;
+  }
+  return false;
 }
 
 /** A validity this many days or fewer after the received day is plausible; further is a misread year. */
@@ -147,6 +145,22 @@ function bargeChargeWritten(source: string): boolean {
     .some((l) => BARGE_LABEL.test(l) && CURRENCY_TOKEN.test(l) && /\d/.test(l));
 }
 
+/** A validity word: valid, validity, expire(s/d), expiry, firm until, (offer) good until. */
+const VALIDITY_WORD =
+  /\bvalid(?:ity)?\b|\bexpir(?:e|es|ed|y|ing|ation)\b|\bfirm until\b|\bgood until\b/i;
+/** A delivery word: delivery (window), deliveries, ETA, laycan. */
+const DELIVERY_WORD = /\bdeliver(?:y|ies)\b|\beta\b|\blaycan\b/i;
+
+/**
+ * Some line of the email has the word and something that reads as a date: a validity or a
+ * delivery date is written there ("Prices valid for 24 hours" and "Delivery ex-barge" are not).
+ */
+const dateWrittenWith = (source: string, word: RegExp): boolean =>
+  source.split(/\r?\n/).some((l) => word.test(l) && mentionsDate(l));
+
+/** A deliveryFrom text that names an end ("by 20 Nov"), not a start. */
+const END_DATE_WORDS = /^(?:by|before|no later than|until)\b/;
+
 const bargeQuoted = (barge: MoneyField): boolean =>
   barge.value !== null || barge.asWritten !== null;
 
@@ -161,7 +175,7 @@ function readCurrency(q: QuoteExtraction): { currency: Currency | null; failures
     const raw = field.currency;
     const c = normaliseCurrency(raw);
     if (c === null) failures.push(`Currency "${raw ?? ""}" of ${path} is not recognised.`);
-    else if (!writtenIn(raw, field)) {
+    else if (!writtenIn(raw, field.asWritten)) {
       failures.push(`Currency "${raw}" of ${path} is not written in its text.`);
     }
     return c;
@@ -181,13 +195,13 @@ function lineUnitProblems(
   const quantity =
     normaliseMassUnit(l.quantity.unit) === null
       ? `Quantity unit "${l.quantity.unit ?? ""}" of line ${i} is not a mass unit.`
-      : writtenIn(l.quantity.unit, l.quantity)
+      : writtenIn(l.quantity.unit, l.quantity.asWritten)
         ? null
         : notWritten(l.quantity.unit, `Quantity unit of line ${i}`);
   const price =
     normalisePerUnit(l.price.perUnit) !== "per_mt"
       ? `Price of line ${i} is not per mt ("${l.price.perUnit ?? ""}").`
-      : writtenIn(l.price.perUnit, l.price)
+      : writtenIn(l.price.perUnit, l.price.asWritten)
         ? null
         : notWritten(l.price.perUnit, `Price unit of line ${i}`);
   return { quantity, price };
@@ -202,7 +216,7 @@ function bargeUnit(barge: MoneyField): {
   if (unit === null) {
     return { unit: null, problem: `Barge fee unit "${barge.perUnit ?? ""}" is not recognised.` };
   }
-  if (!writtenIn(barge.perUnit, barge)) {
+  if (!writtenIn(barge.perUnit, barge.asWritten)) {
     return { unit: null, problem: `Barge fee unit "${barge.perUnit}" is not written in its text.` };
   }
   return { unit, problem: null };
@@ -416,6 +430,79 @@ function evidenceItems(q: QuoteExtraction): EvidenceItem[] {
   ];
 }
 
+/**
+ * Where a quoted older message starts in the body: an "-----Original Message-----" or
+ * "---------- Forwarded message" line, an "On … wrote:" line, a "From:" line followed by a
+ * Sent/Date/To/Subject/Cc header line, or a line starting with ">".
+ */
+const THREAD_SEPARATORS = [
+  /^-{2,}\s*original message\s*-{2,}/im,
+  /^-{2,}\s*forwarded message\s*-{2,}/im,
+  /^on\s.*\bwrote:\s*$/im,
+  /^from:[^\n]*\S[^\n]*\n(?:sent|date|to|subject|cc):/im,
+  /^>/m,
+];
+/** A currency next to a number: "USD 738", "US$738", "$ 738", "€690", "690 EUR", "738 dollars". */
+const CURRENCY_AMOUNT =
+  /(?:\b(?:usd|eur)\b|us\$|\$|€)[\s.:-]*\d|\d\s*(?:(?:usd|eur|euros?|dollars?)\b|\$|€)/i;
+
+/**
+ * The source split at the first reply or forward separator in the body: the newest message
+ * (with the From and Subject lines) above it, the quoted thread below. Null when there is none.
+ */
+function threadSplit(doc: ExtractInput): { newest: string; quoted: string } | null {
+  const at = Math.min(
+    ...THREAD_SEPARATORS.map((re) => re.exec(doc.bodyText)?.index ?? Number.POSITIVE_INFINITY),
+  );
+  if (!Number.isFinite(at)) return null;
+  const source = sourceText(doc);
+  const cut = source.length - doc.bodyText.length + at;
+  return { newest: source.slice(0, cut), quoted: source.slice(cut) };
+}
+
+/** The evidence of every price, quantity, validity and delivery date the output states. */
+function offerEvidence(q: QuoteExtraction): [string, string][] {
+  const all: [string, string | null][] = [
+    ["validUntil", q.validUntil.evidence],
+    ["deliveryFrom", q.deliveryFrom.evidence],
+    ["deliveryTo", q.deliveryTo.evidence],
+    ...q.lines.flatMap((l, i): [string, string | null][] => [
+      [`lines.${i}.quantity`, l.quantity.evidence],
+      [`lines.${i}.price`, l.price.evidence],
+    ]),
+  ];
+  return all.filter((e): e is [string, string] => e[1] !== null && foldText(e[1]) !== "");
+}
+
+/**
+ * newest_offer_only (R22): in a reply or forward whose newest message itself names a price, an
+ * offer value whose evidence occurs only in the quoted thread below is a stale value.
+ */
+function newestOfferCheck(doc: ExtractInput, q: QuoteExtraction): CheckResult {
+  const thread = threadSplit(doc);
+  if (thread === null) return check("newest_offer_only", [], "no quoted thread");
+  if (!CURRENCY_AMOUNT.test(thread.newest)) {
+    return check(
+      "newest_offer_only",
+      [],
+      "the newest message names no price; the quoted offer is the only one",
+    );
+  }
+  const newest = foldText(thread.newest);
+  const quoted = foldText(thread.quoted);
+  const stale = offerEvidence(q)
+    .filter(([, ev]) => !newest.includes(foldText(ev)) && quoted.includes(foldText(ev)))
+    .map(([path]) => path);
+  return check(
+    "newest_offer_only",
+    stale.length === 0
+      ? []
+      : [
+          `Evidence for ${stale.join(", ")} is only in the quoted older message, below the newest offer.`,
+        ],
+  );
+}
+
 const attachmentCheck = (ctx: EvaluationContext): CheckResult =>
   check(
     "attachment_text_found",
@@ -489,14 +576,20 @@ export function evaluateExtraction(
   }
   checks.push(check("grade_known", gradeFailures));
 
-  // quantity_unambiguous: a single number, as written, greater than zero.
+  // quantity_unambiguous: a single number, as written, greater than zero, and not a range or
+  // approximation on its evidence line ("280" from "280/320 mt", "300 mt" from "abt 300 mt").
   checks.push(
     check(
       "quantity_unambiguous",
       lines.flatMap((l, i) => {
         const q = readAmount(l.quantity);
-        return q === null || q <= 0
-          ? [`Quantity of line ${i} is not a single amount ("${l.quantity.asWritten ?? ""}").`]
+        if (q === null || q <= 0) {
+          return [
+            `Quantity of line ${i} is not a single amount ("${l.quantity.asWritten ?? ""}").`,
+          ];
+        }
+        return hedgedInEvidence(l.quantity.evidence, l.quantity.asWritten)
+          ? [`Quantity of line ${i} is a range or approximation on its evidence line.`]
           : [];
       }),
     ),
@@ -504,11 +597,14 @@ export function evaluateExtraction(
 
   // amounts_parsed: prices and a quoted barge fee parse from the as-written text to the value.
   const prices = lines.map((l) => readAmount(l.price));
-  const amountFailures = prices.flatMap((p, i) =>
-    p === null || p <= 0
-      ? [`Price of line ${i} does not read as "${lines[i]?.price.asWritten ?? ""}".`]
-      : [],
-  );
+  const amountFailures = prices.flatMap((p, i) => {
+    const price = lines[i]?.price;
+    if (p === null || p <= 0)
+      return [`Price of line ${i} does not read as "${price?.asWritten ?? ""}".`];
+    return price && hedgedInEvidence(price.evidence, price.asWritten)
+      ? [`Price of line ${i} is a range or approximation on its evidence line.`]
+      : [];
+  });
   if (n.barge.quoted) {
     if (n.barge.fee === null || n.barge.fee < 0) {
       amountFailures.push(`Barge fee does not read as "${output.bargeFee.asWritten ?? ""}".`);
@@ -542,7 +638,10 @@ export function evaluateExtraction(
   const today = isoDayAfter(ctx.receivedAt, 0);
   const validityStated = output.validUntil.asWritten !== null;
   const validityFailures: string[] = [];
-  if (view.validUntil !== null && view.validUntil < today) {
+  if (!validityStated && dateWrittenWith(source, VALIDITY_WORD)) {
+    // Absent means "no validity" only when the email names none the model left out.
+    validityFailures.push("a validity is written in the email but was not transcribed");
+  } else if (view.validUntil !== null && view.validUntil < today) {
     validityFailures.push(
       `The quote expired on ${view.validUntil}, before it was received on ${today}.`,
     );
@@ -564,17 +663,31 @@ export function evaluateExtraction(
     ),
   );
 
-  // delivery_window_valid: once the stated delivery dates parse, the window ends no earlier than
-  // it starts, not before the received day, and not implausibly far ahead (a wrong year). Only
-  // one end stated: that end is judged. An unparsed date is left to dates_parsed.
+  // delivery_window_valid: no delivery date written in the email and left out; a start that is
+  // not an end ("by 20 Nov"); and once the stated dates parse, the window ends no earlier than it
+  // starts, starts no more than a day before the received day (a wrong year), ends not before the
+  // received day and not implausibly far ahead. Only one end stated: that end is judged. An
+  // unparsed date is left to dates_parsed.
   const deliveryStated =
     output.deliveryFrom.asWritten !== null || output.deliveryTo.asWritten !== null;
   const deliveryUnparsed = n.unparsedDates.some((d) => d.path !== "validUntil");
   const { deliveryFrom: from, deliveryTo: to } = view;
   const windowFailures: string[] = [];
+  if (!deliveryStated && dateWrittenWith(source, DELIVERY_WORD)) {
+    windowFailures.push("a delivery date is written in the email but was not transcribed");
+  }
+  const startWritten = output.deliveryFrom.asWritten;
+  if (startWritten !== null && END_DATE_WORDS.test(foldText(startWritten))) {
+    windowFailures.push(`an end date was transcribed as the start ("${startWritten}").`);
+  }
   if (deliveryStated && !deliveryUnparsed) {
     if (from !== null && to !== null && to < from) {
       windowFailures.push(`The delivery window ends (${to}) before it starts (${from}).`);
+    }
+    if (from !== null && from < isoDayAfter(ctx.receivedAt, -1)) {
+      windowFailures.push(
+        `The delivery window starts on ${from}, more than a day before receipt on ${today} — check the year.`,
+      );
     }
     const windowEnd = to ?? from;
     if (windowEnd !== null && windowEnd < today) {
@@ -597,6 +710,8 @@ export function evaluateExtraction(
           : null,
     ),
   );
+
+  checks.push(newestOfferCheck(doc, output));
 
   checks.push(check("vessel_resolved", n.vessel.detail ? [n.vessel.detail] : []));
   checks.push(check("port_resolved", n.port.detail ? [n.port.detail] : []));

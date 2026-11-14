@@ -207,6 +207,7 @@ describe("check names", () => {
         "supplier_name_matches",
         "attachment_text_found",
         "delivery_window_valid",
+        "newest_offer_only",
       ].sort(),
     );
   });
@@ -262,6 +263,39 @@ describe("validity_not_expired", () => {
     expect(failed(withValidity("13 Jan 2027"))).toEqual([]);
     expect(failed(withValidity("14 Jan 2027"))).toEqual(["validity_not_expired"]);
   });
+
+  it.each([
+    "Valid until: 10 Nov 2026",
+    "Validity: 14 Nov 2026 17:00 LT",
+    "This offer is valid until 15/11.",
+    "Prices expire 16.11.26 at noon",
+    "Expiry: Nov 16",
+    "Offer firm until 2026-11-16 12:00 UTC",
+    "Offer good until Monday",
+  ])("a validity written in the email but not transcribed fails: %s", (written) => {
+    const r = run(quote(), email({ append: [written] }));
+    expect(r.status).toBe("needs_review");
+    expect(failed(r)).toEqual(["validity_not_expired"]);
+    expect(detailOf(r, "validity_not_expired")).toBe(
+      "a validity is written in the email but was not transcribed",
+    );
+  });
+
+  it("the expired-quote case: an omitted validity cannot store an expired quote", () => {
+    // The model leaves validUntil empty on a quote that expired before it was received.
+    const r = run(quote(), email({ append: ["Validity: 12 Nov 2026 17:00 LT"] }));
+    expect(r.status).toBe("needs_review");
+    expect(failed(r)).toEqual(["validity_not_expired"]);
+  });
+
+  it.each(["Prices are valid for 24 hours", "Validity: subject to prompt acceptance"])(
+    "a validity word with no date is not a written validity: %s",
+    (written) => {
+      const r = run(quote(), email({ append: [written] }));
+      expect(failed(r)).toEqual([]);
+      expect(detailOf(r, "validity_not_expired")).toBe("no validity stated");
+    },
+  );
 
   it("absent validity passes with the detail 'no validity stated'", () => {
     const r = run(quote());
@@ -371,6 +405,262 @@ describe("delivery dates (R7) and dates_parsed", () => {
   it("a window whose end is before its start → delivery_window_valid", () => {
     const r = withDelivery("20 Nov", "18 Nov", "Delivery: 20 Nov / 18 Nov");
     expect(failed(r)).toEqual(["delivery_window_valid"]);
+  });
+
+  it.each([
+    "Delivery: 18-19 Nov",
+    "Delivery window: 18 to 19 November",
+    "ETA Marsaxlokk 18 Nov",
+    "Laycan 18/11-19/11",
+    "Delivery 10-12 Nov",
+  ])("a delivery date written in the email but not transcribed fails: %s", (written) => {
+    const r = run(quote(), email({ append: [written] }));
+    expect(r.status).toBe("needs_review");
+    expect(failed(r)).toEqual(["delivery_window_valid"]);
+    expect(detailOf(r, "delivery_window_valid")).toBe(
+      "a delivery date is written in the email but was not transcribed",
+    );
+  });
+
+  it("a delivery word with no date is not a written delivery date", () => {
+    const r = run(quote(), email({ append: ["Delivery ex-barge, prompt on arrival"] }));
+    expect(failed(r)).toEqual([]);
+    expect(detailOf(r, "delivery_window_valid")).toBe("no delivery window stated");
+  });
+
+  it.each(["by 20 Nov", "before 20 Nov", "no later than 20 Nov", "until 20 Nov"])(
+    "an end date transcribed as the start fails delivery_window_valid: %s",
+    (written) => {
+      const r = withDelivery(written, null, `Delivery ${written}`);
+      expect(r.status).toBe("needs_review");
+      expect(failed(r)).toContain("delivery_window_valid");
+      expect(detailOf(r, "delivery_window_valid")).toContain(
+        "an end date was transcribed as the start",
+      );
+    },
+  );
+
+  it("a start more than a day before the received day fails: the year typo 18 Nov 2025", () => {
+    const r = withDelivery("18 Nov 2025", "20 Nov", "Delivery: from 18 Nov 2025 to 20 Nov");
+    expect(r.normalised).toMatchObject({ deliveryFrom: "2025-11-18", deliveryTo: "2026-11-20" });
+    expect(r.status).toBe("needs_review");
+    expect(failed(r)).toEqual(["delivery_window_valid"]);
+    expect(detailOf(r, "delivery_window_valid")).toContain("2025-11-18");
+  });
+
+  it("a start the day before receipt passes; two days before fails", () => {
+    // Received 2026-11-14T03:00Z.
+    expect(failed(withDelivery("13-15 Nov", null))).toEqual([]);
+    expect(failed(withDelivery("12-15 Nov", null))).toEqual(["delivery_window_valid"]);
+  });
+});
+
+describe("as-written amounts and units are read from the field, not the whole line (I2)", () => {
+  const withQuantity = (lineText: string, asWritten: string, value: number, unit = "mt") => {
+    const out = quote();
+    const first = must(out.lines[0], "line");
+    first.quantity = { value, unit, asWritten, evidence: lineText };
+    first.grade = { value: "LSMGO", evidence: lineText };
+    return run(out, email({ replace: [["Quantity: 300 mt LSMGO", lineText]] }));
+  };
+
+  it.each([
+    ["Quantity: 280/320 mt LSMGO", "320 mt", 320],
+    ["Quantity: abt 300 mt LSMGO", "300 mt", 300],
+    ["Quantity: approx. 300 mt LSMGO", "300 mt", 300],
+    ["Quantity: min 300 mt LSMGO", "300 mt", 300],
+    ["Quantity: up to 300 mt LSMGO", "300 mt", 300],
+    ["Quantity: 300 mt LSMGO +/- 5%", "300 mt", 300],
+    ["Quantity: 280 to 300 mt LSMGO", "300 mt", 300],
+  ])("a quantity that is a range or approximation in its evidence fails: %s", (lineText, aw, v) => {
+    const r = withQuantity(lineText, aw, v);
+    expect(r.status).toBe("needs_review");
+    expect(failed(r)).toEqual(["quantity_unambiguous"]);
+  });
+
+  it('"280" taken from "280/320 mt" goes to review', () => {
+    const r = withQuantity("Quantity: 280/320 mt LSMGO", "280", 280);
+    expect(r.status).toBe("needs_review");
+    expect(failed(r)).toContain("quantity_unambiguous");
+  });
+
+  it.each(["Price: abt USD 738 per mt", "Price: approx USD 738 per mt", "Price: ~USD 738 per mt"])(
+    "a price that is an approximation in its evidence fails amounts_parsed: %s",
+    (lineText) => {
+      const out = quote();
+      const first = must(out.lines[0], "line");
+      first.price = { ...first.price, evidence: lineText };
+      const r = run(out, email({ replace: [["Price: USD 738 per mt", lineText]] }));
+      expect(r.status).toBe("needs_review");
+      expect(failed(r)).toEqual(["amounts_parsed"]);
+    },
+  );
+
+  it('"120 m3 at USD 728 per mt" with unit "mt" goes to review: the unit is not in "120 m3"', () => {
+    const lineText = "We offer LSMGO, 120 m3 at USD 738 per mt.";
+    const out = quote();
+    const first = must(out.lines[0], "line");
+    first.quantity = { value: 120, unit: "mt", asWritten: "120 m3", evidence: lineText };
+    first.grade = { value: "LSMGO", evidence: lineText };
+    first.price = { ...first.price, evidence: lineText };
+    const doc = email({
+      replace: [
+        ["Quantity: 300 mt LSMGO", lineText],
+        ["Price: USD 738 per mt\n", ""],
+      ],
+    });
+    const r = run(out, doc);
+    expect(r.status).toBe("needs_review");
+    expect(failed(r)).toContain("unit_known");
+    expect(r.normalised.lines[0]?.qtyMt).toBeNull();
+  });
+
+  it("a currency written only elsewhere on the evidence line is not the price's currency", () => {
+    const out = quote();
+    const first = must(out.lines[0], "line");
+    first.price = {
+      value: 690,
+      currency: "EUR",
+      perUnit: "/ mt",
+      asWritten: "690 / mt",
+      evidence: "Price: EUR 690 / mt",
+    };
+    const doc = email({ replace: [["Price: USD 738 per mt", "Price: EUR 690 / mt"]] });
+    const r = run(out, doc);
+    expect(failed(r)).toContain("currency_known");
+    expect(detailOf(r, "currency_known")).toContain("is not written in its text");
+  });
+
+  it("a price unit written only elsewhere on the evidence line fails unit_known", () => {
+    const out = quote();
+    const first = must(out.lines[0], "line");
+    first.price = { ...first.price, asWritten: "USD 738" };
+    expect(failed(run(out))).toEqual(["unit_known"]);
+  });
+});
+
+describe("newest_offer_only (I3): stale values from a quoted thread", () => {
+  /** The Kestrel offer with a delivery window and validity, as the newest message on top. */
+  const NEWEST = ["Delivery: 18-19 Nov", "Validity: 15 Nov 2026"];
+  const OLDER = [
+    "Quantity: 350 mt LSMGO",
+    "Price: USD 734 per mt",
+    "Delivery: 16-17 Nov",
+    "Validity: 14 Nov 2026",
+  ];
+  const SEPARATORS: [string, string[], (l: string) => string][] = [
+    ["Outlook original message", ["-----Original Message-----"], (l) => l],
+    ["Gmail forward", ["---------- Forwarded message ---------"], (l) => l],
+    [
+      "reply header",
+      ["On Fri, 13 Nov 2026 at 09:12, Kestrel Desk <bunkers@kestrel-fuels.example> wrote:"],
+      (l) => `> ${l}`,
+    ],
+    [
+      "From header block",
+      [
+        "From: Kestrel Desk <bunkers@kestrel-fuels.example>",
+        "Sent: Friday, 13 November 2026 09:12",
+        "To: Bunker Desk <bunker-desk@pharos-demo.example>",
+      ],
+      (l) => l,
+    ],
+    ["quoted lines only", [], (l) => `> ${l}`],
+  ];
+  const threadDoc = (separator: string[], quoteLine: (l: string) => string, top = NEWEST) =>
+    email({ append: [...top, "", ...separator, ...OLDER.map(quoteLine)] });
+  /** The newest offer, transcribed correctly. */
+  const newest = (): QuoteExtraction => {
+    const out = quote();
+    out.deliveryFrom = dateField("18-19 Nov", "Delivery: 18-19 Nov");
+    out.validUntil = dateField("15 Nov 2026", "Validity: 15 Nov 2026");
+    return out;
+  };
+
+  it.each(SEPARATORS)("%s: the newest values pass", (_name, sep, q) => {
+    const r = run(newest(), threadDoc(sep, q));
+    expect(failed(r)).toEqual([]);
+    expect(r.status).toBe("extracted");
+    expect(detailOf(r, "newest_offer_only")).toBeNull();
+  });
+
+  it.each(SEPARATORS)("%s: the older price and window go to review", (_name, sep, q) => {
+    const out = newest();
+    const first = must(out.lines[0], "line");
+    first.price = {
+      ...first.price,
+      value: 734,
+      asWritten: "USD 734 per mt",
+      evidence: "Price: USD 734 per mt",
+    };
+    out.deliveryFrom = dateField("16-17 Nov", "Delivery: 16-17 Nov");
+    const r = run(out, threadDoc(sep, q));
+    expect(r.status).toBe("needs_review");
+    expect(failed(r)).toEqual(["newest_offer_only"]);
+    expect(detailOf(r, "newest_offer_only")).toContain("lines.0.price");
+    expect(detailOf(r, "newest_offer_only")).toContain("deliveryFrom");
+  });
+
+  it.each([
+    [
+      "quantity",
+      (o: QuoteExtraction) => {
+        const first = must(o.lines[0], "line");
+        first.quantity = {
+          value: 350,
+          unit: "mt",
+          asWritten: "350 mt",
+          evidence: "Quantity: 350 mt LSMGO",
+        };
+      },
+      "lines.0.quantity",
+    ],
+    [
+      "validity",
+      (o: QuoteExtraction) => {
+        o.validUntil = dateField("14 Nov 2026", "Validity: 14 Nov 2026");
+      },
+      "validUntil",
+    ],
+  ] as const)("an older %s alone goes to review", (_what, mutate, path) => {
+    const out = newest();
+    mutate(out);
+    const r = run(
+      out,
+      threadDoc(["-----Original Message-----"], (l) => l),
+    );
+    expect(failed(r)).toEqual(["newest_offer_only"]);
+    expect(detailOf(r, "newest_offer_only")).toContain(path);
+  });
+
+  it("a forward whose newest message names no price: the quoted offer is the one", () => {
+    const doc: ExtractInput = {
+      sender: "bunkers@kestrel-fuels.example",
+      subject: "FW: LSMGO offer",
+      bodyText: [
+        "FYI, see our offer below.",
+        "",
+        "---------- Forwarded message ---------",
+        BODY,
+      ].join("\n"),
+    };
+    const r = run(quote(), doc);
+    expect(failed(r)).toEqual([]);
+    expect(detailOf(r, "newest_offer_only")).toContain("names no price");
+  });
+
+  it("evidence repeated in the newest message and the quoted one passes", () => {
+    // The older message quoted the same quantity line the newest one repeats.
+    const doc = email({
+      append: [...NEWEST, "", "-----Original Message-----", "Quantity: 300 mt LSMGO", ...OLDER],
+    });
+    const r = run(newest(), doc);
+    expect(failed(r)).toEqual([]);
+    expect(detailOf(r, "newest_offer_only")).toBeNull();
+  });
+
+  it("an email with no quoted thread passes with its detail", () => {
+    expect(detailOf(run(quote()), "newest_offer_only")).toBe("no quoted thread");
   });
 });
 
@@ -612,13 +902,14 @@ describe("barge fee", () => {
   );
 
   it.each([
-    "Delivery by barge 18-19 Nov",
-    "Barge fee included",
-    "Price basis: delivered by barge.",
-    "Delivery by barge to Europe on 18 Nov",
-  ])("a barge mentioned without a money amount is not a charge: %s", (written) => {
+    ["Delivery by barge 18-19 Nov", "18-19 Nov"],
+    ["Barge fee included", null],
+    ["Price basis: delivered by barge.", null],
+    ["Delivery by barge to Europe on 18 Nov", "on 18 Nov"],
+  ])("a barge mentioned without a money amount is not a charge: %s", (written, delivery) => {
     const out = quote();
     out.bargeFee = NO_BARGE;
+    if (delivery !== null) out.deliveryFrom = dateField(delivery, written);
     const doc = email({ replace: [["Barge fee: USD 2,800 lump sum", written]] });
     const r = run(out, doc);
     expect(failed(r)).toEqual([]);

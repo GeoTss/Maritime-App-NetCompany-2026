@@ -106,22 +106,25 @@ describe("demo email as-written values parse with the domain normaliser", () => 
 });
 
 describe("writtenIn", () => {
-  const f = (asWritten: string | null, evidence: string | null = null) => ({ asWritten, evidence });
-  it("finds the raw string in asWritten or evidence, case- and whitespace-folded", () => {
-    expect(writtenIn("USD", f("USD 738 per mt"))).toBe(true);
-    expect(writtenIn("per  MT", f("USD 738 per mt"))).toBe(true);
-    expect(writtenIn("PMT", f("USD 712 PMT"))).toBe(true);
-    expect(writtenIn("$", f("$738/mt"))).toBe(true);
-    expect(writtenIn("/mt", f("$738/mt"))).toBe(true);
-    expect(writtenIn("EUR", f("690 / mt", "Price: EUR 690 / mt"))).toBe(true);
+  it("finds the raw string in the field's as-written text, case- and whitespace-folded", () => {
+    expect(writtenIn("USD", "USD 738 per mt")).toBe(true);
+    expect(writtenIn("per  MT", "USD 738 per mt")).toBe(true);
+    expect(writtenIn("PMT", "USD 712 PMT")).toBe(true);
+    expect(writtenIn("$", "$738/mt")).toBe(true);
+    expect(writtenIn("/mt", "$738/mt")).toBe(true);
   });
   it("respects word boundaries and rejects absent or null strings", () => {
-    expect(writtenIn("mt", f("USD 712 PMT"))).toBe(false);
-    expect(writtenIn("USD", f("USDT 712 per mt"))).toBe(false);
-    expect(writtenIn("USD", f("EUR 690 per mt", "Price: EUR 690 per mt"))).toBe(false);
-    expect(writtenIn(null, f("USD 738"))).toBe(false);
-    expect(writtenIn(" ", f("USD 738"))).toBe(false);
-    expect(writtenIn("USD", f(null, null))).toBe(false);
+    expect(writtenIn("mt", "USD 712 PMT")).toBe(false);
+    expect(writtenIn("USD", "USDT 712 per mt")).toBe(false);
+    expect(writtenIn("USD", "EUR 690 per mt")).toBe(false);
+    expect(writtenIn(null, "USD 738")).toBe(false);
+    expect(writtenIn(" ", "USD 738")).toBe(false);
+    expect(writtenIn("USD", null)).toBe(false);
+  });
+  it("does not fall back to the evidence line: a unit elsewhere on it is not the field's", () => {
+    // "120 m3 at USD 728 per mt": "mt" is on the line, but not in the quantity "120 m3".
+    expect(writtenIn("mt", "120 m3")).toBe(false);
+    expect(writtenIn("EUR", "690 / mt")).toBe(false);
   });
 });
 

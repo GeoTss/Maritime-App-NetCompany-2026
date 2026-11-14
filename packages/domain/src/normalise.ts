@@ -98,11 +98,13 @@ const isDigit = (c: string | undefined): boolean => c !== undefined && /\d/.test
  * ("738" is not in "738.50", "500" is not in "2,500"). Every occurrence is tried.
  */
 function containsToken(haystack: string, needle: string): boolean {
-  let from = 0;
-  for (;;) {
-    const at = haystack.indexOf(needle, from);
-    if (at === -1) return false;
-    from = at + 1;
+  return tokenOccurrences(haystack, needle).length > 0;
+}
+
+/** Start index of every occurrence of `needle` in `haystack` on a token boundary (as above). */
+function tokenOccurrences(haystack: string, needle: string): number[] {
+  const found: number[] = [];
+  for (let at = haystack.indexOf(needle); at !== -1; at = haystack.indexOf(needle, at + 1)) {
     const end = at + needle.length;
     const before = haystack[at - 1];
     const after = haystack[end];
@@ -110,8 +112,38 @@ function containsToken(haystack: string, needle: string): boolean {
     if (isAlnum(needle[needle.length - 1]) && isAlnum(after)) continue;
     if (/[.,]/.test(after ?? "") && isDigit(haystack[end + 1])) continue;
     if (/[.,]/.test(before ?? "") && isDigit(haystack[at - 2])) continue;
-    return true;
+    found.push(at);
   }
+  return found;
+}
+
+/**
+ * A range or alternative ("280/320", "280-320", "280 to 320", "280 or 320") or an approximation
+ * or limit (abt, about, approx., circa, ca., min, max, up to, +/-, ±, ~). Matched on the whole
+ * evidence, so a marker word is a whole word there ("admin" holds no "min").
+ */
+const HEDGE =
+  /\d\s*(?:\/|-|–|—|to|or)\s*\d|\b(?:abt|about|approx\w*|circa|min(?:imum)?|max(?:imum)?|up to)\b|\bca\.|\+\/-|\+-|±|~/g;
+/** How far either side of the amount a marker still qualifies it. */
+const HEDGE_RADIUS = 12;
+
+/**
+ * True when the evidence holds a range or approximation marker within 12 characters of an
+ * occurrence (on token boundaries) of the as-written amount: "280" taken from "280/320 mt", or
+ * "300 mt" from "abt 300 mt". Case- and whitespace-folded. The as-written text alone can read as
+ * one clean number while the line it came from does not.
+ */
+export function hedgedInEvidence(evidence: string | null, asWritten: string | null): boolean {
+  if (evidence === null || asWritten === null) return false;
+  const ev = collapse(evidence);
+  const value = collapse(asWritten);
+  if (value === "") return false;
+  const markers = [...ev.matchAll(HEDGE)].map((m) => [m.index, m.index + m[0].length] as const);
+  return tokenOccurrences(ev, value).some((at) => {
+    const lo = at - HEDGE_RADIUS;
+    const hi = at + value.length + HEDGE_RADIUS;
+    return markers.some(([start, end]) => start < hi && end > lo);
+  });
 }
 
 /**
