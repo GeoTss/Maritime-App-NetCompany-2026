@@ -1,12 +1,30 @@
 {
-  "phase": 2,
-  "phaseName": "Walking skeleton",
+  "phase": 3,
+  "phaseName": "Extraction, benchmark first",
   "lastGate": {
-    "phase": 1,
+    "phase": 2,
     "result": "PASS",
     "at": "2026-11-14",
-    "note": "verify green (290 tests, DB seed test ran); purity OK; world invariants 15/15 on real Eurostat routes (17 legs) incl. Aegean Pioneer LSMGO short + demo trap (best MTMLA-kestrel $233.9k vs cheapest-headline GIGIB $250.1k); calculators match hand examples; compose db/erp/api healthy with LLM_MODE=replay, migrate+seed at boot, 8 vessels"
+    "note": "verify green (48 files / 729 tests, DB tests ran, 0 skipped); purity OK; live smoke PASS on Compose with LLM_MODE=live: default Haiku 5.5 both prompts — email 4.1 s / 4.0 s (target ~20 s), answer 9.9 s (target ~45 s), 6 calls $0.0036; agent Sonnet 5.5 — answer 7.8 s, $0.0374; agent Opus 5.5 — answer 21.5 s, $0.0553 (extraction Haiku in all); browser check deliver → quote → ask (fact chips) → approve → PO-000001 synced, survives reload; 3-model complex-question comparison (7 questions) $0.297 total, 0 withheld, all proposals = best option; verifier PASS",
+    "evidence": {
+      "smoke": [
+        "evals/reports/20261114T041445Z-smoke-haiku",
+        "evals/reports/20261114T042135Z-smoke-agent-sonnet",
+        "evals/reports/20261114T042223Z-smoke-agent-opus"
+      ],
+      "agentComparison": "evals/reports/20261114T042306Z-agent-compare-phase2",
+      "latency": {
+        "emailSeconds": { "haiku": [4.1, 4.0], "targetSeconds": 20 },
+        "answerSeconds": { "haiku": 9.9, "sonnet": 7.8, "opus": 21.5, "targetSeconds": 45 }
+      },
+      "costUsd": {
+        "smokeRun": { "haiku": 0.00364, "agentSonnet": 0.037425, "agentOpus": 0.055295 },
+        "perExtractionHaiku": "0.0005-0.0009",
+        "agentComparison": 0.297
+      }
+    }
   },
+  "modelDecision": "Haiku 5.5 for extraction and agent by default (cheapest; passes the gate live, occasionally after one repair turn); Sonnet 5.5 is the agent upgrade if repair turns or answer quality matter (~10x Haiku, faster than Opus); Opus 5.5 ~2x Sonnet cost and ~2-3x latency with no measured gain on these questions. Switch via AGENT_MODEL / EXTRACT_MODEL.",
   "keyCheckpoints": {
     "2": ["ANTHROPIC_API_KEY"],
     "5": ["AISSTREAM_API_KEY"]
