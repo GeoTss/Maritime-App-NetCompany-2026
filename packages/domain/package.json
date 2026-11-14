@@ -1,0 +1,13 @@
+{
+  "name": "@pharos/domain",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@pharos/shared": "*",
+    "zod": "4.6.7"
+  }
+}

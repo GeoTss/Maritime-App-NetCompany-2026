@@ -1,0 +1,11 @@
+**/node_modules
+.npm-cache
+.git
+.env
+.env.*
+!.env.example
+evals/reports
+coverage
+playwright-report
+test-results
+.claude/state/markers

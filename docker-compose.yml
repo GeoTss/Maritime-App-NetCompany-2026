@@ -1,0 +1,62 @@
+name: pharos
+
+x-node: &node
+  build: .
+  image: pharos-node:dev
+  restart: unless-stopped
+
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: pharos
+      POSTGRES_PASSWORD: pharos
+      POSTGRES_DB: pharos
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pharos -d pharos"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  erp:
+    <<: *node
+    command: ["npm", "run", "start", "-w", "@pharos/erp-sim"]
+    environment:
+      ERP_PORT: "4100"
+    ports:
+      - "4100:4100"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4100/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    <<: *node
+    command: ["npm", "run", "start", "-w", "@pharos/api"]
+    depends_on:
+      db:
+        condition: service_healthy
+      erp:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://pharos:pharos@db:5432/pharos
+      ERP_BASE_URL: http://erp:4100
+      API_PORT: "4000"
+      # Live by default; the API refuses to start without a key in live/record mode.
+      LLM_MODE: ${LLM_MODE:-live}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    ports:
+      - "4000:4000"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4000/api/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  pgdata:

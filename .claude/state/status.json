@@ -1,0 +1,14 @@
+{
+  "phase": 1,
+  "phaseName": "Contracts, data, core calculators",
+  "lastGate": {
+    "phase": 0,
+    "result": "PASS",
+    "at": "2026-11-14",
+    "note": "verify green (68 tests); compose db/erp/api healthy; PDF smoke OK on host and container; boot guard exits 1 without key; Stop gate blocks type error + purity violation"
+  },
+  "keyCheckpoints": {
+    "2": ["ANTHROPIC_API_KEY"],
+    "5": ["AISSTREAM_API_KEY"]
+  }
+}
