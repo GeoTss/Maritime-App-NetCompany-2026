@@ -12,10 +12,15 @@
  * llm_calls and audit rows. Seed quotes and purchase orders stay.
  *
  * Model: Claude Haiku 5.5 only, effort medium, fallbacks off. The configured model is checked
- * before the first call and every served model after the run; a non-Haiku model fails the run.
- * Spend (live and record): `assertBudget(case runs x $0.002)` before the first call, a
- * per-request guard capped at min($0.25, what the $3 ledger has left), and the guard's summed
- * cost appended to the ledger afterwards, also when the run fails or stops early.
+ * before the first call; in live and record the guard refuses every request after the first
+ * response served by another model and the run stops there; every served model is checked after
+ * the run, and a non-Haiku model fails it.
+ * Spend (live and record): the estimate (case runs x $0.002) must fit the $0.25 per-pass cap and
+ * `assertBudget` before the first call, a per-request guard capped at min($0.25, what the $3
+ * ledger has left), and the guard's summed cost appended to the ledger afterwards, also when the
+ * run fails or stops early.
+ * Stored quotes: after each case, an `extracted` case must have exactly one stored quote equal to
+ * the graded view, any other status none; a disagreement is a runner error that fails the run.
  * `--oracle` and `--empty` make no model calls and need no key. `--split heldout` needs `--final`.
  * The key comes from `ANTHROPIC_API_KEY` (via `tsx --env-file-if-exists=.env`) and is never printed.
  */
@@ -64,6 +69,7 @@ import {
   appendSpend,
   assertBudget,
   assertHaikuOnly,
+  BudgetError,
   createSpendGuard,
   HAIKU,
   ledgerTotal,
@@ -496,6 +502,8 @@ export interface CaseRow {
   servedModels: string[];
   /** What processDocument logged (failures). */
   log: string[];
+  /** Where the stored quote is not the graded view (see `storedQuoteProblems`); empty when it is. */
+  runnerErrors: string[];
 }
 
 /** One line of transcripts.jsonl. */
@@ -539,6 +547,7 @@ interface CaseContext {
 }
 
 interface ExtractionRow {
+  id: number;
   status: string;
   kind: "quote" | "not_a_quote" | null;
   raw_output: unknown;
@@ -576,6 +585,74 @@ async function replayed(dir: string, requestKey: string) {
   }
 }
 
+interface StoredQuoteRow {
+  id: number;
+  extraction_id: number;
+  supplier_id: number;
+  port_id: number;
+  currency: string;
+  barge_fee: number;
+  valid_until: string | null;
+  delivery_from: string | null;
+  delivery_to: string | null;
+}
+
+/**
+ * What the pipeline stored must be what is graded (the grade reads a view recomputed from the
+ * stored raw output). An `extracted` case must have exactly one stored quote, of its extraction,
+ * whose supplier, port, currency, dates, barge fee and lines equal the graded view; any other
+ * status must have none. Returns each disagreement (empty when they agree).
+ */
+export async function storedQuoteProblems(
+  sql: Sql,
+  extractionId: number,
+  status: PipelineStatus,
+  view: NormalisedView | null,
+): Promise<string[]> {
+  // The runner deletes every case-created quote before each case: any one here is this case's.
+  const quotes = await sql<StoredQuoteRow[]>`
+    select id, extraction_id, supplier_id, port_id, currency, barge_fee,
+           to_char(valid_until at time zone 'UTC', 'YYYY-MM-DD') as valid_until,
+           to_char(delivery_from at time zone 'UTC', 'YYYY-MM-DD') as delivery_from,
+           to_char(delivery_to at time zone 'UTC', 'YYYY-MM-DD') as delivery_to
+    from quotes where extraction_id is not null order by id`;
+  if (status !== "extracted") {
+    return quotes.length === 0 ? [] : [`status ${status}, but ${quotes.length} quote(s) stored`];
+  }
+  const [q] = quotes;
+  if (quotes.length !== 1 || !q || q.extraction_id !== extractionId) {
+    return [
+      `extracted, but ${quotes.length} quote(s) stored (expected exactly one, of extraction ${extractionId})`,
+    ];
+  }
+  if (view === null) return ["extracted, but there is no normalised view to grade"];
+  const lines = await sql<{ grade: string; qty_mt: number; price_per_mt: number }[]>`
+    select grade, qty_mt, price_per_mt from quote_lines where quote_id = ${q.id} order by id`;
+  const stored = {
+    supplierId: q.supplier_id,
+    portId: q.port_id,
+    currency: q.currency,
+    validUntil: q.valid_until,
+    deliveryFrom: q.delivery_from,
+    deliveryTo: q.delivery_to,
+    bargeFee: q.barge_fee,
+    lines: lines.map((l) => ({ grade: l.grade, qtyMt: l.qty_mt, pricePerMt: l.price_per_mt })),
+  };
+  const graded: Record<keyof typeof stored, unknown> = {
+    supplierId: view.supplierId,
+    portId: view.portId,
+    currency: view.currency,
+    validUntil: view.validUntil,
+    deliveryFrom: view.deliveryFrom,
+    deliveryTo: view.deliveryTo,
+    bargeFee: view.bargeFee,
+    lines: view.lines,
+  };
+  return (Object.keys(stored) as (keyof typeof stored)[])
+    .filter((k) => JSON.stringify(stored[k]) !== JSON.stringify(graded[k]))
+    .map((k) => `${k}: stored ${JSON.stringify(stored[k])}, graded ${JSON.stringify(graded[k])}`);
+}
+
 async function runCase(
   ctx: CaseContext,
   c: GoldenCase,
@@ -598,7 +675,7 @@ async function runCase(
   const latencyMs = performance.now() - t0;
 
   const [ex] = await sql<ExtractionRow[]>`
-    select status, kind, raw_output, field_evidence, check_results, error, model, prompt_version
+    select id, status, kind, raw_output, field_evidence, check_results, error, model, prompt_version
     from extractions where document_id = ${ingested.documentId} order by id desc limit 1`;
   const [doc] = await sql<DocumentRow[]>`
     select sender, subject, body_text, received_at, has_unreadable_attachment
@@ -666,6 +743,7 @@ async function runCase(
     failedChecks: checks.filter((x) => !x.passed).map((x) => x.check),
   };
   const grade = gradeCase(c.truth, outcome, ctx.keys);
+  const runnerErrors = await storedQuoteProblems(sql, ex.id, status, outcome.normalised);
   const row: CaseRow = {
     id,
     run,
@@ -683,6 +761,7 @@ async function runCase(
     calls,
     servedModels,
     log,
+    runnerErrors,
   };
   const transcript: Transcript = {
     id,
@@ -817,10 +896,20 @@ export async function runExtractionEval(opts: EvalOptions): Promise<EvalResult> 
   if (llm) assertHaikuOnly([EVAL_EXTRACTOR_CONFIG.extractModel]);
   let guard: SpendGuard | null = null;
   if (paid) {
+    const estimate = plan.length * ESTIMATE_PER_CASE_RUN_USD;
+    if (estimate > RUN_CAP_USD) {
+      throw new BudgetError(
+        `estimate $${estimate.toFixed(3)} (${plan.length} case runs x $${ESTIMATE_PER_CASE_RUN_USD}) exceeds the $${RUN_CAP_USD.toFixed(2)} per-pass cap: run fewer cases with --limit`,
+      );
+    }
     if (!opts.apiKey) throw new Error("ANTHROPIC_API_KEY is not set (add it to .env).");
-    assertBudget(plan.length * ESTIMATE_PER_CASE_RUN_USD, opts.ledgerPath);
+    assertBudget(estimate, opts.ledgerPath);
     const remaining = SPEND_CAP_USD - ledgerTotal(opts.ledgerPath);
-    guard = createSpendGuard({ capUsd: Math.min(RUN_CAP_USD, remaining), label: "run" });
+    guard = createSpendGuard({
+      capUsd: Math.min(RUN_CAP_USD, remaining),
+      label: "run",
+      allowedModel: HAIKU,
+    });
   }
 
   // From here a paid run may spend. Its cost is ledgered exactly once: at the end, in the
@@ -993,6 +1082,9 @@ async function runPlan(
         ledgerUsd: run.ledgered(),
         parseErrors: guard ? [...guard.parseErrors] : [],
       },
+      runnerErrors: rows.flatMap((r) =>
+        r.runnerErrors.map((e) => `${r.id}${r.run > 1 ? ` #${r.run}` : ""}: ${e}`),
+      ),
     };
     writeFileSync(
       file("scorecard.json"),
@@ -1006,8 +1098,18 @@ async function runPlan(
   let aborted: string | null = null;
   let notRun: string[] = [];
   for (const step of plan) {
-    const spendStop = guard ? (guard.overCap() ?? guard.trip()?.reason ?? null) : null;
-    const stop = run.interrupted.reason ?? (spendStop === null ? null : `spend cap: ${spendStop}`);
+    // An interrupt, the spend cap, or (live, record) a response served by a model other than Haiku.
+    const overCap = guard?.overCap() ?? null;
+    const trip = guard?.trip() ?? null;
+    const stop =
+      run.interrupted.reason ??
+      (overCap !== null
+        ? `spend cap: ${overCap}`
+        : trip === null
+          ? null
+          : trip.source === "model"
+            ? trip.reason
+            : `spend cap: ${trip.reason}`);
     if (stop !== null) {
       aborted = stop;
       notRun = remaining();
@@ -1038,6 +1140,12 @@ async function runPlan(
   if (meta.spend.parseErrors.length > 0) {
     throw new Error(
       `the spend guard could not read ${meta.spend.parseErrors.length} response bodies, so their cost is not counted: ${meta.spend.parseErrors.join("; ")}`,
+    );
+  }
+  // A graded view that is not what was stored would make the scorecard measure something else.
+  if (meta.runnerErrors.length > 0) {
+    throw new Error(
+      `${meta.runnerErrors.length} stored quote(s) differ from the graded view: ${meta.runnerErrors.join("; ")}`,
     );
   }
   return { reportDir, meta, scorecard: card, rows };

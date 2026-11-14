@@ -58,6 +58,10 @@ describe.skipIf(!sql)("live smoke runner (in-process, replay)", () => {
     const app = createApp({
       llmMode: "replay",
       pingDb: async () => true,
+      models: {
+        extractModel: DEMO_RECORDING_CONFIG.extractModel,
+        agentModel: ASK_RECORDING_CONFIG.agentModel,
+      },
       read: createDbSource(db),
       inbox: {
         sql: db,
@@ -181,6 +185,27 @@ describe.skipIf(!sql)("live smoke runner (in-process, replay)", () => {
       );
       return body === undefined ? res : new Response(JSON.stringify(body), { status: res.status });
     }) as typeof fetch;
+
+  it.each([
+    ["a non-Haiku agent model", { agentModel: "claude-sonnet-5-5" }, /claude-sonnet-5-5/],
+    ["a non-Haiku extraction model", { extractModel: "claude-opus-5-5" }, /claude-opus-5-5/],
+    ["no reported models", { extractModel: null, agentModel: null }, /does not report/],
+  ])("stops before the first paid call when the API reports %s (M4)", async (_n, over, why) => {
+    const { dir, options } = await build();
+    const seen: string[] = [];
+    const health = rewriting(
+      options.fetch,
+      (path, body) => (path === "/api/health" ? { ...(body as object), ...over } : undefined),
+      seen,
+    );
+    const result = await runSmoke({ ...options, fetch: health });
+    expect(result.ok).toBe(false);
+    expect(result.exitCode).toBe(1);
+    expect(result.failures.join("\n")).toMatch(why);
+    expect(seen).toEqual(["/api/health"]);
+    expect(result.report.calls).toEqual([]);
+    await expect(access(join(dir, "markers", "live-smoke"))).rejects.toThrow();
+  });
 
   it("fails a run whose cost passes the spend cap and writes no marker", async () => {
     const { dir, options } = await build();

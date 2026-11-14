@@ -13,6 +13,8 @@ import { createUiRoutes } from "./ui/routes.js";
 export interface AppDeps {
   llmMode: LlmMode;
   pingDb: () => Promise<boolean>;
+  /** The configured model per prompt, reported by /api/health; omitted, it reports null. */
+  models?: { extractModel: string; agentModel: string };
   read: ReadSource;
   /** Inbox intake (upload, deliver-next); omitted, those routes are not mounted. */
   inbox?: InboxDeps;
@@ -37,6 +39,8 @@ export function createApp(deps: AppDeps) {
       status: dbUp ? "ok" : "degraded",
       llmMode: deps.llmMode,
       db: dbUp ? "up" : "down",
+      extractModel: deps.models?.extractModel ?? null,
+      agentModel: deps.models?.agentModel ?? null,
     };
     return c.json(body);
   });

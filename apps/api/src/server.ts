@@ -54,6 +54,7 @@ async function main() {
   const app = createApp({
     llmMode: config.llmMode,
     pingDb: () => pingDb(sql),
+    models: { extractModel: config.extractModel, agentModel: config.agentModel },
     read: createDbSource(sql),
     inbox,
     review: inbox,

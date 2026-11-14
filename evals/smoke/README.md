@@ -3,7 +3,10 @@
 `npm run eval:smoke [-- --label <name>]` drives the running API over HTTP (`API_URL`, default
 `http://localhost:4000`; no key needed, the API holds it):
 
-1. `/api/health` must report `llmMode: live` (else exit 2: "start the API with LLM_MODE=live").
+1. `/api/health` must report `llmMode: live` (else exit 2: "start the API with LLM_MODE=live"),
+   and `extractModel` and `agentModel` must both be `claude-haiku-5-5`. Otherwise the run stops
+   with exit 1 before it delivers anything, so it makes no paid call. An API image built before
+   `/api/health` reported its models also stops there: rebuild it (`docker compose up -d --build`).
 2. Delivers both demo emails, polls each extraction until it leaves `pending` (90 s timeout) and
    times deliver -> extraction (target about 20 s).
 3. Checks the two quotes against `DEMO_SCENARIO` (supplier, port, currency, price, barge fee, qty).
@@ -21,8 +24,8 @@ The demo inbox can be delivered once per world. A second run exits 1 with "inbox
 delivered"; reset with `docker compose up -d --force-recreate api erp` (SEED_ON_BOOT=reset; recreating the
 ERP simulator clears its in-memory orders too).
 
-To compare models, restart the API with `AGENT_MODEL=claude-opus-5-5` and run again with
-`--label agent-opus`; compare the "By purpose" tables of the two reports.
+Phase 3 runs Haiku 5.5 only, so the smoke refuses an API configured with another model (step 1).
+Model comparisons are `evals/compare/`, under their own budget.
 
 `/api/llm-calls` returns only the newest 200 rows, so run the smoke against a freshly restarted API.
 A run costing more than $0.25 (`RUN_CAP_USD`, per run) fails and writes no marker.

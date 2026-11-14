@@ -70,6 +70,17 @@ export type GradedField = (typeof GRADED_FIELDS)[number];
 const CRITICAL: ReadonlySet<GradedField> = new Set<GradedField>(CRITICAL_FIELDS);
 export const isCritical = (f: GradedField): boolean => CRITICAL.has(f);
 
+/**
+ * Fields that make an `extracted` case unsafe when wrong or missing: the critical fields plus
+ * the barge fee and the supplier, which decide what is paid and to whom (user decision
+ * 2026-11-14, I6). Critical-field accuracy still counts only `CRITICAL_FIELDS`.
+ */
+const UNSAFE_IF_OFF: ReadonlySet<GradedField> = new Set<GradedField>([
+  ...CRITICAL_FIELDS,
+  "bargeFee",
+  "supplier",
+]);
+
 export type Verdict = "correct" | "wrong" | "missing";
 
 export interface FieldGrade {
@@ -197,7 +208,10 @@ export interface CaseGrade {
   predicted: PredictedQuote | null;
   /** Every critical field correct; null when the truth has no quote (or on an error). */
   criticalAllCorrect: boolean | null;
-  /** Stored as extracted although the truth is not a clean quote or a critical field is off. */
+  /**
+   * Stored as extracted although the truth is not a clean quote, or a critical field, the barge
+   * fee or the supplier is wrong or missing.
+   */
   unsafeAutoAccept: boolean | null;
   /** Truth extracted, pipeline anything else. */
   falseReview: boolean | null;
@@ -304,6 +318,9 @@ export function gradeCase(
       ? gradeFields(e.quote, predicted ?? toTruthSpace(EMPTY_VIEW, keys))
       : { fields: [], lines: [] };
   const criticalOff = graded.fields.some((f) => f.critical && f.verdict !== "correct");
+  const unsafeOff = graded.fields.some(
+    (f) => UNSAFE_IF_OFF.has(f.field) && f.verdict !== "correct",
+  );
   const extracted = outcome.status === "extracted";
   return {
     ...base,
@@ -313,7 +330,7 @@ export function gradeCase(
     lines: graded.lines,
     predicted,
     criticalAllCorrect: e.kind === "quote" && e.quote !== null ? !criticalOff : null,
-    unsafeAutoAccept: extracted && (e.kind !== "quote" || e.status !== "extracted" || criticalOff),
+    unsafeAutoAccept: extracted && (e.kind !== "quote" || e.status !== "extracted" || unsafeOff),
     falseReview: e.status === "extracted" && !extracted,
     reviewCheckMatched:
       e.status === "needs_review"

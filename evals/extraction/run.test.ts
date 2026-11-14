@@ -257,6 +257,26 @@ describe("runExtractionEval refusals (before any database, network or spend)", (
     expect(readLedger(ledgerPath)).toHaveLength(1);
   });
 
+  it("refuses a paid pass whose estimate exceeds the $0.25 per-pass cap, before any call (M5)", async () => {
+    // 64 dev cases plus 6 hard cases x 29 repeats: 238 case runs x $0.002 > $0.25.
+    const ledgerPath = await tempLedger(0);
+    const fetch = networkForbidden();
+    const run = runExtractionEval(
+      await base({ ids: undefined, repeatHard: 30, apiKey: "test-key", fetch, ledgerPath }),
+    );
+    await expect(run).rejects.toBeInstanceOf(BudgetError);
+    await expect(run).rejects.toThrow(/per-pass cap.*--limit/);
+    expect(fetch).not.toHaveBeenCalled();
+    expect(readLedger(ledgerPath)).toHaveLength(1);
+  });
+
+  it("allows a paid pass whose estimate is at the cap (the refusal is the estimate, not the key)", async () => {
+    // TEN_DEV is $0.02: it passes the per-pass check and stops at the missing key instead.
+    await expect(
+      runExtractionEval(await base({ ledgerPath: await tempLedger(0) })),
+    ).rejects.toThrow(/ANTHROPIC_API_KEY/);
+  });
+
   it("refuses a paid run without a key, naming the variable", async () => {
     await expect(
       runExtractionEval(await base({ ledgerPath: await tempLedger(0) })),
@@ -486,6 +506,59 @@ describe.skipIf(!sql)("extraction runner (database)", () => {
     const rows = await readFile(join(reportsDir, dir ?? "", "rows.jsonl"), "utf8");
     expect(rows.trim().split("\n")).toHaveLength(1);
     expect(readLedger(ledgerPath).at(-1)?.costUsd).toBeCloseTo(api.costPerCall, 12);
+  }, 120_000);
+
+  it("stops at the first response served by another model: the next case is not run (M4)", async () => {
+    const ids = [firstOf("eur"), firstOf("plain")];
+    const api = await oracleApi(ids, { model: "claude-sonnet-5-5" });
+    const reportsDir = await temp("reports");
+    await expect(
+      dry({
+        extractor: "llm",
+        mode: "live",
+        label: "wrong-model-stop",
+        ids,
+        apiKey: "test-key",
+        fetch: api.fetch,
+        reportsDir,
+        ledgerPath: await tempLedger(0),
+      }),
+    ).rejects.toBeInstanceOf(ModelNotAllowedError);
+    expect(api.fetch).toHaveBeenCalledTimes(1);
+    const [dir] = await readdir(reportsDir);
+    const json = JSON.parse(await readFile(join(reportsDir, dir ?? "", "scorecard.json"), "utf8"));
+    expect(json.meta.aborted).toMatch(/model guard: a response was served by claude-sonnet-5-5/);
+    expect(json.meta.notRun).toEqual([ids[1]]);
+  }, 120_000);
+
+  it("every case's stored quote is the graded view; none for other statuses (M1)", async () => {
+    const r = await dry({ label: "stored" });
+    expect(r.meta.runnerErrors).toEqual([]);
+    for (const row of r.rows) expect(row.runnerErrors, row.id).toEqual([]);
+  }, 120_000);
+
+  it("a stored quote that differs from the graded view is a runner error that fails the run (M1)", async () => {
+    // A trigger corrupts every stored quote line, so what was stored is not what is graded.
+    await db`create or replace function eval_test_corrupt_line() returns trigger as $$
+             begin new.qty_mt := new.qty_mt + 1; return new; end $$ language plpgsql`;
+    await db`create trigger eval_test_corrupt_line before insert on quote_lines
+             for each row execute function eval_test_corrupt_line()`;
+    const reportsDir = await temp("reports");
+    const extracted = SPLIT.dev.find((id) => truthOf(id).expected.status === "extracted") ?? "";
+    try {
+      await expect(dry({ label: "corrupt", ids: [extracted], reportsDir })).rejects.toThrow(
+        /1 stored quote\(s\) differ from the graded view/,
+      );
+    } finally {
+      await db`drop trigger if exists eval_test_corrupt_line on quote_lines`;
+      await db`drop function if exists eval_test_corrupt_line()`;
+    }
+    const [dir] = await readdir(reportsDir);
+    const json = JSON.parse(await readFile(join(reportsDir, dir ?? "", "scorecard.json"), "utf8"));
+    expect(json.meta.runnerErrors).toHaveLength(1);
+    expect(json.meta.runnerErrors[0]).toMatch(new RegExp(`^${extracted}: .*lines`));
+    const md = await readFile(join(reportsDir, dir ?? "", "scorecard.md"), "utf8");
+    expect(md).toContain("Runner errors");
   }, 120_000);
 
   it("a response body the spend guard cannot read fails the run and is listed", async () => {

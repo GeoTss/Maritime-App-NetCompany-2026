@@ -127,6 +127,37 @@ describe("createSpendGuard", () => {
     expect(guard.trip()).toEqual({ source: "outer", reason: "outer cap" });
     expect(inner).toHaveBeenCalledTimes(1);
   });
+  it("with allowedModel, refuses the request after a response served by another model", async () => {
+    const sonnet = JSON.stringify({
+      model: "claude-sonnet-5-5",
+      usage: { input_tokens: 10, output_tokens: 10 },
+    });
+    const inner = vi.fn<LlmFetch>(async () => new Response(sonnet));
+    const guard = createSpendGuard({ capUsd: 100, allowedModel: HAIKU });
+    const f = guard.wrap(inner, HAIKU);
+    // The response that names another model is handed back (its cost is counted) ...
+    expect((await f("http://x", {})).status).toBe(200);
+    expect(guard.spentUsd()).toBeGreaterThan(0);
+    expect(guard.trip()).toEqual({
+      source: "model",
+      reason: `model guard: a response was served by claude-sonnet-5-5, not ${HAIKU}`,
+    });
+    // ... and the next request is refused without reaching the network.
+    const next = await f("http://x", {});
+    expect(next.status).toBe(400);
+    expect(await next.text()).toMatch(/refused: model guard/);
+    expect(inner).toHaveBeenCalledTimes(1);
+    expect(guard.served).toEqual(["claude-sonnet-5-5"]);
+  });
+  it("with allowedModel, Haiku responses pass; without it, any model passes", async () => {
+    const haiku = createSpendGuard({ capUsd: 100, allowedModel: HAIKU });
+    await haiku.wrap(async () => new Response(okBody), HAIKU)("http://x", {});
+    expect(haiku.trip()).toBeNull();
+    const open = createSpendGuard({ capUsd: 100 });
+    const sonnet = JSON.stringify({ model: "claude-sonnet-5-5", usage: { input_tokens: 10 } });
+    await open.wrap(async () => new Response(sonnet), HAIKU)("http://x", {});
+    expect(open.trip()).toBeNull();
+  });
   it("records an unreadable body instead of swallowing it", async () => {
     const guard = createSpendGuard({ capUsd: 1 });
     await guard.wrap(async () => new Response("not json"), HAIKU)("http://x", {});

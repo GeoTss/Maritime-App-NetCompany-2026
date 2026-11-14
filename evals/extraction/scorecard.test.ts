@@ -378,6 +378,7 @@ const META: ScorecardMeta = {
   aborted: null,
   servedModels: ["claude-haiku-5-5"],
   spend: { guardUsd: null, dbUsd: 0.002, ledgerUsd: null, parseErrors: [] },
+  runnerErrors: [],
 };
 
 describe("renderScorecardMd", () => {
@@ -436,5 +437,15 @@ describe("renderScorecardMd", () => {
   it("shows a metric with N = 0 as not measured", () => {
     const md = renderScorecardMd(scorecard([run(notAQuote())]), meta);
     expect(md).toContain("| Critical-field accuracy | 0/0 | - | - |");
+  });
+
+  it("lists runner errors (a stored quote that is not the graded view) and says the run failed", () => {
+    const md = renderScorecardMd(scorecard([run(grade())]), {
+      ...meta,
+      runnerErrors: ["case-1: lines: stored [...], graded [...]"],
+    });
+    expect(md).toContain("**Runner errors (1)** (the run failed)");
+    expect(md).toContain("case-1: lines: stored [...], graded [...]");
+    expect(renderScorecardMd(scorecard([run(grade())]), meta)).not.toContain("Runner errors");
   });
 });

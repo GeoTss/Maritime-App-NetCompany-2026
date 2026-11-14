@@ -6,9 +6,10 @@
   **empty**; Phase 2's spend is not counted. Every live runner calls `assertBudget(estimate)` before
   its first request and `appendSpend(row)` afterwards.
 - `assertHaikuOnly(models)`: throws unless every model is exactly `claude-haiku-5-5`.
-- `createSpendGuard({ capUsd, onRequest, onCost })`: wraps an LLM transport, sums each response's
-  cost and answers the next request with a synthetic 400 once over the cap (overrun bounded to one
-  request).
+- `createSpendGuard({ capUsd, onRequest, onCost, allowedModel })`: wraps an LLM transport, sums
+  each response's cost and answers the next request with a synthetic 400 once over the cap
+  (overrun bounded to one request). With `allowedModel`, the first response served by another
+  model trips it too (`trip().source === "model"`), so the next request is refused.
 - Every function takes an optional ledger path; tests use temp files, never the real ledger.
 
 ```bash

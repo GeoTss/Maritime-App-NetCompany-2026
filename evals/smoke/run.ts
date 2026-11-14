@@ -6,8 +6,9 @@
  *   npm run eval:smoke -- [--label <name>]        (API_URL, default http://localhost:4000)
  *
  * Needs no key: the API holds it. Before it starts it checks the Phase 3 budget ledger
- * (evals/spend-ledger.jsonl) and afterwards appends its cost; any non-Haiku model in
- * /api/llm-calls fails the run. Exits 2 if the API is not in live mode, 1 on any failed
+ * (evals/spend-ledger.jsonl) and afterwards appends its cost. Before the first paid call it stops
+ * unless /api/health reports Haiku as both the extraction and the agent model; any non-Haiku
+ * model in /api/llm-calls afterwards fails the run. Exits 2 if the API is not in live mode, 1 on any failed
  * assertion (all listed), 0 on success (and touches the live-smoke marker).
  */
 import { mkdir, writeFile } from "node:fs/promises";
@@ -339,6 +340,19 @@ export async function runSmoke(opts: SmokeOptions): Promise<SmokeResult> {
       );
     }
     check(health.status === "ok", `health status is ${health.status}, expected ok`);
+    // The configured models, before anything is delivered (a delivery starts a paid extraction).
+    if (health.extractModel === null || health.agentModel === null) {
+      throw new Stop(
+        "the API does not report its configured models in /api/health (extractModel, agentModel): rebuild and restart it",
+      );
+    }
+    try {
+      assertHaikuOnly([health.extractModel, health.agentModel]);
+    } catch (err) {
+      throw new Stop(
+        `configured models (EXTRACT_MODEL ${health.extractModel}, AGENT_MODEL ${health.agentModel}): ${(err as Error).message}`,
+      );
+    }
 
     // 1. Deliver both demo emails; time deliver -> extraction leaves pending.
     for (const [i, email] of EXPECTED_EMAILS.entries()) {

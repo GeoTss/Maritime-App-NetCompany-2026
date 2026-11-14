@@ -289,10 +289,26 @@ describe("gradeCase: unsafe auto-accept, false review, review check", () => {
       { normalised: view({ deliveryTo: null }) },
       true,
     ],
+    // I6 (user decision 2026-11-14, "Count them as unsafe"): the stored barge fee and supplier
+    // decide what is paid and to whom, so either wrong or missing on an extracted case is unsafe.
+    ["a wrong barge fee extracted: unsafe", truth(), { normalised: view({ bargeFee: 1 }) }, true],
     [
-      "a wrong non-critical value extracted: safe",
+      "a missing barge fee extracted: unsafe",
       truth(),
-      { normalised: view({ bargeFee: 1 }) },
+      { normalised: view({ bargeFee: null }) },
+      true,
+    ],
+    ["a wrong supplier extracted: unsafe", truth(), { normalised: view({ supplierId: 2 }) }, true],
+    [
+      "a missing supplier extracted: unsafe",
+      truth(),
+      { normalised: view({ supplierId: null }) },
+      true,
+    ],
+    [
+      "a wrong barge fee sent to review: safe",
+      truth(),
+      { status: "needs_review", normalised: view({ bargeFee: 1 }) },
       false,
     ],
     [
@@ -317,6 +333,15 @@ describe("gradeCase: unsafe auto-accept, false review, review check", () => {
     ],
   ])("%s", (_name, t, over, unsafe) => {
     expect(gradeCase(t, outcome(over), KEYS).unsafeAutoAccept).toBe(unsafe);
+  });
+
+  it("a wrong barge fee or supplier is unsafe but leaves critical-field accuracy alone", () => {
+    for (const over of [{ bargeFee: 1 }, { supplierId: 2 }, { supplierId: null }]) {
+      const g = gradeCase(truth(), outcome({ normalised: view(over) }), KEYS);
+      expect(g.unsafeAutoAccept, JSON.stringify(over)).toBe(true);
+      expect(g.criticalAllCorrect, JSON.stringify(over)).toBe(true);
+      expect(g.fields.filter((f) => f.verdict !== "correct").every((f) => !f.critical)).toBe(true);
+    }
   });
 
   it("false review: truth extracted, pipeline did anything else", () => {

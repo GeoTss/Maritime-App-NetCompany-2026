@@ -12,5 +12,8 @@ export const HealthResponse = z.object({
   status: z.enum(["ok", "degraded"]),
   llmMode: LlmMode,
   db: z.enum(["up", "down"]),
+  /** The configured model per prompt (EXTRACT_MODEL / AGENT_MODEL); null when the app has none. */
+  extractModel: z.string().nullable(),
+  agentModel: z.string().nullable(),
 });
 export type HealthResponse = z.infer<typeof HealthResponse>;

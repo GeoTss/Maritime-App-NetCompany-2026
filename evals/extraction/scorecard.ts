@@ -359,6 +359,12 @@ export interface ScorecardMeta {
     ledgerUsd: number | null;
     parseErrors: string[];
   };
+  /**
+   * Runner errors, "<case id>: <what>": a case whose stored quote is not the graded view (an
+   * `extracted` case without exactly one stored quote equal to it, or a quote stored for any
+   * other status). Any one fails the run.
+   */
+  runnerErrors: string[];
 }
 
 const pct = (x: number) => (x * 100).toFixed(1);
@@ -402,6 +408,11 @@ export function renderScorecardMd(card: Scorecard, meta: ScorecardMeta): string 
   if (meta.spend.parseErrors.length > 0) {
     out.push(
       `- **Spend guard could not read ${meta.spend.parseErrors.length} response bodies** (their cost is not counted; the run failed): ${meta.spend.parseErrors.join("; ")}`,
+    );
+  }
+  if (meta.runnerErrors.length > 0) {
+    out.push(
+      `- **Runner errors (${meta.runnerErrors.length})** (the run failed): ${meta.runnerErrors.map(cell).join("; ")}`,
     );
   }
   if (meta.aborted) {

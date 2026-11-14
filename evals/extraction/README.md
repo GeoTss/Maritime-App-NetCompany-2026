@@ -40,9 +40,18 @@ The runner refuses:
   replay needs. Use `--mode live` to measure variance.
 - `--oracle` or `--empty` with `--mode live|record` (they make no calls), both together, unknown
   flags, and a second run on the same database while one is running (advisory lock).
+- A live or record pass whose estimate (case runs × $0.002, repeats included) is over the $0.25
+  per-pass cap, before any call. Narrow it with `--limit`.
 
 The exit code is 1 when the run stopped at the spend cap, failed (a non-Haiku model, an unreadable
-response body), or was a replay run with misses. After Ctrl-C (SIGINT) or SIGTERM it is 130.
+response body, a runner error), or was a replay run with misses. After Ctrl-C (SIGINT) or SIGTERM
+it is 130.
+
+**Runner errors.** After each case the runner reads back what `processDocument` stored. An
+`extracted` case must have exactly one stored quote, of its extraction, whose supplier, port,
+currency, dates, barge fee and lines equal the normalised view that is graded; any other status
+must have no quote. Each disagreement is listed in `meta.runnerErrors` and the scorecard, and
+fails the run after the report is written.
 
 ## Modes and extractors
 
@@ -124,7 +133,7 @@ Each headline is k/N with a 95 % Wilson interval. It uses the **first run** of e
 | --- | --- |
 | Critical-field accuracy | correct / all critical-field instances over truth-quote cases. Instances: per line, price, quantity and grade; per quote, currency, port, vessel, validUntil, deliveryFrom and deliveryTo (`CRITICAL_FIELDS`) |
 | Per-field accuracy | correct / instances of that field, with wrong and missing counts |
-| Unsafe auto-accepts | cases stored as `extracted` while the truth is not a quote, or the truth status is not `extracted`, or any critical field is wrong or missing / all graded cases |
+| Unsafe auto-accepts | cases stored as `extracted` while the truth is not a quote, or the truth status is not `extracted`, or any critical field, the barge fee or the supplier is wrong or missing / all graded cases. The barge fee and supplier count here (they decide what is paid and to whom) but not in critical-field accuracy (user decision 2026-11-14) |
 | Quote precision / recall | predicted kind `quote` and truth `quote` / predicted `quote` (precision) or truth `quote` (recall). The predicted kind is `extractions.kind`; a failed case with no output counts as neither |
 | Not-a-quote precision / recall | the same for `not_a_quote` |
 | Review-queue rate | status `needs_review` or `failed` (what the review queue lists) / graded cases |
@@ -152,12 +161,15 @@ check matched over every graded run of the repeated cases.
 
 Live and record only (replay, `--oracle` and `--empty` spend nothing and write no ledger row):
 
-1. Before the first call: `assertHaikuOnly([configured model])`, then
-   `assertBudget(case runs × $0.002)` against `evals/spend-ledger.jsonl`. The run refuses to
-   start if the ledger total plus the estimate would pass $3.00.
+1. Before the first call: `assertHaikuOnly([configured model])`; the estimate (case runs ×
+   $0.002) must be at most the $0.25 per-pass cap; then `assertBudget(estimate)` against
+   `evals/spend-ledger.jsonl`. The run refuses to start if the ledger total plus the estimate
+   would pass $3.00.
 2. During the run, a per-request guard is capped at min($0.25, $3.00 − the ledger total). Once it
    is over, the runner starts no further case. The report names the cases not run, and the exit
-   code is 1. Overrun is bounded to one request.
+   code is 1. Overrun is bounded to one request. The guard also stops the run at the first
+   response served by a model other than `claude-haiku-5-5`: it refuses the next request, the
+   runner starts no further case (`aborted` names the model), and step 3 fails the run.
 3. After the run: every served model (the response's `model` at the transport, or the recording's
    in replay) and every `llm_calls.model` must be `claude-haiku-5-5`. Otherwise the run fails, after
    the report is written.

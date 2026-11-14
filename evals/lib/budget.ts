@@ -1,6 +1,7 @@
 /**
  * Phase 3 eval spend controls: the ledger of live LLM spend, the $3 budget check, the Haiku-only
- * model guard and the per-request spend guard that wraps an LLM transport.
+ * model guard and the per-request spend guard that wraps an LLM transport (and, given an allowed
+ * model, refuses every request after a response served by another).
  *
  * The ledger is `evals/spend-ledger.jsonl`, one JSON row per live run, committed empty. Every
  * function takes an optional path so tests use temp files and never touch the real ledger.
@@ -95,7 +96,14 @@ export interface SpendGuardOptions {
   onRequest?: () => string | null;
   /** Called with each response's cost (lets an outer guard add it to its own sum). */
   onCost?: (usd: number) => void;
+  /**
+   * The only model a response may name. The first response served by another trips the guard
+   * (source "model"), so the next request is refused; that response is still returned and costed.
+   */
+  allowedModel?: string;
 }
+
+export type GuardTrip = { source: "own" | "outer" | "model"; reason: string };
 
 export interface SpendGuard {
   /** Wraps a transport; costs are priced for `model`. */
@@ -103,8 +111,11 @@ export interface SpendGuard {
   spentUsd(): number;
   /** The block reason if the sum is over the cap right now, else null. */
   overCap(): string | null;
-  /** The first cap crossed, sticky; `source` is "own" for this cap and "outer" for onRequest. */
-  trip(): { source: "own" | "outer"; reason: string } | null;
+  /**
+   * The first stop, sticky: "own" for this cap, "outer" for onRequest, "model" for a response
+   * served by a model other than `allowedModel`.
+   */
+  trip(): GuardTrip | null;
   /** Models the responses named, unreadable-body notes, and the reason for each blocked request. */
   served: string[];
   parseErrors: string[];
@@ -113,13 +124,14 @@ export interface SpendGuard {
 
 /**
  * Per-request spend guard. Sums each response's cost from its `usage` and, once the sum is over
- * the cap, answers the next request with a synthetic 400 (the SDK does not retry a 400) without
- * calling the inner fetch, so overrun is bounded to one in-flight request.
+ * the cap (or a response named a model other than `allowedModel`), answers the next request with
+ * a synthetic 400 (the SDK does not retry a 400) without calling the inner fetch, so overrun is
+ * bounded to one in-flight request.
  */
 export function createSpendGuard(opts: SpendGuardOptions): SpendGuard {
   const label = opts.label ?? "run";
   let spent = 0;
-  let tripped: { source: "own" | "outer"; reason: string } | null = null;
+  let tripped: GuardTrip | null = null;
   const served: string[] = [];
   const parseErrors: string[] = [];
   const blocked: string[] = [];
@@ -152,7 +164,10 @@ export function createSpendGuard(opts: SpendGuardOptions): SpendGuard {
             type: "error",
             error: {
               type: "invalid_request_error",
-              message: `spend cap reached: ${tripped.reason}`,
+              message:
+                tripped.source === "model"
+                  ? `refused: ${tripped.reason}`
+                  : `spend cap reached: ${tripped.reason}`,
             },
           }),
           { status: 400, headers: { "content-type": "application/json" } },
@@ -171,7 +186,15 @@ export function createSpendGuard(opts: SpendGuardOptions): SpendGuard {
         return response;
       }
       const b = json.value as { model?: unknown; usage?: LlmUsage } | null;
-      if (typeof b?.model === "string") served.push(b.model);
+      if (typeof b?.model === "string") {
+        served.push(b.model);
+        if (opts.allowedModel !== undefined && b.model !== opts.allowedModel && tripped === null) {
+          tripped = {
+            source: "model",
+            reason: `model guard: a response was served by ${b.model}, not ${opts.allowedModel}`,
+          };
+        }
+      }
       if (b?.usage) {
         const c = costUsd(model, b.usage, promptTokensOf(b.usage));
         spent += c;
