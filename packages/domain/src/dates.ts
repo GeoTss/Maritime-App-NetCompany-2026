@@ -56,36 +56,58 @@ function dayMs(y: number, m: number, d: number): number | null {
 const refDayMs = (reference: Date): number =>
   Date.UTC(reference.getUTCFullYear(), reference.getUTCMonth(), reference.getUTCDate());
 
+/** Two-digit years are 20xx; an explicit 4-digit year must be 2000-2099 (else it is a time or typo). */
+const YEAR_PATTERN = "(20\\d{2}|\\d{2})";
 const fullYear = (raw: string): number => (raw.length === 2 ? 2000 + Number(raw) : Number(raw));
 
 const fold = (raw: string): string => raw.trim().toLowerCase().replace(/\s+/g, " ");
 
 const WEEKDAY_PREFIX = /^(?:mon|tue|wed|thu|fri|sat|sun)[a-z]*\.?,?\s+/;
+const ZONE_ONLY_SUFFIX = /[\s,]+(?:lt|lmt|utc|gmt|z)$/;
 // A trailing time, with or without a zone: "12:00", "12:00 utc", "noon lt". A bare "1200" needs a zone word.
 const TIME_SUFFIX =
   /[\s,]+(?:at\s+)?(?:(?:noon|\d{1,2}:\d{2}(?::\d{2})?)(?:\s*(?:lt|lmt|utc|gmt|z))?|\d{3,4}\s*(?:lt|lmt|utc|gmt|z))$/;
 
-/** Split an as-written date into day, optional month and optional explicit year. */
+/**
+ * Split an as-written date into day, optional month and optional explicit year. A bare zone word
+ * is stripped first so "15 Nov 2027 UTC" keeps its year; only if that fails is a time stripped.
+ */
 function parseParts(raw: string, allowBareDay: boolean): Parts | null {
-  let s = fold(raw);
-  s = s.replace(WEEKDAY_PREFIX, "").replace(TIME_SUFFIX, "").trim();
+  const s = fold(raw).replace(WEEKDAY_PREFIX, "").trim();
+  const candidates = [s.replace(ZONE_ONLY_SUFFIX, ""), s.replace(TIME_SUFFIX, "")];
+  for (const c of candidates) {
+    const p = parseCleanParts(c.trim(), allowBareDay);
+    if (p !== null) return p;
+  }
+  return null;
+}
+
+function parseCleanParts(s: string, allowBareDay: boolean): Parts | null {
   if (s === "") return null;
 
-  let m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(s);
+  let m = /^(20\d{2})-(\d{1,2})-(\d{1,2})$/.exec(s);
   if (m) return { y: Number(m[1]), m: Number(m[2]), d: Number(m[3]) };
 
-  // Numeric dates are day/month (maritime convention).
-  m = /^(\d{1,2})[/.-](\d{1,2})(?:[/.-](\d{4}|\d{2}))?$/.exec(s);
-  if (m) return { d: Number(m[1]), m: Number(m[2]), y: m[3] ? fullYear(m[3]) : null };
+  // Numeric dates are day/month (maritime convention), one separator style throughout.
+  // "-" with a two-digit year is refused: "5-6/11" and "7-8-11" are day spans, not DD-MM-YY.
+  m = new RegExp(`^(\\d{1,2})([/.-])(\\d{1,2})(?:\\2${YEAR_PATTERN})?$`).exec(s);
+  if (m) {
+    if (m[2] === "-" && m[4] !== undefined && m[4].length === 2) return null;
+    return { d: Number(m[1]), m: Number(m[3]), y: m[4] ? fullYear(m[4]) : null };
+  }
 
-  m = /^(\d{1,2})(?:st|nd|rd|th)?[\s-]*([a-z]{3,9})\.?(?:,?\s*(\d{4}|\d{2}))?$/.exec(s);
+  m = new RegExp(
+    `^(\\d{1,2})(?:st|nd|rd|th)?[\\s-]*([a-z]{3,9})\\.?(?:,?\\s*${YEAR_PATTERN})?$`,
+  ).exec(s);
   if (m) {
     const month = MONTHS[m[2] as string];
     if (month === undefined) return null;
     return { d: Number(m[1]), m: month, y: m[3] ? fullYear(m[3]) : null };
   }
 
-  m = /^([a-z]{3,9})\.?\s*(\d{1,2})(?:st|nd|rd|th)?(?:,?\s*(\d{4}|\d{2}))?$/.exec(s);
+  m = new RegExp(`^([a-z]{3,9})\\.?\\s*(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s*${YEAR_PATTERN})?$`).exec(
+    s,
+  );
   if (m) {
     const month = MONTHS[m[1] as string];
     if (month === undefined) return null;
@@ -131,8 +153,14 @@ const RANGE_SEPARATOR = /\s*(?:-|–|—|\bto\b|\buntil\b)\s*/g;
 function parseRange(s: string, reference: Date): { from: number; to: number } | null {
   for (const sep of s.matchAll(RANGE_SEPARATOR)) {
     const left = parseParts(s.slice(0, sep.index), true);
-    const right = parseParts(s.slice(sep.index + sep[0].length), false);
-    if (left === null || right === null || right.m === null) continue;
+    let right = parseParts(s.slice(sep.index + sep[0].length), true);
+    if (left === null || right === null) continue;
+    // "18/11-19": a bare day on the right takes its month and year from the left.
+    if (right.m === null) {
+      if (left.m === null) continue;
+      right = { d: right.d, m: left.m, y: left.y };
+    }
+    if (right.m === null) continue;
 
     const to = resolveParts(right, reference);
     if (to === null) continue;
