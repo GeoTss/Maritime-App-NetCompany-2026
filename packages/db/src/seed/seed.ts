@@ -8,7 +8,10 @@ import { generateWorld } from "./world.js";
 export interface SeedOptions {
   seed: number;
   anchor: Date;
-  /** `reset` wipes every table and reseeds; `if-empty` seeds only when no world is stored. */
+  /**
+   * `reset` wipes every table and reseeds; `if-empty` seeds only when no world is stored and every
+   * table is empty (it throws rather than delete existing rows).
+   */
   mode: "reset" | "if-empty";
 }
 
@@ -41,6 +44,17 @@ function worldInserts(world: ReturnType<typeof generateWorld>): [PgTable, object
   ];
 }
 
+/** Name of the first table (other than world_meta) that holds any row, or null. */
+async function firstNonEmptyTable(sql: Sql): Promise<string | null> {
+  for (const table of ALL_TABLES) {
+    const name = getTableName(table);
+    if (name === getTableName(schema.worldMeta)) continue;
+    const rows = await sql.unsafe(`SELECT 1 FROM "${name}" LIMIT 1`);
+    if (rows.length > 0) return name;
+  }
+  return null;
+}
+
 /**
  * Seed the deterministic synthetic world in one transaction. After inserting rows with explicit
  * ids, every identity sequence is advanced to max(id) so later inserts continue after the seed.
@@ -54,6 +68,15 @@ export async function seedDatabase(
   if (opts.mode === "if-empty") {
     const [existing] = await db.select().from(schema.worldMeta);
     if (existing) return { seeded: false, anchor: existing.anchor };
+    // No world is recorded, but rows may still exist (e.g. world_meta was cleared by hand).
+    // if-empty never deletes data: refuse rather than truncate.
+    const occupied = await firstNonEmptyTable(sql);
+    if (occupied) {
+      throw new Error(
+        `seed if-empty: world_meta is empty but table "${occupied}" has rows; refusing to wipe data. ` +
+          "Set SEED_ON_BOOT=reset (or run npm run db:seed) to wipe and reseed.",
+      );
+    }
   }
 
   const world = generateWorld({ seed: opts.seed, anchor: opts.anchor });

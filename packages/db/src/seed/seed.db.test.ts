@@ -1,6 +1,6 @@
 import { NoonReport, Port, Vessel, Voyage } from "@pharos/shared";
-import { getTableName } from "drizzle-orm";
-import type { PgTable } from "drizzle-orm/pg-core";
+import { getTableName, is } from "drizzle-orm";
+import { PgTable } from "drizzle-orm/pg-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDb } from "../client.js";
 import { runMigrations } from "../migrate.js";
@@ -124,5 +124,30 @@ describe.skipIf(!sql)("seedDatabase (Postgres)", () => {
     expect(result.seeded).toBe(false);
     expect(result.anchor.getTime()).toBe(ANCHOR.getTime());
     expect(await count(schema.documents)).toBe(1);
+  });
+
+  it("if-empty refuses to wipe data when world_meta is missing", async () => {
+    await db.delete(schema.worldMeta);
+    const quotes = await count(schema.quotes);
+    const documents = await count(schema.documents);
+    expect(quotes).toBeGreaterThan(0);
+    await expect(
+      seedDatabase(sql, { seed: SEED, anchor: ANCHOR, mode: "if-empty" }),
+    ).rejects.toThrow(/SEED_ON_BOOT=reset/);
+    expect(await count(schema.quotes)).toBe(quotes);
+    expect(await count(schema.documents)).toBe(documents);
+    expect(await count(schema.worldMeta)).toBe(0);
+  });
+
+  it("if-empty seeds a truly empty database", async () => {
+    const names = Object.values<unknown>(schema)
+      .filter((t): t is PgTable => is(t, PgTable))
+      .map((t) => `"${getTableName(t)}"`)
+      .join(", ");
+    await sql.unsafe(`TRUNCATE TABLE ${names} RESTART IDENTITY CASCADE`);
+    const result = await seedDatabase(sql, { seed: SEED, anchor: ANCHOR, mode: "if-empty" });
+    expect(result.seeded).toBe(true);
+    expect(await count(schema.quotes)).toBe(world.quotes.length);
+    expect(await count(schema.worldMeta)).toBe(1);
   });
 });

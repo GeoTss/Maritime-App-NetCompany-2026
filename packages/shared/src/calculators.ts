@@ -118,7 +118,11 @@ export const BunkerPlanInput = z
         year: z.number().int(),
       })
       .strict(),
-    options: z.array(BunkerOptionInput),
+    options: z
+      .array(BunkerOptionInput)
+      .refine((opts) => new Set(opts.map((o) => o.optionId)).size === opts.length, {
+        message: "duplicate optionId in options",
+      }),
   })
   .strict();
 export type BunkerPlanInput = z.infer<typeof BunkerPlanInput>;

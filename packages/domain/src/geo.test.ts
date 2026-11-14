@@ -1,6 +1,6 @@
 import type { LatLon } from "@pharos/shared";
 import { describe, expect, it } from "vitest";
-import { etaAfter, greatCircleNm, pointAlongPolyline, polylineNm } from "./geo.js";
+import { bearingDeg, etaAfter, greatCircleNm, pointAlongPolyline, polylineNm } from "./geo.js";
 
 describe("greatCircleNm", () => {
   it("1 degree of latitude along a meridian = 2*pi*3440.065/360 = 60.0405 nm", () => {
@@ -67,10 +67,30 @@ describe("etaAfter", () => {
     expect(() => etaAfter(s, 300, -1)).toThrow(RangeError);
     expect(() => etaAfter(s, -1, 10)).toThrow(RangeError);
   });
+  it("rounds to the nearest millisecond (1 nm at 7 kn = 514 285.714 ms -> 514 286)", () => {
+    const s = new Date("2026-11-14T00:00:00Z");
+    expect(etaAfter(s, 1, 7).getTime() - s.getTime()).toBe(514_286);
+  });
   it("rejects an invalid start date or non-finite distance", () => {
     const s = new Date("2026-11-14T00:00:00Z");
     expect(() => etaAfter(new Date(Number.NaN), 300, 10)).toThrow(RangeError);
     expect(() => etaAfter(s, Number.POSITIVE_INFINITY, 10)).toThrow(RangeError);
     expect(() => etaAfter(s, Number.NaN, 10)).toThrow(RangeError);
+  });
+});
+
+describe("bearingDeg", () => {
+  const o = { lat: 0, lon: 0 };
+  it("north, east, south and west from the origin are 0, 90, 180 and 270", () => {
+    expect(bearingDeg(o, { lat: 1, lon: 0 })).toBeCloseTo(0, 9);
+    expect(bearingDeg(o, { lat: 0, lon: 1 })).toBeCloseTo(90, 9);
+    expect(bearingDeg(o, { lat: -1, lon: 0 })).toBeCloseTo(180, 9);
+    expect(bearingDeg(o, { lat: 0, lon: -1 })).toBeCloseTo(270, 9);
+  });
+  it("is always in [0, 360)", () => {
+    const b = bearingDeg({ lat: 10, lon: 10 }, { lat: 9, lon: 9 });
+    expect(b).toBeGreaterThanOrEqual(0);
+    expect(b).toBeLessThan(360);
+    expect(b).toBeGreaterThan(180);
   });
 });

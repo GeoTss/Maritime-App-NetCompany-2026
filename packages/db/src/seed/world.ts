@@ -3,7 +3,20 @@
  * byte-identical JSON.stringify; every timestamp is anchor ± an integer number of ms.
  * Routes come from the committed routes.generated.json, never from the library at runtime.
  */
-import { etsCoverage, polylineNm } from "@pharos/domain";
+import {
+  bearingDeg,
+  cumulativeNm,
+  etaAfter,
+  etsCoverage,
+  fuelBetween,
+  imoWithCheckDigit,
+  legsForRoute,
+  polylineNm,
+  positionAt,
+  sailedNmAt,
+  totalNm,
+  type VoyagePath,
+} from "@pharos/domain";
 import type {
   FuelGrade,
   NoonReport,
@@ -16,18 +29,8 @@ import type {
 } from "@pharos/shared";
 import { createPrng } from "./prng.js";
 import routesJson from "./routes.generated.json" with { type: "json" };
-import { imoWithCheckDigit, PORTS, SEED_VERSION, VESSELS } from "./scenario.js";
+import { PORTS, SEED_VERSION, VESSELS } from "./scenario.js";
 import { RoutesFile, type World } from "./types.js";
-import {
-  bearingDeg,
-  cumulativeNm,
-  fuelBetween,
-  legsForRoute,
-  positionAt,
-  sailedNmAt,
-  totalNm,
-  type VoyagePath,
-} from "./voyage-path.js";
 import { buildCommercial } from "./world-commercial.js";
 
 export const ROUTES: RoutesFile = RoutesFile.parse(routesJson);
@@ -149,8 +152,8 @@ function buildFleet(anchor: Date, ports: Port[], legs: RouteLeg[]): Fleet {
         seq === 0
           ? departAt
           : at > sailedNow
-            ? atOffset(anchor, ((at - sailedNow) / voyage.plannedSpeedKn) * HOUR_MS)
-            : atOffset(departAt, (at / voyage.plannedSpeedKn) * HOUR_MS);
+            ? etaAfter(anchor, at - sailedNow, voyage.plannedSpeedKn)
+            : etaAfter(departAt, at, voyage.plannedSpeedKn);
       const last = seq === route.length - 1;
       out.portCalls.push({
         id: out.portCalls.length + 1,

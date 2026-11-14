@@ -5,7 +5,14 @@
  */
 
 import { buildDemoBunkerPlanInput, DEMO_SCENARIO, generateWorld, type World } from "@pharos/db";
-import { planBunkers, projectFuelOnBoard } from "@pharos/domain";
+import {
+  legsForRoute,
+  planBunkers,
+  projectFuelOnBoard,
+  remainingFobLegs,
+  sailedNmAt,
+  type VoyagePath,
+} from "@pharos/domain";
 import type {
   Fact,
   FobLeg,
@@ -14,6 +21,7 @@ import type {
   InboxItemDetail,
   QuoteView,
   RecommendationView,
+  Vessel,
   VesselDetail,
   VesselSummary,
   Voyage,
@@ -41,33 +49,22 @@ const num = (n: number): string => n.toLocaleString("en-US", { maximumFractionDi
 
 // ---------- vessels & voyages ----------
 
-function voyageLegs(world: World, voyage: Voyage) {
-  return voyage.plannedRoute.slice(1).map((to, i) => {
-    const from = voyage.plannedRoute[i];
-    return must(
-      world.routeLegs.find((l) => l.fromPortId === from && l.toPortId === to),
-      `route leg ${from}->${to}`,
-    );
-  });
-}
-
 /** Legs still to sail at the latest noon report (same rule the seed uses to place the vessel). */
-function remainingLegs(world: World, voyage: Voyage, reportTs: Date): FobLeg[] {
-  const legs = voyageLegs(world, voyage);
-  const totalNm = legs.reduce((s, l) => s + l.distanceNm, 0);
-  const departAt = voyage.departedAt ?? world.meta.anchor;
-  const hours = (reportTs.getTime() - departAt.getTime()) / HOUR_MS;
-  const sailedNm = Math.min(totalNm, Math.max(0, hours * voyage.plannedSpeedKn));
-  const out: FobLeg[] = [];
-  let start = 0;
-  for (const leg of legs) {
-    const end = start + leg.distanceNm;
-    if (end > sailedNm) {
-      out.push({ distanceNm: end - Math.max(start, sailedNm), grade: leg.requiredGrade });
-    }
-    start = end;
-  }
-  return out;
+function remainingLegs(world: World, vessel: Vessel, voyage: Voyage, reportTs: Date): FobLeg[] {
+  const port = (id: number) =>
+    must(
+      world.ports.find((p) => p.id === id),
+      `port ${id}`,
+    );
+  const path: VoyagePath = {
+    voyage,
+    legs: legsForRoute(voyage.plannedRoute, world.routeLegs),
+    origin: port(voyage.originPortId),
+    destination: port(voyage.destinationPortId),
+    curve: vessel.consumptionCurve,
+    departAt: voyage.departedAt ?? world.meta.anchor,
+  };
+  return remainingFobLegs(path, sailedNmAt(path, reportTs));
 }
 
 function buildVessels(world: World) {
@@ -91,7 +88,7 @@ function buildVessels(world: World) {
     const fob: FobProjection | null = voyage
       ? projectFuelOnBoard({
           robMt: report.robMt,
-          legs: remainingLegs(world, voyage, report.ts),
+          legs: remainingLegs(world, vessel, voyage, report.ts),
           speedKn: voyage.plannedSpeedKn,
           curve: vessel.consumptionCurve,
           safetyMarginDays: SAFETY_MARGIN_DAYS,
@@ -163,7 +160,7 @@ function buildVoyages(world: World) {
         berthWindowStart: c.berthWindowStart?.toISOString() ?? null,
         berthWindowEnd: c.berthWindowEnd?.toISOString() ?? null,
       })),
-      legs: voyageLegs(world, voyage).map((l) => ({
+      legs: legsForRoute(voyage.plannedRoute, world.routeLegs).map((l) => ({
         fromPortId: l.fromPortId,
         toPortId: l.toPortId,
         distanceNm: l.distanceNm,
@@ -270,10 +267,11 @@ function buildDemoEmails(world: World): DemoEmail[] {
   ].join("\n");
 
   // 2. HTML table, EUR, quantity written as a range: Nordwind, Algeciras.
-  const nor = option("nordwind");
-  const norSup = supplierOf("nordwind");
+  const nor = option(DEMO_SCENARIO.needsReview.supplierKey);
+  const norSup = supplierOf(DEMO_SCENARIO.needsReview.supplierKey);
   const norPort = portNameOf(nor.portLocode);
-  const ambiguousQty = `${num(nor.qtyMt)}/${num(nor.qtyMt + 50)} mt`;
+  // Written exactly as the scenario says; the quantity itself stays unresolved (null) until review.
+  const ambiguousQty = DEMO_SCENARIO.needsReview.qtyAsWritten;
   const norParts: Parts = {
     supplierLine: norSup.name,
     vesselLine,
@@ -461,7 +459,8 @@ function buildQuotes(world: World): QuoteView[] {
     lines: [
       {
         grade: DEMO_SCENARIO.requirement.grade,
-        qtyMt: e.option.qtyMt,
+        // A needs-review quote shows no quantity: the supplier's text is ambiguous.
+        qtyMt: e.ambiguousQuantity ? null : e.option.qtyMt,
         pricePerMt: e.option.pricePerMt,
       },
     ],

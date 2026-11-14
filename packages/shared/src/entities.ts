@@ -200,6 +200,7 @@ export const QuoteLine = z.object({
   id: Id,
   quoteId: Id,
   grade: FuelGrade,
+  /** Always resolved: a quote line is stored only once its quantity is unambiguous. */
   qtyMt: z.number().positive(),
   pricePerMt: z.number().positive(),
 });

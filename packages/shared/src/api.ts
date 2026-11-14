@@ -94,6 +94,7 @@ export const InboxExtractionStatus = z.enum([
   "pending",
   "extracted",
   "needs_review",
+  "accepted",
   "not_a_quote",
   "failed",
 ]);
@@ -125,7 +126,8 @@ export const QuoteView = z.object({
   lines: z.array(
     z.object({
       grade: FuelGrade,
-      qtyMt: z.number().positive(),
+      /** Null while the quote needs review and the written quantity is ambiguous. */
+      qtyMt: z.number().positive().nullable(),
       pricePerMt: z.number().positive(),
     }),
   ),

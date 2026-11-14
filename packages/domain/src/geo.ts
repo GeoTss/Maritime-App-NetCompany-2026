@@ -50,7 +50,18 @@ export function pointAlongPolyline(points: LatLon[], nm: number): LatLon {
   return { lat: last.lat, lon: last.lon };
 }
 
-/** Arrival time after steaming `distanceNm` at `speedKn` from `start`. */
+/** Initial great-circle bearing a -> b, degrees in [0, 360). */
+export function bearingDeg(a: LatLon, b: LatLon): number {
+  const rad = Math.PI / 180;
+  const y = Math.sin((b.lon - a.lon) * rad) * Math.cos(b.lat * rad);
+  const x =
+    Math.cos(a.lat * rad) * Math.sin(b.lat * rad) -
+    Math.sin(a.lat * rad) * Math.cos(b.lat * rad) * Math.cos((b.lon - a.lon) * rad);
+  const deg = Math.atan2(y, x) / rad;
+  return (deg + 360) % 360;
+}
+
+/** Arrival time after steaming `distanceNm` at `speedKn` from `start`, to the nearest millisecond. */
 export function etaAfter(start: Date, distanceNm: number, speedKn: number): Date {
   if (!(speedKn > 0)) throw new RangeError("speedKn must be > 0");
   if (!(distanceNm >= 0) || !Number.isFinite(distanceNm)) {
@@ -58,5 +69,5 @@ export function etaAfter(start: Date, distanceNm: number, speedKn: number): Date
   }
   if (Number.isNaN(start.getTime())) throw new RangeError("start must be a valid Date");
   const ms = (distanceNm / speedKn) * 3_600_000;
-  return new Date(start.getTime() + ms);
+  return new Date(start.getTime() + Math.round(ms));
 }

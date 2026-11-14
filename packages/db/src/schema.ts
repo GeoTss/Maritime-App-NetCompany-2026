@@ -323,7 +323,10 @@ export const purchaseOrders = pgTable(
     idempotencyKey: text().notNull(),
     createdAt: ts().notNull(),
   },
-  (t) => [uniqueIndex("purchase_orders_quote_id_uq").on(t.quoteId)],
+  (t) => [
+    uniqueIndex("purchase_orders_quote_id_uq").on(t.quoteId),
+    uniqueIndex("purchase_orders_idempotency_key_uq").on(t.idempotencyKey),
+  ],
 );
 
 export const orderLines = pgTable("order_lines", {

@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { etaAfter, etsCoverage, planBunkers, polylineNm } from "@pharos/domain";
+import { etaAfter, etsCoverage, isValidImo, planBunkers, polylineNm } from "@pharos/domain";
 import { describe, expect, it } from "vitest";
 import { buildRoutes, ROUTES_FILE, serializeRoutes } from "./build-routes.js";
 import { buildDemoBunkerPlanInput, demoVoyageState, projectDemo } from "./demo-plan.js";
@@ -116,6 +116,7 @@ describe("synthetic world", () => {
       // e.g. 948001: 9×7 + 4×6 + 8×5 + 0×4 + 0×3 + 1×2 = 63+24+40+0+0+2 = 129 → check digit 9
       const sum = d.slice(0, 6).reduce((s, x, i) => s + x * (7 - i), 0);
       expect(sum % 10).toBe(d[6]);
+      expect(isValidImo(v.imo)).toBe(true);
     }
     expect(world.vessels[0]?.imo).toBe("9480019");
   });

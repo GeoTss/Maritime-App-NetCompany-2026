@@ -6,10 +6,14 @@ export const DATA_SOURCE_HEADER = "x-pharos-data";
 
 const notFound = { error: "not_found" } as const;
 
-/** Positive integer ids only; anything else is treated as unknown. */
+/** Largest value of a Postgres `integer` id column. */
+const MAX_ID = 2_147_483_647;
+
+/** Positive integer ids that fit a Postgres integer only; anything else is treated as unknown. */
 function parseId(raw: string): number | null {
   if (!/^[1-9]\d{0,9}$/.test(raw)) return null;
-  return Number(raw);
+  const id = Number(raw);
+  return id <= MAX_ID ? id : null;
 }
 
 export function createReadRoutes(read: ReadSource, dataTag = "fixture") {

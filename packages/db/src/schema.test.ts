@@ -1,6 +1,6 @@
 import * as shared from "@pharos/shared";
 import { getTableColumns, getTableName } from "drizzle-orm";
-import type { PgTable } from "drizzle-orm/pg-core";
+import { getTableConfig, type PgTable } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
 import * as schema from "./schema.js";
 
@@ -43,6 +43,16 @@ describe("drizzle schema mirrors the shared entities", () => {
     const names = [...pairs.map(([, , t]) => getTableName(t)), getTableName(schema.worldMeta)];
     expect(new Set(names).size).toBe(26);
     expect(names).toContain("world_meta");
+  });
+
+  it("purchase_orders has a unique index on idempotency_key", () => {
+    const idx = getTableConfig(schema.purchaseOrders).indexes.find(
+      (i) => i.config.name === "purchase_orders_idempotency_key_uq",
+    );
+    expect(idx?.config.unique).toBe(true);
+    expect(idx?.config.columns).toHaveLength(1);
+    const col = idx?.config.columns[0];
+    expect(col && "name" in col ? col.name : null).toBe(schema.purchaseOrders.idempotencyKey.name);
   });
 
   it("world_meta carries the seed bookkeeping columns", () => {

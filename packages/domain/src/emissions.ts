@@ -1,13 +1,11 @@
 import type {
-  CiiInput,
   CiiRatingLetter,
   CiiResult,
-  EtsCostInput,
   EtsCostResult,
   EtsCoverageFactor,
   GradeAmounts,
 } from "@pharos/shared";
-import { FUEL_GRADES } from "@pharos/shared";
+import { CiiInput, EtsCostInput, FUEL_GRADES } from "@pharos/shared";
 import {
   CII_BULK_CARRIER_REFERENCE_DWT_CAP,
   CII_RATING_BOUNDARIES,
@@ -37,7 +35,8 @@ export function etsPhaseIn(year: number): number {
   return ETS_PHASE_IN[year] ?? 1;
 }
 
-export function etsCost(input: EtsCostInput): EtsCostResult {
+export function etsCost(rawInput: EtsCostInput): EtsCostResult {
+  const input = EtsCostInput.parse(rawInput);
   const phaseIn = etsPhaseIn(input.year);
   const coveredCo2T = input.co2T * input.coverage * phaseIn;
   const costEur = coveredCo2T * input.euaPriceEur;
@@ -56,8 +55,8 @@ function reductionZPercent(year: number): number {
  * Operational CII rating. attained = CO2 (g) / (DWT × nm); the reference line uses
  * capacity = DWT (bulk carriers capped at 279 000), attained always uses actual DWT.
  */
-export function ciiRating(input: CiiInput): CiiResult {
-  const { shipType, dwt, co2T, distanceNm, year } = input;
+export function ciiRating(rawInput: CiiInput): CiiResult {
+  const { shipType, dwt, co2T, distanceNm, year } = CiiInput.parse(rawInput);
   if (!(dwt > 0)) throw new RangeError("dwt must be greater than 0");
   if (!(distanceNm > 0)) throw new RangeError("distanceNm must be greater than 0");
 

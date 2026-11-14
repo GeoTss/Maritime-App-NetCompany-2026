@@ -166,6 +166,12 @@ describe("planBunkers", () => {
     expect(plan.cheapestHeadlineOptionId).toBe("M");
   });
 
+  it("rejects duplicate optionIds", () => {
+    expect(() => planBunkers(input({ options: [A, { ...B, optionId: "A" }] }))).toThrow(
+      /duplicate optionId/,
+    );
+  });
+
   it("empty options", () => {
     const plan = planBunkers(input({ options: [] }));
     expect(plan).toEqual({

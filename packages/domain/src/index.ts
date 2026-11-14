@@ -10,3 +10,5 @@ export * from "./consumption.js";
 export * from "./emissions.js";
 export * from "./fob.js";
 export * from "./geo.js";
+export * from "./identity.js";
+export * from "./voyage.js";

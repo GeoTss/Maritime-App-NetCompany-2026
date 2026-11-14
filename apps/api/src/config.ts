@@ -20,6 +20,8 @@ export type SeedOnBoot = z.infer<typeof SeedOnBoot>;
 
 /** Seed of the synthetic world's PRNG (the world is also anchored to boot time). */
 export const DEFAULT_WORLD_SEED = 20261114;
+/** world_meta.seed is a Postgres integer. */
+export const MAX_WORLD_SEED = 2_147_483_647;
 
 const blankToUndefined = (v: unknown) => (typeof v === "string" && v.trim() === "" ? undefined : v);
 
@@ -31,7 +33,7 @@ const EnvSchema = z.object({
   SEED_ON_BOOT: z.preprocess(blankToUndefined, SeedOnBoot.default("if-empty")),
   WORLD_SEED: z.preprocess(
     blankToUndefined,
-    z.coerce.number().int().nonnegative().default(DEFAULT_WORLD_SEED),
+    z.coerce.number().int().nonnegative().max(MAX_WORLD_SEED).default(DEFAULT_WORLD_SEED),
   ),
 });
 

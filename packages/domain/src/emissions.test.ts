@@ -58,6 +58,10 @@ describe("etsCost", () => {
     const r = etsCost({ ...base, year: 2023 });
     expect(r).toEqual({ coveredCo2T: 0, phaseIn: 0, costEur: 0, costUsd: 0 });
   });
+  it("parses its input: a negative co2T or a NaN year is rejected", () => {
+    expect(() => etsCost({ ...base, co2T: -1, year: 2025 })).toThrow();
+    expect(() => etsCost({ ...base, year: Number.NaN })).toThrow();
+  });
   it("is deterministic", () => {
     const i = { ...base, year: 2025 };
     expect(etsCost(i)).toEqual(etsCost(i));
@@ -138,6 +142,10 @@ describe("ciiRating", () => {
     expect(ciiRating({ ...bulk, co2T: 0 }).rating).toBe("A");
   });
 
+  it("parses its input: a negative co2T or a NaN year is rejected", () => {
+    expect(() => ciiRating({ ...bulk, co2T: -1 })).toThrow();
+    expect(() => ciiRating({ ...bulk, year: Number.NaN })).toThrow();
+  });
   it("throws RangeError for zero distance or zero dwt", () => {
     expect(() => ciiRating({ ...bulk, distanceNm: 0 })).toThrow(RangeError);
     expect(() => ciiRating({ ...bulk, dwt: 0 })).toThrow(RangeError);

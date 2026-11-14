@@ -1,16 +1,18 @@
 import { runMigrations } from "../migrate.js";
 import { seedDatabase } from "../seed/seed.js";
 import { createSql } from "../sql.js";
+import { parseWorldSeed } from "./world-seed.js";
 
 const url = process.env.DATABASE_URL;
 if (!url) {
   console.error("DATABASE_URL is not set (expected a postgres:// connection string)");
   process.exit(1);
 }
-const rawSeed = process.env.WORLD_SEED?.trim();
-const seed = rawSeed ? Number(rawSeed) : 20261114;
-if (!Number.isInteger(seed) || seed < 0) {
-  console.error("WORLD_SEED must be a non-negative integer");
+let seed: number;
+try {
+  seed = parseWorldSeed(process.env.WORLD_SEED);
+} catch (error) {
+  console.error(error instanceof Error ? error.message : "WORLD_SEED is invalid");
   process.exit(1);
 }
 

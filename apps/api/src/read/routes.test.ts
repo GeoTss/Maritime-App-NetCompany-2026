@@ -1,4 +1,4 @@
-import { buildDemoBunkerPlanInput, generateWorld } from "@pharos/db";
+import { buildDemoBunkerPlanInput, DEMO_SCENARIO, generateWorld } from "@pharos/db";
 import { planBunkers } from "@pharos/domain";
 import {
   InboxItem,
@@ -14,6 +14,8 @@ import {
 import { describe, expect, it } from "vitest";
 import { createApp } from "../app.js";
 import { createFixtureSource, FIXTURE_ANCHOR, FIXTURE_SEED } from "./fixtures.js";
+import { createReadRoutes } from "./routes.js";
+import type { ReadSource } from "./source.js";
 
 const app = createApp({ llmMode: "replay", pingDb: async () => true, read: createFixtureSource() });
 
@@ -52,6 +54,32 @@ describe.each(resources)("/api/$path", ({ path, summary, detail, idKey }) => {
     const { res, body } = await get(`/api/${path}/${id}`);
     expect(res.status).toBe(404);
     expect(body).toEqual({ error: "not_found" });
+  });
+});
+
+describe("id parsing", () => {
+  // A source that would answer any id, so only parseId decides between 200 and 404.
+  const seen: number[] = [];
+  const anyId = async (id: number) => {
+    seen.push(id);
+    return { id };
+  };
+  const source = {
+    getVessel: anyId,
+  } as unknown as ReadSource;
+  const routes = createReadRoutes(source);
+
+  it("accepts the largest Postgres integer id, 2147483647", async () => {
+    const res = await routes.request("/vessels/2147483647");
+    expect(res.status).toBe(200);
+    expect(seen).toContain(2147483647);
+  });
+
+  it.each(["2147483648", "9999999999"])("404s on id %s without asking the source", async (id) => {
+    const before = seen.length;
+    const res = await routes.request(`/vessels/${id}`);
+    expect(res.status).toBe(404);
+    expect(seen.length).toBe(before);
   });
 });
 
@@ -101,8 +129,22 @@ describe("fixture content", () => {
     if (detail.extraction?.kind !== "quote") return;
     const qty = detail.extraction.lines[0]?.quantity;
     expect(qty?.value).toBeNull();
+    expect(qty?.asWritten).toBe(DEMO_SCENARIO.needsReview.qtyAsWritten);
     expect(qty?.asWritten).toBe("300/350 mt");
+    expect(detail.bodyText).toContain(DEMO_SCENARIO.needsReview.qtyAsWritten);
     expect(detail.checkResults.some((c) => !c.passed)).toBe(true);
+  });
+
+  it("shows no quantity on the needs-review quote; resolved quotes keep theirs", async () => {
+    const { items } = listOf(QuoteView).parse((await get("/api/quotes")).body);
+    const flagged = items.filter((q) => q.status === "needs_review");
+    expect(flagged).toHaveLength(1);
+    expect(flagged[0]?.lines.map((l) => l.qtyMt)).toEqual([null]);
+    for (const q of items.filter((x) => x.status !== "needs_review")) {
+      for (const l of q.lines) expect(l.qtyMt).toBeGreaterThan(0);
+    }
+    const detail = QuoteView.parse((await get(`/api/quotes/${flagged[0]?.id}`)).body);
+    expect(detail.lines[0]?.qtyMt).toBeNull();
   });
 
   it("quotes every piece of evidence verbatim from its body text", async () => {

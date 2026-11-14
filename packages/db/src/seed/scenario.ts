@@ -4,6 +4,7 @@
  * Change numbers here, never in generated rows. Every tuning against the brief is listed in
  * the Task 6 report.
  */
+import { imoWithCheckDigit } from "@pharos/domain";
 import type { ConsumptionCurve, Currency, FuelGrade, GradeAmounts, ShipType } from "@pharos/shared";
 
 export const SEED_VERSION = "phase1-task6-v1";
@@ -367,12 +368,9 @@ export const DEMO_SCENARIO = {
       deviationNm: 4,
     },
   ] satisfies DemoBunkerOption[],
+  /**
+   * The one demo offer whose quantity is ambiguous: the supplier writes a range, so the quote needs
+   * review and shows no quantity until a human confirms one. This is the text exactly as written.
+   */
+  needsReview: { supplierKey: "nordwind", qtyAsWritten: "300/350 mt" },
 };
-
-/** IMO number check digit: Σ(first six digits × 7..2) mod 10. */
-export function imoWithCheckDigit(base: string): string {
-  if (!/^\d{6}$/.test(base)) throw new RangeError("IMO base must be six digits");
-  let sum = 0;
-  for (let i = 0; i < 6; i++) sum += Number(base[i]) * (7 - i);
-  return `${base}${sum % 10}`;
-}

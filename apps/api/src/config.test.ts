@@ -60,6 +60,19 @@ describe("loadConfig", () => {
     );
   });
 
+  it("accepts WORLD_SEED up to 2147483647 and rejects larger values without echoing them", () => {
+    const c = loadConfig({ ...base, LLM_MODE: "replay", WORLD_SEED: "2147483647" });
+    expect(c.worldSeed).toBe(2147483647);
+    try {
+      loadConfig({ ...base, LLM_MODE: "replay", WORLD_SEED: "2147483648" });
+      expect.unreachable("WORLD_SEED above 2147483647 must be rejected");
+    } catch (e) {
+      expect(e).toBeInstanceOf(ConfigError);
+      expect(String(e)).toMatch(/WORLD_SEED/);
+      expect(String(e)).not.toContain("2147483648");
+    }
+  });
+
   it("requires WORLD_SEED to be an integer", () => {
     expect(() => loadConfig({ ...base, LLM_MODE: "replay", WORLD_SEED: "1.5" })).toThrow(
       /WORLD_SEED/,

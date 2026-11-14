@@ -1,5 +1,4 @@
-/** Where a vessel is along its planned route at a given time, and what it burned getting there. */
-import { legFuel, pointAlongPolyline, portStayFuelMt } from "@pharos/domain";
+/** Voyage progress: where a vessel is along its planned route at a given time, and what it burned. */
 import type {
   ConsumptionCurve,
   FobLeg,
@@ -10,6 +9,8 @@ import type {
   RouteLeg,
   Voyage,
 } from "@pharos/shared";
+import { legFuel, portStayFuelMt } from "./consumption.js";
+import { pointAlongPolyline } from "./geo.js";
 
 const HOUR_MS = 3_600_000;
 
@@ -24,8 +25,10 @@ export interface VoyagePath {
   departAt: Date;
 }
 
+/** Grade burned alongside in a port: LSMGO inside an ECA, else VLSFO. */
 export const portGrade = (p: Port): FuelGrade => (p.inEca ? "LSMGO" : "VLSFO");
 
+/** The route legs joining consecutive port ids, in passage order; throws if one is missing. */
 export function legsForRoute(route: number[], legs: RouteLeg[]): RouteLeg[] {
   return route.slice(1).map((to, i) => {
     const from = route[i];
@@ -45,11 +48,13 @@ export function cumulativeNm(path: VoyagePath): number[] {
   return out;
 }
 
+/** Distance sailed at time `t` at the planned speed, clamped to [0, route length]. */
 export function sailedNmAt(path: VoyagePath, t: Date): number {
   const hours = (t.getTime() - path.departAt.getTime()) / HOUR_MS;
   return Math.min(totalNm(path), Math.max(0, hours * path.voyage.plannedSpeedKn));
 }
 
+/** Position `nm` along the route; past the last leg it is the destination port. */
 export function positionAt(path: VoyagePath, nm: number): LatLon {
   let rest = nm;
   for (const leg of path.legs) {
@@ -57,17 +62,6 @@ export function positionAt(path: VoyagePath, nm: number): LatLon {
     rest -= leg.distanceNm;
   }
   return { lat: path.destination.lat, lon: path.destination.lon };
-}
-
-/** Initial great-circle bearing a -> b, degrees in [0, 360). */
-export function bearingDeg(a: LatLon, b: LatLon): number {
-  const rad = Math.PI / 180;
-  const y = Math.sin((b.lon - a.lon) * rad) * Math.cos(b.lat * rad);
-  const x =
-    Math.cos(a.lat * rad) * Math.sin(b.lat * rad) -
-    Math.sin(a.lat * rad) * Math.cos(b.lat * rad) * Math.cos((b.lon - a.lon) * rad);
-  const deg = Math.atan2(y, x) / rad;
-  return (deg + 360) % 360;
 }
 
 /** Legs still to sail from `sailedNm`: the rest of the current leg, then the following legs. */
@@ -107,4 +101,23 @@ export function fuelBetween(path: VoyagePath, t0: Date, t1: Date): GradeAmounts 
     start = end;
   }
   return burned;
+}
+
+/** Free tank space (mt) for one grade: capacity − ROB. ROB above capacity is a data error. */
+export function tankFreeMt(capacityMt: number, robMt: number): number {
+  if (!(capacityMt >= 0) || !Number.isFinite(capacityMt)) {
+    throw new RangeError("capacityMt must be finite and >= 0");
+  }
+  if (!(robMt >= 0) || !Number.isFinite(robMt))
+    throw new RangeError("robMt must be finite and >= 0");
+  if (robMt > capacityMt) throw new RangeError("robMt must not exceed capacityMt");
+  return capacityMt - robMt;
+}
+
+/** Signed hours from `a` to `b` (negative when `b` is earlier). */
+export function hoursBetween(a: Date, b: Date): number {
+  if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) {
+    throw new RangeError("dates must be valid");
+  }
+  return (b.getTime() - a.getTime()) / HOUR_MS;
 }

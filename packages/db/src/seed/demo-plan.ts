@@ -1,11 +1,17 @@
 /** Assembles the Aegean Pioneer bunker-planner input from world rows and DEMO_SCENARIO. */
-import { etsCoverage, projectFuelOnBoard } from "@pharos/domain";
+import {
+  etsCoverage,
+  hoursBetween,
+  legsForRoute,
+  projectFuelOnBoard,
+  remainingFobLegs,
+  sailedNmAt,
+  tankFreeMt,
+  type VoyagePath,
+} from "@pharos/domain";
 import type { BunkerPlanInput, FobLeg, FobProjection, Port } from "@pharos/shared";
 import { DEMO_SCENARIO, SUPPLIERS } from "./scenario.js";
 import type { World } from "./types.js";
-import { legsForRoute, remainingFobLegs, sailedNmAt, type VoyagePath } from "./voyage-path.js";
-
-const HOUR_MS = 3_600_000;
 
 function must<T>(v: T | undefined, what: string): T {
   if (v === undefined) throw new Error(`world has no ${what}`);
@@ -109,12 +115,12 @@ export function buildDemoBunkerPlanInput(world: World): BunkerPlanInput {
     grade,
     requiredQtyMt: requirement.qtyMt,
     minQtyMt: fob.shortfallMt[grade],
-    tankFreeMt: vessel.tankCapacityMt[grade] - report.robMt[grade],
+    tankFreeMt: tankFreeMt(vessel.tankCapacityMt[grade], report.robMt[grade]),
     speedKn: voyage.plannedSpeedKn,
     curve: vessel.consumptionCurve,
     dailyCostUsd: vessel.dailyCostUsd,
     voyageEtsCoverage: etsCoverage(path.origin.isEu, path.destination.isEu),
-    berthWindowSlackHours: (windowEnd.getTime() - discharge.eta.getTime()) / HOUR_MS,
+    berthWindowSlackHours: hoursBetween(discharge.eta, windowEnd),
     market: {
       fxToUsd: { USD: 1, EUR: rate("EURUSD") },
       euaPriceEur: rate("EUA"),
