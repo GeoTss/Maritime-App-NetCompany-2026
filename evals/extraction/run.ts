@@ -1,0 +1,995 @@
+/**
+ * The extraction eval runner. Each golden email of a split goes through the app's own entry
+ * points, `ingestRaw` then `processDocument` (awaited), on the eval database, and is graded by
+ * grade.ts and summed by scorecard.ts.
+ *
+ *   npm run eval -- --suite extraction --split dev --mode replay|live|record
+ *                   [--oracle | --empty] [--repeat-hard N] [--label x] [--limit n] [--final]
+ *
+ * Database (ruling R23): `connectTestDb("eval_extraction")`, seeded once per run (seed 20261114,
+ * anchor 2026-11-14T08:00:00Z, plus the eval requirements). Before every case run, only what a
+ * case creates is deleted: documents, extractions, quotes with an extraction id and their lines,
+ * llm_calls and audit rows. Seed quotes and purchase orders stay.
+ *
+ * Model: Claude Haiku 5.5 only, effort medium, fallbacks off. The configured model is checked
+ * before the first call and every served model after the run; a non-Haiku model fails the run.
+ * Spend (live and record): `assertBudget(case runs x $0.002)` before the first call, a
+ * per-request guard capped at min($0.25, what the $3 ledger has left), and the guard's summed
+ * cost appended to the ledger afterwards, also when the run fails or stops early.
+ * `--oracle` and `--empty` make no model calls and need no key. `--split heldout` needs `--final`.
+ * The key comes from `ANTHROPIC_API_KEY` (via `tsx --env-file-if-exists=.env`) and is never printed.
+ */
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { join, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { APIError } from "@anthropic-ai/sdk";
+import {
+  createDb,
+  generateWorld,
+  loadWorld,
+  type Sql,
+  schema,
+  seedDatabase,
+  type World,
+} from "@pharos/db";
+import { connectTestDb } from "@pharos/db/testing";
+import {
+  CheckResult,
+  ExtractionOutput,
+  ExtractionTruth,
+  type LlmMode,
+  type NormalisedView,
+  type QuoteExtraction,
+} from "@pharos/shared";
+import { z } from "zod";
+import { captureLlmCall } from "../../apps/api/src/ai/call-capture.js";
+import {
+  createLlmExtractor,
+  ExtractionError,
+  type Extractor,
+  type ExtractorConfig,
+} from "../../apps/api/src/ai/extract.js";
+import {
+  createLlm,
+  type LlmFetch,
+  RecordingFile,
+  ReplayMissError,
+} from "../../apps/api/src/ai/llm.js";
+import { DEFAULT_RECORDINGS_DIR } from "../../apps/api/src/config.js";
+import { normaliseExtraction } from "../../apps/api/src/ingest/evaluate.js";
+import { type IngestDeps, ingestRaw, processDocument } from "../../apps/api/src/ingest/workflow.js";
+import {
+  appendSpend,
+  assertBudget,
+  assertHaikuOnly,
+  createSpendGuard,
+  HAIKU,
+  ledgerTotal,
+  SPEND_CAP_USD,
+  type SpendGuard,
+} from "../lib/budget.js";
+import {
+  type CaseGrade,
+  type CaseOutcome,
+  type EntityKeys,
+  type ErrorKind,
+  entityKeys,
+  gradeCase,
+  type PipelineStatus,
+} from "./grade.js";
+import {
+  type GradedRun,
+  renderScorecardMd,
+  type Scorecard,
+  type ScorecardMeta,
+  scorecard,
+} from "./scorecard.js";
+import { GOLDEN_DIR } from "./split.js";
+import { EVAL_ANCHOR, EVAL_SEED, evalExtraRequirements } from "./world.js";
+
+const REPO_ROOT = fileURLToPath(new URL("../..", import.meta.url));
+
+/** The CLI's database; the vitest tests use their own. */
+export const EVAL_DB = "eval_extraction";
+/** `run` of this runner's ledger rows. */
+export const LEDGER_RUN = "eval-extraction";
+/** Budget estimate per case run (one extraction is about $0.0005-0.0015 on Haiku 5.5). */
+export const ESTIMATE_PER_CASE_RUN_USD = 0.002;
+/** A dev pass must stay at or below this. */
+export const RUN_CAP_USD = 0.25;
+/** The one extractor configuration live, record and replay runs use (fixed; not from env). */
+export const EVAL_EXTRACTOR_CONFIG: ExtractorConfig = {
+  extractModel: HAIKU,
+  extractEffort: "medium",
+  llmFallbacks: false,
+};
+
+export type SplitName = "dev" | "heldout";
+export type ExtractorKind = "llm" | "oracle" | "empty";
+
+/** `--empty`: a quote with every field null and one all-null line. */
+export const EMPTY_EXTRACTION: QuoteExtraction = (() => {
+  const text = { value: null, evidence: null };
+  const date = { asWritten: null, evidence: null };
+  const money = { value: null, currency: null, perUnit: null, asWritten: null, evidence: null };
+  return {
+    kind: "quote",
+    supplierName: text,
+    vesselName: text,
+    vesselImo: text,
+    port: text,
+    deliveryFrom: date,
+    deliveryTo: date,
+    validUntil: date,
+    bargeFee: money,
+    lines: [
+      {
+        grade: text,
+        quantity: { value: null, unit: null, asWritten: null, evidence: null },
+        price: money,
+      },
+    ],
+    notes: null,
+  };
+})();
+
+// ---------- arguments ----------
+
+export interface RunArgs {
+  suite: "extraction";
+  split: SplitName;
+  /** The LLM mode; the oracle and empty extractors make no calls whatever it is. */
+  mode: LlmMode;
+  extractor: ExtractorKind;
+  /** Runs per hard case (the first is the headline run). */
+  repeatHard: number;
+  label: string;
+  limit: number | null;
+  final: boolean;
+}
+
+/** The held-out split runs once, in Phase 7, and only with `--final`. */
+export function assertSplitAllowed(split: SplitName, final: boolean): void {
+  if (split === "heldout" && !final) {
+    throw new Error(
+      "--split heldout is the final held-out pass: it runs once, in Phase 7, with --final. Iterate on --split dev.",
+    );
+  }
+}
+
+const REPEAT_RECORD =
+  "--repeat-hard with --mode record would overwrite each hard case's recording with its last run, " +
+  "so replay could not reproduce the first-run headline. Measure variance with --mode live.";
+
+const VALUE_FLAGS = ["--suite", "--split", "--mode", "--repeat-hard", "--label", "--limit"];
+const BOOL_FLAGS = ["--oracle", "--empty", "--final"];
+
+function positiveInt(flag: string, v: string): number {
+  if (!/^\d+$/.test(v) || Number(v) < 1) throw new Error(`${flag} needs a whole number >= 1`);
+  return Number(v);
+}
+
+export function parseArgs(argv: string[]): RunArgs {
+  const values = new Map<string, string>();
+  const bools = new Set<string>();
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i] ?? "";
+    if (VALUE_FLAGS.includes(a)) {
+      const v = argv[i + 1];
+      if (v === undefined || v.startsWith("--")) throw new Error(`${a} needs a value`);
+      if (values.has(a)) throw new Error(`${a} given twice`);
+      values.set(a, v);
+      i++;
+    } else if (BOOL_FLAGS.includes(a)) bools.add(a);
+    else throw new Error(`unknown argument "${a}" (see evals/extraction/README.md)`);
+  }
+
+  const suite = values.get("--suite") ?? "extraction";
+  if (suite !== "extraction") throw new Error(`unknown suite "${suite}": only extraction exists`);
+  const split = values.get("--split") ?? "dev";
+  if (split !== "dev" && split !== "heldout") throw new Error("--split is dev or heldout");
+  const final = bools.has("--final");
+  assertSplitAllowed(split, final);
+
+  if (bools.has("--oracle") && bools.has("--empty")) {
+    throw new Error("--oracle and --empty are alternatives");
+  }
+  const extractor: ExtractorKind = bools.has("--oracle")
+    ? "oracle"
+    : bools.has("--empty")
+      ? "empty"
+      : "llm";
+  const modeArg = values.get("--mode");
+  if (modeArg !== undefined && !["live", "record", "replay"].includes(modeArg)) {
+    throw new Error("--mode is live, record or replay");
+  }
+  if (extractor !== "llm" && modeArg !== undefined && modeArg !== "replay") {
+    throw new Error(`--${extractor} makes no model calls: drop --mode ${modeArg}`);
+  }
+  const mode = (modeArg ?? "replay") as LlmMode;
+
+  const repeat = values.get("--repeat-hard");
+  const repeatHard = repeat === undefined ? 1 : positiveInt("--repeat-hard", repeat);
+  if (repeatHard > 1 && extractor === "llm" && mode === "record") throw new Error(REPEAT_RECORD);
+
+  const label = values.get("--label") ?? (extractor === "llm" ? mode : extractor);
+  if (!/^[A-Za-z0-9._-]+$/.test(label)) {
+    throw new Error("--label needs a name made of letters, digits, '.', '_' or '-'");
+  }
+  const limitArg = values.get("--limit");
+  return {
+    suite: "extraction",
+    split,
+    mode,
+    extractor,
+    repeatHard,
+    label,
+    limit: limitArg === undefined ? null : positiveInt("--limit", limitArg),
+    final,
+  };
+}
+
+/** The runner needs the key in the environment; names the variable, never its value. */
+export function requireApiKey(env: Record<string, string | undefined>): string {
+  const key = env.ANTHROPIC_API_KEY?.trim();
+  if (!key) throw new Error("ANTHROPIC_API_KEY is not set (add it to .env).");
+  return key;
+}
+
+// ---------- golden cases ----------
+
+export interface GoldenCase {
+  truth: ExtractionTruth;
+  raw: Uint8Array;
+  /** `<id>.oracle.json`, loaded for `--oracle` only. */
+  oracle: ExtractionOutput | null;
+}
+
+const SplitFile = z.object({ dev: z.array(z.string()), heldout: z.array(z.string()) });
+
+/** The split's case ids in split.json order; `ids` (a subset of the split) or `limit` narrows it. */
+export async function selectCases(
+  split: SplitName,
+  opts: { ids?: string[] | undefined; limit?: number | null | undefined; goldenDir?: string },
+): Promise<string[]> {
+  const dir = opts.goldenDir ?? GOLDEN_DIR;
+  const file = SplitFile.parse(JSON.parse(await readFile(join(dir, "split.json"), "utf8")));
+  const pool = split === "dev" ? file.dev : file.heldout;
+  if (opts.ids) {
+    for (const id of opts.ids) {
+      if (!pool.includes(id)) throw new Error(`case ${id} is not in the ${split} split`);
+    }
+    return opts.ids;
+  }
+  return opts.limit ? pool.slice(0, opts.limit) : pool;
+}
+
+async function loadCase(dir: string, id: string, withOracle: boolean): Promise<GoldenCase> {
+  const truth = ExtractionTruth.parse(
+    JSON.parse(await readFile(join(dir, `${id}.truth.json`), "utf8")),
+  );
+  if (truth.id !== id) throw new Error(`${id}.truth.json holds case ${truth.id}`);
+  const raw = new Uint8Array(await readFile(join(dir, `${id}.eml`)));
+  const oracle = withOracle
+    ? ExtractionOutput.parse(JSON.parse(await readFile(join(dir, `${id}.oracle.json`), "utf8")))
+    : null;
+  return { truth, raw, oracle };
+}
+
+// ---------- error classification ----------
+
+/**
+ * Which failures are not wrong answers, by error type: a replay miss, a refusal or truncation
+ * (the stop reason of the extraction's last call), and any API error (HTTP status or connection,
+ * including the spend guard's refusal). Anything else is graded as a failed extraction.
+ */
+export function classifyExtractError(err: unknown): ErrorKind | null {
+  if (err instanceof ReplayMissError) return "replay_miss";
+  if (err instanceof ExtractionError) {
+    const stop = err.metrics.at(-1)?.stopReason;
+    if (stop === "refusal") return "refusal";
+    if (stop === "max_tokens") return "truncation";
+    return null;
+  }
+  if (err instanceof APIError) return "api_error";
+  return null;
+}
+
+/** Per-case state the extractors share with the runner. */
+interface CaseSlot {
+  oracle: ExtractionOutput | null;
+  errorKind: ErrorKind | null;
+}
+
+function classifying(inner: Extractor, slot: CaseSlot): Extractor {
+  return {
+    model: inner.model,
+    promptVersion: inner.promptVersion,
+    async extract(doc) {
+      try {
+        return await inner.extract(doc);
+      } catch (err) {
+        slot.errorKind = classifyExtractError(err);
+        throw err;
+      }
+    },
+  };
+}
+
+/** `--oracle` / `--empty`: no model, no metrics, no network. */
+function fixedExtractor(kind: "oracle" | "empty", slot: CaseSlot): Extractor {
+  return {
+    model: kind,
+    promptVersion: kind,
+    async extract() {
+      const output = kind === "empty" ? EMPTY_EXTRACTION : slot.oracle;
+      if (output === null) throw new Error("oracle extractor: no oracle loaded for this case");
+      return { output: structuredClone(output), metrics: [] };
+    },
+  };
+}
+
+/** One request and response as the transport saw it (live and record; retries included). */
+export interface Exchange {
+  url: string;
+  request: unknown;
+  status: number;
+  response: unknown;
+}
+
+/**
+ * Records each request body (never headers, so never the key) and response in `into`. Like the
+ * gateway in apps/api/src/ai/llm.ts, it reads a body once and returns a new Response over the same
+ * bytes, never a read through `clone()`. Node 22's fetch (undici 6.21) cancels the original body
+ * when the clone is garbage collected. An error response is returned unread; the SDK's error
+ * message (in the case's error) carries its body.
+ */
+export function capturing(inner: LlmFetch, into: Exchange[]): LlmFetch {
+  return async (input, init) => {
+    const transported = await inner(input, init);
+    let request: unknown = init?.body ?? null;
+    try {
+      request = typeof init?.body === "string" ? JSON.parse(init.body) : request;
+    } catch {
+      // keep the raw text
+    }
+    const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    const exchange = { url, request, status: transported.status };
+    if (!transported.ok) {
+      into.push({ ...exchange, response: "(error response: returned to the SDK unread)" });
+      return transported;
+    }
+    const bytes = await transported.arrayBuffer();
+    // A 204 or 205 may not carry a body, not even an empty one.
+    const nullBody = transported.status === 204 || transported.status === 205;
+    let response: unknown = null;
+    if (!nullBody) {
+      try {
+        response = JSON.parse(new TextDecoder().decode(bytes));
+      } catch (err) {
+        response = `(response body unreadable: ${(err as Error).message})`;
+      }
+    }
+    into.push({ ...exchange, response });
+    return new Response(nullBody ? null : bytes, {
+      status: transported.status,
+      statusText: transported.statusText,
+      headers: transported.headers,
+    });
+  };
+}
+
+// ---------- database ----------
+
+/** Max ids after seeding (rows past them belong to a case) and the row counts to return to. */
+export interface Baseline {
+  maxIds: { documents: number; extractions: number; llmCalls: number; auditEvents: number };
+  counts: Record<string, number>;
+}
+
+async function tableCounts(sql: Sql): Promise<Record<string, number>> {
+  const [row] = await sql<Record<string, number>[]>`
+    select (select count(*)::int from documents) as documents,
+           (select count(*)::int from extractions) as extractions,
+           (select count(*)::int from quotes) as quotes,
+           (select count(*)::int from quote_lines) as quote_lines,
+           (select count(*)::int from llm_calls) as llm_calls,
+           (select count(*)::int from audit_events) as audit_events,
+           (select count(*)::int from purchase_orders) as purchase_orders`;
+  if (!row) throw new Error("count query returned no row");
+  return row;
+}
+
+/**
+ * Seeds the eval world once: seed 20261114 at 2026-11-14T08:00:00Z, then the eval requirements.
+ * Returns the stored world (what the pipeline reads) and the baseline for per-case cleanup.
+ */
+export async function prepareEvalDb(sql: Sql): Promise<{ world: World; baseline: Baseline }> {
+  await seedDatabase(sql, { seed: EVAL_SEED, anchor: EVAL_ANCHOR, mode: "reset" });
+  const generated = generateWorld({ seed: EVAL_SEED, anchor: EVAL_ANCHOR });
+  const extra = evalExtraRequirements(generated);
+  if (extra.length > 0) await createDb(sql).insert(schema.bunkerRequirements).values(extra);
+  await sql`select setval(pg_get_serial_sequence('bunker_requirements', 'id'),
+                          (select max(id) from bunker_requirements))`;
+  const world = await loadWorld(sql);
+  const sig = (rs: World["bunkerRequirements"]) =>
+    rs.map((r) => `${r.id}:${r.voyageId}:${r.grade}:${r.qtyMt}:${r.status}`).join(",");
+  if (sig(world.bunkerRequirements) !== sig([...generated.bunkerRequirements, ...extra])) {
+    throw new Error("eval database: the stored requirements are not the eval world's");
+  }
+  const [ids] = await sql<Baseline["maxIds"][]>`
+    select (select coalesce(max(id), 0)::int from documents) as "documents",
+           (select coalesce(max(id), 0)::int from extractions) as "extractions",
+           (select coalesce(max(id), 0)::int from llm_calls) as "llmCalls",
+           (select coalesce(max(id), 0)::int from audit_events) as "auditEvents"`;
+  if (!ids) throw new Error("max-id query returned no row");
+  return { world, baseline: { maxIds: ids, counts: await tableCounts(sql) } };
+}
+
+/** Advisory-lock key held by a run for its whole duration (any fixed bigint). */
+export const EVAL_RUN_LOCK = 2026111410;
+
+/**
+ * One run at a time per database: a second run would reseed and delete the first one's rows
+ * mid-case. Takes the lock on a reserved connection, so the pool needs at least two (the work
+ * runs on the other; `connectTestDb` gives two). Refuses at once when another run holds it.
+ */
+export async function withRunLock<T>(sql: Sql, fn: () => Promise<T>): Promise<T> {
+  const lock = await sql.reserve();
+  try {
+    const [row] = await lock<{ ok: boolean }[]>`
+      select pg_try_advisory_lock(${EVAL_RUN_LOCK}::bigint) as ok`;
+    if (!row?.ok) {
+      throw new Error("another extraction eval is running on this database; wait for it to finish");
+    }
+    try {
+      return await fn();
+    } finally {
+      await lock`select pg_advisory_unlock(${EVAL_RUN_LOCK}::bigint)`;
+    }
+  } finally {
+    lock.release();
+  }
+}
+
+/** Deletes what case runs created and checks the database is back at its baseline. */
+export async function cleanupCases(sql: Sql, baseline: Baseline): Promise<void> {
+  const m = baseline.maxIds;
+  await sql.begin(async (tx) => {
+    await tx`delete from quote_lines
+             where quote_id in (select id from quotes where extraction_id is not null)`;
+    await tx`delete from quotes where extraction_id is not null`;
+    await tx`delete from llm_calls where id > ${m.llmCalls}`;
+    await tx`delete from audit_events where id > ${m.auditEvents}`;
+    await tx`delete from extractions where id > ${m.extractions}`;
+    await tx`delete from documents where id > ${m.documents}`;
+  });
+  const now = await tableCounts(sql);
+  const off = Object.keys(baseline.counts).filter((k) => now[k] !== baseline.counts[k]);
+  if (off.length > 0) {
+    throw new Error(
+      `eval database not clean after cleanup: ${off.map((k) => `${k} ${now[k]} (baseline ${baseline.counts[k]})`).join(", ")}`,
+    );
+  }
+}
+
+// ---------- one case ----------
+
+export interface CallSummary {
+  requestKey: string;
+  model: string;
+  mode: string;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  latencyMs: number;
+  costUsd: number;
+  stopReason: string | null;
+}
+
+/** One line of rows.jsonl. */
+export interface CaseRow {
+  id: string;
+  run: number;
+  tags: string[];
+  status: PipelineStatus;
+  kind: CaseOutcome["kind"];
+  error: string | null;
+  errorKind: ErrorKind | null;
+  failedChecks: string[];
+  normalised: NormalisedView | null;
+  grade: CaseGrade;
+  latencyMs: number;
+  llmLatencyMs: number;
+  costUsd: number;
+  calls: CallSummary[];
+  /** Models the response (or the replayed recording) named. */
+  servedModels: string[];
+  /** What processDocument logged (failures). */
+  log: string[];
+}
+
+/** One line of transcripts.jsonl. */
+export interface Transcript {
+  id: string;
+  run: number;
+  document: {
+    sender: string | null;
+    subject: string | null;
+    receivedAt: string;
+    hasUnreadableAttachment: boolean;
+    bodyText: string;
+  };
+  extraction: {
+    status: string;
+    kind: string | null;
+    model: string;
+    promptVersion: string;
+    rawOutput: unknown;
+    fieldEvidence: unknown;
+    checkResults: unknown;
+    error: string | null;
+  };
+  /** Requests and responses: from the transport (live, record) or the recordings (replay). */
+  exchanges: unknown[];
+}
+
+const STATUSES: readonly string[] = ["extracted", "needs_review", "not_a_quote", "failed"];
+
+interface CaseContext {
+  sql: Sql;
+  world: World;
+  keys: EntityKeys;
+  baseline: Baseline;
+  extractor: Extractor;
+  slot: CaseSlot;
+  mode: LlmMode | "oracle" | "empty";
+  recordingsDir: string;
+  guard: SpendGuard | null;
+  exchanges: Exchange[];
+}
+
+interface ExtractionRow {
+  status: string;
+  kind: "quote" | "not_a_quote" | null;
+  raw_output: unknown;
+  field_evidence: unknown;
+  check_results: unknown;
+  error: string | null;
+  model: string;
+  prompt_version: string;
+}
+
+interface DocumentRow {
+  sender: string | null;
+  subject: string | null;
+  body_text: string;
+  received_at: string;
+  has_unreadable_attachment: boolean;
+}
+
+/** The recorded request and response for a replayed call, and the model the response names. */
+async function replayed(dir: string, requestKey: string) {
+  try {
+    const rec = RecordingFile.parse(
+      JSON.parse(await readFile(join(dir, `${requestKey}.json`), "utf8")),
+    );
+    const model = (rec.response.body as { model?: unknown } | null)?.model;
+    return {
+      exchange: rec,
+      model: typeof model === "string" ? model : "(recording names no model)",
+    };
+  } catch (err) {
+    return {
+      exchange: { requestKey, unreadable: (err as Error).message },
+      model: "(recording unreadable)",
+    };
+  }
+}
+
+async function runCase(
+  ctx: CaseContext,
+  c: GoldenCase,
+  run: number,
+): Promise<{ row: CaseRow; transcript: Transcript }> {
+  const { sql } = ctx;
+  const id = c.truth.id;
+  await cleanupCases(sql, ctx.baseline);
+  ctx.slot.oracle = c.oracle;
+  ctx.slot.errorKind = null;
+  const servedMark = ctx.guard?.served.length ?? 0;
+  const exchangeMark = ctx.exchanges.length;
+  const log: string[] = [];
+  const deps: IngestDeps = { sql, extractor: ctx.extractor, log: (m) => log.push(m) };
+
+  const t0 = performance.now();
+  const ingested = await ingestRaw(deps, c.raw, "upload");
+  if (ingested.duplicate) throw new Error(`${id}: the cleaned eval database already holds it`);
+  await processDocument(deps, ingested.documentId);
+  const latencyMs = performance.now() - t0;
+
+  const [ex] = await sql<ExtractionRow[]>`
+    select status, kind, raw_output, field_evidence, check_results, error, model, prompt_version
+    from extractions where document_id = ${ingested.documentId} order by id desc limit 1`;
+  const [doc] = await sql<DocumentRow[]>`
+    select sender, subject, body_text, received_at, has_unreadable_attachment
+    from documents where id = ${ingested.documentId}`;
+  if (!ex || !doc) throw new Error(`${id}: document or extraction row missing after processing`);
+  if (!STATUSES.includes(ex.status)) {
+    throw new Error(`${id}: extraction is ${ex.status} after processDocument returned`);
+  }
+  const status = ex.status as PipelineStatus;
+  const errorKind = ctx.slot.errorKind;
+  if (errorKind !== null && status !== "failed") {
+    throw new Error(`${id}: the extractor threw (${errorKind}) but the row is ${status}`);
+  }
+
+  const calls = (
+    await sql<Record<string, unknown>[]>`
+      select request_key, model, mode, input_tokens, output_tokens, cache_read_tokens,
+             cache_write_tokens, latency_ms, cost_usd, stop_reason
+      from llm_calls where document_id = ${ingested.documentId} order by id`
+  ).map(
+    (r): CallSummary => ({
+      requestKey: String(r.request_key),
+      model: String(r.model),
+      mode: String(r.mode),
+      inputTokens: Number(r.input_tokens),
+      outputTokens: Number(r.output_tokens),
+      cacheReadTokens: Number(r.cache_read_tokens),
+      cacheWriteTokens: Number(r.cache_write_tokens),
+      latencyMs: Number(r.latency_ms),
+      costUsd: Number(r.cost_usd),
+      stopReason: r.stop_reason === null ? null : String(r.stop_reason),
+    }),
+  );
+
+  let servedModels: string[] = [];
+  let exchanges: unknown[] = [];
+  if (ctx.mode === "replay") {
+    const recs = await Promise.all(
+      calls.map((call) => replayed(ctx.recordingsDir, call.requestKey)),
+    );
+    servedModels = recs.map((r) => r.model);
+    exchanges = recs.map((r) => r.exchange);
+  } else if (ctx.mode === "live" || ctx.mode === "record") {
+    servedModels = ctx.guard?.served.slice(servedMark) ?? [];
+    exchanges = ctx.exchanges.slice(exchangeMark);
+  }
+
+  const raw = ex.raw_output === null ? null : ExtractionOutput.parse(ex.raw_output);
+  const checks = z.array(CheckResult).parse(ex.check_results);
+  const receivedAt = new Date(doc.received_at);
+  const outcome: CaseOutcome = {
+    status,
+    kind: ex.kind,
+    normalised:
+      raw === null
+        ? null
+        : normaliseExtraction(
+            ctx.world,
+            { sender: doc.sender, subject: doc.subject, bodyText: doc.body_text },
+            raw,
+            receivedAt,
+          ),
+    error: ex.error,
+    errorKind,
+    failedChecks: checks.filter((x) => !x.passed).map((x) => x.check),
+  };
+  const grade = gradeCase(c.truth, outcome, ctx.keys);
+  const row: CaseRow = {
+    id,
+    run,
+    tags: c.truth.tags,
+    status,
+    kind: outcome.kind,
+    error: outcome.error,
+    errorKind,
+    failedChecks: outcome.failedChecks,
+    normalised: outcome.normalised,
+    grade,
+    latencyMs,
+    llmLatencyMs: calls.reduce((a, x) => a + x.latencyMs, 0),
+    costUsd: calls.reduce((a, x) => a + x.costUsd, 0),
+    calls,
+    servedModels,
+    log,
+  };
+  const transcript: Transcript = {
+    id,
+    run,
+    document: {
+      sender: doc.sender,
+      subject: doc.subject,
+      receivedAt: receivedAt.toISOString(),
+      hasUnreadableAttachment: doc.has_unreadable_attachment,
+      bodyText: doc.body_text,
+    },
+    extraction: {
+      status: ex.status,
+      kind: ex.kind,
+      model: ex.model,
+      promptVersion: ex.prompt_version,
+      rawOutput: ex.raw_output,
+      fieldEvidence: ex.field_evidence,
+      checkResults: ex.check_results,
+      error: ex.error,
+    },
+    exchanges,
+  };
+  return { row, transcript };
+}
+
+// ---------- the run ----------
+
+export interface EvalOptions {
+  sql: Sql;
+  split: SplitName;
+  mode: LlmMode;
+  extractor: ExtractorKind;
+  label: string;
+  repeatHard?: number;
+  limit?: number | null;
+  /** Explicit case ids (a subset of the split), in place of `limit`. */
+  ids?: string[];
+  final?: boolean;
+  reportsDir: string;
+  goldenDir?: string;
+  recordingsDir?: string;
+  /** Required for live and record. */
+  apiKey?: string | undefined;
+  /** The network transport for live and record (tests inject one). */
+  fetch?: LlmFetch;
+  /** Spend ledger path (tests use a temp file). */
+  ledgerPath?: string;
+  now?: () => Date;
+  log?: (line: string) => void;
+}
+
+export interface EvalResult {
+  reportDir: string;
+  meta: ScorecardMeta;
+  scorecard: Scorecard;
+  rows: CaseRow[];
+}
+
+const stamp = (d: Date) =>
+  d
+    .toISOString()
+    .replace(/[-:]/g, "")
+    .replace(/\.\d+Z$/, "Z");
+
+const jsonl = (xs: readonly unknown[]) => xs.map((x) => `${JSON.stringify(x)}\n`).join("");
+
+export async function runExtractionEval(opts: EvalOptions): Promise<EvalResult> {
+  assertSplitAllowed(opts.split, opts.final ?? false);
+  const repeatHard = opts.repeatHard ?? 1;
+  if (!Number.isInteger(repeatHard) || repeatHard < 1) throw new Error("repeatHard must be >= 1");
+  const llm = opts.extractor === "llm";
+  if (llm && opts.mode === "record" && repeatHard > 1) throw new Error(REPEAT_RECORD);
+  const paid = llm && opts.mode !== "replay";
+  const now = opts.now ?? (() => new Date());
+  const goldenDir = opts.goldenDir ?? GOLDEN_DIR;
+
+  const ids = await selectCases(opts.split, { ids: opts.ids, limit: opts.limit, goldenDir });
+  const cases = await Promise.all(
+    ids.map((id) => loadCase(goldenDir, id, opts.extractor === "oracle")),
+  );
+  // First runs of every case come first, so an early stop costs repeats before headline cases.
+  const plan = [
+    ...cases.map((c) => ({ c, run: 1 })),
+    ...cases
+      .filter((c) => c.truth.tags[0] === "hard")
+      .flatMap((c) => Array.from({ length: repeatHard - 1 }, (_, i) => ({ c, run: i + 2 }))),
+  ];
+
+  if (llm) assertHaikuOnly([EVAL_EXTRACTOR_CONFIG.extractModel]);
+  let guard: SpendGuard | null = null;
+  if (paid) {
+    if (!opts.apiKey) throw new Error("ANTHROPIC_API_KEY is not set (add it to .env).");
+    assertBudget(plan.length * ESTIMATE_PER_CASE_RUN_USD, opts.ledgerPath);
+    const remaining = SPEND_CAP_USD - ledgerTotal(opts.ledgerPath);
+    guard = createSpendGuard({ capUsd: Math.min(RUN_CAP_USD, remaining), label: "run" });
+  }
+
+  // From here a paid run may spend: its cost is ledgered exactly once, whatever happens next.
+  const ledger = { done: false };
+  const settle = () => {
+    if (!paid || !guard || ledger.done) return;
+    ledger.done = true;
+    appendSpend(
+      { at: now().toISOString(), run: LEDGER_RUN, label: opts.label, costUsd: guard.spentUsd() },
+      opts.ledgerPath,
+    );
+  };
+  try {
+    return await withRunLock(opts.sql, () => runPlan(opts, plan, guard, settle, now));
+  } finally {
+    settle();
+  }
+}
+
+async function runPlan(
+  opts: EvalOptions,
+  plan: { c: GoldenCase; run: number }[],
+  guard: SpendGuard | null,
+  settle: () => void,
+  now: () => Date,
+): Promise<EvalResult> {
+  const log = opts.log ?? ((l: string) => console.log(l));
+  const startedAt = now();
+  const recordingsDir = opts.recordingsDir ?? DEFAULT_RECORDINGS_DIR;
+  const { world, baseline } = await prepareEvalDb(opts.sql);
+
+  const slot: CaseSlot = { oracle: null, errorKind: null };
+  const exchanges: Exchange[] = [];
+  let extractor: Extractor;
+  let promptVersion: string;
+  if (opts.extractor === "llm") {
+    const network: LlmFetch =
+      opts.mode === "replay"
+        ? async () => {
+            throw new Error("replay mode attempted a network request");
+          }
+        : (opts.fetch ?? ((input, init) => fetch(input, init)));
+    const tapped = capturing(network, exchanges);
+    const client = createLlm({
+      mode: opts.mode,
+      apiKey: opts.apiKey,
+      recordingsDir,
+      onCall: captureLlmCall,
+      fetch: guard ? guard.wrap(tapped, HAIKU) : tapped,
+    });
+    const inner = createLlmExtractor(client, EVAL_EXTRACTOR_CONFIG);
+    promptVersion = inner.promptVersion;
+    extractor = classifying(inner, slot);
+  } else {
+    extractor = fixedExtractor(opts.extractor, slot);
+    promptVersion = opts.extractor;
+  }
+  const ctx: CaseContext = {
+    sql: opts.sql,
+    world,
+    keys: entityKeys(world),
+    baseline,
+    extractor,
+    slot,
+    mode: opts.extractor === "llm" ? opts.mode : opts.extractor,
+    recordingsDir,
+    guard,
+    exchanges,
+  };
+
+  const rows: CaseRow[] = [];
+  const transcripts: Transcript[] = [];
+  let aborted: string | null = null;
+  let notRun: string[] = [];
+  for (const [i, step] of plan.entries()) {
+    const stop = guard ? (guard.overCap() ?? guard.trip()?.reason ?? null) : null;
+    if (stop !== null) {
+      aborted = `spend cap: ${stop}`;
+      notRun = plan.slice(i).map((s) => (s.run === 1 ? s.c.truth.id : `${s.c.truth.id}#${s.run}`));
+      log(`[eval] stopped before ${notRun[0]}: ${aborted}`);
+      break;
+    }
+    const { row, transcript } = await runCase(ctx, step.c, step.run);
+    rows.push(row);
+    transcripts.push(transcript);
+    const what = row.errorKind ? `error ${row.errorKind}` : row.status;
+    log(
+      `[eval] ${row.id}${step.run > 1 ? ` #${step.run}` : ""}: ${what} ${(row.latencyMs / 1000).toFixed(1)}s $${row.costUsd.toFixed(5)}`,
+    );
+  }
+  await cleanupCases(opts.sql, baseline);
+  settle();
+
+  const runs: GradedRun[] = rows.map((r) => ({
+    run: r.run,
+    grade: r.grade,
+    latencyMs: r.latencyMs,
+    llmLatencyMs: r.llmLatencyMs,
+    costUsd: r.costUsd,
+  }));
+  const card = scorecard(runs);
+  const servedModels = [...new Set(rows.flatMap((r) => r.servedModels))].sort();
+  const requestedModels = [...new Set(rows.flatMap((r) => r.calls.map((c) => c.model)))].sort();
+  const llm = opts.extractor === "llm";
+  const meta: ScorecardMeta = {
+    suite: "extraction",
+    split: opts.split,
+    label: opts.label,
+    mode: opts.extractor === "llm" ? opts.mode : opts.extractor,
+    extractor: opts.extractor,
+    model: llm ? EVAL_EXTRACTOR_CONFIG.extractModel : null,
+    effort: llm ? EVAL_EXTRACTOR_CONFIG.extractEffort : null,
+    fallbacks: llm ? EVAL_EXTRACTOR_CONFIG.llmFallbacks : null,
+    promptVersion,
+    seed: EVAL_SEED,
+    anchor: EVAL_ANCHOR.toISOString(),
+    startedAt: startedAt.toISOString(),
+    finishedAt: now().toISOString(),
+    selected: new Set(plan.map((s) => s.c.truth.id)).size,
+    repeatHard: opts.repeatHard ?? 1,
+    notRun,
+    aborted,
+    servedModels,
+    spend: {
+      guardUsd: guard ? guard.spentUsd() : null,
+      dbUsd: card.cost.totalUsd,
+      ledgerUsd: guard ? guard.spentUsd() : null,
+    },
+  };
+
+  await mkdir(opts.reportsDir, { recursive: true });
+  const reportDir = join(
+    opts.reportsDir,
+    `${stamp(startedAt)}-extraction-${opts.split}-${opts.label}`,
+  );
+  await mkdir(reportDir); // never over an existing report
+  await writeFile(join(reportDir, "rows.jsonl"), jsonl(rows));
+  await writeFile(join(reportDir, "transcripts.jsonl"), jsonl(transcripts));
+  await writeFile(
+    join(reportDir, "scorecard.json"),
+    `${JSON.stringify({ meta, scorecard: card }, null, 2)}\n`,
+  );
+  await writeFile(join(reportDir, "scorecard.md"), `${renderScorecardMd(card, meta)}\n`);
+  log(`[eval] report: ${reportDir}`);
+
+  // A call served (or requested) by any model but Haiku fails the run; the report above says where.
+  if (llm) assertHaikuOnly([...servedModels, ...requestedModels]);
+  return { reportDir, meta, scorecard: card, rows };
+}
+
+// ---------- CLI ----------
+
+const fmt = (r: { k: number; n: number; rate: number | null }) =>
+  `${r.k}/${r.n}${r.rate === null ? "" : ` (${(r.rate * 100).toFixed(1)} %)`}`;
+
+async function main() {
+  const args = parseArgs(process.argv.slice(2));
+  const paid = args.extractor === "llm" && args.mode !== "replay";
+  const apiKey = paid ? requireApiKey(process.env) : undefined;
+  const sql = await connectTestDb(EVAL_DB);
+  if (!sql) throw new Error("Postgres is unreachable (start it with docker compose up -d db).");
+  try {
+    const { scorecard: card, meta } = await runExtractionEval({
+      sql,
+      split: args.split,
+      mode: args.mode,
+      extractor: args.extractor,
+      label: args.label,
+      repeatHard: args.repeatHard,
+      limit: args.limit,
+      final: args.final,
+      apiKey,
+      reportsDir: resolve(REPO_ROOT, "evals", "reports"),
+    });
+    console.log(`critical-field accuracy ${fmt(card.critical)}`);
+    console.log(`unsafe auto-accepts ${fmt(card.unsafeAutoAccepts)}`);
+    console.log(
+      `errors ${card.errors.length}; llm_calls cost $${meta.spend.dbUsd.toFixed(6)}` +
+        (meta.spend.ledgerUsd === null
+          ? " (nothing spent or ledgered)"
+          : `; ledgered $${meta.spend.ledgerUsd.toFixed(6)}`),
+    );
+    const misses = card.errors.filter((e) => e.kind === "replay_miss").length;
+    if (misses > 0) {
+      console.error(`[eval] ${misses} replay misses: record them with --mode record.`);
+      process.exitCode = 1;
+    }
+    if (meta.aborted) {
+      console.error(`[eval] stopped early: ${meta.aborted}`);
+      process.exitCode = 1;
+    }
+  } finally {
+    await sql.end();
+  }
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((err) => {
+    console.error(`[eval] ${(err as Error).message}`);
+    process.exit(1);
+  });
+}

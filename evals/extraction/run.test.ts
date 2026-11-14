@@ -1,0 +1,507 @@
+/** The extraction runner: argument refusals, spend refusals and dry runs on a real database. */
+import { mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { setFlagsFromString } from "node:v8";
+import { runInNewContext } from "node:vm";
+import { APIConnectionError } from "@anthropic-ai/sdk";
+import type { Sql } from "@pharos/db";
+import { connectTestDb, testDbLabel } from "@pharos/db/testing";
+import { ExtractionTruth } from "@pharos/shared";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { ExtractionError, renderEmailDocument } from "../../apps/api/src/ai/extract.js";
+import { type LlmFetch, ReplayMissError } from "../../apps/api/src/ai/llm.js";
+import { costUsd, promptTokensOf } from "../../apps/api/src/ai/pricing.js";
+import { parseEmail } from "../../apps/api/src/ingest/parse-email.js";
+import { BudgetError, HAIKU, ModelNotAllowedError, readLedger } from "../lib/budget.js";
+import {
+  capturing,
+  classifyExtractError,
+  EVAL_RUN_LOCK,
+  type EvalOptions,
+  type Exchange,
+  LEDGER_RUN,
+  parseArgs,
+  runExtractionEval,
+} from "./run.js";
+import { GOLDEN_DIR } from "./split.js";
+
+const sql = await connectTestDb("eval_extraction_test");
+/** A second pool for this file's own lock (concurrent runs of this file take turns). */
+const lockPool = sql ? await connectTestDb("eval_extraction_test") : null;
+const FILE_LOCK = 2026111411;
+
+// Cases and expectations come from the golden files on disk, never from copies of their content.
+const SPLIT = JSON.parse(await readFile(join(GOLDEN_DIR, "split.json"), "utf8")) as {
+  dev: string[];
+};
+const TRUTH = new Map<string, ExtractionTruth>();
+for (const id of SPLIT.dev) {
+  const text = await readFile(join(GOLDEN_DIR, `${id}.truth.json`), "utf8");
+  TRUTH.set(id, ExtractionTruth.parse(JSON.parse(text)));
+}
+const truthOf = (id: string): ExtractionTruth => {
+  const t = TRUTH.get(id);
+  if (!t) throw new Error(`no dev truth ${id}`);
+  return t;
+};
+/** Dev ids by stratum (tags[0]), in split order. */
+const STRATA = new Map<string, string[]>();
+for (const id of SPLIT.dev) {
+  const stratum = truthOf(id).tags[0] ?? "";
+  STRATA.set(stratum, [...(STRATA.get(stratum) ?? []), id]);
+}
+const firstOf = (stratum: string): string => {
+  const id = STRATA.get(stratum)?.[0];
+  if (!id) throw new Error(`no dev case in stratum ${stratum}`);
+  return id;
+};
+/** A truth-needs_review dev case (a hard one if there is one). */
+const REVIEW_CASE =
+  SPLIT.dev.find((id) => truthOf(id).expected.status === "needs_review") ?? firstOf("hard");
+
+/** Ten dev cases round-robin across the strata, hard first, so hard cases appear twice. */
+const TEN_DEV: string[] = (() => {
+  const order = ["hard", ...[...STRATA.keys()].filter((k) => k !== "hard").sort()];
+  const picked: string[] = [];
+  for (let round = 0; picked.length < 10; round++) {
+    for (const stratum of order) {
+      const id = STRATA.get(stratum)?.[round];
+      if (id && picked.length < 10) picked.push(id);
+    }
+  }
+  return picked;
+})();
+/** Critical-field instances of a set of cases: six per truth quote plus three per line. */
+const criticalInstances = (ids: string[]) =>
+  ids.reduce((n, id) => {
+    const q = truthOf(id).expected.quote;
+    return truthOf(id).expected.kind === "quote" && q ? n + 6 + 3 * q.lines.length : n;
+  }, 0);
+const reviewCount = (ids: string[]) =>
+  ids.filter((id) => truthOf(id).expected.status === "needs_review").length;
+
+/** A database that fails the test if anything touches it. */
+const NO_DB = new Proxy(
+  {},
+  {
+    get() {
+      throw new Error("the database was used");
+    },
+  },
+) as unknown as Sql;
+
+const temp = (prefix: string) => mkdtemp(join(tmpdir(), `eval-extraction-${prefix}-`));
+const tempLedger = async (totalUsd: number) => {
+  const path = join(await temp("ledger"), "ledger.jsonl");
+  await writeFile(
+    path,
+    `${JSON.stringify({ at: "2026-11-14T10:00:00Z", run: "earlier", label: "x", costUsd: totalUsd })}\n`,
+  );
+  return path;
+};
+const networkForbidden = () =>
+  vi.fn<LlmFetch>(async () => {
+    throw new Error("the network was used");
+  });
+
+describe("parseArgs", () => {
+  it("defaults to the dev split, replay, label = mode", () => {
+    expect(parseArgs(["--suite", "extraction", "--mode", "replay"])).toEqual({
+      suite: "extraction",
+      split: "dev",
+      mode: "replay",
+      extractor: "llm",
+      repeatHard: 1,
+      label: "replay",
+      limit: null,
+      final: false,
+    });
+    expect(parseArgs(["--oracle", "--limit", "10"])).toMatchObject({
+      extractor: "oracle",
+      label: "oracle",
+      limit: 10,
+    });
+  });
+
+  it("refuses the held-out split without --final", () => {
+    expect(() => parseArgs(["--split", "heldout", "--mode", "replay"])).toThrow(/--final/);
+    expect(parseArgs(["--split", "heldout", "--mode", "replay", "--final"]).split).toBe("heldout");
+  });
+
+  it.each([
+    [["--oracle", "--empty"], /alternatives/],
+    [["--oracle", "--mode", "live"], /makes no model calls/],
+    [["--mode", "record", "--repeat-hard", "3"], /overwrite/],
+    [["--mode", "paid"], /live, record or replay/],
+    [["--suite", "qa"], /only extraction/],
+    [["--repeat-hard", "0"], /whole number/],
+    [["--label", "a b"], /--label/],
+    [["--spilt", "heldout"], /unknown argument/],
+    [["--limit"], /needs a value/],
+  ])("refuses %j", (argv, message) => {
+    expect(() => parseArgs(argv)).toThrow(message);
+  });
+
+  it("allows --repeat-hard in live mode", () => {
+    expect(parseArgs(["--mode", "live", "--repeat-hard", "3"]).repeatHard).toBe(3);
+  });
+});
+
+setFlagsFromString("--expose-gc");
+const gc = runInNewContext("gc") as () => void;
+
+/** A full garbage collection, then a macrotask so FinalizationRegistry callbacks can run. */
+async function collectGarbage(): Promise<void> {
+  gc();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+describe("capturing (the transcript tap)", () => {
+  // Node 22's fetch (undici 6.21) cancels a Response's body when a clone of it is collected. The
+  // collection runs after the tap has read the body and before the caller reads it.
+  it("a collection between the tap's read and the caller's leaves the body readable", async () => {
+    const body = { model: HAIKU, content: [] };
+    const into: Exchange[] = [];
+    const f = capturing(
+      async () =>
+        new Response(JSON.stringify(body), {
+          status: 200,
+          statusText: "OK",
+          headers: { "content-type": "application/json", "request-id": "req_1" },
+        }),
+      into,
+    );
+    for (let i = 0; i < 3; i++) {
+      const res = await f("https://api.example/v1/messages", { body: '{"model":"m"}' });
+      await collectGarbage();
+      expect(res.bodyUsed).toBe(false);
+      expect(await res.json()).toEqual(body);
+      expect(res.headers.get("request-id")).toBe("req_1");
+    }
+    expect(into[0]).toEqual({
+      url: "https://api.example/v1/messages",
+      request: { model: "m" },
+      status: 200,
+      response: body,
+    });
+  });
+
+  it("returns an error response unread and records its status", async () => {
+    const into: Exchange[] = [];
+    const failed = new Response('{"type":"error"}', { status: 529 });
+    expect(await capturing(async () => failed, into)("https://x/v1/messages", {})).toBe(failed);
+    expect(failed.bodyUsed).toBe(false);
+    expect(into[0]?.status).toBe(529);
+  });
+});
+
+describe("classifyExtractError", () => {
+  const metrics = (stopReason: string) => [
+    {
+      requestKey: "k",
+      model: HAIKU,
+      latencyMs: 1,
+      usage: { input_tokens: 1, output_tokens: 1 },
+      stopReason,
+      mode: "live" as const,
+    },
+  ];
+  it("recognises replay misses, refusals, truncations and API errors by type", () => {
+    expect(classifyExtractError(new ReplayMissError("k", "/x/k.json"))).toBe("replay_miss");
+    expect(classifyExtractError(new ExtractionError("refused", metrics("refusal")))).toBe(
+      "refusal",
+    );
+    expect(classifyExtractError(new ExtractionError("cut", metrics("max_tokens")))).toBe(
+      "truncation",
+    );
+    expect(classifyExtractError(new APIConnectionError({ message: "Connection error." }))).toBe(
+      "api_error",
+    );
+  });
+  it("leaves an unusable output or any other failure to be graded", () => {
+    expect(classifyExtractError(new ExtractionError("bad json", metrics("end_turn")))).toBeNull();
+    expect(classifyExtractError(new Error("db down"))).toBeNull();
+  });
+});
+
+describe("runExtractionEval refusals (before any database, network or spend)", () => {
+  const base = async (over: Partial<EvalOptions>): Promise<EvalOptions> => ({
+    sql: NO_DB,
+    split: "dev",
+    mode: "live",
+    extractor: "llm",
+    label: "refusal",
+    ids: TEN_DEV,
+    reportsDir: await temp("reports"),
+    ...over,
+  });
+
+  it("refuses the held-out split without final", async () => {
+    await expect(
+      runExtractionEval(await base({ split: "heldout", mode: "replay" })),
+    ).rejects.toThrow(/--final/);
+  });
+
+  it("refuses a paid run when the ledger is near the $3 cap, without a call or a ledger row", async () => {
+    const ledgerPath = await tempLedger(2.995);
+    const fetch = networkForbidden();
+    await expect(
+      runExtractionEval(await base({ apiKey: "test-key", fetch, ledgerPath })),
+    ).rejects.toBeInstanceOf(BudgetError);
+    expect(fetch).not.toHaveBeenCalled();
+    expect(readLedger(ledgerPath)).toHaveLength(1);
+  });
+
+  it("refuses a paid run without a key, naming the variable", async () => {
+    await expect(
+      runExtractionEval(await base({ ledgerPath: await tempLedger(0) })),
+    ).rejects.toThrow(/ANTHROPIC_API_KEY/);
+  });
+});
+
+/** A scripted Anthropic API that answers each golden email with its oracle. */
+async function oracleApi(ids: string[], reply: { model?: string; outputTokens?: number } = {}) {
+  const byPrompt = new Map<string, unknown>();
+  for (const id of ids) {
+    const email = await parseEmail(new Uint8Array(await readFile(join(GOLDEN_DIR, `${id}.eml`))));
+    const prompt = renderEmailDocument({
+      sender: email.sender,
+      subject: email.subject,
+      bodyText: email.bodyText,
+    });
+    byPrompt.set(prompt, JSON.parse(await readFile(join(GOLDEN_DIR, `${id}.oracle.json`), "utf8")));
+  }
+  const usage = { input_tokens: 1200, output_tokens: reply.outputTokens ?? 300 };
+  const fetch = vi.fn<LlmFetch>(async (_url, init) => {
+    const body = JSON.parse(String(init?.body)) as { messages: { content: string }[] };
+    const oracle = byPrompt.get(body.messages[0]?.content ?? "");
+    if (oracle === undefined) throw new Error("scripted API: unknown email");
+    const message = {
+      id: "msg_test",
+      type: "message",
+      role: "assistant",
+      model: reply.model ?? HAIKU,
+      content: [{ type: "text", text: JSON.stringify({ extraction: oracle }), citations: null }],
+      stop_reason: "end_turn",
+      stop_sequence: null,
+      stop_details: null,
+      usage,
+    };
+    return new Response(JSON.stringify(message), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  });
+  return { fetch, costPerCall: costUsd(HAIKU, usage, promptTokensOf(usage)) };
+}
+
+if (!sql) {
+  describe("extraction runner (database)", () => {
+    it.skip(`skipped: Postgres unreachable for ${testDbLabel("eval_extraction_test")}`, () => {});
+  });
+}
+
+describe.skipIf(!sql)("extraction runner (database)", () => {
+  if (!sql || !lockPool) return;
+  const db = sql;
+  const pool = lockPool;
+  let held: Awaited<ReturnType<Sql["reserve"]>> | null = null;
+  beforeAll(async () => {
+    held = await pool.reserve();
+    await held`select pg_advisory_lock(${FILE_LOCK}::bigint)`;
+  }, 300_000);
+  afterAll(async () => {
+    if (held) {
+      await held`select pg_advisory_unlock(${FILE_LOCK}::bigint)`;
+      held.release();
+    }
+    await pool.end();
+    await db.end();
+  });
+  const dry = async (over: Partial<EvalOptions>) =>
+    runExtractionEval({
+      sql: db,
+      split: "dev",
+      mode: "replay",
+      extractor: "oracle",
+      label: "dry",
+      ids: TEN_DEV,
+      reportsDir: await temp("reports"),
+      fetch: networkForbidden(),
+      log: () => {},
+      ...over,
+    });
+
+  it("oracle dry run over 10 dev cases: 100 % critical-field accuracy, 0 unsafe, no key or network", async () => {
+    const fetch = networkForbidden();
+    const r = await dry({ fetch, label: "oracle" });
+    const card = r.scorecard;
+    expect(fetch).not.toHaveBeenCalled();
+    expect(card.graded).toBe(10);
+    expect(card.errors).toEqual([]);
+    expect(card.critical.rate).toBe(1);
+    expect(card.critical.n).toBe(criticalInstances(TEN_DEV));
+    expect(card.unsafeAutoAccepts).toMatchObject({ k: 0, n: 10 });
+    expect(card.falseReview.k).toBe(0);
+    const reviews = reviewCount(TEN_DEV);
+    expect(reviews).toBeGreaterThan(0);
+    expect(card.needsReviewRecall).toMatchObject({ k: reviews, n: reviews });
+    expect(card.reviewCheckMatched).toMatchObject({ k: reviews, n: reviews });
+    expect(card.kind.quoteRecall.rate).toBe(1);
+    expect(card.kind.notAQuoteRecall.rate).toBe(1);
+    for (const f of Object.values(card.fields)) expect(f.rate).toBe(1);
+    // Every case's status is the truth's: the oracle through the pipeline reproduces the truth.
+    for (const row of r.rows) expect(row.status).toBe(row.grade.truthStatus);
+    expect(r.meta).toMatchObject({ mode: "oracle", model: null, servedModels: [] });
+    expect(r.meta.spend).toEqual({ guardUsd: null, dbUsd: 0, ledgerUsd: null });
+
+    const files = (await readdir(r.reportDir)).sort();
+    expect(files).toEqual(["rows.jsonl", "scorecard.json", "scorecard.md", "transcripts.jsonl"]);
+    expect(r.reportDir).toMatch(/\d{8}T\d{6}Z-extraction-dev-oracle$/);
+    const rows = (await readFile(join(r.reportDir, "rows.jsonl"), "utf8")).trim().split("\n");
+    expect(rows.map((l) => JSON.parse(l).id)).toEqual(TEN_DEV);
+    const json = JSON.parse(await readFile(join(r.reportDir, "scorecard.json"), "utf8"));
+    expect(json.scorecard.critical).toEqual(card.critical);
+    const md = await readFile(join(r.reportDir, "scorecard.md"), "utf8");
+    expect(md).toContain(
+      `| Critical-field accuracy | ${card.critical.n}/${card.critical.n} | 100.0 % |`,
+    );
+  }, 120_000);
+
+  it("leaves the seed intact and nothing of the cases behind", async () => {
+    await dry({ ids: [firstOf("eur"), firstOf("plain")], label: "hygiene" });
+    const [c] = await db<{ documents: number; case_quotes: number; seed_quotes: number }[]>`
+      select (select count(*)::int from documents) as documents,
+             (select count(*)::int from quotes where extraction_id is not null) as case_quotes,
+             (select count(*)::int from quotes where extraction_id is null) as seed_quotes`;
+    expect(c).toMatchObject({ documents: 0, case_quotes: 0 });
+    expect(c?.seed_quotes).toBeGreaterThan(0);
+  }, 120_000);
+
+  it("empty dry run: critical-field accuracy at most 2 %, nothing auto-accepted", async () => {
+    const r = await dry({ extractor: "empty", label: "empty" });
+    expect(r.scorecard.critical.rate).toBeLessThanOrEqual(0.02);
+    expect(r.scorecard.unsafeAutoAccepts.k).toBe(0);
+    expect(r.scorecard.reviewQueue).toMatchObject({ k: 10, n: 10 });
+  }, 120_000);
+
+  it("replay misses are listed as errors and excluded from accuracy", async () => {
+    const r = await dry({
+      extractor: "llm",
+      mode: "replay",
+      label: "miss",
+      ids: [firstOf("eur"), firstOf("not_a_quote")],
+      recordingsDir: await temp("no-recordings"),
+    });
+    expect(r.scorecard.errors.map((e) => [e.id, e.kind])).toEqual([
+      [firstOf("eur"), "replay_miss"],
+      [firstOf("not_a_quote"), "replay_miss"],
+    ]);
+    expect(r.scorecard.graded).toBe(0);
+    expect(r.scorecard.critical.n).toBe(0);
+    expect(r.rows.map((x) => x.status)).toEqual(["failed", "failed"]);
+  }, 120_000);
+
+  it("record then replay: replay reproduces the record run's scorecard; record is ledgered", async () => {
+    const ids = [firstOf("eur"), REVIEW_CASE, firstOf("not_a_quote")];
+    const api = await oracleApi(ids);
+    const recordingsDir = await temp("recordings");
+    const ledgerPath = await tempLedger(0);
+    const recorded = await dry({
+      extractor: "llm",
+      mode: "record",
+      label: "record",
+      ids,
+      apiKey: "test-key",
+      fetch: api.fetch,
+      recordingsDir,
+      ledgerPath,
+    });
+    expect(api.fetch).toHaveBeenCalledTimes(3);
+    expect(recorded.scorecard.errors).toEqual([]);
+    expect(recorded.scorecard.critical.rate).toBe(1);
+    expect(recorded.meta.servedModels).toEqual([HAIKU]);
+    const ledger = readLedger(ledgerPath);
+    expect(ledger.at(-1)).toMatchObject({ run: LEDGER_RUN, label: "record" });
+    expect(ledger.at(-1)?.costUsd).toBeCloseTo(api.costPerCall * 3, 12);
+    expect(recorded.meta.spend.ledgerUsd).toBeCloseTo(api.costPerCall * 3, 12);
+    const transcript = JSON.parse(
+      (await readFile(join(recorded.reportDir, "transcripts.jsonl"), "utf8")).split("\n")[0] ?? "",
+    );
+    expect(transcript.exchanges).toHaveLength(1);
+    expect(transcript.exchanges[0].response.model).toBe(HAIKU);
+
+    const network = networkForbidden();
+    const replayed = await dry({
+      extractor: "llm",
+      mode: "replay",
+      label: "replay",
+      ids,
+      fetch: network,
+      recordingsDir,
+      ledgerPath,
+    });
+    expect(network).not.toHaveBeenCalled();
+    expect(readLedger(ledgerPath)).toHaveLength(ledger.length);
+    const { latency: _a, ...recordedCard } = recorded.scorecard;
+    const { latency: _b, ...replayedCard } = replayed.scorecard;
+    expect(replayedCard).toEqual(recordedCard);
+    expect(replayed.meta.servedModels).toEqual([HAIKU]);
+  }, 120_000);
+
+  it("a response served by another model fails the run after the report and ledger row", async () => {
+    const api = await oracleApi([firstOf("plain")], { model: "claude-sonnet-5-5" });
+    const reportsDir = await temp("reports");
+    const ledgerPath = await tempLedger(0);
+    await expect(
+      dry({
+        extractor: "llm",
+        mode: "live",
+        label: "wrong-model",
+        ids: [firstOf("plain")],
+        apiKey: "test-key",
+        fetch: api.fetch,
+        reportsDir,
+        ledgerPath,
+      }),
+    ).rejects.toBeInstanceOf(ModelNotAllowedError);
+    expect(await readdir(reportsDir)).toHaveLength(1);
+    expect(readLedger(ledgerPath).at(-1)?.costUsd).toBeCloseTo(api.costPerCall, 12);
+  }, 120_000);
+
+  it("refuses to start while another run holds the database", async () => {
+    const other = await pool.reserve();
+    try {
+      await other`select pg_advisory_lock(${EVAL_RUN_LOCK}::bigint)`;
+      await expect(dry({ label: "locked", ids: [firstOf("eur")] })).rejects.toThrow(
+        /another extraction eval is running/,
+      );
+    } finally {
+      await other`select pg_advisory_unlock(${EVAL_RUN_LOCK}::bigint)`;
+      other.release();
+    }
+    await expect(dry({ label: "unlocked", ids: [firstOf("eur")] })).resolves.toBeDefined();
+  }, 120_000);
+
+  it("stops at the per-request guard (cap = what the ledger has left) and ledgers the overrun", async () => {
+    // $0.01 left under the cap; one response costs about $0.05.
+    const ids = [firstOf("eur"), firstOf("plain")];
+    const api = await oracleApi(ids, { outputTokens: 100_000 });
+    const ledgerPath = await tempLedger(2.99);
+    const r = await dry({
+      extractor: "llm",
+      mode: "live",
+      label: "guard",
+      ids,
+      apiKey: "test-key",
+      fetch: api.fetch,
+      ledgerPath,
+    });
+    expect(api.fetch).toHaveBeenCalledTimes(1);
+    expect(r.meta.aborted).toMatch(/spend cap/);
+    expect(r.meta.notRun).toEqual([ids[1]]);
+    expect(r.scorecard.cases).toBe(1);
+    expect(readLedger(ledgerPath).at(-1)?.costUsd).toBeCloseTo(api.costPerCall, 12);
+  }, 120_000);
+});
