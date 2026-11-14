@@ -6,7 +6,7 @@
 
 **Architecture:** Everything runs in `apps/api`. One LLM gateway (an `Anthropic` client with a custom `fetch`) gives `LLM_MODE=live|record|replay` and records usage/latency/cost of every call in `llm_calls`. Ingestion is a fixed in-process workflow (parse → LLM extract → code normalise/verify/resolve → quote or review). The ops agent is one tool-runner loop over three typed tools (vessel status, bunker plan, propose action) that return facts; a code release gate checks every number in the answer against those facts before it is shown. Approval runs a code executor that writes the order and pushes it to the ERP simulator with an idempotency key. Read routes switch from fixtures to the database.
 
-**Tech Stack:** `@anthropic-ai/sdk` 1.8.0 (`messages.parse` + `zodOutputFormat`, `beta.messages.toolRunner` + `betaZodTool`), Claude Opus 5.5, Hono, postal-mime, html-to-text, Drizzle/Postgres, Zod 4, Vitest. No new dependencies.
+**Tech Stack:** `@anthropic-ai/sdk` 1.8.0 (`messages.parse` + `zodOutputFormat`, `beta.messages.toolRunner` + `betaZodTool`), Claude Haiku 5.5 (lowest-cost model, user's choice), Hono, postal-mime, html-to-text, Drizzle/Postgres, Zod 4, Vitest. No new dependencies.
 
 **Spec:** `docs/MASTER_PLAN.md` — §1 demo story, §3 deterministic maths, §6 runtime AI pipeline, §7 B (grounding graders, for the gate's shape), §10 Phase 2 row (gate: *works live end to end; latency and real cost per call measured*). Read with `CLAUDE.md`. Anyone touching `apps/api/src/ai/` loads the `claude-api` skill first.
 
@@ -16,10 +16,10 @@
 - **Every number shown is a fact.** Tool results carry `facts[]` (`Fact` from `@pharos/shared`); the release gate withholds any answer containing a number that matches no fact at its displayed precision (one automatic repair turn first).
 - **The model only proposes.** `propose_action` inserts a *pending* recommendation that references a stored `calculations` row and an `optionId`; it accepts no quantity, price or speed (`ProposedAction` is strict). Orders are written only by the executor after `POST /api/recommendations/:id/approve`. Nothing is sent to external parties; the ERP simulator is internal.
 - **Email content is untrusted data**, passed inside `<email_document>` delimiters (any literal closing tag in the body escaped), never as instructions.
-- **Model settings:** model `claude-opus-5-5` for both prompts (env `EXTRACT_MODEL`, `AGENT_MODEL`); thinking is always on for this model — omit `thinking`, set `output_config.effort` explicitly (env `EXTRACT_EFFORT`, `AGENT_EFFORT`, default `medium`); forced `tool_choice` `any`/`tool` returns 400 on this model — use `auto`; no assistant prefill. Refusal fallbacks **on in the app** (`betas: ["server-side-fallback-2026-07-01"]`, `fallbacks: "default"`), **off in eval/test runs** (env `LLM_FALLBACKS=on|off`, default `on`). Static system prompts carry `cache_control`.
+- **Model settings:** model `claude-haiku-5-5` for both prompts by default (user's choice: lowest cost; env `EXTRACT_MODEL`, `AGENT_MODEL` switch either one to `claude-opus-5-5` without code changes); adaptive thinking is on by default — omit `thinking`, set `output_config.effort` explicitly (env `EXTRACT_EFFORT`, `AGENT_EFFORT`, default `medium`); use `tool_choice: auto`; no assistant prefill. Haiku 5.5 has **no server-side refusal fallback**, so `LLM_FALLBACKS` defaults to `off`; when set `on` with an Opus model, send `betas: ["server-side-fallback-2026-07-01"]`, `fallbacks: "default"`. Static system prompts carry `cache_control`.
 - **LLM modes:** `live` calls the API; `record` calls it and writes each request/response pair to `RECORDINGS_DIR` (default `fixtures/llm-recordings`); `replay` serves only recordings and throws `ReplayMissError` (naming the request key) on a miss. Tests run in replay against a database seeded with `anchor = 2026-11-14T08:00:00Z`, seed `20261114`. Reported latency/cost come from live runs only.
 - **Keys:** never read, print or log `.env` or key values. Host scripts that need the key load it with `tsx --env-file=.env …`; containers get it from Compose.
-- **Spend:** Phase 2 live calls (recording + smoke) are expected to cost under $2; stop and report if a single run exceeds $1.
+- **Spend:** on Haiku 5.5, Phase 2 live calls (recording + smoke) are expected to cost a few cents; stop and report if a single run exceeds $0.25.
 - Prompt files live in `apps/api/src/ai/prompts/` and carry a `PROMPT_VERSION` string stored on each extraction. Editing them marks the live-smoke requirement (Stop hook) once `npm run eval:smoke` exists (Task 9).
 - No new npm dependencies; only the lead changes the lockfile. Local commits per task on `build/prototype`; never push.
 
@@ -36,6 +36,7 @@
 ### Task 1: Contracts for ingestion, ask, approval, ERP and LLM metrics (lead)
 
 **Files:** Modify `packages/shared/src/api.ts`, `packages/shared/src/entities.ts`, `packages/shared/src/index.ts`; Create `packages/shared/src/providers/erp.ts`; Test `packages/shared/src/contracts.test.ts` (extend).
+Also (lead-owned config): `docker-compose.yml` passes `EXTRACT_MODEL`, `AGENT_MODEL`, `EXTRACT_EFFORT`, `AGENT_EFFORT`, `LLM_FALLBACKS` through to `api` (`${VAR:-}` so the app defaults apply), and `.env.example` documents them (blank values).
 
 **Interfaces — Produces:**
 
@@ -87,11 +88,11 @@
 
 - Consumes: `LlmMode`, `LlmCall` (Task 1); `llm_calls` table (Task 2).
 - Produces:
-  - `AppConfig` gains `extractModel`, `agentModel` (default `claude-opus-5-5`), `extractEffort`, `agentEffort` (`low|medium|high|xhigh|max`, default `medium`), `llmFallbacks: boolean` (env `LLM_FALLBACKS`, default on), `recordingsDir` (env `RECORDINGS_DIR`, default `<repo>/fixtures/llm-recordings`).
+  - `AppConfig` gains `extractModel`, `agentModel` (default `claude-haiku-5-5`), `extractEffort`, `agentEffort` (`low|medium|high|xhigh|max`, default `medium`), `llmFallbacks: boolean` (env `LLM_FALLBACKS`, default off), `recordingsDir` (env `RECORDINGS_DIR`, default `<repo>/fixtures/llm-recordings`).
   - `createLlm(opts: {mode, apiKey?, recordingsDir, onCall: (m: CallMetrics) => void | Promise<void>}): { client: Anthropic }` — the client's custom `fetch` computes `requestKey = sha256(canonical JSON of the request body + method + path)`; `live` forwards; `record` forwards and writes `<recordingsDir>/<requestKey>.json` `{request, response: {status, headers subset, body}}`; `replay` returns the stored response or throws `ReplayMissError(requestKey, path)`. Every call reports `CallMetrics {requestKey, model, latencyMs, usage, stopReason, mode}` to `onCall` (replay reports latency 0). Canonical JSON = keys sorted recursively.
-  - `costUsd(model: string, usage): number` with a per-model table in `pricing.ts` (Opus 5.5: $4 input, $20 output, $0.20 cache read, 1.25× input for 5-minute cache writes, per MTok; source comment: claude-api skill model table, cached 2026-11-03).
+  - `costUsd(model: string, usage): number` with a per-model table in `pricing.ts` (Haiku 5.5: $0.10 input, $0.50 output per MTok for prompts up to 100K tokens, $0.50 / $2.50 beyond; Opus 5.5: $4 input, $20 output, $0.20 cache read; cache writes 1.25× input; Haiku cache-read rate taken from the live pricing page, not assumed; source comment: claude-api skill model table, cached 2026-11-03).
   - `recordLlmCall(sql, purpose, metrics, links): Promise<Id>` inserting into `llm_calls`.
-- [ ] Tests: replay hit returns the recorded body; replay miss throws `ReplayMissError` naming key and path and **never calls the network** (inject a throwing base fetch); record writes the file and returns the live body; same body with keys in a different order → same key; `costUsd` hand example: 1 000 input + 500 output + 2 000 cache read on Opus 5.5 = 0.004 + 0.010 + 0.0004 = **$0.0144**; config defaults and `LLM_FALLBACKS=off`.
+- [ ] Tests: replay hit returns the recorded body; replay miss throws `ReplayMissError` naming key and path and **never calls the network** (inject a throwing base fetch); record writes the file and returns the live body; same body with keys in a different order → same key; `costUsd` hand examples: 1 000 input + 500 output on Haiku 5.5 = 0.0001 + 0.00025 = **$0.00035**; 1 000 input + 500 output + 2 000 cache read on Opus 5.5 = 0.004 + 0.010 + 0.0004 = **$0.0144**; config defaults and `LLM_FALLBACKS=off`.
 
 ### Task 6: Demo inbox fixtures + ingestion workflow (eval-engineer for fixtures, then ai-backend-engineer)
 
@@ -146,12 +147,13 @@
 
 **Files:** Create `evals/smoke/run.ts`, `evals/smoke/README.md`; Modify root `package.json` (`"eval:smoke": "tsx evals/smoke/run.ts"`).
 
-**Interfaces:** Consumes the HTTP API only (`API_URL`, default `http://localhost:4000`). Produces `npm run eval:smoke`: checks `/api/health` reports `llmMode: live` (else exits 2 with "start the API with LLM_MODE=live"); delivers both demo emails and polls until each extraction leaves `pending` (timeout 90 s each); asserts the two quotes match `DEMO_SCENARIO` (supplier, port, currency, price, barge, qty); asks the demo question; asserts `gate.passed`, at least one fact chip, a pending recommendation for `MTMLA-kestrel`; approves it and asserts an `erpPoNumber`; reads `/api/llm-calls` for the run's calls. Writes `evals/reports/<UTC timestamp>-smoke/report.json` + `report.md` (step latencies; per LLM call: purpose, model, tokens, latency, cost; totals) and prints the table. On success touches `.claude/state/markers/live-smoke`. Exits non-zero on any failed assertion, listing it.
+**Interfaces:** Consumes the HTTP API only (`API_URL`, default `http://localhost:4000`). Produces `npm run eval:smoke`: checks `/api/health` reports `llmMode: live` (else exits 2 with "start the API with LLM_MODE=live"); delivers both demo emails and polls until each extraction leaves `pending` (timeout 90 s each); asserts the two quotes match `DEMO_SCENARIO` (supplier, port, currency, price, barge, qty); asks the demo question; asserts `gate.passed`, at least one fact chip, a pending recommendation for `MTMLA-kestrel`; approves it and asserts an `erpPoNumber`; reads `/api/llm-calls` for the run's calls. Accepts `--label <name>` (default `default`). Writes `evals/reports/<UTC timestamp>-smoke-<label>/report.json` + `report.md` (step latencies; per LLM call: purpose, model, tokens, latency, cost; totals) and prints the table. On success touches `.claude/state/markers/live-smoke`. Exits non-zero on any failed assertion, listing it.
 - [ ] Dry test: `evals/smoke/run.test.ts` runs the runner against the in-process app in replay mode (recordings from Tasks 6–7) and asserts the report shape and the marker write (to a temp dir via `MARKERS_DIR`).
 
 ### Task 10: Phase gate (verifier) and commit (lead)
 
 - [ ] `npm run verify` green (replay tests pass, DB tests not skipped, purity OK).
-- [ ] `LLM_MODE=live docker compose up -d --build` → all healthy; `npm run eval:smoke` passes live; report lists every LLM call with latency and cost; total under $1.
+- [ ] `LLM_MODE=live docker compose up -d --build` → all healthy; `npm run eval:smoke` passes live; report lists every LLM call with latency and cost; total under $0.25.
+- [ ] **Model comparison (user decision 2026-11-14: Haiku 5.5 for both prompts, plus one comparison run):** restart only the API with `AGENT_MODEL=claude-opus-5-5` and run `npm run eval:smoke -- --label agent-opus`; restore the default. Gate evidence includes a side-by-side table (Haiku vs Opus agent): gate passed / repaired, answer latency, tokens, cost. Extraction stays on Haiku in both runs. This is evidence for the Phase 3/4 model choice, not a gate condition.
 - [ ] Browser check of `GET /`: deliver → quote → ask (fact chips) → approve → PO number visible.
 - [ ] `verifier` reports PASS/FAIL table; update `.claude/state/status.json` (phase 3; gate evidence incl. measured extraction/answer latency and cost; run `npx biome format --write` on it); commit; do not push. Tell the user the measured latency and cost against the §6 targets (email ~20 s, answer ~45 s).
