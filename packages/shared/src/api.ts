@@ -3,6 +3,7 @@ import { z } from "zod";
 import { ConsumptionCurve, FobProjection } from "./calculators.js";
 import {
   CheckResult,
+  LlmCall,
   PortCallPurpose,
   QuoteStatus,
   RecommendationStatus,
@@ -147,3 +148,52 @@ export const RecommendationView = z.object({
   facts: z.array(Fact),
 });
 export type RecommendationView = z.infer<typeof RecommendationView>;
+
+// ---------- Phase 2: ingestion, ask, approval, metrics ----------
+
+export const UploadResult = z.object({ documentId: Id, duplicate: z.boolean() });
+export type UploadResult = z.infer<typeof UploadResult>;
+
+export const DeliverResult = UploadResult.extend({
+  /** Demo emails not yet delivered after this one. */
+  remaining: z.number().int().nonnegative(),
+});
+export type DeliverResult = z.infer<typeof DeliverResult>;
+
+export const AskRequest = z.object({
+  question: z.string().trim().min(1).max(2000),
+  conversationId: Id.nullable(),
+});
+export type AskRequest = z.infer<typeof AskRequest>;
+
+/** Outcome of the release gate: every number in an answer must match a tool fact. */
+export const GateResult = z.object({
+  passed: z.boolean(),
+  repaired: z.boolean(),
+  ungroundedNumbers: z.array(z.string()),
+});
+export type GateResult = z.infer<typeof GateResult>;
+
+export const AskResponse = z.object({
+  conversationId: Id,
+  messageId: Id,
+  /** Null when the gate withheld the answer. */
+  answer: z.string().nullable(),
+  facts: z.array(Fact),
+  gate: GateResult,
+  recommendationIds: z.array(Id),
+  llmCallIds: z.array(Id),
+});
+export type AskResponse = z.infer<typeof AskResponse>;
+
+export const DecisionResult = z.object({
+  recommendationId: Id,
+  status: RecommendationStatus,
+  orderId: Id.nullable(),
+  erpPoNumber: z.string().nullable(),
+  erpSyncStatus: z.enum(["pending", "synced", "failed"]).nullable(),
+});
+export type DecisionResult = z.infer<typeof DecisionResult>;
+
+export const LlmCallView = LlmCall.extend({ createdAt: IsoDateTime });
+export type LlmCallView = z.infer<typeof LlmCallView>;

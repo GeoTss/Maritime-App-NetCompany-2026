@@ -50,6 +50,12 @@ services:
       # The API migrates, then reseeds the synthetic world anchored to boot time (reset|if-empty|off).
       SEED_ON_BOOT: ${SEED_ON_BOOT:-reset}
       WORLD_SEED: ${WORLD_SEED:-20261114}
+      # Model per prompt (default Claude Haiku 5.5), effort, refusal fallbacks (on|off). Blank = app default.
+      EXTRACT_MODEL: ${EXTRACT_MODEL:-}
+      AGENT_MODEL: ${AGENT_MODEL:-}
+      EXTRACT_EFFORT: ${EXTRACT_EFFORT:-}
+      AGENT_EFFORT: ${AGENT_EFFORT:-}
+      LLM_FALLBACKS: ${LLM_FALLBACKS:-}
       # Live by default; the API refuses to start without a key in live/record mode.
       LLM_MODE: ${LLM_MODE:-live}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}

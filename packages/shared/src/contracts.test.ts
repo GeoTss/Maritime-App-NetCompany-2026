@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  AskResponse,
   ConsumptionCurve,
+  ErpOrderRequest,
   ExtractionOutput,
   GradeAmounts,
+  LlmCall,
   ProposedAction,
   Provenance,
   RouteLeg,
@@ -149,5 +152,64 @@ describe("domain primitives", () => {
     };
     expect(ConsumptionCurve.safeParse(curve).success).toBe(true);
     expect(ConsumptionCurve.safeParse({ ...curve, maxSpeedKn: 7 }).success).toBe(false);
+  });
+});
+
+describe("Phase 2 contracts", () => {
+  it("AskResponse carries a withheld answer with the failing numbers", () => {
+    const r = AskResponse.parse({
+      conversationId: 1,
+      messageId: 2,
+      answer: null,
+      facts: [],
+      gate: { passed: false, repaired: true, ungroundedNumbers: ["8,000"] },
+      recommendationIds: [],
+      llmCallIds: [3, 4],
+    });
+    expect(r.answer).toBeNull();
+    expect(r.gate.ungroundedNumbers).toEqual(["8,000"]);
+  });
+
+  const order = {
+    supplierErpCode: "SUP-KES",
+    vesselImo: "9876547",
+    port: "MTMLA",
+    currency: "USD",
+    lines: [{ grade: "LSMGO", qtyMt: 300, pricePerMt: 738 }],
+    bargeFee: 2800,
+    reference: "rec-1",
+  };
+
+  it("ErpOrderRequest accepts an order and rejects empty lines or a zero quantity", () => {
+    expect(ErpOrderRequest.safeParse(order).success).toBe(true);
+    expect(ErpOrderRequest.safeParse({ ...order, lines: [] }).success).toBe(false);
+    expect(
+      ErpOrderRequest.safeParse({
+        ...order,
+        lines: [{ grade: "LSMGO", qtyMt: 0, pricePerMt: 738 }],
+      }).success,
+    ).toBe(false);
+  });
+
+  it("LlmCall rejects negative token counts", () => {
+    const call = {
+      id: 1,
+      purpose: "extract",
+      model: "claude-haiku-5-5",
+      mode: "live",
+      inputTokens: 1000,
+      outputTokens: 500,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+      latencyMs: 1500,
+      costUsd: 0.00035,
+      stopReason: "end_turn",
+      requestKey: "abc",
+      documentId: null,
+      conversationId: null,
+      createdAt: new Date("2026-11-14T08:00:00Z"),
+    };
+    expect(LlmCall.safeParse(call).success).toBe(true);
+    expect(LlmCall.safeParse({ ...call, outputTokens: -1 }).success).toBe(false);
   });
 });

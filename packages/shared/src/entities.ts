@@ -357,3 +357,24 @@ export const ReferenceRate = z.object({
   source: z.string().min(1),
 });
 export type ReferenceRate = z.infer<typeof ReferenceRate>;
+
+/** One model call, for latency and cost measurement. Cost is computed in code from the usage. */
+export const LlmCall = z.object({
+  id: Id,
+  purpose: z.enum(["extract", "agent"]),
+  model: z.string().min(1),
+  mode: z.enum(["live", "record", "replay"]),
+  inputTokens: z.number().int().nonnegative(),
+  outputTokens: z.number().int().nonnegative(),
+  cacheReadTokens: z.number().int().nonnegative(),
+  cacheWriteTokens: z.number().int().nonnegative(),
+  latencyMs: z.number().nonnegative(),
+  costUsd: z.number().nonnegative(),
+  stopReason: z.string().nullable(),
+  /** sha256 of the canonical request; the key of its recording. */
+  requestKey: z.string().min(1),
+  documentId: Id.nullable(),
+  conversationId: Id.nullable(),
+  createdAt: Ts,
+});
+export type LlmCall = z.infer<typeof LlmCall>;
