@@ -29,6 +29,24 @@ describe("costUsd (per-MTok figures from the pricing page, fetched 2026-11-14)",
     expect(costUsd("claude-opus-5-5", usage, promptTokensOf(usage))).toBeCloseTo(0.0144, PRECISION);
   });
 
+  it("Sonnet 5.5: 1 000 input + 500 output + 2 000 cache read + 400 5-min write = 0.002 + 0.005 + 0.0002 + 0.001 = $0.0082", () => {
+    const usage = {
+      input_tokens: 1_000,
+      output_tokens: 500,
+      cache_read_input_tokens: 2_000,
+      cache_creation_input_tokens: 400,
+    };
+    expect(costUsd("claude-sonnet-5-5", usage, promptTokensOf(usage))).toBeCloseTo(
+      0.0082,
+      PRECISION,
+    );
+  });
+
+  it("Sonnet 5.5 has no long-context tier", () => {
+    const usage = { input_tokens: 200_000, output_tokens: 0 };
+    expect(costUsd("claude-sonnet-5-5", usage, 200_000)).toBeCloseTo(0.4, PRECISION);
+  });
+
   it("Opus 5.5 has no long-context tier", () => {
     const usage = { input_tokens: 200_000, output_tokens: 0 };
     expect(costUsd("claude-opus-5-5", usage, 200_000)).toBeCloseTo(0.8, PRECISION);

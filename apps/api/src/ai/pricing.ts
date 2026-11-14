@@ -42,6 +42,9 @@ const PRICING: Record<string, ModelPricing> = {
   "claude-opus-5-5": {
     base: { input: 4, cacheWrite5m: 5, cacheWrite1h: 8, cacheRead: 0.2, output: 20 },
   },
+  "claude-sonnet-5-5": {
+    base: { input: 2, cacheWrite5m: 2.5, cacheWrite1h: 4, cacheRead: 0.1, output: 10 },
+  },
 };
 
 /** Exact id, or the id followed by a dated snapshot suffix (`-YYYYMMDD`). */
