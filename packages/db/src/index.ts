@@ -11,8 +11,9 @@ export {
   optionIdFor,
   voyageState,
 } from "./seed/demo-plan.js";
-export { DEMO_SCENARIO } from "./seed/scenario.js";
+export { DEMO_SCENARIO, SUPPLIERS } from "./seed/scenario.js";
 export { type SeedOptions, seedDatabase } from "./seed/seed.js";
 export type { World } from "./seed/types.js";
 export { generateWorld } from "./seed/world.js";
 export { createSql, pingDb, type Sql } from "./sql.js";
+export { currentVoyage, openRequirements } from "./world-rules.js";

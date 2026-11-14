@@ -98,6 +98,7 @@ export const InboxExtractionStatus = z.enum([
   "accepted",
   "not_a_quote",
   "failed",
+  "rejected",
 ]);
 export const InboxItem = z.object({
   documentId: Id,

@@ -46,6 +46,17 @@ describe("drizzle schema mirrors the shared entities", () => {
     expect(names).toContain("world_meta");
   });
 
+  it("carries the Phase 3 extraction and document columns", () => {
+    const ext = getTableColumns(schema.extractions);
+    expect(ext.error.notNull).toBe(false);
+    expect(ext.claimedAt.notNull).toBe(false);
+    const doc = getTableColumns(schema.documents).hasUnreadableAttachment;
+    expect(doc.notNull).toBe(true);
+    expect(doc.default).toBe(false);
+    expect(shared.ExtractionStatus.options).toContain("rejected");
+    expect(shared.InboxExtractionStatus.options).toContain("rejected");
+  });
+
   it("purchase_orders has a unique index on idempotency_key", () => {
     const idx = getTableConfig(schema.purchaseOrders).indexes.find(
       (i) => i.config.name === "purchase_orders_idempotency_key_uq",

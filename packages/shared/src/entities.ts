@@ -240,6 +240,8 @@ export const Document = z.object({
   filename: z.string().nullable(),
   bodyText: z.string(),
   receivedAt: Ts,
+  /** True when a PDF attachment could not be read, so the email's extraction cannot be trusted. */
+  hasUnreadableAttachment: z.boolean(),
 });
 export type Document = z.infer<typeof Document>;
 
@@ -257,6 +259,7 @@ export const ExtractionStatus = z.enum([
   "accepted",
   "not_a_quote",
   "failed",
+  "rejected",
 ]);
 export type ExtractionStatus = z.infer<typeof ExtractionStatus>;
 
@@ -273,6 +276,10 @@ export const Extraction = z.object({
   model: z.string().min(1),
   promptVersion: z.string().min(1),
   createdAt: Ts,
+  /** Why the extraction failed, when it did. */
+  error: z.string().nullable(),
+  /** When a worker took the extraction; null while unclaimed. */
+  claimedAt: Ts.nullable(),
 });
 export type Extraction = z.infer<typeof Extraction>;
 

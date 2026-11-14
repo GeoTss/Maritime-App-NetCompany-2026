@@ -202,6 +202,7 @@ export const documents = pgTable(
     filename: text(),
     bodyText: text().notNull(),
     receivedAt: ts().notNull(),
+    hasUnreadableAttachment: boolean().notNull().default(false),
   },
   (t) => [uniqueIndex("documents_sha256_uq").on(t.sha256)],
 );
@@ -216,11 +217,15 @@ export const extractions = pgTable("extractions", {
   fieldEvidence: jsonb().$type<Record<string, string | null>>().notNull(),
   checkResults: jsonb().$type<CheckResult[]>().notNull(),
   status: text()
-    .$type<"pending" | "extracted" | "needs_review" | "accepted" | "not_a_quote" | "failed">()
+    .$type<
+      "pending" | "extracted" | "needs_review" | "accepted" | "not_a_quote" | "failed" | "rejected"
+    >()
     .notNull(),
   model: text().notNull(),
   promptVersion: text().notNull(),
   createdAt: ts().notNull(),
+  error: text(),
+  claimedAt: ts(),
 });
 
 export const quotes = pgTable("quotes", {

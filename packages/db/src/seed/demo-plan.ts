@@ -18,10 +18,12 @@ import type {
   FobLeg,
   FobProjection,
   FobProjectionInput,
+  FuelGrade,
   Id,
   Port,
   Supplier,
 } from "@pharos/shared";
+import { openRequirements } from "../world-rules.js";
 import { DEMO_SCENARIO, SUPPLIERS } from "./scenario.js";
 import type { World } from "./types.js";
 
@@ -124,18 +126,18 @@ export function projectDemo(world: World, legs: FobLeg[]): FobProjection {
 /**
  * Planner input for a voyage's open requirement against the given offers. The deviation distance
  * is the port's approach distance; bunkering takes DEFAULT_BUNKERING_HOURS; waits come from the
- * latest congestion reading. Off-route ports are reached via Gibraltar.
+ * latest congestion reading. Off-route ports are reached via Gibraltar. The requirement is the
+ * lowest-id open one, of `requirementGrade` when given, of any grade otherwise.
  */
 export function buildBunkerPlanInput(
   world: World,
   voyageId: Id,
   offers: BunkerOffer[],
+  requirementGrade?: FuelGrade,
 ): BunkerPlanInput {
   const { vessel, voyage, path, report, remainingLegs } = voyageState(world, voyageId);
   const requirement = must(
-    world.bunkerRequirements
-      .filter((r) => r.voyageId === voyage.id && r.status === "open")
-      .sort((a, b) => a.id - b.id)[0],
+    openRequirements(world, voyage.id, requirementGrade)[0],
     `open requirement for voyage ${voyage.id}`,
   );
   const grade = requirement.grade;
