@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Harbourlight Energy",
+    "evidence": "Harbourlight Energy | Trading Desk"
+  },
+  "vesselName": {
+    "value": "M/V Scheldt Express",
+    "evidence": "Ship: M/V Scheldt Express / IMO 9487081"
+  },
+  "vesselImo": {
+    "value": "9487081",
+    "evidence": "Ship: M/V Scheldt Express / IMO 9487081"
+  },
+  "port": {
+    "value": "Antwerp",
+    "evidence": "Delivery port: Antwerp, Belgium"
+  },
+  "deliveryFrom": {
+    "asWritten": "17 Nov",
+    "evidence": "Delivery from: 17 Nov"
+  },
+  "deliveryTo": {
+    "asWritten": "19 Nov",
+    "evidence": "Delivery to: 19 Nov"
+  },
+  "validUntil": {
+    "asWritten": "16 November 2026 noon LT",
+    "evidence": "Firm until: 16 November 2026 noon LT"
+  },
+  "bargeFee": {
+    "value": 3350,
+    "currency": "USD",
+    "perUnit": "lump sum",
+    "asWritten": "USD 3,350 lump sum",
+    "evidence": "Delivery charge: USD 3,350 lump sum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "MGO 0.1%",
+        "evidence": "MGO 0.1% 50 metric tonnes US$ 757.00 pmt"
+      },
+      "quantity": {
+        "value": 50,
+        "unit": "metric tonnes",
+        "asWritten": "50 metric tonnes",
+        "evidence": "MGO 0.1% 50 metric tonnes US$ 757.00 pmt"
+      },
+      "price": {
+        "value": 757,
+        "currency": "US$",
+        "perUnit": "pmt",
+        "asWritten": "US$ 757.00 pmt",
+        "evidence": "MGO 0.1% 50 metric tonnes US$ 757.00 pmt"
+      }
+    }
+  ],
+  "notes": null
+}

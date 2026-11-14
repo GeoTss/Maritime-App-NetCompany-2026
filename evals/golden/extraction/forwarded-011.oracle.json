@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Harbourlight Energy",
+    "evidence": "For and on behalf of Harbourlight Energy"
+  },
+  "vesselName": {
+    "value": null,
+    "evidence": null
+  },
+  "vesselImo": {
+    "value": "9482031",
+    "evidence": "Ship: IMO 9482031"
+  },
+  "port": {
+    "value": "Hamburg",
+    "evidence": "Delivery port: Hamburg (DEHAM)"
+  },
+  "deliveryFrom": {
+    "asWritten": "18.11.2026 - 19.11.2026",
+    "evidence": "Delivery date: 18.11.2026 - 19.11.2026"
+  },
+  "deliveryTo": {
+    "asWritten": "18.11.2026 - 19.11.2026",
+    "evidence": "Delivery date: 18.11.2026 - 19.11.2026"
+  },
+  "validUntil": {
+    "asWritten": "16.11.26",
+    "evidence": "Prices valid until: 16.11.26"
+  },
+  "bargeFee": {
+    "value": 2800,
+    "currency": "USD",
+    "perUnit": "LS",
+    "asWritten": "USD 2,800 LS",
+    "evidence": "Barging: USD 2,800 LS"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "VLSFO 0.5%",
+        "evidence": "Fuel: VLSFO 0.5%"
+      },
+      "quantity": {
+        "value": 225,
+        "unit": "mts",
+        "asWritten": "225 mts",
+        "evidence": "Quantity: 225 mts"
+      },
+      "price": {
+        "value": 599,
+        "currency": "USD",
+        "perUnit": "/MT",
+        "asWritten": "599 USD/MT",
+        "evidence": "Price: 599 USD/MT"
+      }
+    }
+  ],
+  "notes": null
+}

@@ -1,0 +1,27 @@
+{
+  "id": "plain-006",
+  "tags": ["plain", "layout:prose", "vessel:name-imo", "window:slash", "barge:lump_sum"],
+  "source": "generated",
+  "expected": {
+    "kind": "quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": {
+      "vesselImo": "9485069",
+      "portUnlocode": "PTSIE",
+      "supplierKey": "atlanticshelf",
+      "currency": "USD",
+      "validUntil": "2026-11-14",
+      "deliveryFrom": "2026-11-20",
+      "deliveryTo": "2026-11-21",
+      "bargeFee": 1900,
+      "lines": [
+        {
+          "grade": "HSFO",
+          "qtyMt": 475,
+          "pricePerMt": 455.25
+        }
+      ]
+    }
+  }
+}

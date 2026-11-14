@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Kestrel Marine Fuels",
+    "evidence": "Kestrel Marine Fuels"
+  },
+  "vesselName": {
+    "value": "MT Levant Carrier",
+    "evidence": "MT Levant Carrier - IMO: 9484053 / Piraeus (GRPIR) / IFO 380 3.5%S 325 metric tons @ $458.50/mt"
+  },
+  "vesselImo": {
+    "value": "9484053",
+    "evidence": "MT Levant Carrier - IMO: 9484053 / Piraeus (GRPIR) / IFO 380 3.5%S 325 metric tons @ $458.50/mt"
+  },
+  "port": {
+    "value": "Piraeus",
+    "evidence": "MT Levant Carrier - IMO: 9484053 / Piraeus (GRPIR) / IFO 380 3.5%S 325 metric tons @ $458.50/mt"
+  },
+  "deliveryFrom": {
+    "asWritten": "20/11-21/11",
+    "evidence": "Delivery: 20/11-21/11"
+  },
+  "deliveryTo": {
+    "asWritten": "20/11-21/11",
+    "evidence": "Delivery: 20/11-21/11"
+  },
+  "validUntil": {
+    "asWritten": "Nov 14, 2026",
+    "evidence": "Valid until: Nov 14, 2026"
+  },
+  "bargeFee": {
+    "value": 2950,
+    "currency": "USD",
+    "perUnit": "LS",
+    "asWritten": "USD 2,950 LS",
+    "evidence": "Barge: USD 2,950 LS"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "IFO 380 3.5%S",
+        "evidence": "MT Levant Carrier - IMO: 9484053 / Piraeus (GRPIR) / IFO 380 3.5%S 325 metric tons @ $458.50/mt"
+      },
+      "quantity": {
+        "value": 325,
+        "unit": "metric tons",
+        "asWritten": "325 metric tons",
+        "evidence": "MT Levant Carrier - IMO: 9484053 / Piraeus (GRPIR) / IFO 380 3.5%S 325 metric tons @ $458.50/mt"
+      },
+      "price": {
+        "value": 458.5,
+        "currency": "$",
+        "perUnit": "/mt",
+        "asWritten": "$458.50/mt",
+        "evidence": "MT Levant Carrier - IMO: 9484053 / Piraeus (GRPIR) / IFO 380 3.5%S 325 metric tons @ $458.50/mt"
+      }
+    }
+  ],
+  "notes": null
+}

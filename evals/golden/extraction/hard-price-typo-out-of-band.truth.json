@@ -1,0 +1,27 @@
+{
+  "id": "hard-price-typo-out-of-band",
+  "tags": ["hard", "price-typo-out-of-band", "plain"],
+  "source": "hard",
+  "expected": {
+    "kind": "quote",
+    "status": "needs_review",
+    "reviewChecks": ["price_within_band"],
+    "quote": {
+      "vesselImo": "9480019",
+      "portUnlocode": "GIGIB",
+      "supplierKey": "straitline",
+      "currency": "USD",
+      "validUntil": "2026-11-15",
+      "deliveryFrom": "2026-11-19",
+      "deliveryTo": "2026-11-20",
+      "bargeFee": 2400,
+      "lines": [
+        {
+          "grade": "LSMGO",
+          "qtyMt": 300,
+          "pricePerMt": 7380
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,79 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Atlantic Shelf Fuels",
+    "evidence": "For and on behalf of Atlantic Shelf Fuels"
+  },
+  "vesselName": {
+    "value": "MT Atlantic Meridian",
+    "evidence": "Vessel name       MT Atlantic Meridian"
+  },
+  "vesselImo": {
+    "value": null,
+    "evidence": null
+  },
+  "port": {
+    "value": "Brest",
+    "evidence": "Port              Brest outer anchorage"
+  },
+  "deliveryFrom": {
+    "asWritten": "19-20 November 2026",
+    "evidence": "Delivery window   19-20 November 2026"
+  },
+  "deliveryTo": {
+    "asWritten": "19-20 November 2026",
+    "evidence": "Delivery window   19-20 November 2026"
+  },
+  "validUntil": {
+    "asWritten": "Nov 15, 2026 1200 UTC",
+    "evidence": "Firm until: Nov 15, 2026 1200 UTC"
+  },
+  "bargeFee": {
+    "value": 2600,
+    "currency": "USD",
+    "perUnit": "lump sum",
+    "asWritten": "USD 2600 lump sum",
+    "evidence": "Barge fee: USD 2600 lump sum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "IFO 380",
+        "evidence": "IFO 380    300 metric tons   $482.00/mt"
+      },
+      "quantity": {
+        "value": 300,
+        "unit": "metric tons",
+        "asWritten": "300 metric tons",
+        "evidence": "IFO 380    300 metric tons   $482.00/mt"
+      },
+      "price": {
+        "value": 482,
+        "currency": "$",
+        "perUnit": "/mt",
+        "asWritten": "$482.00/mt",
+        "evidence": "IFO 380    300 metric tons   $482.00/mt"
+      }
+    },
+    {
+      "grade": {
+        "value": "DMA 0.1%",
+        "evidence": "DMA 0.1%   200 metric tons   $745.75/mt"
+      },
+      "quantity": {
+        "value": 200,
+        "unit": "metric tons",
+        "asWritten": "200 metric tons",
+        "evidence": "DMA 0.1%   200 metric tons   $745.75/mt"
+      },
+      "price": {
+        "value": 745.75,
+        "currency": "$",
+        "perUnit": "/mt",
+        "asWritten": "$745.75/mt",
+        "evidence": "DMA 0.1%   200 metric tons   $745.75/mt"
+      }
+    }
+  ],
+  "notes": null
+}

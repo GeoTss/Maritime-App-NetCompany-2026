@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Atlantic Shelf Fuels",
+    "evidence": "Atlantic Shelf Fuels | Trading Desk"
+  },
+  "vesselName": {
+    "value": "MV Iberian Dawn",
+    "evidence": "We are pleased to offer LSMGO for MV Iberian Dawn, IMO No. 9483047 at Le Havre outer anchorage."
+  },
+  "vesselImo": {
+    "value": "9483047",
+    "evidence": "We are pleased to offer LSMGO for MV Iberian Dawn, IMO No. 9483047 at Le Havre outer anchorage."
+  },
+  "port": {
+    "value": "Le Havre",
+    "evidence": "We are pleased to offer LSMGO for MV Iberian Dawn, IMO No. 9483047 at Le Havre outer anchorage."
+  },
+  "deliveryFrom": {
+    "asWritten": "22/11/2026",
+    "evidence": "Delivery from 22/11/2026, delivery to 24/11/2026."
+  },
+  "deliveryTo": {
+    "asWritten": "24/11/2026",
+    "evidence": "Delivery from 22/11/2026, delivery to 24/11/2026."
+  },
+  "validUntil": {
+    "asWritten": "Sun 15 Nov",
+    "evidence": "This offer is valid until Sun 15 Nov."
+  },
+  "bargeFee": {
+    "value": null,
+    "currency": null,
+    "perUnit": null,
+    "asWritten": null,
+    "evidence": null
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "LSMGO",
+        "evidence": "We are pleased to offer LSMGO for MV Iberian Dawn, IMO No. 9483047 at Le Havre outer anchorage."
+      },
+      "quantity": {
+        "value": 100,
+        "unit": "metric tonnes",
+        "asWritten": "100 metric tonnes",
+        "evidence": "Quantity 100 metric tonnes, price € 735 pmt."
+      },
+      "price": {
+        "value": 735,
+        "currency": "€",
+        "perUnit": "pmt",
+        "asWritten": "€ 735 pmt",
+        "evidence": "Quantity 100 metric tonnes, price € 735 pmt."
+      }
+    }
+  ],
+  "notes": null
+}

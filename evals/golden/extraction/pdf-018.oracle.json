@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Strait Line Fuels",
+    "evidence": "For and on behalf of Strait Line Fuels"
+  },
+  "vesselName": {
+    "value": null,
+    "evidence": null
+  },
+  "vesselImo": {
+    "value": "9486075",
+    "evidence": "Ship: IMO 9486075"
+  },
+  "port": {
+    "value": "Gibraltar",
+    "evidence": "Delivery port: Gibraltar"
+  },
+  "deliveryFrom": {
+    "asWritten": "19.11.2026 - 20.11.2026",
+    "evidence": "Delivery date: 19.11.2026 - 20.11.2026"
+  },
+  "deliveryTo": {
+    "asWritten": "19.11.2026 - 20.11.2026",
+    "evidence": "Delivery date: 19.11.2026 - 20.11.2026"
+  },
+  "validUntil": {
+    "asWritten": "15 Nov 2026",
+    "evidence": "Offer valid until: 15 Nov 2026"
+  },
+  "bargeFee": {
+    "value": 1650,
+    "currency": "$",
+    "perUnit": "lump sum",
+    "asWritten": "$1,650 lump sum",
+    "evidence": "Barge fee: $1,650 lump sum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "DMA 0.1%",
+        "evidence": "Fuel: DMA 0.1%"
+      },
+      "quantity": {
+        "value": 125,
+        "unit": "tonnes",
+        "asWritten": "125 tonnes",
+        "evidence": "Quantity: 125 tonnes"
+      },
+      "price": {
+        "value": 827,
+        "currency": "USD",
+        "perUnit": "per metric ton",
+        "asWritten": "USD 827 per metric ton",
+        "evidence": "Price: USD 827 per metric ton"
+      }
+    }
+  ],
+  "notes": null
+}

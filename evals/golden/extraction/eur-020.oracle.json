@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Atlantic Shelf Fuels",
+    "evidence": "Atlantic Shelf Fuels | Trading Desk"
+  },
+  "vesselName": {
+    "value": "MT ATLANTIC MERIDIAN",
+    "evidence": "MT ATLANTIC MERIDIAN / Brest, France / IFO 380 3.5%S 150 mt @ €443/mt"
+  },
+  "vesselImo": {
+    "value": null,
+    "evidence": null
+  },
+  "port": {
+    "value": "Brest",
+    "evidence": "MT ATLANTIC MERIDIAN / Brest, France / IFO 380 3.5%S 150 mt @ €443/mt"
+  },
+  "deliveryFrom": {
+    "asWritten": "18.11.2026 - 21.11.2026",
+    "evidence": "Delivery: 18.11.2026 - 21.11.2026"
+  },
+  "deliveryTo": {
+    "asWritten": "18.11.2026 - 21.11.2026",
+    "evidence": "Delivery: 18.11.2026 - 21.11.2026"
+  },
+  "validUntil": {
+    "asWritten": "16 November 1200 UTC",
+    "evidence": "Valid until: 16 November 1200 UTC"
+  },
+  "bargeFee": {
+    "value": 3150,
+    "currency": "EUR",
+    "perUnit": "lump sum",
+    "asWritten": "EUR 3,150 lump sum",
+    "evidence": "Barge: EUR 3,150 lump sum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "IFO 380 3.5%S",
+        "evidence": "MT ATLANTIC MERIDIAN / Brest, France / IFO 380 3.5%S 150 mt @ €443/mt"
+      },
+      "quantity": {
+        "value": 150,
+        "unit": "mt",
+        "asWritten": "150 mt",
+        "evidence": "MT ATLANTIC MERIDIAN / Brest, France / IFO 380 3.5%S 150 mt @ €443/mt"
+      },
+      "price": {
+        "value": 443,
+        "currency": "€",
+        "perUnit": "/mt",
+        "asWritten": "€443/mt",
+        "evidence": "MT ATLANTIC MERIDIAN / Brest, France / IFO 380 3.5%S 150 mt @ €443/mt"
+      }
+    }
+  ],
+  "notes": null
+}

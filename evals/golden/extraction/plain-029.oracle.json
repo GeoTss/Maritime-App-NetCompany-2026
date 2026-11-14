@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Atlantic Shelf Fuels",
+    "evidence": "Atlantic Shelf Fuels | Trading Desk"
+  },
+  "vesselName": {
+    "value": "MV Aegean Pioneer",
+    "evidence": "Ship: MV Aegean Pioneer / IMO 9480019"
+  },
+  "vesselImo": {
+    "value": "9480019",
+    "evidence": "Ship: MV Aegean Pioneer / IMO 9480019"
+  },
+  "port": {
+    "value": "Sines",
+    "evidence": "Delivery port: Sines anchorage"
+  },
+  "deliveryFrom": {
+    "asWritten": "18 Nov - 20 Nov 2026",
+    "evidence": "Delivery date: 18 Nov - 20 Nov 2026"
+  },
+  "deliveryTo": {
+    "asWritten": "18 Nov - 20 Nov 2026",
+    "evidence": "Delivery date: 18 Nov - 20 Nov 2026"
+  },
+  "validUntil": {
+    "asWritten": "Saturday, 14 November 2026",
+    "evidence": "Prices valid until: Saturday, 14 November 2026"
+  },
+  "bargeFee": {
+    "value": 2000,
+    "currency": "$",
+    "perUnit": "lump sum",
+    "asWritten": "$2,000 lump sum",
+    "evidence": "Barge: $2,000 lump sum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "LSMGO 0.10%S",
+        "evidence": "Fuel: LSMGO 0.10%S"
+      },
+      "quantity": {
+        "value": 275,
+        "unit": "MT",
+        "asWritten": "275 MT",
+        "evidence": "Qty: 275 MT"
+      },
+      "price": {
+        "value": 740,
+        "currency": "USD",
+        "perUnit": "PMT",
+        "asWritten": "USD 740 PMT",
+        "evidence": "Unit price: USD 740 PMT"
+      }
+    }
+  ],
+  "notes": null
+}

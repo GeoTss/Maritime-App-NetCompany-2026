@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Harbourlight Energy",
+    "evidence": "Harbourlight Energy"
+  },
+  "vesselName": {
+    "value": "SCHELDT EXPRESS",
+    "evidence": "Vessel name: SCHELDT EXPRESS (IMO 9487081)"
+  },
+  "vesselImo": {
+    "value": "9487081",
+    "evidence": "Vessel name: SCHELDT EXPRESS (IMO 9487081)"
+  },
+  "port": {
+    "value": "Antwerp",
+    "evidence": "Location: Antwerp anchorage"
+  },
+  "deliveryFrom": {
+    "asWritten": "17/11-20/11",
+    "evidence": "Dates: 17/11-20/11"
+  },
+  "deliveryTo": {
+    "asWritten": "17/11-20/11",
+    "evidence": "Dates: 17/11-20/11"
+  },
+  "validUntil": {
+    "asWritten": "Nov 15",
+    "evidence": "Offer valid until: Nov 15"
+  },
+  "bargeFee": {
+    "value": 3150,
+    "currency": "$",
+    "perUnit": "lump sum",
+    "asWritten": "$3,150 lump sum",
+    "evidence": "Delivery charge: $3,150 lump sum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "LSMGO",
+        "evidence": "LSMGO 100 mts USD 701.00 per mt"
+      },
+      "quantity": {
+        "value": 100,
+        "unit": "mts",
+        "asWritten": "100 mts",
+        "evidence": "LSMGO 100 mts USD 701.00 per mt"
+      },
+      "price": {
+        "value": 701,
+        "currency": "USD",
+        "perUnit": "per mt",
+        "asWritten": "USD 701.00 per mt",
+        "evidence": "LSMGO 100 mts USD 701.00 per mt"
+      }
+    }
+  ],
+  "notes": null
+}

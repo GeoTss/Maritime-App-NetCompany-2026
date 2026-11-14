@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Meridian Bunkering",
+    "evidence": "Meridian Bunkering"
+  },
+  "vesselName": {
+    "value": "MV THESSALY STAR",
+    "evidence": "Vessel name       MV THESSALY STAR"
+  },
+  "vesselImo": {
+    "value": null,
+    "evidence": null
+  },
+  "port": {
+    "value": "Genoa",
+    "evidence": "Delivery port     Genoa"
+  },
+  "deliveryFrom": {
+    "asWritten": "17.11.2026 - 20.11.2026",
+    "evidence": "Delivery window   17.11.2026 - 20.11.2026"
+  },
+  "deliveryTo": {
+    "asWritten": "17.11.2026 - 20.11.2026",
+    "evidence": "Delivery window   17.11.2026 - 20.11.2026"
+  },
+  "validUntil": {
+    "asWritten": "14.11.26",
+    "evidence": "Valid till: 14.11.26"
+  },
+  "bargeFee": {
+    "value": 3400,
+    "currency": "$",
+    "perUnit": "lump sum",
+    "asWritten": "$3,400 lump sum",
+    "evidence": "Barge: $3,400 lump sum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "LSMGO",
+        "evidence": "LSMGO   125 mt     $744/mt"
+      },
+      "quantity": {
+        "value": 125,
+        "unit": "mt",
+        "asWritten": "125 mt",
+        "evidence": "LSMGO   125 mt     $744/mt"
+      },
+      "price": {
+        "value": 744,
+        "currency": "$",
+        "perUnit": "/mt",
+        "asWritten": "$744/mt",
+        "evidence": "LSMGO   125 mt     $744/mt"
+      }
+    }
+  ],
+  "notes": null
+}

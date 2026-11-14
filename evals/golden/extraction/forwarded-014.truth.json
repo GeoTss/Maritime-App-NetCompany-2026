@@ -1,0 +1,27 @@
+{
+  "id": "forwarded-014",
+  "tags": ["forwarded", "style:gmail-forward", "vessel:imo", "window:mon-first", "barge:lump_sum"],
+  "source": "generated",
+  "expected": {
+    "kind": "quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": {
+      "vesselImo": "9483047",
+      "portUnlocode": "BEANR",
+      "supplierKey": "nordwind",
+      "currency": "USD",
+      "validUntil": "2026-11-15",
+      "deliveryFrom": "2026-11-17",
+      "deliveryTo": "2026-11-20",
+      "bargeFee": 1850,
+      "lines": [
+        {
+          "grade": "LSMGO",
+          "qtyMt": 175,
+          "pricePerMt": 693
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Meridian Bunkering",
+    "evidence": "For and on behalf of Meridian Bunkering"
+  },
+  "vesselName": {
+    "value": "M/T Levant Carrier",
+    "evidence": "M/T Levant Carrier - IMO: 9484053 / Piraeus (GRPIR) / RMG 380 325 mt @ US$ 459 pmt"
+  },
+  "vesselImo": {
+    "value": "9484053",
+    "evidence": "M/T Levant Carrier - IMO: 9484053 / Piraeus (GRPIR) / RMG 380 325 mt @ US$ 459 pmt"
+  },
+  "port": {
+    "value": "Piraeus",
+    "evidence": "M/T Levant Carrier - IMO: 9484053 / Piraeus (GRPIR) / RMG 380 325 mt @ US$ 459 pmt"
+  },
+  "deliveryFrom": {
+    "asWritten": "24/11-26/11",
+    "evidence": "Delivery: 24/11-26/11"
+  },
+  "deliveryTo": {
+    "asWritten": "24/11-26/11",
+    "evidence": "Delivery: 24/11-26/11"
+  },
+  "validUntil": {
+    "asWritten": "16 November 2026 noon LT",
+    "evidence": "Valid until: 16 November 2026 noon LT"
+  },
+  "bargeFee": {
+    "value": 1400,
+    "currency": "USD",
+    "perUnit": "lump sum",
+    "asWritten": "USD 1,400 lump sum",
+    "evidence": "Barge: USD 1,400 lump sum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "RMG 380",
+        "evidence": "M/T Levant Carrier - IMO: 9484053 / Piraeus (GRPIR) / RMG 380 325 mt @ US$ 459 pmt"
+      },
+      "quantity": {
+        "value": 325,
+        "unit": "mt",
+        "asWritten": "325 mt",
+        "evidence": "M/T Levant Carrier - IMO: 9484053 / Piraeus (GRPIR) / RMG 380 325 mt @ US$ 459 pmt"
+      },
+      "price": {
+        "value": 459,
+        "currency": "US$",
+        "perUnit": "pmt",
+        "asWritten": "US$ 459 pmt",
+        "evidence": "M/T Levant Carrier - IMO: 9484053 / Piraeus (GRPIR) / RMG 380 325 mt @ US$ 459 pmt"
+      }
+    }
+  ],
+  "notes": null
+}

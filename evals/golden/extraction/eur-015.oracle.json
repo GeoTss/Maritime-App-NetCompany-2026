@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Harbourlight Energy",
+    "evidence": "Harbourlight Energy | Trading Desk"
+  },
+  "vesselName": {
+    "value": "NORDIC LANTERN",
+    "evidence": "We are pleased to offer VLSFO 0.5% for NORDIC LANTERN - IMO: 9482031 at Hamburg anchorage."
+  },
+  "vesselImo": {
+    "value": "9482031",
+    "evidence": "We are pleased to offer VLSFO 0.5% for NORDIC LANTERN - IMO: 9482031 at Hamburg anchorage."
+  },
+  "port": {
+    "value": "Hamburg",
+    "evidence": "We are pleased to offer VLSFO 0.5% for NORDIC LANTERN - IMO: 9482031 at Hamburg anchorage."
+  },
+  "deliveryFrom": {
+    "asWritten": "Nov 24-25",
+    "evidence": "Delivery Nov 24-25."
+  },
+  "deliveryTo": {
+    "asWritten": "Nov 24-25",
+    "evidence": "Delivery Nov 24-25."
+  },
+  "validUntil": {
+    "asWritten": "16 Nov 2026",
+    "evidence": "This offer is valid until 16 Nov 2026."
+  },
+  "bargeFee": {
+    "value": null,
+    "currency": null,
+    "perUnit": null,
+    "asWritten": null,
+    "evidence": null
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "VLSFO 0.5%",
+        "evidence": "We are pleased to offer VLSFO 0.5% for NORDIC LANTERN - IMO: 9482031 at Hamburg anchorage."
+      },
+      "quantity": {
+        "value": 225,
+        "unit": "tonnes",
+        "asWritten": "225 tonnes",
+        "evidence": "Quantity 225 tonnes, price EUR 564 per metric tonne."
+      },
+      "price": {
+        "value": 564,
+        "currency": "EUR",
+        "perUnit": "per metric tonne",
+        "asWritten": "EUR 564 per metric tonne",
+        "evidence": "Quantity 225 tonnes, price EUR 564 per metric tonne."
+      }
+    }
+  ],
+  "notes": null
+}

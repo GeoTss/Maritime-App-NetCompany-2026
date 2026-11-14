@@ -1,0 +1,32 @@
+From: Elena de Vries - Atlantic Shelf Fuels <elena.devries@atlantic-shelf.example>
+To: Bunker Desk <bunker-desk@pharos-demo.example>
+Subject: Bunker offer Scheldt Express / Brest
+Date: Fri, 13 Nov 2026 09:39:00 +0000
+Message-ID: <7441c4b9c1d6cb0f0d92@atlantic-shelf.example>
+MIME-Version: 1.0
+Content-Type: text/html; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Offer ASF-2611-9295</title></head>
+<body style="font-family:Arial,sans-serif;font-size:13px;color:#1a1a1a">
+<p>Dear colleagues,</p>
+<p>Thank you for your enquiry. We are pleased to offer as follows:</p>
+<table border="1" cellpadding="4" cellspacing="0" style="border-collapse:collapse">
+<tr><td><b>Vessel</b></td><td>IMO 9487081</td></tr>
+<tr><td><b>Delivery port</b></td><td>Brest</td></tr>
+<tr><td><b>Dates</b></td><td>23 Nov +/- 1 day</td></tr>
+<tr><td><b>Product</b></td><td>MGO</td></tr>
+<tr><td><b>Quantity</b></td><td>100 mts</td></tr>
+<tr><td><b>Offer price</b></td><td>US$ 748.50 pmt</td></tr>
+<tr><td><b>Barge</b></td><td>included in the price</td></tr>
+<tr><td><b>Valid till</b></td><td>2026-11-16 1200 UTC</td></tr>
+</table>
+<p style="font-size:11px;color:#555">Supply subject to port and weather conditions.<br>
+Prices exclude any local taxes, if applicable.</p>
+<p>Kind regards,<br>
+Elena de Vries<br>
+Bunker Trader<br>
+For and on behalf of Atlantic Shelf Fuels<br>
+T +48 64 7536 6902 | elena.devries@atlantic-shelf.example</p>
+</body></html>

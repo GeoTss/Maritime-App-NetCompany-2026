@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Atlantic Shelf Fuels",
+    "evidence": "Atlantic Shelf Fuels | Trading Desk"
+  },
+  "vesselName": {
+    "value": "MV Coral Horizon",
+    "evidence": "We are pleased to offer LSMGO 0.10%S for MV Coral Horizon at Sines anchorage."
+  },
+  "vesselImo": {
+    "value": null,
+    "evidence": null
+  },
+  "port": {
+    "value": "Sines",
+    "evidence": "We are pleased to offer LSMGO 0.10%S for MV Coral Horizon at Sines anchorage."
+  },
+  "deliveryFrom": {
+    "asWritten": "21-24 Nov",
+    "evidence": "Delivery 21-24 Nov."
+  },
+  "deliveryTo": {
+    "asWritten": "21-24 Nov",
+    "evidence": "Delivery 21-24 Nov."
+  },
+  "validUntil": {
+    "asWritten": "15th November at 16:00 LT",
+    "evidence": "This offer is valid until 15th November at 16:00 LT."
+  },
+  "bargeFee": {
+    "value": null,
+    "currency": null,
+    "perUnit": null,
+    "asWritten": null,
+    "evidence": null
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "LSMGO 0.10%S",
+        "evidence": "We are pleased to offer LSMGO 0.10%S for MV Coral Horizon at Sines anchorage."
+      },
+      "quantity": {
+        "value": 75,
+        "unit": "mt",
+        "asWritten": "75 mt",
+        "evidence": "Quantity 75 mt, price USD 756 PMT."
+      },
+      "price": {
+        "value": 756,
+        "currency": "USD",
+        "perUnit": "PMT",
+        "asWritten": "USD 756 PMT",
+        "evidence": "Quantity 75 mt, price USD 756 PMT."
+      }
+    }
+  ],
+  "notes": null
+}

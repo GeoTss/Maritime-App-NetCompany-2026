@@ -1,0 +1,27 @@
+{
+  "id": "html-025",
+  "tags": ["html", "layout:grid", "vessel:name-imo", "window:slash", "barge:lump_sum"],
+  "source": "generated",
+  "expected": {
+    "kind": "quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": {
+      "vesselImo": "9481025",
+      "portUnlocode": "ESALG",
+      "supplierKey": "straitline",
+      "currency": "USD",
+      "validUntil": "2026-11-14",
+      "deliveryFrom": "2026-11-22",
+      "deliveryTo": "2026-11-25",
+      "bargeFee": 2150,
+      "lines": [
+        {
+          "grade": "LSMGO",
+          "qtyMt": 125,
+          "pricePerMt": 686
+        }
+      ]
+    }
+  }
+}

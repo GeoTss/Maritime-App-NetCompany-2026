@@ -1,0 +1,34 @@
+{
+  "id": "eur-009",
+  "tags": [
+    "eur",
+    "body:html",
+    "layout:paragraphs",
+    "vessel:name-imo",
+    "window:dash",
+    "barge:lump_sum"
+  ],
+  "source": "generated",
+  "expected": {
+    "kind": "quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": {
+      "vesselImo": "9486075",
+      "portUnlocode": "GIGIB",
+      "supplierKey": "straitline",
+      "currency": "EUR",
+      "validUntil": "2026-11-16",
+      "deliveryFrom": "2026-11-24",
+      "deliveryTo": "2026-11-26",
+      "bargeFee": 2000,
+      "lines": [
+        {
+          "grade": "LSMGO",
+          "qtyMt": 100,
+          "pricePerMt": 692
+        }
+      ]
+    }
+  }
+}

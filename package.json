@@ -16,6 +16,8 @@
     "eval:smoke": "tsx evals/smoke/run.ts",
     "eval:ledger": "tsx evals/lib/ledger-cli.ts",
     "eval:compare": "tsx --env-file=.env evals/compare/run.ts",
+    "eval:golden": "tsx evals/extraction/generate.ts",
+    "eval:split": "tsx evals/extraction/split.ts",
     "lint": "biome check .",
     "format": "biome check --write .",
     "test": "vitest run",

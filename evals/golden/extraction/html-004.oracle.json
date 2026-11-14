@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Meridian Bunkering",
+    "evidence": "For and on behalf of Meridian Bunkering"
+  },
+  "vesselName": {
+    "value": "Levant Carrier",
+    "evidence": "Ship: Levant Carrier"
+  },
+  "vesselImo": {
+    "value": null,
+    "evidence": null
+  },
+  "port": {
+    "value": "Piraeus",
+    "evidence": "Delivery port: Piraeus anchorage"
+  },
+  "deliveryFrom": {
+    "asWritten": "22 Nov 2026",
+    "evidence": "Delivery from: 22 Nov 2026"
+  },
+  "deliveryTo": {
+    "asWritten": "25 Nov 2026",
+    "evidence": "Delivery to: 25 Nov 2026"
+  },
+  "validUntil": {
+    "asWritten": "16 November 2026",
+    "evidence": "Offer valid until: 16 November 2026"
+  },
+  "bargeFee": {
+    "value": 3400,
+    "currency": "$",
+    "perUnit": "lump sum",
+    "asWritten": "$3,400 lump sum",
+    "evidence": "Delivery charge: $3,400 lump sum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "IFO 380",
+        "evidence": "Fuel: IFO 380"
+      },
+      "quantity": {
+        "value": 325,
+        "unit": "mts",
+        "asWritten": "325 mts",
+        "evidence": "Quantity: 325 mts"
+      },
+      "price": {
+        "value": 441.5,
+        "currency": "USD",
+        "perUnit": "PMT",
+        "asWritten": "USD 441.50 PMT",
+        "evidence": "Unit price: USD 441.50 PMT"
+      }
+    }
+  ],
+  "notes": null
+}

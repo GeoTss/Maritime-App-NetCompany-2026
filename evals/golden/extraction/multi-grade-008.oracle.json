@@ -1,0 +1,79 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Atlantic Shelf Fuels",
+    "evidence": "For and on behalf of Atlantic Shelf Fuels"
+  },
+  "vesselName": {
+    "value": null,
+    "evidence": null
+  },
+  "vesselImo": {
+    "value": "9483047",
+    "evidence": "Vessel name: IMO 9483047"
+  },
+  "port": {
+    "value": "Le Havre",
+    "evidence": "Place of delivery: Le Havre"
+  },
+  "deliveryFrom": {
+    "asWritten": "Nov 19-20",
+    "evidence": "Dates: Nov 19-20"
+  },
+  "deliveryTo": {
+    "asWritten": "Nov 19-20",
+    "evidence": "Dates: Nov 19-20"
+  },
+  "validUntil": {
+    "asWritten": "14th November 1200 UTC",
+    "evidence": "Offer valid until: 14th November 1200 UTC"
+  },
+  "bargeFee": {
+    "value": 3550,
+    "currency": "$",
+    "perUnit": "lump sum",
+    "asWritten": "$3,550 lump sum",
+    "evidence": "Barge: $3,550 lump sum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "VLSFO 0.50%",
+        "evidence": "Grade 1: VLSFO 0.50%"
+      },
+      "quantity": {
+        "value": 400,
+        "unit": "mts",
+        "asWritten": "400 mts",
+        "evidence": "Qty: 400 mts"
+      },
+      "price": {
+        "value": 591.5,
+        "currency": "US$",
+        "perUnit": "pmt",
+        "asWritten": "US$ 591.50 pmt",
+        "evidence": "Price: US$ 591.50 pmt"
+      }
+    },
+    {
+      "grade": {
+        "value": "MGO",
+        "evidence": "Grade 2: MGO"
+      },
+      "quantity": {
+        "value": 100,
+        "unit": "mts",
+        "asWritten": "100 mts",
+        "evidence": "Qty: 100 mts"
+      },
+      "price": {
+        "value": 749,
+        "currency": "US$",
+        "perUnit": "pmt",
+        "asWritten": "US$ 749.00 pmt",
+        "evidence": "Price: US$ 749.00 pmt"
+      }
+    }
+  ],
+  "notes": null
+}

@@ -1,0 +1,79 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Atlantic Shelf Fuels",
+    "evidence": "Atlantic Shelf Fuels"
+  },
+  "vesselName": {
+    "value": "CORAL HORIZON",
+    "evidence": "Vessel name: CORAL HORIZON / IMO 9486075"
+  },
+  "vesselImo": {
+    "value": "9486075",
+    "evidence": "Vessel name: CORAL HORIZON / IMO 9486075"
+  },
+  "port": {
+    "value": "Sines",
+    "evidence": "Port: Sines"
+  },
+  "deliveryFrom": {
+    "asWritten": "2026-11-22",
+    "evidence": "Delivery from: 2026-11-22"
+  },
+  "deliveryTo": {
+    "asWritten": "2026-11-25",
+    "evidence": "Delivery to: 2026-11-25"
+  },
+  "validUntil": {
+    "asWritten": "Nov 15",
+    "evidence": "Prices valid until: Nov 15"
+  },
+  "bargeFee": {
+    "value": 2500,
+    "currency": "US$",
+    "perUnit": "lumpsum",
+    "asWritten": "US$ 2,500 lumpsum",
+    "evidence": "Barge fee: US$ 2,500 lumpsum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "VLSFO 0.50%",
+        "evidence": "VLSFO 0.50%     375 tonnes    $590.00/mt"
+      },
+      "quantity": {
+        "value": 375,
+        "unit": "tonnes",
+        "asWritten": "375 tonnes",
+        "evidence": "VLSFO 0.50%     375 tonnes    $590.00/mt"
+      },
+      "price": {
+        "value": 590,
+        "currency": "$",
+        "perUnit": "/mt",
+        "asWritten": "$590.00/mt",
+        "evidence": "VLSFO 0.50%     375 tonnes    $590.00/mt"
+      }
+    },
+    {
+      "grade": {
+        "value": "LSMGO 0.10%S",
+        "evidence": "LSMGO 0.10%S    125 tonnes    $719.00/mt"
+      },
+      "quantity": {
+        "value": 125,
+        "unit": "tonnes",
+        "asWritten": "125 tonnes",
+        "evidence": "LSMGO 0.10%S    125 tonnes    $719.00/mt"
+      },
+      "price": {
+        "value": 719,
+        "currency": "$",
+        "perUnit": "/mt",
+        "asWritten": "$719.00/mt",
+        "evidence": "LSMGO 0.10%S    125 tonnes    $719.00/mt"
+      }
+    }
+  ],
+  "notes": null
+}

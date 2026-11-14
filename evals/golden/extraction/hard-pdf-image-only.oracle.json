@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Atlantic Shelf Fuels",
+    "evidence": "Atlantic Shelf Fuels"
+  },
+  "vesselName": {
+    "value": "MV Aegean Pioneer",
+    "evidence": "Please find attached our offer for MV Aegean Pioneer at Sines."
+  },
+  "vesselImo": {
+    "value": null,
+    "evidence": null
+  },
+  "port": {
+    "value": "Sines",
+    "evidence": "Please find attached our offer for MV Aegean Pioneer at Sines."
+  },
+  "deliveryFrom": {
+    "asWritten": null,
+    "evidence": null
+  },
+  "deliveryTo": {
+    "asWritten": null,
+    "evidence": null
+  },
+  "validUntil": {
+    "asWritten": null,
+    "evidence": null
+  },
+  "bargeFee": {
+    "value": null,
+    "currency": null,
+    "perUnit": null,
+    "asWritten": null,
+    "evidence": null
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": null,
+        "evidence": null
+      },
+      "quantity": {
+        "value": null,
+        "unit": null,
+        "asWritten": null,
+        "evidence": null
+      },
+      "price": {
+        "value": null,
+        "currency": null,
+        "perUnit": null,
+        "asWritten": null,
+        "evidence": null
+      }
+    }
+  ],
+  "notes": null
+}

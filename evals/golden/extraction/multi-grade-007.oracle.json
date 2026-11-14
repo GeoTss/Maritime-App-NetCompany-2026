@@ -1,0 +1,79 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Harbourlight Energy",
+    "evidence": "Harbourlight Energy"
+  },
+  "vesselName": {
+    "value": "M/V Scheldt Express",
+    "evidence": "Vessel            M/V Scheldt Express - IMO: 9487081"
+  },
+  "vesselImo": {
+    "value": "9487081",
+    "evidence": "Vessel            M/V Scheldt Express - IMO: 9487081"
+  },
+  "port": {
+    "value": "Antwerp",
+    "evidence": "Delivery port     Antwerp"
+  },
+  "deliveryFrom": {
+    "asWritten": "23.11.2026 - 24.11.2026",
+    "evidence": "Delivery period   23.11.2026 - 24.11.2026"
+  },
+  "deliveryTo": {
+    "asWritten": "23.11.2026 - 24.11.2026",
+    "evidence": "Delivery period   23.11.2026 - 24.11.2026"
+  },
+  "validUntil": {
+    "asWritten": "Tuesday, 17 November 2026 18:00 UTC",
+    "evidence": "Valid till: Tuesday, 17 November 2026 18:00 UTC"
+  },
+  "bargeFee": {
+    "value": 1600,
+    "currency": "USD",
+    "perUnit": "lump sum",
+    "asWritten": "USD 1,600 lump sum",
+    "evidence": "Barge fee: USD 1,600 lump sum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "VLSFO 0.50%",
+        "evidence": "VLSFO 0.50%   200 metric tonnes   US$ 606.50 pmt"
+      },
+      "quantity": {
+        "value": 200,
+        "unit": "metric tonnes",
+        "asWritten": "200 metric tonnes",
+        "evidence": "VLSFO 0.50%   200 metric tonnes   US$ 606.50 pmt"
+      },
+      "price": {
+        "value": 606.5,
+        "currency": "US$",
+        "perUnit": "pmt",
+        "asWritten": "US$ 606.50 pmt",
+        "evidence": "VLSFO 0.50%   200 metric tonnes   US$ 606.50 pmt"
+      }
+    },
+    {
+      "grade": {
+        "value": "LSMGO 0.1%",
+        "evidence": "LSMGO 0.1%    100 metric tonnes   US$ 694.50 pmt"
+      },
+      "quantity": {
+        "value": 100,
+        "unit": "metric tonnes",
+        "asWritten": "100 metric tonnes",
+        "evidence": "LSMGO 0.1%    100 metric tonnes   US$ 694.50 pmt"
+      },
+      "price": {
+        "value": 694.5,
+        "currency": "US$",
+        "perUnit": "pmt",
+        "asWritten": "US$ 694.50 pmt",
+        "evidence": "LSMGO 0.1%    100 metric tonnes   US$ 694.50 pmt"
+      }
+    }
+  ],
+  "notes": null
+}

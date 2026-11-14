@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Strait Line Fuels",
+    "evidence": "For and on behalf of Strait Line Fuels"
+  },
+  "vesselName": {
+    "value": "Thessaly Star",
+    "evidence": "Vessel: Thessaly Star"
+  },
+  "vesselImo": {
+    "value": null,
+    "evidence": null
+  },
+  "port": {
+    "value": "Algeciras",
+    "evidence": "Place of delivery: Algeciras, Spain"
+  },
+  "deliveryFrom": {
+    "asWritten": "2026-11-17",
+    "evidence": "Delivery from: 2026-11-17"
+  },
+  "deliveryTo": {
+    "asWritten": "2026-11-18",
+    "evidence": "Delivery to: 2026-11-18"
+  },
+  "validUntil": {
+    "asWritten": "Nov 16, 2026",
+    "evidence": "Valid till: Nov 16, 2026"
+  },
+  "bargeFee": {
+    "value": 1850,
+    "currency": "USD",
+    "perUnit": "lump sum",
+    "asWritten": "USD 1,850 lump sum",
+    "evidence": "Barge: USD 1,850 lump sum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "MGO",
+        "evidence": "MGO 125 metric tonnes 753 USD/MT"
+      },
+      "quantity": {
+        "value": 125,
+        "unit": "metric tonnes",
+        "asWritten": "125 metric tonnes",
+        "evidence": "MGO 125 metric tonnes 753 USD/MT"
+      },
+      "price": {
+        "value": 753,
+        "currency": "USD",
+        "perUnit": "/MT",
+        "asWritten": "753 USD/MT",
+        "evidence": "MGO 125 metric tonnes 753 USD/MT"
+      }
+    }
+  ],
+  "notes": null
+}

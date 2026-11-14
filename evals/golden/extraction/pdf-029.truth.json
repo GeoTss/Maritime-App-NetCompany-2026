@@ -1,0 +1,27 @@
+{
+  "id": "pdf-029",
+  "tags": ["pdf", "layout:letter", "vessel:name-imo", "window:mon-both", "barge:lump_sum"],
+  "source": "generated",
+  "expected": {
+    "kind": "quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": {
+      "vesselImo": "9483047",
+      "portUnlocode": "BEANR",
+      "supplierKey": "nordwind",
+      "currency": "USD",
+      "validUntil": "2026-11-16",
+      "deliveryFrom": "2026-11-19",
+      "deliveryTo": "2026-11-22",
+      "bargeFee": 3550,
+      "lines": [
+        {
+          "grade": "LSMGO",
+          "qtyMt": 100,
+          "pricePerMt": 773.5
+        }
+      ]
+    }
+  }
+}

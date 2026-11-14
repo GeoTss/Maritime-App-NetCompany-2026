@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Strait Line Fuels",
+    "evidence": "Strait Line Fuels | Trading Desk"
+  },
+  "vesselName": {
+    "value": "MV Thessaly Star",
+    "evidence": "Vessel: MV Thessaly Star (IMO 9481025)"
+  },
+  "vesselImo": {
+    "value": "9481025",
+    "evidence": "Vessel: MV Thessaly Star (IMO 9481025)"
+  },
+  "port": {
+    "value": "Algeciras",
+    "evidence": "Port: Algeciras, Spain"
+  },
+  "deliveryFrom": {
+    "asWritten": "20 Nov",
+    "evidence": "Delivery from: 20 Nov"
+  },
+  "deliveryTo": {
+    "asWritten": "22 Nov",
+    "evidence": "Delivery to: 22 Nov"
+  },
+  "validUntil": {
+    "asWritten": "2026-11-15",
+    "evidence": "Firm until: 2026-11-15"
+  },
+  "bargeFee": {
+    "value": 1600,
+    "currency": "$",
+    "perUnit": "lump sum",
+    "asWritten": "$1,600 lump sum",
+    "evidence": "Barge fee: $1,600 lump sum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "LSMGO 0.1%",
+        "evidence": "Grade: LSMGO 0.1%"
+      },
+      "quantity": {
+        "value": 125,
+        "unit": "mt",
+        "asWritten": "125 mt",
+        "evidence": "Quantity: 125 mt"
+      },
+      "price": {
+        "value": 738,
+        "currency": "US$",
+        "perUnit": "pmt",
+        "asWritten": "US$ 738.00 pmt",
+        "evidence": "Unit price: US$ 738.00 pmt"
+      }
+    }
+  ],
+  "notes": null
+}

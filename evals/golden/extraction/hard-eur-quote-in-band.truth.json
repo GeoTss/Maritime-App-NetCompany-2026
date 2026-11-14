@@ -1,0 +1,27 @@
+{
+  "id": "hard-eur-quote-in-band",
+  "tags": ["hard", "eur-quote-in-band", "plain", "eur"],
+  "source": "hard",
+  "expected": {
+    "kind": "quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": {
+      "vesselImo": "9482031",
+      "portUnlocode": "DEHAM",
+      "supplierKey": "harbourlight",
+      "currency": "EUR",
+      "validUntil": "2026-11-14",
+      "deliveryFrom": "2026-11-15",
+      "deliveryTo": "2026-11-16",
+      "bargeFee": 1800,
+      "lines": [
+        {
+          "grade": "VLSFO",
+          "qtyMt": 225,
+          "pricePerMt": 486
+        }
+      ]
+    }
+  }
+}

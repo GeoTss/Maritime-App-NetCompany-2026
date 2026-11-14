@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Nordwind Bunker Services",
+    "evidence": "Nordwind Bunker Services"
+  },
+  "vesselName": {
+    "value": "M/V Iberian Dawn",
+    "evidence": "Vessel: M/V Iberian Dawn, IMO No. 9483047"
+  },
+  "vesselImo": {
+    "value": "9483047",
+    "evidence": "Vessel: M/V Iberian Dawn, IMO No. 9483047"
+  },
+  "port": {
+    "value": "Antwerp",
+    "evidence": "Port: Antwerp"
+  },
+  "deliveryFrom": {
+    "asWritten": "19 Nov - 22 Nov 2026",
+    "evidence": "Delivery date: 19 Nov - 22 Nov 2026"
+  },
+  "deliveryTo": {
+    "asWritten": "19 Nov - 22 Nov 2026",
+    "evidence": "Delivery date: 19 Nov - 22 Nov 2026"
+  },
+  "validUntil": {
+    "asWritten": "Nov 16",
+    "evidence": "Prices valid until: Nov 16"
+  },
+  "bargeFee": {
+    "value": 3550,
+    "currency": "USD",
+    "perUnit": "LS",
+    "asWritten": "USD 3,550 LS",
+    "evidence": "Barging: USD 3,550 LS"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "MGO",
+        "evidence": "Fuel: MGO"
+      },
+      "quantity": {
+        "value": 100,
+        "unit": "mt",
+        "asWritten": "100 mt",
+        "evidence": "Quantity: 100 mt"
+      },
+      "price": {
+        "value": 773.5,
+        "currency": "USD",
+        "perUnit": "/mt",
+        "asWritten": "USD 773.50/mt",
+        "evidence": "Price: USD 773.50/mt"
+      }
+    }
+  ],
+  "notes": null
+}

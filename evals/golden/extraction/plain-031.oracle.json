@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Atlantic Shelf Fuels",
+    "evidence": "Atlantic Shelf Fuels | Trading Desk"
+  },
+  "vesselName": {
+    "value": "M/V SCHELDT EXPRESS",
+    "evidence": "Vessel: M/V SCHELDT EXPRESS (IMO 9487081)"
+  },
+  "vesselImo": {
+    "value": "9487081",
+    "evidence": "Vessel: M/V SCHELDT EXPRESS (IMO 9487081)"
+  },
+  "port": {
+    "value": "Brest",
+    "evidence": "Port: Brest anchorage"
+  },
+  "deliveryFrom": {
+    "asWritten": "17-18 Nov",
+    "evidence": "Delivery date: 17-18 Nov"
+  },
+  "deliveryTo": {
+    "asWritten": "17-18 Nov",
+    "evidence": "Delivery date: 17-18 Nov"
+  },
+  "validUntil": {
+    "asWritten": "Saturday, 14 November 2026 at 16:00 LT",
+    "evidence": "Validity: Saturday, 14 November 2026 at 16:00 LT"
+  },
+  "bargeFee": {
+    "value": 1250,
+    "currency": "$",
+    "perUnit": "lump sum",
+    "asWritten": "$1,250 lump sum",
+    "evidence": "Barge fee: $1,250 lump sum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "LSMGO 0.1%",
+        "evidence": "Fuel: LSMGO 0.1%"
+      },
+      "quantity": {
+        "value": 100,
+        "unit": "MTS",
+        "asWritten": "100 MTS",
+        "evidence": "Quantity: 100 MTS"
+      },
+      "price": {
+        "value": 770,
+        "currency": "USD",
+        "perUnit": "PMT",
+        "asWritten": "USD 770.00 PMT",
+        "evidence": "Offer price: USD 770.00 PMT"
+      }
+    }
+  ],
+  "notes": null
+}

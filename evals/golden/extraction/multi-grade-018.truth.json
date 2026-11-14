@@ -1,0 +1,39 @@
+{
+  "id": "multi-grade-018",
+  "tags": [
+    "multi_grade",
+    "layout:text-grid",
+    "grades:VLSFO+HSFO",
+    "vessel:name-imo",
+    "window:slash",
+    "barge:lump_sum"
+  ],
+  "source": "generated",
+  "expected": {
+    "kind": "quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": {
+      "vesselImo": "9484053",
+      "portUnlocode": "GRPIR",
+      "supplierKey": "kestrel",
+      "currency": "USD",
+      "validUntil": "2026-11-15",
+      "deliveryFrom": "2026-11-22",
+      "deliveryTo": "2026-11-24",
+      "bargeFee": 2500,
+      "lines": [
+        {
+          "grade": "VLSFO",
+          "qtyMt": 1200,
+          "pricePerMt": 569.5
+        },
+        {
+          "grade": "HSFO",
+          "qtyMt": 375,
+          "pricePerMt": 450
+        }
+      ]
+    }
+  }
+}

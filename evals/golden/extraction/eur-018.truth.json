@@ -1,0 +1,27 @@
+{
+  "id": "eur-018",
+  "tags": ["eur", "body:plain", "layout:prose", "vessel:name-imo", "window:two", "barge:included"],
+  "source": "generated",
+  "expected": {
+    "kind": "quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": {
+      "vesselImo": "9483047",
+      "portUnlocode": "FRLEH",
+      "supplierKey": "atlanticshelf",
+      "currency": "EUR",
+      "validUntil": "2026-11-15",
+      "deliveryFrom": "2026-11-22",
+      "deliveryTo": "2026-11-24",
+      "bargeFee": 0,
+      "lines": [
+        {
+          "grade": "LSMGO",
+          "qtyMt": 100,
+          "pricePerMt": 735
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Strait Line Fuels",
+    "evidence": "Strait Line Fuels"
+  },
+  "vesselName": {
+    "value": "MV Thessaly Star",
+    "evidence": "Vessel   MV Thessaly Star, IMO No. 9481025"
+  },
+  "vesselImo": {
+    "value": "9481025",
+    "evidence": "Vessel   MV Thessaly Star, IMO No. 9481025"
+  },
+  "port": {
+    "value": "Algeciras",
+    "evidence": "Port     Algeciras outer anchorage"
+  },
+  "deliveryFrom": {
+    "asWritten": "22/11-25/11",
+    "evidence": "Dates    22/11-25/11"
+  },
+  "deliveryTo": {
+    "asWritten": "22/11-25/11",
+    "evidence": "Dates    22/11-25/11"
+  },
+  "validUntil": {
+    "asWritten": "14 Nov",
+    "evidence": "Prices valid until: 14 Nov"
+  },
+  "bargeFee": {
+    "value": 2150,
+    "currency": "USD",
+    "perUnit": "LS",
+    "asWritten": "USD 2150 LS",
+    "evidence": "Barge: USD 2150 LS"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "LSMGO 0.1%",
+        "evidence": "LSMGO 0.1%   125 metric tonnes   US$ 686.00 pmt"
+      },
+      "quantity": {
+        "value": 125,
+        "unit": "metric tonnes",
+        "asWritten": "125 metric tonnes",
+        "evidence": "LSMGO 0.1%   125 metric tonnes   US$ 686.00 pmt"
+      },
+      "price": {
+        "value": 686,
+        "currency": "US$",
+        "perUnit": "pmt",
+        "asWritten": "US$ 686.00 pmt",
+        "evidence": "LSMGO 0.1%   125 metric tonnes   US$ 686.00 pmt"
+      }
+    }
+  ],
+  "notes": null
+}

@@ -1,0 +1,27 @@
+{
+  "id": "hard-forwarded-twice",
+  "tags": ["hard", "forwarded-twice", "plain", "forwarded"],
+  "source": "hard",
+  "expected": {
+    "kind": "quote",
+    "status": "needs_review",
+    "reviewChecks": ["supplier_resolved"],
+    "quote": {
+      "vesselImo": "9483047",
+      "portUnlocode": "BEANR",
+      "supplierKey": null,
+      "currency": "USD",
+      "validUntil": "2026-11-14",
+      "deliveryFrom": "2026-11-15",
+      "deliveryTo": "2026-11-16",
+      "bargeFee": 1350,
+      "lines": [
+        {
+          "grade": "LSMGO",
+          "qtyMt": 100,
+          "pricePerMt": 735
+        }
+      ]
+    }
+  }
+}

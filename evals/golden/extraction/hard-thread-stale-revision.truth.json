@@ -1,0 +1,27 @@
+{
+  "id": "hard-thread-stale-revision",
+  "tags": ["hard", "thread-stale-revision", "plain", "forwarded"],
+  "source": "hard",
+  "expected": {
+    "kind": "quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": {
+      "vesselImo": "9481025",
+      "portUnlocode": "ITGOA",
+      "supplierKey": "meridian",
+      "currency": "USD",
+      "validUntil": "2026-11-14",
+      "deliveryFrom": "2026-11-15",
+      "deliveryTo": "2026-11-16",
+      "bargeFee": 1800,
+      "lines": [
+        {
+          "grade": "LSMGO",
+          "qtyMt": 125,
+          "pricePerMt": 741
+        }
+      ]
+    }
+  }
+}

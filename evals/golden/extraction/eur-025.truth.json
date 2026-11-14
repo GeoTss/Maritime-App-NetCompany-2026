@@ -1,0 +1,27 @@
+{
+  "id": "eur-025",
+  "tags": ["eur", "body:html", "layout:kv-table", "vessel:name", "window:dotted", "barge:lump_sum"],
+  "source": "generated",
+  "expected": {
+    "kind": "quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": {
+      "vesselImo": "9480019",
+      "portUnlocode": "NLRTM",
+      "supplierKey": "harbourlight",
+      "currency": "EUR",
+      "validUntil": "2026-11-15",
+      "deliveryFrom": "2026-11-16",
+      "deliveryTo": "2026-11-18",
+      "bargeFee": 2000,
+      "lines": [
+        {
+          "grade": "LSMGO",
+          "qtyMt": 300,
+          "pricePerMt": 677.75
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "id": "pdf-008",
+  "tags": ["pdf", "layout:letter", "vessel:name-imo", "window:mon-first", "barge:absent"],
+  "source": "generated",
+  "expected": {
+    "kind": "quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": {
+      "vesselImo": "9480019",
+      "portUnlocode": "NLRTM",
+      "supplierKey": "harbourlight",
+      "currency": "USD",
+      "validUntil": "2026-11-14",
+      "deliveryFrom": "2026-11-19",
+      "deliveryTo": "2026-11-20",
+      "bargeFee": 0,
+      "lines": [
+        {
+          "grade": "LSMGO",
+          "qtyMt": 300,
+          "pricePerMt": 761
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "id": "pdf-005",
+  "tags": ["pdf", "layout:letter", "vessel:name-imo", "window:dotted", "barge:lump_sum"],
+  "source": "generated",
+  "expected": {
+    "kind": "quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": {
+      "vesselImo": "9484053",
+      "portUnlocode": "ITGOA",
+      "supplierKey": "meridian",
+      "currency": "USD",
+      "validUntil": "2026-11-15",
+      "deliveryFrom": "2026-11-18",
+      "deliveryTo": "2026-11-20",
+      "bargeFee": 1850,
+      "lines": [
+        {
+          "grade": "HSFO",
+          "qtyMt": 375,
+          "pricePerMt": 448.25
+        }
+      ]
+    }
+  }
+}

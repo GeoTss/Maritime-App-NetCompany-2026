@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Nordwind Bunker Services",
+    "evidence": "For and on behalf of Nordwind Bunker Services"
+  },
+  "vesselName": {
+    "value": null,
+    "evidence": null
+  },
+  "vesselImo": {
+    "value": "9487081",
+    "evidence": "Ship: IMO 9487081"
+  },
+  "port": {
+    "value": "Antwerp",
+    "evidence": "Port: Antwerp (BEANR)"
+  },
+  "deliveryFrom": {
+    "asWritten": "22-25 Nov",
+    "evidence": "Delivery date: 22-25 Nov"
+  },
+  "deliveryTo": {
+    "asWritten": "22-25 Nov",
+    "evidence": "Delivery date: 22-25 Nov"
+  },
+  "validUntil": {
+    "asWritten": "2026-11-16 18:00 UTC",
+    "evidence": "Valid till: 2026-11-16 18:00 UTC"
+  },
+  "bargeFee": {
+    "value": null,
+    "currency": null,
+    "perUnit": null,
+    "asWritten": null,
+    "evidence": null
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "DMA 0.1%",
+        "evidence": "Product: DMA 0.1%"
+      },
+      "quantity": {
+        "value": 50,
+        "unit": "tonnes",
+        "asWritten": "50 tonnes",
+        "evidence": "Quantity: 50 tonnes"
+      },
+      "price": {
+        "value": 725,
+        "currency": "EUR",
+        "perUnit": "/mt",
+        "asWritten": "725 EUR/mt",
+        "evidence": "Price: 725 EUR/mt"
+      }
+    }
+  ],
+  "notes": null
+}

@@ -1,0 +1,27 @@
+{
+  "id": "plain-002",
+  "tags": ["plain", "layout:prose", "vessel:name", "window:dash-long", "barge:absent"],
+  "source": "generated",
+  "expected": {
+    "kind": "quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": {
+      "vesselImo": "9483047",
+      "portUnlocode": "BEANR",
+      "supplierKey": "nordwind",
+      "currency": "USD",
+      "validUntil": "2026-11-15",
+      "deliveryFrom": "2026-11-16",
+      "deliveryTo": "2026-11-17",
+      "bargeFee": 0,
+      "lines": [
+        {
+          "grade": "LSMGO",
+          "qtyMt": 50,
+          "pricePerMt": 732.5
+        }
+      ]
+    }
+  }
+}

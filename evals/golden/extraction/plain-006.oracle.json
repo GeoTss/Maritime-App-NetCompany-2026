@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Atlantic Shelf Fuels",
+    "evidence": "For and on behalf of Atlantic Shelf Fuels"
+  },
+  "vesselName": {
+    "value": "M/T Atlantic Meridian",
+    "evidence": "We are pleased to offer RMG 380 for M/T Atlantic Meridian - IMO: 9485069 at Sines (PTSIE)."
+  },
+  "vesselImo": {
+    "value": "9485069",
+    "evidence": "We are pleased to offer RMG 380 for M/T Atlantic Meridian - IMO: 9485069 at Sines (PTSIE)."
+  },
+  "port": {
+    "value": "Sines",
+    "evidence": "We are pleased to offer RMG 380 for M/T Atlantic Meridian - IMO: 9485069 at Sines (PTSIE)."
+  },
+  "deliveryFrom": {
+    "asWritten": "20/11-21/11",
+    "evidence": "Delivery 20/11-21/11."
+  },
+  "deliveryTo": {
+    "asWritten": "20/11-21/11",
+    "evidence": "Delivery 20/11-21/11."
+  },
+  "validUntil": {
+    "asWritten": "14th November 1700 LT",
+    "evidence": "This offer is valid until 14th November 1700 LT."
+  },
+  "bargeFee": {
+    "value": 1900,
+    "currency": "$",
+    "perUnit": "lump sum",
+    "asWritten": "$1,900 lump sum",
+    "evidence": "Barging $1,900 lump sum."
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "RMG 380",
+        "evidence": "We are pleased to offer RMG 380 for M/T Atlantic Meridian - IMO: 9485069 at Sines (PTSIE)."
+      },
+      "quantity": {
+        "value": 475,
+        "unit": "metric tons",
+        "asWritten": "475 metric tons",
+        "evidence": "Quantity 475 metric tons, price USD 455.25 PMT."
+      },
+      "price": {
+        "value": 455.25,
+        "currency": "USD",
+        "perUnit": "PMT",
+        "asWritten": "USD 455.25 PMT",
+        "evidence": "Quantity 475 metric tons, price USD 455.25 PMT."
+      }
+    }
+  ],
+  "notes": null
+}

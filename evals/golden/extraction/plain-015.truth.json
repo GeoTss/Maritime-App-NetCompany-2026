@@ -1,0 +1,27 @@
+{
+  "id": "plain-015",
+  "tags": ["plain", "layout:compact", "vessel:name", "window:mon-both", "barge:absent"],
+  "source": "generated",
+  "expected": {
+    "kind": "quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": {
+      "vesselImo": "9482031",
+      "portUnlocode": "DEHAM",
+      "supplierKey": "harbourlight",
+      "currency": "USD",
+      "validUntil": "2026-11-15",
+      "deliveryFrom": "2026-11-19",
+      "deliveryTo": "2026-11-20",
+      "bargeFee": 0,
+      "lines": [
+        {
+          "grade": "VLSFO",
+          "qtyMt": 225,
+          "pricePerMt": 601.5
+        }
+      ]
+    }
+  }
+}

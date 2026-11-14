@@ -1,0 +1,27 @@
+{
+  "id": "plain-035",
+  "tags": ["plain", "layout:compact", "vessel:name-imo", "window:slash", "barge:lump_sum"],
+  "source": "generated",
+  "expected": {
+    "kind": "quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": {
+      "vesselImo": "9484053",
+      "portUnlocode": "GRPIR",
+      "supplierKey": "meridian",
+      "currency": "USD",
+      "validUntil": "2026-11-16",
+      "deliveryFrom": "2026-11-24",
+      "deliveryTo": "2026-11-26",
+      "bargeFee": 1400,
+      "lines": [
+        {
+          "grade": "HSFO",
+          "qtyMt": 325,
+          "pricePerMt": 459
+        }
+      ]
+    }
+  }
+}

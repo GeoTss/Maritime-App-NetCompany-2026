@@ -1,0 +1,39 @@
+{
+  "id": "multi-grade-012",
+  "tags": [
+    "multi_grade",
+    "layout:per-grade",
+    "grades:LSMGO+VLSFO",
+    "vessel:name",
+    "window:tolerance",
+    "barge:included"
+  ],
+  "source": "generated",
+  "expected": {
+    "kind": "quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": {
+      "vesselImo": "9486075",
+      "portUnlocode": "GIGIB",
+      "supplierKey": "straitline",
+      "currency": "USD",
+      "validUntil": "2026-11-16",
+      "deliveryFrom": "2026-11-18",
+      "deliveryTo": "2026-11-20",
+      "bargeFee": 0,
+      "lines": [
+        {
+          "grade": "LSMGO",
+          "qtyMt": 100,
+          "pricePerMt": 818.5
+        },
+        {
+          "grade": "VLSFO",
+          "qtyMt": 150,
+          "pricePerMt": 595
+        }
+      ]
+    }
+  }
+}

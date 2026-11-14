@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Nordwind Bunker Services",
+    "evidence": "For and on behalf of Nordwind Bunker Services"
+  },
+  "vesselName": {
+    "value": null,
+    "evidence": null
+  },
+  "vesselImo": {
+    "value": "9483047",
+    "evidence": "Vessel: IMO 9483047"
+  },
+  "port": {
+    "value": "Antwerp",
+    "evidence": "Port: Antwerp anchorage"
+  },
+  "deliveryFrom": {
+    "asWritten": "Nov 17-20",
+    "evidence": "Delivery date: Nov 17-20"
+  },
+  "deliveryTo": {
+    "asWritten": "Nov 17-20",
+    "evidence": "Delivery date: Nov 17-20"
+  },
+  "validUntil": {
+    "asWritten": "15 November 2026",
+    "evidence": "Firm until: 15 November 2026"
+  },
+  "bargeFee": {
+    "value": 1850,
+    "currency": "$",
+    "perUnit": "lump sum",
+    "asWritten": "$1,850 lump sum",
+    "evidence": "Delivery charge: $1,850 lump sum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "DMA 0.1%",
+        "evidence": "Grade: DMA 0.1%"
+      },
+      "quantity": {
+        "value": 175,
+        "unit": "MT",
+        "asWritten": "175 MT",
+        "evidence": "Quantity: 175 MT"
+      },
+      "price": {
+        "value": 693,
+        "currency": "US$",
+        "perUnit": "pmt",
+        "asWritten": "US$ 693 pmt",
+        "evidence": "Offer price: US$ 693 pmt"
+      }
+    }
+  ],
+  "notes": null
+}

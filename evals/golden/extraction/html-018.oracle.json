@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Strait Line Fuels",
+    "evidence": "Strait Line Fuels"
+  },
+  "vesselName": {
+    "value": "MV Coral Horizon",
+    "evidence": "Vessel            MV Coral Horizon - IMO: 9486075"
+  },
+  "vesselImo": {
+    "value": "9486075",
+    "evidence": "Vessel            MV Coral Horizon - IMO: 9486075"
+  },
+  "port": {
+    "value": "Gibraltar",
+    "evidence": "Port              Gibraltar"
+  },
+  "deliveryFrom": {
+    "asWritten": "19-21 November 2026",
+    "evidence": "Delivery window   19-21 November 2026"
+  },
+  "deliveryTo": {
+    "asWritten": "19-21 November 2026",
+    "evidence": "Delivery window   19-21 November 2026"
+  },
+  "validUntil": {
+    "asWritten": "15.11.26 18:00 UTC",
+    "evidence": "Firm until: 15.11.26 18:00 UTC"
+  },
+  "bargeFee": {
+    "value": 1200,
+    "currency": "$",
+    "perUnit": "lump sum",
+    "asWritten": "$1,200 lump sum",
+    "evidence": "Barge fee: $1,200 lump sum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "LSMGO 0.10%S",
+        "evidence": "LSMGO 0.10%S   100 mts    $800/mt"
+      },
+      "quantity": {
+        "value": 100,
+        "unit": "mts",
+        "asWritten": "100 mts",
+        "evidence": "LSMGO 0.10%S   100 mts    $800/mt"
+      },
+      "price": {
+        "value": 800,
+        "currency": "$",
+        "perUnit": "/mt",
+        "asWritten": "$800/mt",
+        "evidence": "LSMGO 0.10%S   100 mts    $800/mt"
+      }
+    }
+  ],
+  "notes": null
+}

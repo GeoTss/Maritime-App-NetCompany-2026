@@ -1,0 +1,11 @@
+{
+  "id": "hard-pdf-image-only",
+  "tags": ["hard", "pdf-image-only", "pdf", "pdf-image"],
+  "source": "hard",
+  "expected": {
+    "kind": "quote",
+    "status": "needs_review",
+    "reviewChecks": ["attachment_text_found"],
+    "quote": null
+  }
+}

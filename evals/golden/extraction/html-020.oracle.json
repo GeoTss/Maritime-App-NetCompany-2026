@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Strait Line Fuels",
+    "evidence": "For and on behalf of Strait Line Fuels"
+  },
+  "vesselName": {
+    "value": "MV CORAL HORIZON",
+    "evidence": "Vessel              MV CORAL HORIZON"
+  },
+  "vesselImo": {
+    "value": null,
+    "evidence": null
+  },
+  "port": {
+    "value": "Gibraltar",
+    "evidence": "Place of delivery   Gibraltar anchorage"
+  },
+  "deliveryFrom": {
+    "asWritten": "19.11.2026 - 22.11.2026",
+    "evidence": "Delivery period     19.11.2026 - 22.11.2026"
+  },
+  "deliveryTo": {
+    "asWritten": "19.11.2026 - 22.11.2026",
+    "evidence": "Delivery period     19.11.2026 - 22.11.2026"
+  },
+  "validUntil": {
+    "asWritten": "16 November 2026 12:00 LT",
+    "evidence": "Firm until: 16 November 2026 12:00 LT"
+  },
+  "bargeFee": {
+    "value": 2300,
+    "currency": "USD",
+    "perUnit": "lump sum",
+    "asWritten": "USD 2,300 lump sum",
+    "evidence": "Barging: USD 2,300 lump sum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "LSMGO 0.10%S",
+        "evidence": "LSMGO 0.10%S   100 MT     USD 815/mt"
+      },
+      "quantity": {
+        "value": 100,
+        "unit": "MT",
+        "asWritten": "100 MT",
+        "evidence": "LSMGO 0.10%S   100 MT     USD 815/mt"
+      },
+      "price": {
+        "value": 815,
+        "currency": "USD",
+        "perUnit": "/mt",
+        "asWritten": "USD 815/mt",
+        "evidence": "LSMGO 0.10%S   100 MT     USD 815/mt"
+      }
+    }
+  ],
+  "notes": null
+}

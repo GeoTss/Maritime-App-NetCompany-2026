@@ -1,0 +1,27 @@
+{
+  "id": "hard-expired-validity",
+  "tags": ["hard", "expired-validity", "plain"],
+  "source": "hard",
+  "expected": {
+    "kind": "quote",
+    "status": "needs_review",
+    "reviewChecks": ["validity_not_expired"],
+    "quote": {
+      "vesselImo": "9486075",
+      "portUnlocode": "PTSIE",
+      "supplierKey": "atlanticshelf",
+      "currency": "USD",
+      "validUntil": "2026-11-12",
+      "deliveryFrom": "2026-11-15",
+      "deliveryTo": "2026-11-16",
+      "bargeFee": 1650,
+      "lines": [
+        {
+          "grade": "LSMGO",
+          "qtyMt": 100,
+          "pricePerMt": 739
+        }
+      ]
+    }
+  }
+}

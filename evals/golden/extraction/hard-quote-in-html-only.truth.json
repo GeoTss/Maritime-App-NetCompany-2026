@@ -1,0 +1,27 @@
+{
+  "id": "hard-quote-in-html-only",
+  "tags": ["hard", "quote-in-html-only", "html-attachment"],
+  "source": "hard",
+  "expected": {
+    "kind": "quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": {
+      "vesselImo": "9481025",
+      "portUnlocode": "ESALG",
+      "supplierKey": "straitline",
+      "currency": "USD",
+      "validUntil": "2026-11-15",
+      "deliveryFrom": "2026-11-19",
+      "deliveryTo": "2026-11-20",
+      "bargeFee": 1600,
+      "lines": [
+        {
+          "grade": "LSMGO",
+          "qtyMt": 125,
+          "pricePerMt": 719
+        }
+      ]
+    }
+  }
+}

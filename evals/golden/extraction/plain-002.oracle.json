@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Nordwind Bunker Services",
+    "evidence": "For and on behalf of Nordwind Bunker Services"
+  },
+  "vesselName": {
+    "value": "MV Iberian Dawn",
+    "evidence": "We are pleased to offer DMA 0.1% for MV Iberian Dawn at Antwerp, Belgium."
+  },
+  "vesselImo": {
+    "value": null,
+    "evidence": null
+  },
+  "port": {
+    "value": "Antwerp",
+    "evidence": "We are pleased to offer DMA 0.1% for MV Iberian Dawn at Antwerp, Belgium."
+  },
+  "deliveryFrom": {
+    "asWritten": "16-17 November 2026",
+    "evidence": "Delivery 16-17 November 2026."
+  },
+  "deliveryTo": {
+    "asWritten": "16-17 November 2026",
+    "evidence": "Delivery 16-17 November 2026."
+  },
+  "validUntil": {
+    "asWritten": "Nov 15, 2026",
+    "evidence": "This offer is valid until Nov 15, 2026."
+  },
+  "bargeFee": {
+    "value": null,
+    "currency": null,
+    "perUnit": null,
+    "asWritten": null,
+    "evidence": null
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "DMA 0.1%",
+        "evidence": "We are pleased to offer DMA 0.1% for MV Iberian Dawn at Antwerp, Belgium."
+      },
+      "quantity": {
+        "value": 50,
+        "unit": "MT",
+        "asWritten": "50 MT",
+        "evidence": "Quantity 50 MT, price US$ 732.50 pmt."
+      },
+      "price": {
+        "value": 732.5,
+        "currency": "US$",
+        "perUnit": "pmt",
+        "asWritten": "US$ 732.50 pmt",
+        "evidence": "Quantity 50 MT, price US$ 732.50 pmt."
+      }
+    }
+  ],
+  "notes": null
+}

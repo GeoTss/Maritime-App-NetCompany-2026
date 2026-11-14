@@ -1,0 +1,39 @@
+{
+  "id": "multi-grade-015",
+  "tags": [
+    "multi_grade",
+    "layout:html-grid",
+    "grades:LSMGO+VLSFO",
+    "vessel:name-imo",
+    "window:slash",
+    "barge:lump_sum"
+  ],
+  "source": "generated",
+  "expected": {
+    "kind": "quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": {
+      "vesselImo": "9483047",
+      "portUnlocode": "FRLEH",
+      "supplierKey": "atlanticshelf",
+      "currency": "USD",
+      "validUntil": "2026-11-15",
+      "deliveryFrom": "2026-11-16",
+      "deliveryTo": "2026-11-18",
+      "bargeFee": 2750,
+      "lines": [
+        {
+          "grade": "LSMGO",
+          "qtyMt": 175,
+          "pricePerMt": 697
+        },
+        {
+          "grade": "VLSFO",
+          "qtyMt": 50,
+          "pricePerMt": 549.5
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Nordwind Bunker Services",
+    "evidence": "Nordwind Bunker Services | Trading Desk"
+  },
+  "vesselName": {
+    "value": null,
+    "evidence": null
+  },
+  "vesselImo": {
+    "value": "9481025",
+    "evidence": "Vessel: IMO 9481025"
+  },
+  "port": {
+    "value": "Algeciras",
+    "evidence": "Delivery port: Algeciras outer anchorage"
+  },
+  "deliveryFrom": {
+    "asWritten": "19-22 Nov",
+    "evidence": "Dates: 19-22 Nov"
+  },
+  "deliveryTo": {
+    "asWritten": "19-22 Nov",
+    "evidence": "Dates: 19-22 Nov"
+  },
+  "validUntil": {
+    "asWritten": "15 November 2026 1700 LT",
+    "evidence": "Validity: 15 November 2026 1700 LT"
+  },
+  "bargeFee": {
+    "value": 1250,
+    "currency": "USD",
+    "perUnit": "LS",
+    "asWritten": "USD 1250 LS",
+    "evidence": "Barge: USD 1250 LS"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "LSMGO 0.1%",
+        "evidence": "Product: LSMGO 0.1%"
+      },
+      "quantity": {
+        "value": 175,
+        "unit": "metric tons",
+        "asWritten": "175 metric tons",
+        "evidence": "Quantity: 175 metric tons"
+      },
+      "price": {
+        "value": 727,
+        "currency": "US$",
+        "perUnit": "pmt",
+        "asWritten": "US$ 727 pmt",
+        "evidence": "Price: US$ 727 pmt"
+      }
+    }
+  ],
+  "notes": null
+}

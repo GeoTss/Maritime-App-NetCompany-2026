@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Nordwind Bunker Services",
+    "evidence": "For and on behalf of Nordwind Bunker Services"
+  },
+  "vesselName": {
+    "value": "M/V Aegean Pioneer",
+    "evidence": "Ship: M/V Aegean Pioneer"
+  },
+  "vesselImo": {
+    "value": null,
+    "evidence": null
+  },
+  "port": {
+    "value": "Rotterdam",
+    "evidence": "Place of delivery: Rotterdam"
+  },
+  "deliveryFrom": {
+    "asWritten": "18 Nov 2026",
+    "evidence": "Delivery from: 18 Nov 2026"
+  },
+  "deliveryTo": {
+    "asWritten": "20 Nov 2026",
+    "evidence": "Delivery to: 20 Nov 2026"
+  },
+  "validUntil": {
+    "asWritten": "15/11 12:00 LT",
+    "evidence": "Validity: 15/11 12:00 LT"
+  },
+  "bargeFee": {
+    "value": 2650,
+    "currency": "$",
+    "perUnit": "lump sum",
+    "asWritten": "$2,650 lump sum",
+    "evidence": "Barge: $2,650 lump sum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "MGO",
+        "evidence": "Grade: MGO"
+      },
+      "quantity": {
+        "value": 300,
+        "unit": "mt",
+        "asWritten": "300 mt",
+        "evidence": "Qty: 300 mt"
+      },
+      "price": {
+        "value": 746.5,
+        "currency": "USD",
+        "perUnit": "/MT",
+        "asWritten": "746.50 USD/MT",
+        "evidence": "Unit price: 746.50 USD/MT"
+      }
+    }
+  ],
+  "notes": null
+}

@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Atlantic Shelf Fuels",
+    "evidence": "For and on behalf of Atlantic Shelf Fuels"
+  },
+  "vesselName": {
+    "value": "MV Iberian Dawn",
+    "evidence": "Ship: MV Iberian Dawn, IMO No. 9483047"
+  },
+  "vesselImo": {
+    "value": "9483047",
+    "evidence": "Ship: MV Iberian Dawn, IMO No. 9483047"
+  },
+  "port": {
+    "value": "Le Havre",
+    "evidence": "Location: Le Havre"
+  },
+  "deliveryFrom": {
+    "asWritten": "Nov 22",
+    "evidence": "Delivery from: Nov 22"
+  },
+  "deliveryTo": {
+    "asWritten": "Nov 24",
+    "evidence": "Delivery to: Nov 24"
+  },
+  "validUntil": {
+    "asWritten": "Sat 14 Nov 18:00 UTC",
+    "evidence": "Validity: Sat 14 Nov 18:00 UTC"
+  },
+  "bargeFee": {
+    "value": 3600,
+    "currency": "$",
+    "perUnit": "lump sum",
+    "asWritten": "$3600 lump sum",
+    "evidence": "Barge: $3600 lump sum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "MGO 0.1%",
+        "evidence": "Grade: MGO 0.1%"
+      },
+      "quantity": {
+        "value": 100,
+        "unit": "mts",
+        "asWritten": "100 mts",
+        "evidence": "Quantity: 100 mts"
+      },
+      "price": {
+        "value": 768,
+        "currency": "USD",
+        "perUnit": "/MT",
+        "asWritten": "768 USD/MT",
+        "evidence": "Price: 768 USD/MT"
+      }
+    }
+  ],
+  "notes": null
+}

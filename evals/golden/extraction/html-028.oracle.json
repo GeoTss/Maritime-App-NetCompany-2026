@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Atlantic Shelf Fuels",
+    "evidence": "Atlantic Shelf Fuels"
+  },
+  "vesselName": {
+    "value": "M/V Coral Horizon",
+    "evidence": "SHIP                M/V Coral Horizon - IMO: 9486075"
+  },
+  "vesselImo": {
+    "value": "9486075",
+    "evidence": "SHIP                M/V Coral Horizon - IMO: 9486075"
+  },
+  "port": {
+    "value": "Sines",
+    "evidence": "DELIVERY PORT       Sines, Portugal"
+  },
+  "deliveryFrom": {
+    "asWritten": "18-21 Nov",
+    "evidence": "DELIVERY WINDOW     18-21 Nov"
+  },
+  "deliveryTo": {
+    "asWritten": "18-21 Nov",
+    "evidence": "DELIVERY WINDOW     18-21 Nov"
+  },
+  "validUntil": {
+    "asWritten": "Sunday, 15 November 2026 17:00 LT",
+    "evidence": "OFFER VALID UNTIL   Sunday, 15 November 2026 17:00 LT"
+  },
+  "bargeFee": {
+    "value": 1550,
+    "currency": "USD",
+    "perUnit": "lump sum",
+    "asWritten": "USD 1,550 lump sum",
+    "evidence": "BARGE               USD 1,550 lump sum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "LSMGO",
+        "evidence": "FUEL                LSMGO"
+      },
+      "quantity": {
+        "value": 100,
+        "unit": "metric tonnes",
+        "asWritten": "100 metric tonnes",
+        "evidence": "QUANTITY            100 metric tonnes"
+      },
+      "price": {
+        "value": 735,
+        "currency": "$",
+        "perUnit": "/mt",
+        "asWritten": "$735/mt",
+        "evidence": "OFFER PRICE         $735/mt"
+      }
+    }
+  ],
+  "notes": null
+}

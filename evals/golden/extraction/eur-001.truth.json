@@ -1,0 +1,27 @@
+{
+  "id": "eur-001",
+  "tags": ["eur", "body:plain", "layout:labels", "vessel:name", "window:two", "barge:lump_sum"],
+  "source": "generated",
+  "expected": {
+    "kind": "quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": {
+      "vesselImo": "9485069",
+      "portUnlocode": "PTSIE",
+      "supplierKey": "atlanticshelf",
+      "currency": "EUR",
+      "validUntil": "2026-11-16",
+      "deliveryFrom": "2026-11-21",
+      "deliveryTo": "2026-11-23",
+      "bargeFee": 1650,
+      "lines": [
+        {
+          "grade": "HSFO",
+          "qtyMt": 300,
+          "pricePerMt": 428
+        }
+      ]
+    }
+  }
+}

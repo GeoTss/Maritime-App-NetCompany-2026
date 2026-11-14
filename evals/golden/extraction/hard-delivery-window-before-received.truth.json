@@ -1,0 +1,27 @@
+{
+  "id": "hard-delivery-window-before-received",
+  "tags": ["hard", "delivery-window-before-received", "plain"],
+  "source": "hard",
+  "expected": {
+    "kind": "quote",
+    "status": "needs_review",
+    "reviewChecks": ["delivery_window_valid"],
+    "quote": {
+      "vesselImo": "9485069",
+      "portUnlocode": "PTSIE",
+      "supplierKey": "atlanticshelf",
+      "currency": "USD",
+      "validUntil": "2026-11-14",
+      "deliveryFrom": "2026-11-10",
+      "deliveryTo": "2026-11-11",
+      "bargeFee": 1750,
+      "lines": [
+        {
+          "grade": "HSFO",
+          "qtyMt": 300,
+          "pricePerMt": 483
+        }
+      ]
+    }
+  }
+}

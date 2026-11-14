@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Strait Line Fuels",
+    "evidence": "Strait Line Fuels | Trading Desk"
+  },
+  "vesselName": {
+    "value": "CORAL HORIZON",
+    "evidence": "We are pleased to offer LSMGO for CORAL HORIZON (IMO 9486075) at Gibraltar (GIGIB)."
+  },
+  "vesselImo": {
+    "value": "9486075",
+    "evidence": "We are pleased to offer LSMGO for CORAL HORIZON (IMO 9486075) at Gibraltar (GIGIB)."
+  },
+  "port": {
+    "value": "Gibraltar",
+    "evidence": "We are pleased to offer LSMGO for CORAL HORIZON (IMO 9486075) at Gibraltar (GIGIB)."
+  },
+  "deliveryFrom": {
+    "asWritten": "16-18 November 2026",
+    "evidence": "Delivery 16-18 November 2026."
+  },
+  "deliveryTo": {
+    "asWritten": "16-18 November 2026",
+    "evidence": "Delivery 16-18 November 2026."
+  },
+  "validUntil": {
+    "asWritten": "15/11",
+    "evidence": "This offer is valid until 15/11."
+  },
+  "bargeFee": {
+    "value": 1350,
+    "currency": "EUR",
+    "perUnit": "lumpsum",
+    "asWritten": "EUR 1,350 lumpsum",
+    "evidence": "Barging EUR 1,350 lumpsum."
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "LSMGO",
+        "evidence": "We are pleased to offer LSMGO for CORAL HORIZON (IMO 9486075) at Gibraltar (GIGIB)."
+      },
+      "quantity": {
+        "value": 100,
+        "unit": "mts",
+        "asWritten": "100 mts",
+        "evidence": "Quantity 100 mts, price EUR 734.75 per metric tonne."
+      },
+      "price": {
+        "value": 734.75,
+        "currency": "EUR",
+        "perUnit": "per metric tonne",
+        "asWritten": "EUR 734.75 per metric tonne",
+        "evidence": "Quantity 100 mts, price EUR 734.75 per metric tonne."
+      }
+    }
+  ],
+  "notes": null
+}

@@ -1,0 +1,98 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Atlantic Shelf Fuels",
+    "evidence": "Atlantic Shelf Fuels"
+  },
+  "vesselName": {
+    "value": "MT Atlantic Meridian",
+    "evidence": "Vessel: MT Atlantic Meridian (IMO 9485069)"
+  },
+  "vesselImo": {
+    "value": "9485069",
+    "evidence": "Vessel: MT Atlantic Meridian (IMO 9485069)"
+  },
+  "port": {
+    "value": "Brest",
+    "evidence": "Port: Brest"
+  },
+  "deliveryFrom": {
+    "asWritten": "16-17 Nov",
+    "evidence": "Delivery: 16-17 Nov"
+  },
+  "deliveryTo": {
+    "asWritten": "16-17 Nov",
+    "evidence": "Delivery: 16-17 Nov"
+  },
+  "validUntil": {
+    "asWritten": "14 Nov 2026 18:00 LT",
+    "evidence": "Validity: 14 Nov 2026 18:00 LT"
+  },
+  "bargeFee": {
+    "value": 2600,
+    "currency": "USD",
+    "perUnit": "lump sum",
+    "asWritten": "USD 2,600 lump sum",
+    "evidence": "Barging: USD 2,600 lump sum for all grades"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "LSMGO 0.1%",
+        "evidence": "LSMGO 0.1%     200 mt      USD 752 per mt"
+      },
+      "quantity": {
+        "value": 200,
+        "unit": "mt",
+        "asWritten": "200 mt",
+        "evidence": "LSMGO 0.1%     200 mt      USD 752 per mt"
+      },
+      "price": {
+        "value": 752,
+        "currency": "USD",
+        "perUnit": "per mt",
+        "asWritten": "USD 752 per mt",
+        "evidence": "LSMGO 0.1%     200 mt      USD 752 per mt"
+      }
+    },
+    {
+      "grade": {
+        "value": "VLSFO 0.5%",
+        "evidence": "VLSFO 0.5%     600 mt      USD 594 per mt"
+      },
+      "quantity": {
+        "value": 600,
+        "unit": "mt",
+        "asWritten": "600 mt",
+        "evidence": "VLSFO 0.5%     600 mt      USD 594 per mt"
+      },
+      "price": {
+        "value": 594,
+        "currency": "USD",
+        "perUnit": "per mt",
+        "asWritten": "USD 594 per mt",
+        "evidence": "VLSFO 0.5%     600 mt      USD 594 per mt"
+      }
+    },
+    {
+      "grade": {
+        "value": "HSFO 3.5%",
+        "evidence": "HSFO 3.5%      300 mt      USD 471.50 per mt"
+      },
+      "quantity": {
+        "value": 300,
+        "unit": "mt",
+        "asWritten": "300 mt",
+        "evidence": "HSFO 3.5%      300 mt      USD 471.50 per mt"
+      },
+      "price": {
+        "value": 471.5,
+        "currency": "USD",
+        "perUnit": "per mt",
+        "asWritten": "USD 471.50 per mt",
+        "evidence": "HSFO 3.5%      300 mt      USD 471.50 per mt"
+      }
+    }
+  ],
+  "notes": null
+}

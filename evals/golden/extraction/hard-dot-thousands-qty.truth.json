@@ -1,0 +1,27 @@
+{
+  "id": "hard-dot-thousands-qty",
+  "tags": ["hard", "dot-thousands-qty", "plain"],
+  "source": "hard",
+  "expected": {
+    "kind": "quote",
+    "status": "needs_review",
+    "reviewChecks": ["quantity_unambiguous"],
+    "quote": {
+      "vesselImo": "9487081",
+      "portUnlocode": "BEANR",
+      "supplierKey": "harbourlight",
+      "currency": "USD",
+      "validUntil": "2026-11-13",
+      "deliveryFrom": "2026-11-13",
+      "deliveryTo": "2026-11-14",
+      "bargeFee": 1250,
+      "lines": [
+        {
+          "grade": "LSMGO",
+          "qtyMt": null,
+          "pricePerMt": 736
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,79 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Meridian Bunkering",
+    "evidence": "Meridian Bunkering | Trading Desk"
+  },
+  "vesselName": {
+    "value": null,
+    "evidence": null
+  },
+  "vesselImo": {
+    "value": "9484053",
+    "evidence": "Vessel: IMO 9484053"
+  },
+  "port": {
+    "value": "Piraeus",
+    "evidence": "Port: Piraeus anchorage"
+  },
+  "deliveryFrom": {
+    "asWritten": "18-19 Nov",
+    "evidence": "Delivery window: 18-19 Nov"
+  },
+  "deliveryTo": {
+    "asWritten": "18-19 Nov",
+    "evidence": "Delivery window: 18-19 Nov"
+  },
+  "validUntil": {
+    "asWritten": "16 Nov 2026 12:00 LT",
+    "evidence": "Firm until: 16 Nov 2026 12:00 LT"
+  },
+  "bargeFee": {
+    "value": 2400,
+    "currency": "USD",
+    "perUnit": "lump sum",
+    "asWritten": "USD 2400 lump sum",
+    "evidence": "Barging: USD 2400 lump sum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "MGO 0.1%",
+        "evidence": "MGO 0.1%     125 mt      USD 745.00 per mt"
+      },
+      "quantity": {
+        "value": 125,
+        "unit": "mt",
+        "asWritten": "125 mt",
+        "evidence": "MGO 0.1%     125 mt      USD 745.00 per mt"
+      },
+      "price": {
+        "value": 745,
+        "currency": "USD",
+        "perUnit": "per mt",
+        "asWritten": "USD 745.00 per mt",
+        "evidence": "MGO 0.1%     125 mt      USD 745.00 per mt"
+      }
+    },
+    {
+      "grade": {
+        "value": "HSFO 3.5%",
+        "evidence": "HSFO 3.5%    125 mt      USD 438.50 per mt"
+      },
+      "quantity": {
+        "value": 125,
+        "unit": "mt",
+        "asWritten": "125 mt",
+        "evidence": "MGO 0.1%     125 mt      USD 745.00 per mt"
+      },
+      "price": {
+        "value": 438.5,
+        "currency": "USD",
+        "perUnit": "per mt",
+        "asWritten": "USD 438.50 per mt",
+        "evidence": "HSFO 3.5%    125 mt      USD 438.50 per mt"
+      }
+    }
+  ],
+  "notes": null
+}

@@ -1,0 +1,34 @@
+{
+  "id": "eur-019",
+  "tags": [
+    "eur",
+    "body:plain",
+    "layout:compact",
+    "vessel:name-imo",
+    "window:two",
+    "barge:lump_sum"
+  ],
+  "source": "generated",
+  "expected": {
+    "kind": "quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": {
+      "vesselImo": "9484053",
+      "portUnlocode": "GRPIR",
+      "supplierKey": "kestrel",
+      "currency": "EUR",
+      "validUntil": "2026-11-17",
+      "deliveryFrom": "2026-11-20",
+      "deliveryTo": "2026-11-21",
+      "bargeFee": 1950,
+      "lines": [
+        {
+          "grade": "HSFO",
+          "qtyMt": 325,
+          "pricePerMt": 455
+        }
+      ]
+    }
+  }
+}

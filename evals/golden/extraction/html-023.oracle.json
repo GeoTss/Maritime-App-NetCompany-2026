@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Harbourlight Energy",
+    "evidence": "For and on behalf of Harbourlight Energy"
+  },
+  "vesselName": {
+    "value": "M/V Nordic Lantern",
+    "evidence": "Vessel               M/V Nordic Lantern (IMO 9482031)"
+  },
+  "vesselImo": {
+    "value": "9482031",
+    "evidence": "Vessel               M/V Nordic Lantern (IMO 9482031)"
+  },
+  "port": {
+    "value": "Hamburg",
+    "evidence": "Port                 Hamburg anchorage"
+  },
+  "deliveryFrom": {
+    "asWritten": "17 Nov +/- 1 day",
+    "evidence": "Dates                17 Nov +/- 1 day"
+  },
+  "deliveryTo": {
+    "asWritten": "17 Nov +/- 1 day",
+    "evidence": "Dates                17 Nov +/- 1 day"
+  },
+  "validUntil": {
+    "asWritten": "15 Nov",
+    "evidence": "Prices valid until   15 Nov"
+  },
+  "bargeFee": {
+    "value": 3150,
+    "currency": "USD",
+    "perUnit": "lump sum",
+    "asWritten": "USD 3150 lump sum",
+    "evidence": "Barge                USD 3150 lump sum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "VLSFO 0.5% S",
+        "evidence": "Product              VLSFO 0.5% S"
+      },
+      "quantity": {
+        "value": 225,
+        "unit": "tonnes",
+        "asWritten": "225 tonnes",
+        "evidence": "Quantity             225 tonnes"
+      },
+      "price": {
+        "value": 605,
+        "currency": "USD",
+        "perUnit": "/MT",
+        "asWritten": "605 USD/MT",
+        "evidence": "Offer price          605 USD/MT"
+      }
+    }
+  ],
+  "notes": null
+}

@@ -1,0 +1,27 @@
+{
+  "id": "html-011",
+  "tags": ["html", "layout:paragraphs", "vessel:name", "window:two", "barge:lump_sum"],
+  "source": "generated",
+  "expected": {
+    "kind": "quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": {
+      "vesselImo": "9480019",
+      "portUnlocode": "NLRTM",
+      "supplierKey": "nordwind",
+      "currency": "USD",
+      "validUntil": "2026-11-15",
+      "deliveryFrom": "2026-11-18",
+      "deliveryTo": "2026-11-20",
+      "bargeFee": 2650,
+      "lines": [
+        {
+          "grade": "LSMGO",
+          "qtyMt": 300,
+          "pricePerMt": 746.5
+        }
+      ]
+    }
+  }
+}

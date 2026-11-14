@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Atlantic Shelf Fuels",
+    "evidence": "Atlantic Shelf Fuels"
+  },
+  "vesselName": {
+    "value": "MT Atlantic Meridian",
+    "evidence": "MT Atlantic Meridian - IMO: 9485069 / Brest (FRBES) / HSFO 300 metric tons @ 466.00 EUR/mt"
+  },
+  "vesselImo": {
+    "value": "9485069",
+    "evidence": "MT Atlantic Meridian - IMO: 9485069 / Brest (FRBES) / HSFO 300 metric tons @ 466.00 EUR/mt"
+  },
+  "port": {
+    "value": "Brest",
+    "evidence": "MT Atlantic Meridian - IMO: 9485069 / Brest (FRBES) / HSFO 300 metric tons @ 466.00 EUR/mt"
+  },
+  "deliveryFrom": {
+    "asWritten": "21.11.2026 - 22.11.2026",
+    "evidence": "Delivery: 21.11.2026 - 22.11.2026"
+  },
+  "deliveryTo": {
+    "asWritten": "21.11.2026 - 22.11.2026",
+    "evidence": "Delivery: 21.11.2026 - 22.11.2026"
+  },
+  "validUntil": {
+    "asWritten": "Sat 14 Nov noon LT",
+    "evidence": "Valid until: Sat 14 Nov noon LT"
+  },
+  "bargeFee": {
+    "value": null,
+    "currency": null,
+    "perUnit": null,
+    "asWritten": null,
+    "evidence": null
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "HSFO",
+        "evidence": "MT Atlantic Meridian - IMO: 9485069 / Brest (FRBES) / HSFO 300 metric tons @ 466.00 EUR/mt"
+      },
+      "quantity": {
+        "value": 300,
+        "unit": "metric tons",
+        "asWritten": "300 metric tons",
+        "evidence": "MT Atlantic Meridian - IMO: 9485069 / Brest (FRBES) / HSFO 300 metric tons @ 466.00 EUR/mt"
+      },
+      "price": {
+        "value": 466,
+        "currency": "EUR",
+        "perUnit": "/mt",
+        "asWritten": "466.00 EUR/mt",
+        "evidence": "MT Atlantic Meridian - IMO: 9485069 / Brest (FRBES) / HSFO 300 metric tons @ 466.00 EUR/mt"
+      }
+    }
+  ],
+  "notes": null
+}

@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Strait Line Fuels",
+    "evidence": "Strait Line Fuels | Trading Desk"
+  },
+  "vesselName": {
+    "value": "MV Coral Horizon",
+    "evidence": "Ship              MV Coral Horizon (IMO 9486075)"
+  },
+  "vesselImo": {
+    "value": "9486075",
+    "evidence": "Ship              MV Coral Horizon (IMO 9486075)"
+  },
+  "port": {
+    "value": "Gibraltar",
+    "evidence": "Delivery port     Gibraltar"
+  },
+  "deliveryFrom": {
+    "asWritten": "Nov 15-16",
+    "evidence": "Delivery window   Nov 15-16"
+  },
+  "deliveryTo": {
+    "asWritten": "Nov 15-16",
+    "evidence": "Delivery window   Nov 15-16"
+  },
+  "validUntil": {
+    "asWritten": "14 Nov noon LT",
+    "evidence": "Validity: 14 Nov noon LT"
+  },
+  "bargeFee": {
+    "value": 1300,
+    "currency": "USD",
+    "perUnit": "lump sum",
+    "asWritten": "USD 1,300 lump sum",
+    "evidence": "Delivery charge: USD 1,300 lump sum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "DMA 0.1%",
+        "evidence": "DMA 0.1%   100 mt     USD 815 per metric ton"
+      },
+      "quantity": {
+        "value": 100,
+        "unit": "mt",
+        "asWritten": "100 mt",
+        "evidence": "DMA 0.1%   100 mt     USD 815 per metric ton"
+      },
+      "price": {
+        "value": 815,
+        "currency": "USD",
+        "perUnit": "per metric ton",
+        "asWritten": "USD 815 per metric ton",
+        "evidence": "DMA 0.1%   100 mt     USD 815 per metric ton"
+      }
+    }
+  ],
+  "notes": null
+}

@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Strait Line Fuels",
+    "evidence": "For and on behalf of Strait Line Fuels"
+  },
+  "vesselName": {
+    "value": "M/V Thessaly Star",
+    "evidence": "M/V Thessaly Star, IMO No. 9481025 / Algeciras anchorage / LSMGO 0.10%S 100 metric tonnes @ USD 685.00/mt"
+  },
+  "vesselImo": {
+    "value": "9481025",
+    "evidence": "M/V Thessaly Star, IMO No. 9481025 / Algeciras anchorage / LSMGO 0.10%S 100 metric tonnes @ USD 685.00/mt"
+  },
+  "port": {
+    "value": "Algeciras",
+    "evidence": "M/V Thessaly Star, IMO No. 9481025 / Algeciras anchorage / LSMGO 0.10%S 100 metric tonnes @ USD 685.00/mt"
+  },
+  "deliveryFrom": {
+    "asWritten": "17/11-20/11",
+    "evidence": "Delivery: 17/11-20/11"
+  },
+  "deliveryTo": {
+    "asWritten": "17/11-20/11",
+    "evidence": "Delivery: 17/11-20/11"
+  },
+  "validUntil": {
+    "asWritten": "Saturday, 14 November 2026 at 16:00 LT",
+    "evidence": "Valid until: Saturday, 14 November 2026 at 16:00 LT"
+  },
+  "bargeFee": {
+    "value": 1750,
+    "currency": "US$",
+    "perUnit": "lumpsum",
+    "asWritten": "US$ 1,750 lumpsum",
+    "evidence": "Barge: US$ 1,750 lumpsum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "LSMGO 0.10%S",
+        "evidence": "M/V Thessaly Star, IMO No. 9481025 / Algeciras anchorage / LSMGO 0.10%S 100 metric tonnes @ USD 685.00/mt"
+      },
+      "quantity": {
+        "value": 100,
+        "unit": "metric tonnes",
+        "asWritten": "100 metric tonnes",
+        "evidence": "M/V Thessaly Star, IMO No. 9481025 / Algeciras anchorage / LSMGO 0.10%S 100 metric tonnes @ USD 685.00/mt"
+      },
+      "price": {
+        "value": 685,
+        "currency": "USD",
+        "perUnit": "/mt",
+        "asWritten": "USD 685.00/mt",
+        "evidence": "M/V Thessaly Star, IMO No. 9481025 / Algeciras anchorage / LSMGO 0.10%S 100 metric tonnes @ USD 685.00/mt"
+      }
+    }
+  ],
+  "notes": null
+}

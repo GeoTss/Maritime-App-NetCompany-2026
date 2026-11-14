@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Harbourlight Energy",
+    "evidence": "Harbourlight Energy | Trading Desk"
+  },
+  "vesselName": {
+    "value": "MV Aegean Pioneer",
+    "evidence": "Vessel            MV Aegean Pioneer"
+  },
+  "vesselImo": {
+    "value": null,
+    "evidence": null
+  },
+  "port": {
+    "value": "Rotterdam",
+    "evidence": "Delivery port     Rotterdam"
+  },
+  "deliveryFrom": {
+    "asWritten": "16.11.2026 - 18.11.2026",
+    "evidence": "Delivery window   16.11.2026 - 18.11.2026"
+  },
+  "deliveryTo": {
+    "asWritten": "16.11.2026 - 18.11.2026",
+    "evidence": "Delivery window   16.11.2026 - 18.11.2026"
+  },
+  "validUntil": {
+    "asWritten": "15 Nov 2026 noon LT",
+    "evidence": "Valid till        15 Nov 2026 noon LT"
+  },
+  "bargeFee": {
+    "value": 2000,
+    "currency": "EUR",
+    "perUnit": "lump sum",
+    "asWritten": "EUR 2,000 lump sum",
+    "evidence": "Delivery charge   EUR 2,000 lump sum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "LSMGO 0.10%S",
+        "evidence": "Fuel              LSMGO 0.10%S"
+      },
+      "quantity": {
+        "value": 300,
+        "unit": "metric tonnes",
+        "asWritten": "300 metric tonnes",
+        "evidence": "Quantity          300 metric tonnes"
+      },
+      "price": {
+        "value": 677.75,
+        "currency": "EUR",
+        "perUnit": "per metric tonne",
+        "asWritten": "EUR 677.75 per metric tonne",
+        "evidence": "Offer price       EUR 677.75 per metric tonne"
+      }
+    }
+  ],
+  "notes": null
+}

@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Kestrel Marine Fuels",
+    "evidence": "Kestrel Marine Fuels | Trading Desk"
+  },
+  "vesselName": {
+    "value": "LEVANT CARRIER",
+    "evidence": "Vessel name: LEVANT CARRIER"
+  },
+  "vesselImo": {
+    "value": null,
+    "evidence": null
+  },
+  "port": {
+    "value": "Piraeus",
+    "evidence": "Location: Piraeus"
+  },
+  "deliveryFrom": {
+    "asWritten": "17/11-19/11",
+    "evidence": "Dates: 17/11-19/11"
+  },
+  "deliveryTo": {
+    "asWritten": "17/11-19/11",
+    "evidence": "Dates: 17/11-19/11"
+  },
+  "validUntil": {
+    "asWritten": "Nov 15, 2026",
+    "evidence": "Offer valid until: Nov 15, 2026"
+  },
+  "bargeFee": {
+    "value": 2900,
+    "currency": "USD",
+    "perUnit": "LS",
+    "asWritten": "USD 2900 LS",
+    "evidence": "Barge fee: USD 2900 LS"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "IFO 380",
+        "evidence": "IFO 380 150 MTS 438.00 USD/MT"
+      },
+      "quantity": {
+        "value": 150,
+        "unit": "MTS",
+        "asWritten": "150 MTS",
+        "evidence": "IFO 380 150 MTS 438.00 USD/MT"
+      },
+      "price": {
+        "value": 438,
+        "currency": "USD",
+        "perUnit": "/MT",
+        "asWritten": "438.00 USD/MT",
+        "evidence": "IFO 380 150 MTS 438.00 USD/MT"
+      }
+    }
+  ],
+  "notes": null
+}
