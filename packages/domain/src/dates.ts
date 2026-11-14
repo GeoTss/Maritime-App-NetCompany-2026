@@ -128,8 +128,9 @@ function parseCleanParts(s: string, allowBareDay: boolean): Parts | null {
 
 /**
  * Year for a date written without one: of the reference year and the years either side, the one
- * that puts the day in [reference - 60 days, reference + 305 days). Null when none does (29 Feb
- * with no leap year in the window).
+ * that puts the day in [reference - 60 days, reference + 305 days). Null when none does: 29 Feb
+ * with no leap year in the window, or a day that a 29 Feb between its two candidates pushes to
+ * just outside both ends (reference 2027-05-01: "1 Mar" is at -61 days and at +305 days).
  */
 function resolveMissingYear(m: number, d: number, reference: Date): number | null {
   const ref = refDayMs(reference);

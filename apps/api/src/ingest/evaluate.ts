@@ -132,13 +132,19 @@ const VALIDITY_MAX_DAYS_AHEAD = 60;
 const DELIVERY_MAX_DAYS_AHEAD = 120;
 const FAR_AHEAD = "implausibly far ahead of the received date — check the year";
 
-const BARGE_WORD = /\bbarg(e|ing)\b/i;
-/** A currency (USD, EUR, US$, $, €) right before or after a number, spaces ignored. */
-const CURRENCY_AMOUNT = /(?:US\$|USD|EUR|\$|€)\s*\d|\d\s*(?:US\$|USD|EUR|\$|€)/i;
+/** A barge-charge label: "barg" anywhere (barge, barges, barging, bargefee), delivery/transport charge or fee. */
+const BARGE_LABEL = /barg|\bdelivery (?:charge|fee)\b|\btransport (?:charge|fee)\b/i;
+/** A currency anywhere on the line: USD, US$, $, EUR, €, euro(s), dollar(s). */
+const CURRENCY_TOKEN = /\b(?:usd|eur|euros?|dollars?)\b|us\$|\$|€/i;
 
-/** Some line of the email names a barge and holds a money amount: a barge charge is written. */
+/**
+ * Some line of the email has a barge-charge label, a currency and a digit: a barge charge is
+ * written there. ("Delivery by barge 18-19 Nov" and "Barge fee included" are not charges.)
+ */
 function bargeChargeWritten(source: string): boolean {
-  return source.split(/\r?\n/).some((l) => BARGE_WORD.test(l) && CURRENCY_AMOUNT.test(l));
+  return source
+    .split(/\r?\n/)
+    .some((l) => BARGE_LABEL.test(l) && CURRENCY_TOKEN.test(l) && /\d/.test(l));
 }
 
 const bargeQuoted = (barge: MoneyField): boolean =>

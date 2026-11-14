@@ -65,6 +65,10 @@ describe("parseQuoteDate", () => {
     expect(parseQuoteDate("29 Feb", REF)).toBeNull();
   });
 
+  it("a day a 29 Feb pushes just outside the window is null: 1 Mar with reference 2027-05-01", () => {
+    expect(parseQuoteDate("1 Mar", new Date("2027-05-01T00:00:00Z"))).toBeNull();
+  });
+
   it.each([
     "31/02/2026",
     "29/02/2026",

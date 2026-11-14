@@ -572,36 +572,57 @@ describe("barge fee", () => {
 
   const NO_BARGE = { value: null, currency: null, perUnit: null, asWritten: null, evidence: null };
 
-  it("a barge charge written in the email but not transcribed fails amounts_parsed", () => {
-    for (const written of [
-      "Barge fee: USD 2,800 lump sum",
-      "Barging: 2800 $",
-      "barge fee 2,800 EUR",
-      "Barge: US$2800 lump sum",
-      "Barge delivery charge € 1.500",
-    ]) {
+  it.each([
+    "Barge fee: USD 2,800 lump sum",
+    "Barging: 2800 $",
+    "barge fee 2,800 EUR",
+    "Barge: US$2800 lump sum",
+    "Barge delivery charge € 1.500",
+    // currency not next to the number
+    "Barge fee (USD): 2,800",
+    "Barge fee in USD: 2,800",
+    "Barge fee USD: 2,800",
+    "Barge fee: 2,800.00 (USD)",
+    "Barge fee: 2,800 US dollars",
+    "Barge fee: 2800,- EUR",
+    "Barge fee: USD-2,800",
+    "Barge fee: Usd. 2,800",
+    "Barge fee: 2,800 euros",
+    // other barge-charge labels
+    "Barges: USD 2,800",
+    "Bargefee: USD 2,800",
+    "Delivery charge: USD 2,800 lump sum",
+    "Delivery fee: EUR 1,500",
+    "Transport charge: USD 2,800",
+    "Transport fee: 2,800 dollars",
+  ])(
+    "a barge charge written in the email but not transcribed fails amounts_parsed: %s",
+    (written) => {
       const out = quote();
       out.bargeFee = NO_BARGE;
       const doc = email({ replace: [["Barge fee: USD 2,800 lump sum", written]] });
       const r = run(out, doc);
-      expect(r.status, written).toBe("needs_review");
-      expect(failed(r), written).toEqual(["amounts_parsed"]);
-      expect(detailOf(r, "amounts_parsed"), written).toBe(
+      expect(r.status).toBe("needs_review");
+      expect(failed(r)).toEqual(["amounts_parsed"]);
+      expect(detailOf(r, "amounts_parsed")).toBe(
         "a barge charge is written in the email but was not transcribed",
       );
-      expect(r.normalised.bargeFee, written).toBe(0);
-    }
-  });
+      expect(r.normalised.bargeFee).toBe(0);
+    },
+  );
 
-  it("a barge mentioned without a money amount is not a charge: delivery by barge, fee included", () => {
-    for (const written of ["Delivery by barge 18-19 Nov", "Barge fee included"]) {
-      const out = quote();
-      out.bargeFee = NO_BARGE;
-      const doc = email({ replace: [["Barge fee: USD 2,800 lump sum", written]] });
-      const r = run(out, doc);
-      expect(failed(r), written).toEqual([]);
-      expect(r.status === "extracted" && r.quote.bargeFee, written).toBe(0);
-    }
+  it.each([
+    "Delivery by barge 18-19 Nov",
+    "Barge fee included",
+    "Price basis: delivered by barge.",
+    "Delivery by barge to Europe on 18 Nov",
+  ])("a barge mentioned without a money amount is not a charge: %s", (written) => {
+    const out = quote();
+    out.bargeFee = NO_BARGE;
+    const doc = email({ replace: [["Barge fee: USD 2,800 lump sum", written]] });
+    const r = run(out, doc);
+    expect(failed(r)).toEqual([]);
+    expect(r.status === "extracted" && r.quote.bargeFee).toBe(0);
   });
 });
 
