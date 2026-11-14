@@ -1,6 +1,8 @@
 import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { setFlagsFromString } from "node:v8";
+import { runInNewContext } from "node:vm";
 import type Anthropic from "@anthropic-ai/sdk";
 import { connectTestDb, testDbLabel } from "@pharos/db/testing";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -300,6 +302,62 @@ describe("createLlm live mode", () => {
     });
     await client.messages.create(PARAMS);
     expect(done).toBe(true);
+  });
+});
+
+setFlagsFromString("--expose-gc");
+const gc = runInNewContext("gc") as () => void;
+
+/** A full garbage collection, then a macrotask so FinalizationRegistry callbacks can run. */
+async function collectGarbage(): Promise<void> {
+  gc();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+describe("createLlm under garbage collection", () => {
+  // Node 22's fetch (undici 6.21) cancels a Response's body when a clone of that Response is
+  // garbage collected. A collection can land anywhere, so the response the gateway hands the SDK
+  // must have a body that no collection can cancel. `onCall` runs after the gateway has read the
+  // body and before the SDK reads it, which puts the collection in that window every time.
+  it.each(["record", "live"] as const)(
+    "%s: a collection after the gateway reads the body does not break the call",
+    async (mode) => {
+      const { client } = createLlm({
+        mode,
+        apiKey: "test-key",
+        recordingsDir: dir,
+        onCall: async (m) => {
+          calls.push(m);
+          await collectGarbage();
+        },
+        fetch: async () => jsonResponse(MESSAGE),
+      });
+      const msg = await client.messages.create(PARAMS);
+      expect(textOf(msg)).toBe("hi");
+      expect(msg._request_id).toBe("req_test_1");
+      expect(calls.map((c) => c.mode)).toEqual([mode]);
+    },
+  );
+
+  it("replay: a collection before the client reads the body does not break the call", async () => {
+    const rec = createLlm({
+      mode: "record",
+      apiKey: "test-key",
+      recordingsDir: dir,
+      onCall,
+      fetch: async () => jsonResponse(MESSAGE),
+    });
+    await rec.client.messages.create(PARAMS);
+    const rep = createLlm({
+      mode: "replay",
+      recordingsDir: dir,
+      onCall: async (m) => {
+        calls.push(m);
+        await collectGarbage();
+      },
+      fetch: throwingFetch,
+    });
+    expect(textOf(await rep.client.messages.create(PARAMS))).toBe("hi");
   });
 });
 

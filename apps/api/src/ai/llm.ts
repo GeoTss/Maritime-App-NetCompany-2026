@@ -215,14 +215,25 @@ function gateway(opts: CreateLlmOptions): Middleware {
     }
 
     const started = performance.now();
-    const response = await next(request);
+    const transported = await next(request);
     // Errors go back to the SDK (which may retry); they are neither recorded nor costed.
-    if (!response.ok) return response;
-    const text = await response.clone().text();
+    if (!transported.ok) return transported;
+    // Read the body once and hand the SDK a new Response over the same bytes. Never read through
+    // `clone()`: Node 22's fetch (undici 6.21) cancels the original body when the clone is
+    // garbage collected, so a collection before the SDK reads it fails the call with "middleware
+    // consumed the response body" (seen as an intermittent failure under load).
+    const bytes = await transported.arrayBuffer();
     const latencyMs = performance.now() - started;
+    // A 204 or 205 may not carry a body, not even an empty one.
+    const nullBody = transported.status === 204 || transported.status === 205;
+    const response = new Response(nullBody ? null : bytes, {
+      status: transported.status,
+      statusText: transported.statusText,
+      headers: transported.headers,
+    });
     let responseBody: unknown;
     try {
-      responseBody = JSON.parse(text);
+      responseBody = JSON.parse(new TextDecoder().decode(bytes));
     } catch {
       if (mode === "record") {
         throw new UnsupportedLlmRequestError(
