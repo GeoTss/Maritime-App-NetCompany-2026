@@ -47,13 +47,29 @@ function htmlToText(html: string): string {
 
 const normalise = (s: string) => s.replace(/\r\n?/g, "\n").replace(/\s+$/, "");
 
+const isPdf = (contentType: string, filename: string | null) =>
+  contentType === "application/pdf" || (filename?.toLowerCase().endsWith(".pdf") ?? false);
+
+/** Marker-safe filename: attacker text can't fake a marker line. Only the marker is sanitised. */
+function markerName(filename: string | null): string {
+  const clean = (filename ?? "")
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are the point
+    .replace(/[\s\u0000-\u001f\u007f-\u009f\u2028\u2029]+/g, " ")
+    .replace(/-{2,}/g, "-")
+    .trim()
+    .slice(0, 120)
+    .trim();
+  return clean === "" ? "(unnamed)" : clean;
+}
+
 /** Text of one attachment, or null. A damaged PDF is doubt (null), never a crash. */
 async function attachmentText(
   contentType: string,
+  filename: string | null,
   content: Uint8Array | string,
 ): Promise<string | null> {
   let text = "";
-  if (contentType === "application/pdf" && typeof content !== "string") {
+  if (isPdf(contentType, filename) && typeof content !== "string") {
     try {
       text = await extractPdfText(content);
     } catch {
@@ -86,20 +102,22 @@ export async function parseEmail(raw: Uint8Array): Promise<ParsedEmail> {
     const isImage = contentType.startsWith("image/");
     // An inline image (Content-ID or inline disposition, e.g. a signature logo) is not an attachment.
     if (isImage && (a.contentId || a.disposition === "inline")) continue;
+    const filename = a.filename || null;
     const text = await attachmentText(
       contentType,
+      filename,
       typeof a.content === "string" ? a.content : new Uint8Array(a.content),
     );
-    if (text === null && (isImage || contentType === "application/pdf")) {
+    if (text === null && (isImage || isPdf(contentType, filename))) {
       hasUnreadableAttachment = true;
     }
-    attachments.push({ filename: a.filename || null, contentType, text });
+    attachments.push({ filename, contentType, text });
   }
 
   let bodyText = body;
   for (const a of attachments) {
     if (a.text === null) continue;
-    bodyText += `${bodyText === "" ? "" : "\n\n"}--- attachment: ${a.filename ?? "(unnamed)"} ---\n${a.text}`;
+    bodyText += `${bodyText === "" ? "" : "\n\n"}--- attachment: ${markerName(a.filename)} ---\n${a.text}`;
   }
   if (bodyText.trim() === "") throw new EmailParseError("The email has no text body.");
 
