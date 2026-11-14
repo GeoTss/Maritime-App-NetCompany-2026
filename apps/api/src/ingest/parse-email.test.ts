@@ -172,7 +172,7 @@ describe("parseEmail", () => {
       expect(parsed.hasUnreadableAttachment).toBe(false);
     });
 
-    it("lists an unsupported type with null text without flagging it, and uses (unnamed) for no filename", async () => {
+    it("lists an unreadable type with null text and flags it, and uses (unnamed) for no filename", async () => {
       const parsed = await parseEmail(
         mime([
           part(["Content-Type: application/zip", "Content-Disposition: attachment"], "UEsDBA=="),
@@ -186,8 +186,76 @@ describe("parseEmail", () => {
         [null, "application/zip", null],
         [null, "application/pdf", "Hello"],
       ]);
-      expect(parsed.hasUnreadableAttachment).toBe(false);
+      // The zip may hold the offer: a human must look at it.
+      expect(parsed.hasUnreadableAttachment).toBe(true);
       expect(parsed.bodyText).toContain("--- attachment: (unnamed) ---\nHello");
+    });
+
+    const attached = (contentType: string, name: string, content: string) =>
+      part(
+        [
+          `Content-Type: ${contentType}; name="${name}"`,
+          "Content-Transfer-Encoding: base64",
+          `Content-Disposition: attachment; filename="${name}"`,
+        ],
+        Buffer.from(content).toString("base64"),
+      );
+    const OFFER = "Vessel: MV Aegean Pioneer\r\nPrice: USD 738 per mt\r\n";
+
+    it.each([
+      ["text/plain", "offer.txt"],
+      ["text/csv", "offer.csv"],
+      ["TEXT/PLAIN", "offer"],
+      ["application/octet-stream", "Offer.TXT"],
+      ["application/octet-stream", "offer.csv"],
+    ])("reads a %s attachment (%s) as text after its marker", async (type, name) => {
+      const parsed = await parseEmail(mime([attached(type, name, OFFER)]));
+      expect(parsed.attachments).toEqual([
+        {
+          filename: name,
+          contentType: type.toLowerCase(),
+          text: "Vessel: MV Aegean Pioneer\nPrice: USD 738 per mt",
+        },
+      ]);
+      expect(parsed.bodyText).toBe(
+        `See attached.\n\n--- attachment: ${name} ---\nVessel: MV Aegean Pioneer\nPrice: USD 738 per mt`,
+      );
+      expect(parsed.hasUnreadableAttachment).toBe(false);
+    });
+
+    it("flags an empty text attachment: it yields no text", async () => {
+      const parsed = await parseEmail(mime([attached("text/plain", "offer.txt", "  \r\n")]));
+      expect(parsed.attachments[0]?.text).toBeNull();
+      expect(parsed.hasUnreadableAttachment).toBe(true);
+    });
+
+    it.each([
+      ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "offer.xlsx"],
+      ["application/vnd.ms-excel", "offer.xls"],
+      ["application/msword", "offer.doc"],
+      ["application/vnd.openxmlformats-officedocument.wordprocessingml.document", "offer.docx"],
+      ["message/rfc822", "fwd.eml"],
+      ["application/octet-stream", "offer.bin"],
+      ["application/zip", "offer.zip"],
+    ])("flags a %s attachment (%s) that yields no text", async (type, name) => {
+      const parsed = await parseEmail(mime([attached(type, name, OFFER)]));
+      expect(parsed.attachments).toEqual([{ filename: name, contentType: type, text: null }]);
+      expect(parsed.hasUnreadableAttachment).toBe(true);
+      expect(parsed.bodyText).toBe("See attached.");
+    });
+
+    it.each([
+      ["text/calendar", "invite.ics"],
+      ["application/ics", "invite.ics"],
+      ["text/vcard", "desk.vcf"],
+      ["text/x-vcard", "desk.vcf"],
+      ["application/pkcs7-signature", "smime.p7s"],
+      ["application/pgp-signature", "signature.asc"],
+    ])("does not flag a %s attachment (%s): it carries no offer", async (type, name) => {
+      const parsed = await parseEmail(mime([attached(type, name, "BEGIN:VCALENDAR")]));
+      expect(parsed.attachments).toEqual([{ filename: name, contentType: type, text: null }]);
+      expect(parsed.hasUnreadableAttachment).toBe(false);
+      expect(parsed.bodyText).toBe("See attached.");
     });
 
     it("flags a real image attachment but ignores an inline cid logo", async () => {

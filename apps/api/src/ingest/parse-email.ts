@@ -20,7 +20,11 @@ export interface ParsedEmail {
   bodyText: string;
   /** Every real attachment in MIME order (inline images such as signature logos are not listed). */
   attachments: ParsedAttachment[];
-  /** True when a PDF or image attachment yielded no text: a human must look at it. */
+  /**
+   * True when an attachment yielded no text (a scanned PDF, an image, a spreadsheet, a Word file,
+   * an attached email, ...): a human must look at it. Inline images (signature logos) and
+   * attachments that carry no offer (calendar invites, contact cards, signatures) never set it.
+   */
   hasUnreadableAttachment: boolean;
   /** sha256 of the raw bytes, lowercase hex. */
   sha256: string;
@@ -50,6 +54,22 @@ const normalise = (s: string) => s.replace(/\r\n?/g, "\n").replace(/\s+$/, "");
 const isPdf = (contentType: string, filename: string | null) =>
   contentType === "application/pdf" || (filename?.toLowerCase().endsWith(".pdf") ?? false);
 
+/** Plain text or CSV, by type or by a .txt / .csv filename: read as UTF-8 text. */
+const isPlainText = (contentType: string, filename: string | null) =>
+  contentType === "text/plain" ||
+  contentType === "text/csv" ||
+  /\.(?:txt|csv)$/i.test(filename ?? "");
+
+/** Attachment types that carry no offer, so having no text is not a reason for review. */
+const NO_OFFER_TYPES = new Set([
+  "text/calendar",
+  "application/ics",
+  "text/vcard",
+  "text/x-vcard",
+  "application/pkcs7-signature",
+  "application/pgp-signature",
+]);
+
 /** Marker-safe filename: attacker text can't fake a marker line. Only the marker is sanitised. */
 function markerName(filename: string | null): string {
   const clean = (filename ?? "")
@@ -77,6 +97,8 @@ async function attachmentText(
     }
   } else if (contentType === "text/html") {
     text = htmlToText(typeof content === "string" ? content : new TextDecoder().decode(content));
+  } else if (isPlainText(contentType, filename)) {
+    text = typeof content === "string" ? content : new TextDecoder().decode(content);
   }
   const normalised = normalise(text);
   return normalised.trim() === "" ? null : normalised;
@@ -108,9 +130,8 @@ export async function parseEmail(raw: Uint8Array): Promise<ParsedEmail> {
       filename,
       typeof a.content === "string" ? a.content : new Uint8Array(a.content),
     );
-    if (text === null && (isImage || isPdf(contentType, filename))) {
-      hasUnreadableAttachment = true;
-    }
+    // Any attachment that yields no text may hold the offer, unless its type never does.
+    if (text === null && !NO_OFFER_TYPES.has(contentType)) hasUnreadableAttachment = true;
     attachments.push({ filename, contentType, text });
   }
 
