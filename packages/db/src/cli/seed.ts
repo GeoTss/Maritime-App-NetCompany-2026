@@ -7,9 +7,10 @@ if (!url) {
   console.error("DATABASE_URL is not set (expected a postgres:// connection string)");
   process.exit(1);
 }
-const seed = Number(process.env.WORLD_SEED ?? 20261114);
-if (!Number.isInteger(seed)) {
-  console.error("WORLD_SEED must be an integer");
+const rawSeed = process.env.WORLD_SEED?.trim();
+const seed = rawSeed ? Number(rawSeed) : 20261114;
+if (!Number.isInteger(seed) || seed < 0) {
+  console.error("WORLD_SEED must be a non-negative integer");
   process.exit(1);
 }
 

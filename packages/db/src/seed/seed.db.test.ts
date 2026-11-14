@@ -31,19 +31,30 @@ async function connect(): Promise<Sql | null> {
   return createSql(TEST_URL, { max: 2 });
 }
 
+if (new URL(TEST_URL).pathname.slice(1) === "pharos") {
+  throw new Error(
+    'TEST_DATABASE_URL points at the dev database "pharos"; tests truncate tables, use a separate database',
+  );
+}
+
 const sql = await connect().catch(() => null);
+const unreachable = `Postgres unreachable at ${new URL(TEST_URL).host}`;
+
 if (!sql) {
-  console.warn(`seed.db.test skipped: Postgres is unreachable at ${new URL(TEST_URL).host}`);
+  describe("seedDatabase (Postgres)", () => {
+    it.skip(`all tests skipped: ${unreachable}`, () => {});
+  });
 }
 
 describe.skipIf(!sql)("seedDatabase (Postgres)", () => {
-  const db = createDb(sql as Sql);
+  if (!sql) return; // body still runs under skipIf; register nothing
+  const db = createDb(sql);
   const world = generateWorld({ seed: SEED, anchor: ANCHOR });
   const count = async (table: PgTable): Promise<number> => (await db.select().from(table)).length;
 
   beforeAll(async () => {
-    await runMigrations(sql as Sql);
-    await seedDatabase(sql as Sql, { seed: SEED, anchor: ANCHOR, mode: "reset" });
+    await runMigrations(sql);
+    await seedDatabase(sql, { seed: SEED, anchor: ANCHOR, mode: "reset" });
   });
   afterAll(async () => {
     await sql?.end();
@@ -85,8 +96,8 @@ describe.skipIf(!sql)("seedDatabase (Postgres)", () => {
 
   it("reseed is repeatable and sequences continue after seeded ids", async () => {
     const before = await count(schema.quotes);
-    await seedDatabase(sql as Sql, { seed: SEED, anchor: ANCHOR, mode: "reset" });
-    await seedDatabase(sql as Sql, { seed: SEED, anchor: ANCHOR, mode: "reset" });
+    await seedDatabase(sql, { seed: SEED, anchor: ANCHOR, mode: "reset" });
+    await seedDatabase(sql, { seed: SEED, anchor: ANCHOR, mode: "reset" });
     expect(await count(schema.quotes)).toBe(before);
 
     const maxId = Math.max(...world.quotes.map((q) => q.id));
@@ -105,7 +116,7 @@ describe.skipIf(!sql)("seedDatabase (Postgres)", () => {
       bodyText: "hello",
       receivedAt: ANCHOR,
     });
-    const result = await seedDatabase(sql as Sql, {
+    const result = await seedDatabase(sql, {
       seed: SEED,
       anchor: new Date("2030-01-01T00:00:00Z"),
       mode: "if-empty",
