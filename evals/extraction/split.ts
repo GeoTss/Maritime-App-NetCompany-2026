@@ -3,6 +3,11 @@
  * dev count per stratum = ceil(n x 60/220), the dev cases chosen by sorting the stratum on
  * sha256(seed + id). Random, stable, never hand-picked.
  *
+ * Dev-only trap variants (user decision 2026-11-14): cases tagged `variant:v2` form their own
+ * stratum, `hard-variant`, with dev fraction 1, so every one is in dev. They are second versions
+ * of the 20 hard traps, added so the dev gate exercises each trap; the 220 approved cases keep
+ * exactly the split they had before the variants existed.
+ *
  *   npm run eval:split        rewrites evals/golden/extraction/split.json from the truth files
  */
 import { readdir, readFile, writeFile } from "node:fs/promises";
@@ -26,13 +31,20 @@ export interface Split {
 
 export const devCount = (n: number): number => Math.ceil((n * DEV_SHARE.dev) / DEV_SHARE.of);
 
+/** Tag of the dev-only trap variants, and their stratum (all of it in dev). */
+export const VARIANT_TAG = "variant:v2";
+export const VARIANT_STRATUM = "hard-variant";
+
+const stratumOf = (tags: readonly string[]): string | undefined =>
+  tags.includes(VARIANT_TAG) ? VARIANT_STRATUM : tags[0];
+
 export function computeSplit(
   cases: readonly { id: string; tags: readonly string[] }[],
   seed: number = EVAL_SEED,
 ): Split {
   const byStratum = new Map<string, string[]>();
   for (const c of cases) {
-    const stratum = c.tags[0];
+    const stratum = stratumOf(c.tags);
     if (!stratum) throw new Error(`case ${c.id} has no tags[0]`);
     byStratum.set(stratum, [...(byStratum.get(stratum) ?? []), c.id]);
   }
@@ -46,14 +58,14 @@ export function computeSplit(
       .map((id) => ({ id, key: sha256Hex(`${seed}${id}`) }))
       .sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0))
       .map((x) => x.id);
-    const n = devCount(ids.length);
+    const n = stratum === VARIANT_STRATUM ? ids.length : devCount(ids.length);
     dev.push(...ranked.slice(0, n));
     heldout.push(...ranked.slice(n));
     strata[stratum] = { total: ids.length, dev: n, heldout: ids.length - n };
   }
   return {
     seed,
-    rule: "stratified by tags[0]; dev = ceil(n * 60 / 220) per stratum, lowest sha256(seed + id) first",
+    rule: "stratified by tags[0]; dev = ceil(n * 60 / 220) per stratum, lowest sha256(seed + id) first; dev-only trap variants (tag variant:v2, stratum hard-variant) are all dev",
     strata,
     dev: dev.sort(),
     heldout: heldout.sort(),

@@ -1,0 +1,27 @@
+{
+  "id": "hard-spoofed-supplier-name-v2",
+  "tags": ["hard", "spoofed-supplier-name", "variant:v2", "layout:labels"],
+  "source": "hard",
+  "expected": {
+    "kind": "quote",
+    "status": "needs_review",
+    "reviewChecks": ["supplier_name_matches"],
+    "quote": {
+      "vesselImo": "9483047",
+      "portUnlocode": "BEANR",
+      "supplierKey": "nordwind",
+      "currency": "USD",
+      "validUntil": "2026-11-14",
+      "deliveryFrom": "2026-11-15",
+      "deliveryTo": "2026-11-16",
+      "bargeFee": 1350,
+      "lines": [
+        {
+          "grade": "LSMGO",
+          "qtyMt": 100,
+          "pricePerMt": 736
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Atlantic Shelf Fuels",
+    "evidence": "For and on behalf of Atlantic Shelf Fuels"
+  },
+  "vesselName": {
+    "value": "SCHELDT EXPRESS",
+    "evidence": "Atlantic Shelf's offer for Scheldt Express reached the agent instead of us. Forwarding it for the system."
+  },
+  "vesselImo": {
+    "value": "9487081",
+    "evidence": "We are pleased to offer DMA 0.1% for SCHELDT EXPRESS, IMO No. 9487081 at Le Havre."
+  },
+  "port": {
+    "value": "Le Havre",
+    "evidence": "From: Le Havre Ship Agency <ops@lehavre-shipagency.example>"
+  },
+  "deliveryFrom": {
+    "asWritten": "14-15 Nov",
+    "evidence": "Delivery 14-15 Nov."
+  },
+  "deliveryTo": {
+    "asWritten": "14-15 Nov",
+    "evidence": "Delivery 14-15 Nov."
+  },
+  "validUntil": {
+    "asWritten": "Saturday, 14 November 2026 12:00 LT",
+    "evidence": "This offer is valid until Saturday, 14 November 2026 12:00 LT."
+  },
+  "bargeFee": {
+    "value": 1400,
+    "currency": "USD",
+    "perUnit": "LS",
+    "asWritten": "USD 1400 LS",
+    "evidence": "Barging USD 1400 LS."
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "DMA 0.1%",
+        "evidence": "We are pleased to offer DMA 0.1% for SCHELDT EXPRESS, IMO No. 9487081 at Le Havre."
+      },
+      "quantity": {
+        "value": 100,
+        "unit": "metric tonnes",
+        "asWritten": "100 metric tonnes",
+        "evidence": "Quantity 100 metric tonnes, price US$ 741.00 pmt."
+      },
+      "price": {
+        "value": 741,
+        "currency": "US$",
+        "perUnit": "pmt",
+        "asWritten": "US$ 741.00 pmt",
+        "evidence": "Quantity 100 metric tonnes, price US$ 741.00 pmt."
+      }
+    }
+  ],
+  "notes": null
+}

@@ -1,0 +1,27 @@
+{
+  "id": "hard-forwarded-twice-v2",
+  "tags": ["hard", "forwarded-twice", "variant:v2", "layout:prose", "forwarded"],
+  "source": "hard",
+  "expected": {
+    "kind": "quote",
+    "status": "needs_review",
+    "reviewChecks": ["supplier_resolved"],
+    "quote": {
+      "vesselImo": "9487081",
+      "portUnlocode": "FRLEH",
+      "supplierKey": null,
+      "currency": "USD",
+      "validUntil": "2026-11-14",
+      "deliveryFrom": "2026-11-14",
+      "deliveryTo": "2026-11-15",
+      "bargeFee": 1400,
+      "lines": [
+        {
+          "grade": "LSMGO",
+          "qtyMt": 100,
+          "pricePerMt": 741
+        }
+      ]
+    }
+  }
+}

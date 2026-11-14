@@ -1,0 +1,27 @@
+{
+  "id": "hard-quote-in-html-only-v2",
+  "tags": ["hard", "quote-in-html-only", "variant:v2", "layout:html-paragraphs", "html-attachment"],
+  "source": "hard",
+  "expected": {
+    "kind": "quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": {
+      "vesselImo": "9486075",
+      "portUnlocode": "PTSIE",
+      "supplierKey": "atlanticshelf",
+      "currency": "USD",
+      "validUntil": "2026-11-15",
+      "deliveryFrom": "2026-11-15",
+      "deliveryTo": "2026-11-16",
+      "bargeFee": 1450,
+      "lines": [
+        {
+          "grade": "LSMGO",
+          "qtyMt": 100,
+          "pricePerMt": 733
+        }
+      ]
+    }
+  }
+}

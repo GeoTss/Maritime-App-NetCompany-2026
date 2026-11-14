@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Strait Line Fuels",
+    "evidence": "For and on behalf of Strait Line Fuels"
+  },
+  "vesselName": {
+    "value": "M/V Thessaly Star",
+    "evidence": "We are pleased to offer LSMGO 0.10%S for M/V Thessaly Star at Algeciras."
+  },
+  "vesselImo": {
+    "value": null,
+    "evidence": null
+  },
+  "port": {
+    "value": "Algeciras",
+    "evidence": "We are pleased to offer LSMGO 0.10%S for M/V Thessaly Star at Algeciras."
+  },
+  "deliveryFrom": {
+    "asWritten": "9 Nov - 10 Nov 2026",
+    "evidence": "Delivery 9 Nov - 10 Nov 2026."
+  },
+  "deliveryTo": {
+    "asWritten": "9 Nov - 10 Nov 2026",
+    "evidence": "Delivery 9 Nov - 10 Nov 2026."
+  },
+  "validUntil": {
+    "asWritten": "14.11.26 18:00 UTC",
+    "evidence": "This offer is valid until 14.11.26 18:00 UTC."
+  },
+  "bargeFee": {
+    "value": 1550,
+    "currency": "$",
+    "perUnit": "lump sum",
+    "asWritten": "$1550 lump sum",
+    "evidence": "Barging $1550 lump sum."
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "LSMGO 0.10%S",
+        "evidence": "We are pleased to offer LSMGO 0.10%S for M/V Thessaly Star at Algeciras."
+      },
+      "quantity": {
+        "value": 125,
+        "unit": "mts",
+        "asWritten": "125 mts",
+        "evidence": "Quantity 125 mts, price 726 USD/MT."
+      },
+      "price": {
+        "value": 726,
+        "currency": "USD",
+        "perUnit": "/MT",
+        "asWritten": "726 USD/MT",
+        "evidence": "Quantity 125 mts, price 726 USD/MT."
+      }
+    }
+  ],
+  "notes": null
+}

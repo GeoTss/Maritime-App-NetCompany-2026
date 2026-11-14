@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Harbourlight Energy",
+    "evidence": "Harbourlight Energy | Trading Desk"
+  },
+  "vesselName": {
+    "value": "M/V Scheldt Express",
+    "evidence": "Vessel name       M/V Scheldt Express"
+  },
+  "vesselImo": {
+    "value": null,
+    "evidence": null
+  },
+  "port": {
+    "value": "Antwerp",
+    "evidence": "Location          Antwerp"
+  },
+  "deliveryFrom": {
+    "asWritten": "14.11.2026 - 15.11.2026",
+    "evidence": "Delivery          14.11.2026 - 15.11.2026"
+  },
+  "deliveryTo": {
+    "asWritten": "14.11.2026 - 15.11.2026",
+    "evidence": "Delivery          14.11.2026 - 15.11.2026"
+  },
+  "validUntil": {
+    "asWritten": "14 November 2026",
+    "evidence": "Firm until        14 November 2026"
+  },
+  "bargeFee": {
+    "value": 1450,
+    "currency": "USD",
+    "perUnit": "LS",
+    "asWritten": "USD 1450 LS",
+    "evidence": "Delivery charge   USD 1450 LS"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "MGO",
+        "evidence": "Grade             MGO"
+      },
+      "quantity": {
+        "value": null,
+        "unit": "mt",
+        "asWritten": "120 or 150 mt",
+        "evidence": "Quantity          120 or 150 mt"
+      },
+      "price": {
+        "value": 729.5,
+        "currency": "USD",
+        "perUnit": "/MT",
+        "asWritten": "729.50 USD/MT",
+        "evidence": "Price             729.50 USD/MT"
+      }
+    }
+  ],
+  "notes": null
+}

@@ -1,0 +1,32 @@
+{
+  "id": "hard-multi-grade-unrequired-grade-v2",
+  "tags": ["hard", "multi-grade-unrequired-grade", "variant:v2", "layout:html-grid", "multi_grade"],
+  "source": "hard",
+  "expected": {
+    "kind": "quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": {
+      "vesselImo": "9484053",
+      "portUnlocode": "ITGOA",
+      "supplierKey": "meridian",
+      "currency": "USD",
+      "validUntil": "2026-11-15",
+      "deliveryFrom": "2026-11-18",
+      "deliveryTo": "2026-11-19",
+      "bargeFee": 2200,
+      "lines": [
+        {
+          "grade": "VLSFO",
+          "qtyMt": 400,
+          "pricePerMt": 557.5
+        },
+        {
+          "grade": "HSFO",
+          "qtyMt": 325,
+          "pricePerMt": 451
+        }
+      ]
+    }
+  }
+}

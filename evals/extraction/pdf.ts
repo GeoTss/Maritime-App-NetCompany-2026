@@ -105,20 +105,25 @@ function greyPng(width: number, height: number, pixel: (x: number, y: number) =>
   return Buffer.concat(parts);
 }
 
-/**
- * A "scanned" page: grey paper with dark bars where lines of text would be, embedded as a PNG.
- * No text layer, so text extraction returns nothing (the image-only hard case).
- */
-export async function buildImageOnlyPdf(): Promise<Uint8Array> {
+/** A "scanned" page as a PNG: grey paper with dark bars where lines of text would be. */
+export function scannedPagePng(): Uint8Array {
   const width = 240;
   const height = 320;
   const bars = [18, 30, 52, 64, 76, 88, 100, 112, 124, 148, 160, 172, 196, 208, 260, 272];
-  const png = greyPng(width, height, (x, y) => {
+  return greyPng(width, height, (x, y) => {
     const bar = bars.find((top) => y >= top && y < top + 6);
     if (bar === undefined) return 236;
     const length = 60 + ((bar * 37) % 140);
     return x >= 20 && x < 20 + length ? 40 : 236;
   });
+}
+
+/**
+ * The scanned page embedded in a PDF. No text layer, so text extraction returns nothing (the
+ * image-only hard case).
+ */
+export async function buildImageOnlyPdf(): Promise<Uint8Array> {
+  const png = scannedPagePng();
   const doc = await PDFDocument.create({ updateMetadata: false });
   const page = doc.addPage(PAGE);
   const image = await doc.embedPng(png);

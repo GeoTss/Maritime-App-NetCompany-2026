@@ -1,0 +1,27 @@
+{
+  "id": "hard-thread-stale-revision-v2",
+  "tags": ["hard", "thread-stale-revision", "variant:v2", "layout:labels", "forwarded"],
+  "source": "hard",
+  "expected": {
+    "kind": "quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": {
+      "vesselImo": "9486075",
+      "portUnlocode": "GIGIB",
+      "supplierKey": "straitline",
+      "currency": "USD",
+      "validUntil": "2026-11-15",
+      "deliveryFrom": "2026-11-15",
+      "deliveryTo": "2026-11-16",
+      "bargeFee": 1700,
+      "lines": [
+        {
+          "grade": "LSMGO",
+          "qtyMt": 100,
+          "pricePerMt": 781
+        }
+      ]
+    }
+  }
+}

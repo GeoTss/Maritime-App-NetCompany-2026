@@ -40,7 +40,7 @@ describe("golden extraction set: files", () => {
     const again = await renderGoldenFiles(world);
     expect([...again.files.entries()]).toEqual([...files.entries()]);
     expect(await diffGolden(files, GOLDEN_DIR)).toEqual([]);
-    expect(files.size).toBe(220 * 3 + 2);
+    expect(files.size).toBe(240 * 3 + 2);
   });
 
   it("npm run eval:golden -- --check passes on the committed set", () => {
@@ -48,7 +48,7 @@ describe("golden extraction set: files", () => {
       cwd: ROOT,
       encoding: "utf8",
     });
-    expect(out).toContain("golden set OK: 662 files match (220 cases)");
+    expect(out).toContain("golden set OK: 722 files match (240 cases)");
   }, 60_000);
 
   describe("diffGolden on a changed copy (what makes --check exit 1)", () => {
@@ -74,11 +74,11 @@ describe("golden extraction set: files", () => {
 
   it("every truth parses ExtractionTruth and is named after its id", () => {
     const all = truths();
-    expect(all).toHaveLength(220);
+    expect(all).toHaveLength(240);
     for (const { file, truth } of all) expect(file).toBe(`${truth.id}.truth.json`);
   });
 
-  it("has the planned categories: 200 generated + 20 hard, about 20 % not a quote", () => {
+  it("has the planned categories: 200 generated + 20 hard + 20 trap variants, ~20 % not a quote", () => {
     const count = (tag: string) => cases.filter((c) => c.truth.tags[0] === tag).length;
     expect(GENERATED.map((g) => [g.prefix, g.count])).toEqual([
       ["plain", 40],
@@ -91,7 +91,8 @@ describe("golden extraction set: files", () => {
     ]);
     expect(
       ["plain", "html", "pdf", "eur", "multi_grade", "forwarded", "not_a_quote", "hard"].map(count),
-    ).toEqual([40, 30, 30, 25, 20, 15, 40, 20]);
+    ).toEqual([40, 30, 30, 25, 20, 15, 40, 40]);
+    expect(cases.filter((c) => c.truth.tags.includes("variant:v2"))).toHaveLength(20);
     const kinds = cases
       .filter((c) => c.truth.tags[0] === "not_a_quote")
       .map((c) => c.truth.tags[1]);
@@ -101,7 +102,7 @@ describe("golden extraction set: files", () => {
     for (const k of ["out_of_office", "newsletter"]) {
       expect(kinds.filter((x) => x === `kind:${k}`)).toHaveLength(6);
     }
-    const share = cases.filter((c) => c.truth.expected.kind === "not_a_quote").length / 220;
+    const share = cases.filter((c) => c.truth.expected.kind === "not_a_quote").length / 240;
     expect(share).toBeGreaterThan(0.15);
     expect(share).toBeLessThan(0.25);
   });
@@ -183,9 +184,10 @@ describe("golden extraction set: oracles", () => {
     }
   });
 
-  it("only the image-only hard case has an unreadable attachment", () => {
+  it("only the image-only hard case and its variant have an unreadable attachment", () => {
     expect(cases.filter((c) => c.hasUnreadableAttachment).map((c) => c.truth.id)).toEqual([
       "hard-pdf-image-only",
+      "hard-pdf-image-only-v2",
     ]);
   });
 });
@@ -315,17 +317,23 @@ describe("golden extraction set: hygiene", () => {
     expect(leaks).toEqual([]);
   });
 
-  it("REVIEW.md shows all 20 hard cases and 15 generated cases drawn by stratum", () => {
+  it("REVIEW.md shows the 20 new variants first, then the 20 hard and 15 generated cases", () => {
     const review = onDisk.get("REVIEW.md") ?? "";
     const sample = reviewSample(cases.map((c) => c.truth));
     expect(sample).toHaveLength(REVIEW_GENERATED_SAMPLE);
     const strata = new Set(sample.map((id) => cases.find((c) => c.truth.id === id)?.truth.tags[0]));
     expect(strata.size).toBe(7);
     const headings = [...review.matchAll(/^### (\S+) \(/gm)].map((m) => m[1]);
+    const isVariant = (c: RenderedCase) => c.truth.tags.includes("variant:v2");
     expect(headings).toEqual([
-      ...cases.filter((c) => c.truth.source === "hard").map((c) => c.truth.id),
+      ...cases.filter(isVariant).map((c) => c.truth.id),
+      ...cases.filter((c) => c.truth.source === "hard" && !isVariant(c)).map((c) => c.truth.id),
       ...sample,
     ]);
+    expect(review.indexOf("## New dev trap variants — please review")).toBeLessThan(
+      review.indexOf("## What to check for each case"),
+    );
+    expect(review).toContain("dev-only trap variants");
     expect(review).toContain("How corrections are applied");
     expect(review).toContain("never edited by hand");
   });

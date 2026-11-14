@@ -1,0 +1,27 @@
+{
+  "id": "hard-volume-m3-v2",
+  "tags": ["hard", "volume-m3", "variant:v2", "layout:pdf-grid"],
+  "source": "hard",
+  "expected": {
+    "kind": "quote",
+    "status": "needs_review",
+    "reviewChecks": ["unit_known"],
+    "quote": {
+      "vesselImo": "9481025",
+      "portUnlocode": "ESALG",
+      "supplierKey": "nordwind",
+      "currency": "USD",
+      "validUntil": "2026-11-15",
+      "deliveryFrom": "2026-11-18",
+      "deliveryTo": "2026-11-19",
+      "bargeFee": 1800,
+      "lines": [
+        {
+          "grade": "LSMGO",
+          "qtyMt": null,
+          "pricePerMt": 721
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Atlantic Shelf Fuels",
+    "evidence": "Atlantic Shelf Fuels"
+  },
+  "vesselName": {
+    "value": "MT Atlantic Meridian",
+    "evidence": "MT Atlantic Meridian / IMO 9485069, Brest"
+  },
+  "vesselImo": {
+    "value": "9485069",
+    "evidence": "MT Atlantic Meridian / IMO 9485069, Brest"
+  },
+  "port": {
+    "value": "Brest",
+    "evidence": "MT Atlantic Meridian / IMO 9485069, Brest"
+  },
+  "deliveryFrom": {
+    "asWritten": "16-17 November 2026",
+    "evidence": "Delivery 16-17 November 2026"
+  },
+  "deliveryTo": {
+    "asWritten": "16-17 November 2026",
+    "evidence": "Delivery 16-17 November 2026"
+  },
+  "validUntil": {
+    "asWritten": "15/11 1700 LT",
+    "evidence": "Valid until 15/11 1700 LT"
+  },
+  "bargeFee": {
+    "value": null,
+    "currency": null,
+    "perUnit": null,
+    "asWritten": null,
+    "evidence": null
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "IFO 380",
+        "evidence": "IFO 380: 1.000 mt @ USD 472 per metric ton"
+      },
+      "quantity": {
+        "value": null,
+        "unit": "mt",
+        "asWritten": "1.000 mt",
+        "evidence": "IFO 380: 1.000 mt @ USD 472 per metric ton"
+      },
+      "price": {
+        "value": 472,
+        "currency": "USD",
+        "perUnit": "per metric ton",
+        "asWritten": "USD 472 per metric ton",
+        "evidence": "IFO 380: 1.000 mt @ USD 472 per metric ton"
+      }
+    }
+  ],
+  "notes": null
+}

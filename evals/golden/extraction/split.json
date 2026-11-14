@@ -1,6 +1,6 @@
 {
   "seed": 20261114,
-  "rule": "stratified by tags[0]; dev = ceil(n * 60 / 220) per stratum, lowest sha256(seed + id) first",
+  "rule": "stratified by tags[0]; dev = ceil(n * 60 / 220) per stratum, lowest sha256(seed + id) first; dev-only trap variants (tag variant:v2, stratum hard-variant) are all dev",
   "strata": {
     "eur": {
       "total": 25,
@@ -16,6 +16,11 @@
       "total": 20,
       "dev": 6,
       "heldout": 14
+    },
+    "hard-variant": {
+      "total": 20,
+      "dev": 20,
+      "heldout": 0
     },
     "html": {
       "total": 30,
@@ -56,12 +61,32 @@
     "forwarded-007",
     "forwarded-011",
     "forwarded-014",
+    "hard-ambiguous-quantity-v2",
+    "hard-barge-per-mt-v2",
+    "hard-decimal-comma-v2",
     "hard-delivery-window-before-received",
+    "hard-delivery-window-before-received-v2",
+    "hard-dot-thousands-qty-v2",
+    "hard-eur-quote-in-band-v2",
+    "hard-expired-validity-v2",
     "hard-forwarded-twice",
+    "hard-forwarded-twice-v2",
     "hard-injection-override",
+    "hard-injection-override-v2",
+    "hard-missing-currency-v2",
+    "hard-multi-grade-unrequired-grade-v2",
     "hard-not-a-quote-with-prices",
+    "hard-not-a-quote-with-prices-v2",
+    "hard-pdf-image-only-v2",
+    "hard-price-typo-out-of-band-v2",
+    "hard-qty-over-tank-capacity-v2",
+    "hard-quote-in-html-only-v2",
+    "hard-spoofed-supplier-name-v2",
     "hard-thread-stale-revision",
+    "hard-thread-stale-revision-v2",
     "hard-unknown-vessel",
+    "hard-unknown-vessel-v2",
+    "hard-volume-m3-v2",
     "html-001",
     "html-002",
     "html-007",

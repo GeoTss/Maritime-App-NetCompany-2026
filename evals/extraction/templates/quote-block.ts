@@ -46,14 +46,16 @@ export type Template = (ctx: TemplateContext) => Promise<GoldenCase> | GoldenCas
 
 export interface PhrasedLine {
   gradeText: string;
-  qty: { asWritten: string; unit: string };
+  /** `value` overrides the number read from `asWritten` (hard variants: null when ambiguous). */
+  qty: { asWritten: string; unit: string; value?: number | null };
   price: MoneySpan;
 }
 
+/** `per_mt` is used only by hand-specified hard variants; generated quotes never draw it. */
 export type BargePhrase =
   | { kind: "absent" }
   | { kind: "included"; text: string }
-  | { kind: "lump_sum"; span: MoneySpan };
+  | { kind: "lump_sum" | "per_mt"; span: MoneySpan };
 
 export interface PhrasedQuote {
   facts: QuoteFacts;
@@ -175,7 +177,11 @@ export function windowLines(w: WindowPhrase, l: Labels): string[] {
 }
 
 export const bargeText = (b: BargePhrase): string | null =>
-  b.kind === "lump_sum" ? b.span.asWritten : b.kind === "included" ? b.text : null;
+  b.kind === "lump_sum" || b.kind === "per_mt"
+    ? b.span.asWritten
+    : b.kind === "included"
+      ? b.text
+      : null;
 
 export interface TranscribeHints {
   /** Labels sit on the same text line as their value (labelled layouts). */
@@ -204,11 +210,14 @@ export function transcribe(pq: PhrasedQuote, hints: TranscribeHints = {}): Quote
         ? { asWritten: w.text, ...near(l?.delivery) }
         : { asWritten: w.to, ...near(l?.deliveryTo) },
     validUntil: { asWritten: pq.validity, ...near(l?.validity) },
-    bargeFee: pq.barge.kind === "lump_sum" ? { ...pq.barge.span, ...near(l?.barge) } : null,
+    bargeFee:
+      pq.barge.kind === "lump_sum" || pq.barge.kind === "per_mt"
+        ? { ...pq.barge.span, ...near(l?.barge) }
+        : null,
     lines: pq.lines.map((line) => ({
       grade: { value: line.gradeText, ...near(hints.lineLabels ? l?.grade : undefined) },
       quantity: {
-        value: pqNumber(line.qty.asWritten),
+        value: line.qty.value !== undefined ? line.qty.value : pqNumber(line.qty.asWritten),
         unit: line.qty.unit,
         asWritten: line.qty.asWritten,
         ...near(hints.lineLabels ? l?.qty : undefined),

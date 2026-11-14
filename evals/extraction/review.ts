@@ -7,7 +7,7 @@ import type { World } from "@pharos/db";
 import { SUPPLIERS } from "@pharos/db";
 import type { ExtractionTruth, FuelGrade, TruthQuote } from "@pharos/shared";
 import { sha256Hex } from "./prng.js";
-import { computeSplit, type Split } from "./split.js";
+import { computeSplit, type Split, VARIANT_TAG } from "./split.js";
 import { EVAL_SEED, eurUsd, marketPriceUsd, openRequirementOf } from "./world.js";
 
 export const REVIEW_GENERATED_SAMPLE = 15;
@@ -197,7 +197,9 @@ export function renderReview(world: World, cases: ReviewCase[]): string {
   const truths = cases.map((c) => c.truth);
   const split: Split = computeSplit(truths);
   const sample = new Set(reviewSample(truths));
-  const hard = cases.filter((c) => c.truth.source === "hard");
+  const isVariant = (c: ReviewCase) => c.truth.tags.includes(VARIANT_TAG);
+  const variants = cases.filter(isVariant);
+  const hard = cases.filter((c) => c.truth.source === "hard" && !isVariant(c));
   const generated = cases.filter((c) => sample.has(c.truth.id));
   const counts = Object.entries(split.strata)
     .map(([k, v]) => `${k} ${v.total}`)
@@ -206,10 +208,17 @@ export function renderReview(world: World, cases: ReviewCase[]): string {
   return [
     "# Extraction golden set: review sheet",
     "",
-    "Every extraction accuracy number in Phase 3 is graded against these truths, so please check them before any paid run. This sheet shows all 20 hard cases and a random sample of 15 generated cases (stratified by category, picked by sha256 order, never by hand).",
+    `Every extraction accuracy number in Phase 3 is graded against these truths, so please check them before any paid run. This sheet shows the ${variants.length} new dev trap variants first, then all ${hard.length} hard cases and a random sample of ${generated.length} generated cases (stratified by category, picked by sha256 order, never by hand).`,
     "",
     `Set: ${cases.length} cases (${counts}). Split: dev ${split.dev.length}, held-out ${split.heldout.length}.`,
     "",
+    "## New dev trap variants — please review",
+    "",
+    `These ${variants.length} cases are new: a second version of each hard trap (id \`hard-<name>-v2\`, tag \`variant:v2\`) with the same trap, status and review check as the original, but other values, mostly another vessel, port and supplier, another layout and fresh phrasing. They are **dev-only trap variants**: by rule they form their own split stratum (\`hard-variant\`) that is all dev, so the dev gate exercises every trap while the 220 approved cases keep their split. Their truth is written by hand in \`evals/extraction/hard-variants.ts\`. The checks and rules in the sections below apply to them as well.`,
+    "",
+    ...variants.map((c) =>
+      caseSection(world, c, `${c.truth.id} (dev, new; variant of hard-${c.truth.tags[1]})`),
+    ),
     "## What to check for each case",
     "",
     "1. **Status.** Would a careful bunker desk store this email's offer as is (`extracted`), send it to a person (`needs_review`), or is it not an offer (`not_a_quote`)?",

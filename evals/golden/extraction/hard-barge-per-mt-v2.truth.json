@@ -1,0 +1,27 @@
+{
+  "id": "hard-barge-per-mt-v2",
+  "tags": ["hard", "barge-per-mt", "variant:v2", "layout:pdf-grid"],
+  "source": "hard",
+  "expected": {
+    "kind": "quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": {
+      "vesselImo": "9480019",
+      "portUnlocode": "MTMLA",
+      "supplierKey": "kestrel",
+      "currency": "USD",
+      "validUntil": "2026-11-15",
+      "deliveryFrom": "2026-11-16",
+      "deliveryTo": "2026-11-17",
+      "bargeFee": 1200,
+      "lines": [
+        {
+          "grade": "LSMGO",
+          "qtyMt": 320,
+          "pricePerMt": 768
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Atlantic Shelf Fuels",
+    "evidence": "Atlantic Shelf Fuels | Trading Desk"
+  },
+  "vesselName": {
+    "value": "MV Scheldt Express",
+    "evidence": "Ship              MV Scheldt Express / IMO 9487081"
+  },
+  "vesselImo": {
+    "value": "9487081",
+    "evidence": "Ship              MV Scheldt Express / IMO 9487081"
+  },
+  "port": {
+    "value": "Brest",
+    "evidence": "Port              Brest"
+  },
+  "deliveryFrom": {
+    "asWritten": "15.11.2026 - 16.11.2026",
+    "evidence": "Delivery window   15.11.2026 - 16.11.2026"
+  },
+  "deliveryTo": {
+    "asWritten": "15.11.2026 - 16.11.2026",
+    "evidence": "Delivery window   15.11.2026 - 16.11.2026"
+  },
+  "validUntil": {
+    "asWritten": "14/11 noon LT",
+    "evidence": "Validity: 14/11 noon LT"
+  },
+  "bargeFee": {
+    "value": null,
+    "currency": null,
+    "perUnit": null,
+    "asWritten": null,
+    "evidence": null
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "DMA 0.1%",
+        "evidence": "DMA 0.1%   100 mt     755 per mt"
+      },
+      "quantity": {
+        "value": 100,
+        "unit": "mt",
+        "asWritten": "100 mt",
+        "evidence": "DMA 0.1%   100 mt     755 per mt"
+      },
+      "price": {
+        "value": 755,
+        "currency": null,
+        "perUnit": "per mt",
+        "asWritten": "755 per mt",
+        "evidence": "DMA 0.1%   100 mt     755 per mt"
+      }
+    }
+  ],
+  "notes": null
+}

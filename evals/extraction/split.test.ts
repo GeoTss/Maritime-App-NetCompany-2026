@@ -2,7 +2,14 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { sha256Hex } from "./prng.js";
-import { computeSplit, devCount, GOLDEN_DIR, splitFromDisk, splitJson } from "./split.js";
+import {
+  computeSplit,
+  devCount,
+  GOLDEN_DIR,
+  splitFromDisk,
+  splitJson,
+  VARIANT_TAG,
+} from "./split.js";
 import { EVAL_SEED } from "./world.js";
 
 const fake = (stratum: string, n: number) =>
@@ -55,6 +62,7 @@ describe("split.json of the golden set", () => {
       "eur",
       "forwarded",
       "hard",
+      "hard-variant",
       "html",
       "multi_grade",
       "not_a_quote",
@@ -63,7 +71,26 @@ describe("split.json of the golden set", () => {
     ]);
     for (const s of Object.values(split.strata)) expect(s.dev).toBeGreaterThan(0);
     expect(split.strata.hard?.dev).toBe(6);
-    expect(split.dev).toHaveLength(64);
+    expect(split.strata["hard-variant"]).toEqual({ total: 20, dev: 20, heldout: 0 });
+    expect(split.dev).toHaveLength(84);
     expect(split.heldout).toHaveLength(156);
+  });
+
+  it("puts every dev-only trap variant in dev and leaves the 220 approved cases' split alone", async () => {
+    const split = await splitFromDisk();
+    const truths = await Promise.all(
+      [...split.dev, ...split.heldout].map(async (id) =>
+        JSON.parse(await readFile(join(GOLDEN_DIR, `${id}.truth.json`), "utf8")),
+      ),
+    );
+    const approved = truths.filter((t) => !t.tags.includes(VARIANT_TAG));
+    const variants = truths.filter((t) => t.tags.includes(VARIANT_TAG));
+    expect(approved).toHaveLength(220);
+    expect(variants).toHaveLength(20);
+    for (const v of variants) expect(split.dev).toContain(v.id);
+    const alone = computeSplit(approved);
+    expect(split.dev.filter((id) => !id.endsWith("-v2"))).toEqual(alone.dev);
+    expect(split.heldout).toEqual(alone.heldout);
+    expect(alone.dev).toHaveLength(64);
   });
 });

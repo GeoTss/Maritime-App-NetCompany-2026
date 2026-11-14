@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Meridian Bunkering",
+    "evidence": "Meridian Bunkering"
+  },
+  "vesselName": {
+    "value": null,
+    "evidence": null
+  },
+  "vesselImo": {
+    "value": "9481025",
+    "evidence": "Vessel name: IMO 9481025"
+  },
+  "port": {
+    "value": "Genoa",
+    "evidence": "Location: Genoa outer anchorage"
+  },
+  "deliveryFrom": {
+    "asWritten": "Nov 15-16",
+    "evidence": "Delivery: Nov 15-16"
+  },
+  "deliveryTo": {
+    "asWritten": "Nov 15-16",
+    "evidence": "Delivery: Nov 15-16"
+  },
+  "validUntil": {
+    "asWritten": "15 Nov 17:00 LT",
+    "evidence": "Valid till: 15 Nov 17:00 LT"
+  },
+  "bargeFee": {
+    "value": 2000,
+    "currency": "USD",
+    "perUnit": "lump sum",
+    "asWritten": "USD 2,000 lump sum",
+    "evidence": "Barge: USD 2,000 lump sum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "LSMGO",
+        "evidence": "Grade: LSMGO"
+      },
+      "quantity": {
+        "value": 550,
+        "unit": "metric tons",
+        "asWritten": "550 metric tons",
+        "evidence": "Quantity: 550 metric tons"
+      },
+      "price": {
+        "value": 727.5,
+        "currency": "USD",
+        "perUnit": "/mt",
+        "asWritten": "USD 727.50/mt",
+        "evidence": "Price: USD 727.50/mt"
+      }
+    }
+  ],
+  "notes": null
+}

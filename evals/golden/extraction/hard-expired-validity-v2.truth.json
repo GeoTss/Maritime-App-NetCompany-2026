@@ -1,0 +1,27 @@
+{
+  "id": "hard-expired-validity-v2",
+  "tags": ["hard", "expired-validity", "variant:v2", "layout:compact"],
+  "source": "hard",
+  "expected": {
+    "kind": "quote",
+    "status": "needs_review",
+    "reviewChecks": ["validity_not_expired"],
+    "quote": {
+      "vesselImo": "9484053",
+      "portUnlocode": "GRPIR",
+      "supplierKey": "meridian",
+      "currency": "USD",
+      "validUntil": "2026-11-11",
+      "deliveryFrom": "2026-11-14",
+      "deliveryTo": "2026-11-15",
+      "bargeFee": 0,
+      "lines": [
+        {
+          "grade": "HSFO",
+          "qtyMt": 325,
+          "pricePerMt": 458
+        }
+      ]
+    }
+  }
+}

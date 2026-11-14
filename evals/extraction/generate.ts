@@ -1,6 +1,7 @@
 /**
  * Generates the extraction golden set: 200 generated cases from the seeded PRNG (truth first,
- * then rendered through templates) plus the 20 hand-specified hard cases.
+ * then rendered through templates), the 20 hand-specified hard cases, and 20 dev-only trap
+ * variants of them (hard-variants.ts).
  *
  *   npm run eval:golden              write evals/golden/extraction/ (removes stale case files)
  *   npm run eval:golden -- --check   exit 1 if any file on disk differs (byte-stable)
@@ -17,6 +18,7 @@ import { type ExtractInput, sourceText } from "../../apps/api/src/ai/extract.js"
 import { parseEmail } from "../../apps/api/src/ingest/parse-email.js";
 import type { GoldenCase } from "./case.js";
 import { HARD_CASES, renderHardCase } from "./hard-cases.js";
+import { HARD_VARIANTS, renderVariant } from "./hard-variants.js";
 import { stableJson } from "./json.js";
 import { renderMime } from "./mime.js";
 import { buildOracle } from "./oracle.js";
@@ -61,6 +63,8 @@ export async function buildCases(world: World): Promise<GoldenCase[]> {
     }
   }
   for (const spec of HARD_CASES) cases.push(await renderHardCase(spec));
+  // Dev-only trap variants, after the 220 approved cases (whose bytes they never change).
+  for (const spec of HARD_VARIANTS) cases.push(await renderVariant(world, spec));
   return cases;
 }
 

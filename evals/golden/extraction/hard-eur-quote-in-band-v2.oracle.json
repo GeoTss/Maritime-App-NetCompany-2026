@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Atlantic Shelf Fuels",
+    "evidence": "Atlantic Shelf Fuels"
+  },
+  "vesselName": {
+    "value": "Aegean Pioneer",
+    "evidence": "Aegean Pioneer, IMO No. 9480019, Brest (FRBES)"
+  },
+  "vesselImo": {
+    "value": "9480019",
+    "evidence": "Aegean Pioneer, IMO No. 9480019, Brest (FRBES)"
+  },
+  "port": {
+    "value": "Brest",
+    "evidence": "Aegean Pioneer, IMO No. 9480019, Brest (FRBES)"
+  },
+  "deliveryFrom": {
+    "asWritten": "22-23 Nov",
+    "evidence": "Delivery 22-23 Nov"
+  },
+  "deliveryTo": {
+    "asWritten": "22-23 Nov",
+    "evidence": "Delivery 22-23 Nov"
+  },
+  "validUntil": {
+    "asWritten": "15/11/2026 noon LT",
+    "evidence": "Valid until 15/11/2026 noon LT"
+  },
+  "bargeFee": {
+    "value": 1900,
+    "currency": "€",
+    "perUnit": "lump sum",
+    "asWritten": "€1,900 lump sum",
+    "evidence": "Barging €1,900 lump sum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "MGO 0.1%",
+        "evidence": "MGO 0.1%: 280 mt @ EUR 637.50 per mt"
+      },
+      "quantity": {
+        "value": 280,
+        "unit": "mt",
+        "asWritten": "280 mt",
+        "evidence": "MGO 0.1%: 280 mt @ EUR 637.50 per mt"
+      },
+      "price": {
+        "value": 637.5,
+        "currency": "EUR",
+        "perUnit": "per mt",
+        "asWritten": "EUR 637.50 per mt",
+        "evidence": "MGO 0.1%: 280 mt @ EUR 637.50 per mt"
+      }
+    }
+  ],
+  "notes": null
+}

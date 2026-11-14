@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Atlantic Shelf Fuels",
+    "evidence": "For and on behalf of Atlantic Shelf Fuels"
+  },
+  "vesselName": {
+    "value": "M/T Atlantic Meridian",
+    "evidence": "Vessel: M/T Atlantic Meridian"
+  },
+  "vesselImo": {
+    "value": null,
+    "evidence": null
+  },
+  "port": {
+    "value": "Sines",
+    "evidence": "Place of delivery: Sines outer anchorage"
+  },
+  "deliveryFrom": {
+    "asWritten": "14 Nov - 15 Nov 2026",
+    "evidence": "Delivery: 14 Nov - 15 Nov 2026"
+  },
+  "deliveryTo": {
+    "asWritten": "14 Nov - 15 Nov 2026",
+    "evidence": "Delivery: 14 Nov - 15 Nov 2026"
+  },
+  "validUntil": {
+    "asWritten": "14 November",
+    "evidence": "Offer valid until: 14 November"
+  },
+  "bargeFee": {
+    "value": 1600,
+    "currency": "€",
+    "perUnit": "lump sum",
+    "asWritten": "€1,600 lump sum",
+    "evidence": "Barge fee: €1,600 lump sum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "HSFO 3.5%",
+        "evidence": "Grade: HSFO 3.5%"
+      },
+      "quantity": {
+        "value": 300,
+        "unit": "MTS",
+        "asWritten": "300 MTS",
+        "evidence": "Quantity: 300 MTS"
+      },
+      "price": {
+        "value": null,
+        "currency": "EUR",
+        "perUnit": "per mt",
+        "asWritten": "EUR 447,25 per mt",
+        "evidence": "Price: EUR 447,25 per mt"
+      }
+    }
+  ],
+  "notes": null
+}
