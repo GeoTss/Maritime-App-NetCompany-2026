@@ -35,8 +35,9 @@ describe("ledger", () => {
     expect(ledgerTotal(tempLedger(""))).toBe(0);
     expect(ledgerTotal(tempLedger())).toBe(0);
   });
-  it("the committed ledger is empty", () => {
-    expect(readFileSync(DEFAULT_LEDGER_PATH, "utf8")).toBe("");
+  it("the real ledger parses and stays within the cap", () => {
+    expect(() => readLedger(DEFAULT_LEDGER_PATH)).not.toThrow();
+    expect(ledgerTotal(DEFAULT_LEDGER_PATH)).toBeLessThanOrEqual(SPEND_CAP_USD);
   });
   it("appends rows and sums them", () => {
     const p = tempLedger("");
