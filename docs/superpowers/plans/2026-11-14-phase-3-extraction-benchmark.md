@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build the extraction benchmark first: a golden set of about 220 supplier emails whose ground truth comes from code, plus graders, a runner and a scorecard with intervals. Then harden the ingestion workflow (attachments, dates, multi-grade, stale threads, injection, review queue) until the **dev** split passes the gate on Claude Haiku 5.5 inside a **$3 build-wide eval budget**.
+**Goal:** Build the extraction benchmark first: a golden set of about 220 supplier emails whose ground truth comes from code, plus graders, a runner and a scorecard with intervals. Then harden the ingestion workflow (attachments, dates, multi-grade, stale threads, injection, review queue) until the **dev** split passes the gate on Claude Haiku 5.5 inside a **$3 Phase 3 budget**.
 
 **Architecture:** Ground truth is structured JSON produced by a deterministic generator from the synthetic world. The `.eml` inputs (plain, HTML, PDF attachment, EUR, multi-grade, forwarded) are rendered **from** the truth, never the reverse, together with an "oracle" extraction that a perfect reader would produce. The runner calls the app's real entry points (`ingestRaw` + `processDocument`) against a cleaned test database per case. The extractor is live, recorded, oracle or empty. Graders compare the pipeline's normalised values and final status with the truth. Workflow changes stay inside the Phase 2 shape: the model transcribes; code normalises, verifies and decides; doubt goes to a human review queue.
 
@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - **Model:** Claude Haiku 5.5 (`claude-haiku-5-5`) is the only model for every live eval and smoke run, both extraction and agent (user decision 2026-11-14). Runners refuse any other served or configured model. Effort `medium`, `LLM_FALLBACKS=off`.
-- **Budget:** hard cap of **$3.00** for all live eval and smoke spend in the whole build, tracked in `evals/spend-ledger.jsonl`. Phase 2 has already used ≈ $0.40 (seed rows in Task 1). Every live runner checks `ledger total + its estimate ≤ $3.00` before its first call, stops on a per-request guard (overrun bounded to one request) and appends its actual cost afterwards. **Phase 3 allowance: $0.80**; a dev pass must stay ≤ $0.15. Stop and report rather than exceed either figure.
+- **Budget:** hard cap of **$3.00** for all live LLM spend in Phase 3 (evals, smokes, recordings), tracked in `evals/spend-ledger.jsonl`. Phase 2's live spend does **not** count (user decision 2026-11-14), so the ledger starts empty. Every live runner checks `ledger total + its estimate ≤ $3.00` before its first call, stops on a per-request guard (overrun bounded to one request) and appends its actual cost afterwards. A dev pass must stay ≤ $0.25. Stop and report rather than exceed either figure. Later phases' budgets are the user's call.
 - **Ground truth never comes from a model.** Truth files are written by the generator from code and the PRNG. A hand-defined hard case is a structured spec in TypeScript that the generator renders. No model output is ever copied into truth or used as an expected value. `evals/golden/**/*.truth.json` is edit-protected (hook). The generator writes the files via `npm run eval:golden`, and a changed truth after the user's review needs the user's review again.
 - **The model never computes a number.** Dates, amounts, units, currency conversion, barge-fee totals and band checks are pure functions in `packages/domain`. The model transcribes as written, with the verbatim evidence.
 - **Email content is untrusted data** inside `<email_document>` (closing-tag forms escaped). Injected instructions must not change values or status, because status comes from code checks only.
@@ -57,19 +57,11 @@ These are folded into the tasks named in brackets:
 - `assertHaikuOnly(models: string[])` throws `ModelNotAllowedError` for anything other than `claude-haiku-5-5`, including a dated snapshot of another model.
 - `createSpendGuard({ capUsd, onRequest })` is the transport wrapper. It generalises the one in `evals/compare/run.ts`: it sums `costUsd(model, usage, promptTokensOf(usage))` per response and refuses the next request with a synthetic 400 once over the cap. Move the compare runner onto it.
 
-**Seed `evals/spend-ledger.jsonl`** with Phase 2's measured spend, one row each:
-- smoke-haiku 0.00364039
-- smoke-agent-sonnet 0.03742453
-- smoke-agent-opus 0.05529486
-- agent-compare-phase2 0.29697392
-- phase2-recordings 0.008071
-- phase2-browser-check 0.0024
-
-The total is ≈ $0.4037.
+`evals/spend-ledger.jsonl` starts **empty**: Phase 2's spend is not counted. The first row is Phase 3's first live call.
 
 - [ ] Tests:
-  - the total of the seeded file equals 0.4037 ± 1e-4;
-  - `assertBudget(2.6)` throws and `assertBudget(2.5)` passes against the seed;
+  - an empty ledger totals 0;
+  - with a temp ledger totalling 2.50, `assertBudget(0.6)` throws and `assertBudget(0.5)` passes;
   - `assertHaikuOnly(["claude-sonnet-5-5"])` throws and `assertHaikuOnly(["claude-haiku-5-5"])` passes;
   - the guard blocks the second request after the first crosses a $0.001 cap, without calling the inner fetch;
   - a malformed ledger line throws with its line number.
@@ -294,7 +286,7 @@ Modify the root `package.json` scripts: `eval:golden` = `tsx evals/extraction/ge
   - It runs `ingestRaw` and then `processDocument` (awaited).
   - Served model asserted Haiku.
   - Full transcripts go to `evals/reports/<UTC>-extraction-<split>-<label>/` (`rows.jsonl`, `scorecard.json`, `scorecard.md`, `transcripts.jsonl`).
-  - Live and record use Task 1's `assertBudget(estimate)` (estimate = cases × $0.002), the spend guard (cap = min($0.15, remaining)) and `appendSpend`.
+  - Live and record use Task 1's `assertBudget(estimate)` (estimate = cases × $0.002), the spend guard (cap = min($0.25, remaining)) and `appendSpend`.
   - `--split heldout` refuses without `--final`.
   - `--oracle` and `--empty` need no key and make no network calls.
 - [ ] Tests:
@@ -321,5 +313,5 @@ Modify the root `package.json` scripts: `eval:golden` = `tsx evals/extraction/ge
   - the user's sample review recorded (date, corrections);
   - the live dev scorecard on Haiku 5.5 with **critical-field accuracy ≥ 98 %** (k/N, interval) and **0 unsafe auto-accepts**, plus review-queue rate and latency/cost per email against §6 (~20 s);
   - the replay reproduction;
-  - the ledger total ≤ $3.00, with Phase 3 spend ≤ $0.80.
+  - the ledger total (Phase 3 spend) ≤ $3.00.
 - [ ] `verifier` reports a PASS/FAIL table. Update `.claude/state/status.json` (phase 4, gate evidence) and run `npx biome format --write` on it. Commit; do not push. Tell the user the dev scores with intervals, the spend so far against $3, and what Phase 4 inherits.

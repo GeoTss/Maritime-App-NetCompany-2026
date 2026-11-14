@@ -332,7 +332,7 @@ The benchmark for each capability is built before that capability is tuned.
 
 **Output:** `npm run eval` writes `evals/reports/<run>/`. The Evaluation page and `docs/APPROACH.md` show the headline numbers. Every eval runs on Claude Haiku 5.5 only (user decision 2026-11-14); there is no three-model matrix.
 
-**Spend:** a hard **$3 cap** for all live eval and smoke spend in the whole build (user decision 2026-11-14), tracked in `evals/spend-ledger.jsonl`; runners refuse to start when the ledger total plus the run's estimate would pass it. On Claude Haiku 5.5 one extraction costs about $0.0005–0.0015, so a 60-case dev pass is about $0.10.
+**Spend:** a hard **$3 cap for Phase 3's** live eval, smoke and recording spend (user decision 2026-11-14; Phase 2's spend is not counted; later phases' budgets are set by the user), tracked in `evals/spend-ledger.jsonl`; runners refuse to start when the ledger total plus the run's estimate would pass it. On Claude Haiku 5.5 one extraction costs about $0.0005–0.0015, so a 60-case dev pass is about $0.10.
 
 ---
 
@@ -452,7 +452,7 @@ Dev thresholds are gates; held-out results are reported as measured, never tuned
 
 You add keys to `.env` yourself; I never handle or print them. When a checkpoint arrives I will name the exact variable to set, pause only the work that depends on it, and carry on with everything else.
 
-**Also needed:** Docker Desktop running; the $3 eval cap (agreed 2026-11-14); ten minutes to review sample golden cases in Phase 3; your submission deadline if there is one — the roadmap is ordered so that stopping after any phase still leaves something demo-able.
+**Also needed:** Docker Desktop running; the $3 Phase 3 eval budget (agreed 2026-11-14); ten minutes to review sample golden cases in Phase 3; your submission deadline if there is one — the roadmap is ordered so that stopping after any phase still leaves something demo-able.
 
 **Out of scope:** a real mailbox (IMAP/SMTP) — deferred, see section 2; a real ERP product; navigation-grade routing; maintenance prediction; a second extracted document type; authentication and multi-tenancy; sending email to external addresses by default; production hardening.
 
@@ -468,6 +468,6 @@ You add keys to `.env` yourself; I never handle or print them. When a checkpoint
 
 **2026-11-14, before Phase 2 (user decision):** both prompts default to Claude Haiku 5.5 (lowest cost) instead of Opus 5.5, each switchable back by one env var; refusal fallbacks default off (Haiku has none server-side). Phase 2 adds one smoke run with the agent on Opus for comparison; the Phase 3 dev-set accuracy and Phase 4 grounding gates decide per prompt whether Haiku stays.
 
-**2026-11-14, after Phase 2 (user decision):** the eval cap is **$3** for the whole build, not $150, and Claude Haiku 5.5 is the only model for extraction and for the Q&A questions in every eval; the three-model matrix is dropped. Phase 2's live spend (smokes, the one-off Haiku/Sonnet/Opus agent comparison, recordings — about $0.40) counts against the cap.
+**2026-11-14, after Phase 2 (user decision):** the eval budget is **$3 for Phase 3** (not $150 for the build), and Claude Haiku 5.5 is the only model for extraction and for the Q&A questions in every eval; the three-model matrix is dropped. Phase 2's live spend (about $0.40) does not count against it.
 
 **Sources checked:** [AISStream documentation](https://aisstream.io/documentation) · [Open-Meteo Marine API](https://open-meteo.com/en/docs/marine-weather-api) · [searoute-ts](https://www.pkgstats.com/pkg:searoute-ts) · [@ssroute/typescript](https://www.pkgstats.com/pkg:@ssroute/typescript) · [Eurostat searoute](https://github.com/eurostat/searoute) · [Mediterranean sulphur zone (REMPEC)](https://www.rempec.org/en/news-media/rempec-news/effective-application-of-the-med-sox-emission-control-area-under-marpol-annex-vi)
