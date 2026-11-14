@@ -330,9 +330,9 @@ The benchmark for each capability is built before that capability is tuned.
 
 **Harness hygiene:** the runner calls the app's real entry points; API errors, truncations and refusals are recorded separately, never as wrong answers; clean database per case; served model asserted; full transcripts saved; before any paid pass the ground truth must score ~100% and an empty extractor ~0% on quote fields; hard cases repeated three times to measure run-to-run variance.
 
-**Output:** `npm run eval` writes `evals/reports/<run>/`. The Evaluation page and `docs/APPROACH.md` show the headline numbers; the three-model matrix is run once at the end.
+**Output:** `npm run eval` writes `evals/reports/<run>/`. The Evaluation page and `docs/APPROACH.md` show the headline numbers. Every eval runs on Claude Haiku 5.5 only (user decision 2026-11-14); there is no three-model matrix.
 
-**Spend:** I estimate $8–15 per full live pass on Opus 5.5 and propose a **$150 cap** for the whole build, measured on a small smoke run and reported before the first full pass.
+**Spend:** a hard **$3 cap** for all live eval and smoke spend in the whole build (user decision 2026-11-14), tracked in `evals/spend-ledger.jsonl`; runners refuse to start when the ledger total plus the run's estimate would pass it. On Claude Haiku 5.5 one extraction costs about $0.0005–0.0015, so a 60-case dev pass is about $0.10.
 
 ---
 
@@ -422,11 +422,11 @@ Each phase starts with a written task plan, ends with the `verifier` gate, and i
 | **4 · Agent, approvals, ERP hand-off**                                            | Tools + fact ledger, release gate, `calculate`, progress streaming, `propose_action`, approval state machine, executor (ERP push, drafted messages, audit); Q&A questions and graders                                   | On the dev half: grounded-number rate 100% of released answers, abstention and injection cases pass, no unauthorised actions; ERP push idempotent                                                                                               |
 | **5 · Live data & route optimisation** _(parallel)_ — _key checkpoint: AISStream_ | AIS provider (live / replay / simulator), weather provider (live / snapshot), routing graph, weather-aware route & speed optimiser, port congestion; then exposed to the agent as tools with their own golden questions | Recorded AIS populates map and congestion; a live AIS smoke run receives positions; live and stored weather both parse; optimiser passes the synthetic-weather, determinism and never-worse tests; a plan for a real ship returns within budget |
 | **6 · Ops console** _(parallel)_                                                  | Live traffic and weather layers, vessel panel, route comparison on the map, inbox with evidence highlighting, chat with fact chips, approvals, source-mode badges, evaluation page                                      | Playwright demo story passes with all sources recorded; visual check in the browser pane                                                                                                                                                        |
-| **7 · Final measurement & demo hardening**                                        | Held-out pass (once), three-model matrix (once), fresh AIS capture and weather snapshot, replays re-recorded last, pre-built images, `README`, `APPROACH.md`, `DEMO_SCRIPT.md` with a preflight checklist               | Fresh clone → `docker compose up --build` → demo story passes in recorded mode and once fully live; final scorecard with intervals committed                                                                                                    |
+| **7 · Final measurement & demo hardening**                                        | Held-out pass (once, Haiku 5.5), fresh AIS capture and weather snapshot, replays re-recorded last, pre-built images, `README`, `APPROACH.md`, `DEMO_SCRIPT.md` with a preflight checklist               | Fresh clone → `docker compose up --build` → demo story passes in recorded mode and once fully live; final scorecard with intervals committed                                                                                                    |
 
 Dev thresholds are gates; held-out results are reported as measured, never tuned toward.
 
-**Cut order if time runs short** (first to go first): MCP adapter → three-model matrix → ERP simulator (falls back to a local order export) → restricted SQL tool → AIS-based port congestion → Evaluation page (the scorecard stays as a document).
+**Cut order if time runs short** (first to go first): MCP adapter → ERP simulator (falls back to a local order export) → restricted SQL tool → AIS-based port congestion → Evaluation page (the scorecard stays as a document).
 **Never cut:** quote extraction with evidence, grounded answers with deterministic maths, the approval flow, weather-aware route and speed optimisation, the live AIS map with its recorded fallback, the extraction scorecard, one-command Compose.
 
 ---
@@ -452,7 +452,7 @@ Dev thresholds are gates; held-out results are reported as measured, never tuned
 
 You add keys to `.env` yourself; I never handle or print them. When a checkpoint arrives I will name the exact variable to set, pause only the work that depends on it, and carry on with everything else.
 
-**Also needed:** Docker Desktop running; agreement to the $150 eval cap; ten minutes to review sample golden cases in Phase 3; your submission deadline if there is one — the roadmap is ordered so that stopping after any phase still leaves something demo-able.
+**Also needed:** Docker Desktop running; the $3 eval cap (agreed 2026-11-14); ten minutes to review sample golden cases in Phase 3; your submission deadline if there is one — the roadmap is ordered so that stopping after any phase still leaves something demo-able.
 
 **Out of scope:** a real mailbox (IMAP/SMTP) — deferred, see section 2; a real ERP product; navigation-grade routing; maintenance prediction; a second extracted document type; authentication and multi-tenancy; sending email to external addresses by default; production hardening.
 
@@ -467,5 +467,7 @@ You add keys to `.env` yourself; I never handle or print them. When a checkpoint
 **After the independent builder review of the first draft:** the demo stem became 0.1%-sulphur fuel with grade-by-zone and ETS-coverage rules (the first draft's fuel is no longer legal in the Mediterranean); one extraction call instead of two; no auto-triggered agent runs; answers released after their fact check; phase gates on the dev set with the held-out set run once; a walking skeleton and an explicit cut order; `unpdf` pinned to 1.x.
 
 **2026-11-14, before Phase 2 (user decision):** both prompts default to Claude Haiku 5.5 (lowest cost) instead of Opus 5.5, each switchable back by one env var; refusal fallbacks default off (Haiku has none server-side). Phase 2 adds one smoke run with the agent on Opus for comparison; the Phase 3 dev-set accuracy and Phase 4 grounding gates decide per prompt whether Haiku stays.
+
+**2026-11-14, after Phase 2 (user decision):** the eval cap is **$3** for the whole build, not $150, and Claude Haiku 5.5 is the only model for extraction and for the Q&A questions in every eval; the three-model matrix is dropped. Phase 2's live spend (smokes, the one-off Haiku/Sonnet/Opus agent comparison, recordings — about $0.40) counts against the cap.
 
 **Sources checked:** [AISStream documentation](https://aisstream.io/documentation) · [Open-Meteo Marine API](https://open-meteo.com/en/docs/marine-weather-api) · [searoute-ts](https://www.pkgstats.com/pkg:searoute-ts) · [@ssroute/typescript](https://www.pkgstats.com/pkg:@ssroute/typescript) · [Eurostat searoute](https://github.com/eurostat/searoute) · [Mediterranean sulphur zone (REMPEC)](https://www.rempec.org/en/news-media/rempec-news/effective-application-of-the-med-sox-emission-control-area-under-marpol-annex-vi)
