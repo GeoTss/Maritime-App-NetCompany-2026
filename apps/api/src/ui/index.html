@@ -1,0 +1,488 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pharos walking skeleton</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --text: #1d2330; --muted: #5c6577; --line: #dde1e8;
+    --accent: #1f5fbf; --accent-text: #ffffff; --ok: #1d7a46; --ok-bg: #e3f4ea;
+    --warn: #8a5a00; --warn-bg: #fdf1d8; --bad: #a3262a; --bad-bg: #fbe6e6;
+    --chip: #eef2f9; --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151b; --panel: #1b1f27; --text: #e4e7ee; --muted: #9aa3b5; --line: #2e3440;
+      --accent: #5b93e6; --accent-text: #0d1117; --ok: #6fd39b; --ok-bg: #173325;
+      --warn: #f0c46b; --warn-bg: #3a2e14; --bad: #f08a8d; --bad-bg: #3d1c1e; --chip: #262c38;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  header { padding: 14px 16px; border-bottom: 1px solid var(--line); background: var(--panel); }
+  header h1 { margin: 0; font-size: 17px; }
+  header p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+  main {
+    display: grid; gap: 14px; padding: 14px 16px; max-width: 1280px; margin: 0 auto;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 560px), 1fr));
+  }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; min-width: 0; }
+  section.wide { grid-column: 1 / -1; }
+  h2 { margin: 0 0 8px; font-size: 15px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; white-space: nowrap; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  button {
+    font: inherit; border-radius: 6px; border: 1px solid var(--line); background: var(--panel);
+    color: var(--text); padding: 5px 11px; cursor: pointer;
+  }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+  button:disabled { opacity: 0.55; cursor: progress; }
+  textarea { width: 100%; font: inherit; padding: 7px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--text); resize: vertical; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 6px 0; }
+  .muted { color: var(--muted); }
+  .note { color: var(--muted); font-size: 13px; }
+  .error { color: var(--bad); font-size: 13px; }
+  .badge { display: inline-block; padding: 1px 7px; border-radius: 10px; font-size: 12px; background: var(--chip); color: var(--muted); white-space: nowrap; }
+  .badge.ok { background: var(--ok-bg); color: var(--ok); }
+  .badge.warn { background: var(--warn-bg); color: var(--warn); }
+  .badge.bad { background: var(--bad-bg); color: var(--bad); }
+  .answer { white-space: pre-wrap; margin: 8px 0; padding: 9px 11px; border-left: 3px solid var(--accent); background: var(--bg); border-radius: 4px; }
+  .withheld { margin: 8px 0; padding: 9px 11px; border-left: 3px solid var(--bad); background: var(--bad-bg); border-radius: 4px; }
+  .withheld ul { margin: 4px 0 0; padding-left: 18px; font-family: var(--mono); font-size: 12px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+  .chip { background: var(--chip); border: 1px solid transparent; border-radius: 14px; padding: 2px 10px; font-size: 12px; text-align: left; }
+  .chip[aria-expanded="true"] { border-color: var(--accent); }
+  .chip b { font-variant-numeric: tabular-nums; }
+  .provenance { font-size: 12px; padding: 7px 9px; border: 1px dashed var(--line); border-radius: 6px; margin: 4px 0 8px; }
+  .provenance code { font-family: var(--mono); }
+  .card { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin: 8px 0; }
+  .card p { margin: 4px 0; }
+  .po { font-family: var(--mono); font-weight: 600; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Pharos · bunker-to-berth walking skeleton</h1>
+  <p id="health">Checking the API…</p>
+</header>
+<main>
+  <section>
+    <h2>Inbox</h2>
+    <div class="row">
+      <button id="deliver" class="primary" type="button">Deliver next email</button>
+      <span id="deliver-note" class="note"></span>
+    </div>
+    <div class="scroll"><table>
+      <thead><tr><th>#</th><th>Received</th><th>From</th><th>Subject</th><th>Status</th></tr></thead>
+      <tbody id="inbox"></tbody>
+    </table></div>
+    <p id="inbox-note" class="note"></p>
+  </section>
+
+  <section>
+    <h2>Quotes</h2>
+    <div class="scroll"><table>
+      <thead><tr>
+        <th>#</th><th>Supplier</th><th>Port</th><th>Grade</th><th class="num">Qty (mt)</th>
+        <th class="num">Price / mt</th><th class="num">Barge fee</th><th>Status</th><th>Email</th>
+      </tr></thead>
+      <tbody id="quotes"></tbody>
+    </table></div>
+    <p id="quotes-note" class="note"></p>
+  </section>
+
+  <section>
+    <h2>Ask</h2>
+    <textarea id="question" rows="2" aria-label="Question">Where should Aegean Pioneer bunker, and who should we buy from?</textarea>
+    <div class="row">
+      <button id="ask" class="primary" type="button">Ask</button>
+      <button id="new-conversation" type="button">New conversation</button>
+      <span id="ask-note" class="note"></span>
+    </div>
+    <div id="answer"></div>
+  </section>
+
+  <section>
+    <h2>Recommendations</h2>
+    <div id="recommendations"></div>
+    <p id="recommendations-note" class="note"></p>
+  </section>
+
+  <section class="wide">
+    <h2>Model calls</h2>
+    <div class="scroll"><table>
+      <thead><tr>
+        <th>#</th><th>At</th><th>Purpose</th><th>Model</th><th>Mode</th><th class="num">Latency (s)</th>
+        <th class="num">Input tok</th><th class="num">Output tok</th><th class="num">Cache read</th>
+        <th class="num">Cache write</th><th class="num">Cost (USD)</th><th>Stop</th>
+      </tr></thead>
+      <tbody id="llm-calls"></tbody>
+    </table></div>
+    <p id="llm-calls-note" class="note"></p>
+  </section>
+</main>
+
+<script>
+"use strict";
+// Every string from the API (email senders and subjects, answer text, labels) is rendered as text
+// through el()/textContent, never parsed as markup.
+
+const $ = (id) => document.getElementById(id);
+const say = (id, text) => {
+  $(id).textContent = text;
+};
+
+function el(tag, props, ...children) {
+  const node = document.createElement(tag);
+  for (const [key, value] of Object.entries(props || {})) {
+    if (key === "class") node.className = value;
+    else if (key.startsWith("on")) node.addEventListener(key.slice(2), value);
+    else node.setAttribute(key, value);
+  }
+  for (const child of children.flat()) {
+    if (child === null || child === undefined || child === false) continue;
+    node.append(child instanceof Node ? child : String(child));
+  }
+  return node;
+}
+
+async function api(path, options) {
+  try {
+    const res = await fetch(path, options);
+    const body = await res.json().catch(() => null);
+    return { ok: res.ok, status: res.status, body, headers: res.headers };
+  } catch (err) {
+    return { ok: false, status: 0, body: { error: "network", message: String(err) }, headers: new Headers() };
+  }
+}
+
+const postJson = (path, body) =>
+  api(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+
+const errorText = (r) =>
+  (r.body && (r.body.message || r.body.error)) || (r.status ? `HTTP ${r.status}` : "network error");
+
+const fmtNumber = (n, digits = 2) => n.toLocaleString("en-US", { maximumFractionDigits: digits });
+const fmtValue = (v) => (typeof v === "number" ? fmtNumber(v) : typeof v === "boolean" ? (v ? "yes" : "no") : String(v));
+const fmtTime = (iso) => (iso ? new Date(iso).toLocaleString() : "—");
+
+const GOOD = new Set(["extracted", "accepted", "received", "ordered", "executed", "synced", "approved", "passed"]);
+const WAIT = new Set(["pending"]);
+const BAD = new Set(["needs_review", "failed", "rejected", "expired", "not_a_quote", "withheld"]);
+function badge(status) {
+  const tone = GOOD.has(status) ? "ok" : WAIT.has(status) ? "warn" : BAD.has(status) ? "bad" : "";
+  return el("span", { class: `badge ${tone}` }, String(status).replace(/_/g, " "));
+}
+
+// ---------- facts ----------
+
+function provenanceText(p) {
+  switch (p.source) {
+    case "calculation": return `calculation #${p.calculationId} (${p.calculator}), ${p.path}`;
+    case "db": return `database ${p.table} #${p.rowId}, ${p.field}`;
+    case "document": return `document #${p.documentId}, extraction #${p.extractionId}, ${p.field}: "${p.evidence}"`;
+    case "ais": return `AIS position of MMSI ${p.mmsi} at ${p.ts}`;
+    case "weather": return `weather snapshot #${p.snapshotId}, model run ${p.modelRun}`;
+    case "derived": return `derived: ${p.operation} of ${p.operands.join(", ")}`;
+    default: return JSON.stringify(p);
+  }
+}
+
+/** Clickable chips (label, value, unit); a click shows the fact's provenance below them. */
+function factChips(facts) {
+  const detail = el("div");
+  let open = null;
+  const chips = facts.map((f) => {
+    const chip = el(
+      "button",
+      { class: "chip", type: "button", "aria-expanded": "false" },
+      el("span", { class: "muted" }, `${f.label}: `),
+      el("b", {}, fmtValue(f.value)),
+      f.unit ? ` ${f.unit}` : "",
+    );
+    chip.addEventListener("click", () => {
+      if (open) open.setAttribute("aria-expanded", "false");
+      if (open === chip) {
+        open = null;
+        detail.replaceChildren();
+        return;
+      }
+      open = chip;
+      chip.setAttribute("aria-expanded", "true");
+      detail.replaceChildren(
+        el(
+          "div",
+          { class: "provenance" },
+          el("div", {}, el("b", {}, f.label), " = ", fmtValue(f.value), f.unit ? ` ${f.unit}` : ""),
+          el("div", {}, "Source: ", provenanceText(f.provenance)),
+          el("div", { class: "muted" }, "Fact id: ", el("code", {}, f.id)),
+        ),
+      );
+    });
+    return chip;
+  });
+  return el("div", {}, el("div", { class: "chips" }, chips), detail);
+}
+
+// ---------- state ----------
+
+const state = {
+  inbox: [],
+  conversationId: null,
+  /** recommendation id -> gate of the answer that proposed it (asks made on this page). */
+  gateByRecommendation: new Map(),
+  /** recommendation id -> latest DecisionResult or error from this page. */
+  decisions: new Map(),
+};
+
+// ---------- inbox & quotes ----------
+
+async function loadInbox() {
+  const r = await api("/api/inbox");
+  if (!r.ok) return say("inbox-note", `Could not load the inbox: ${errorText(r)}`);
+  state.inbox = r.body.items;
+  const source = r.headers.get("x-pharos-data");
+  $("inbox").replaceChildren(
+    ...r.body.items.map((i) =>
+      el("tr", {},
+        el("td", {}, i.documentId),
+        el("td", {}, fmtTime(i.receivedAt)),
+        el("td", {}, i.sender || "—"),
+        el("td", {}, i.subject || "(no subject)"),
+        el("td", {}, badge(i.extractionStatus)),
+      ),
+    ),
+  );
+  const pending = r.body.items.some((i) => i.extractionStatus === "pending");
+  $("inbox-note").textContent = [
+    r.body.items.length === 0 ? "No emails yet." : "",
+    pending ? "Extracting… refreshing every 2 s." : "",
+    source ? `Data: ${source}.` : "",
+  ].filter(Boolean).join(" ");
+}
+
+async function loadQuotes() {
+  const r = await api("/api/quotes");
+  if (!r.ok) return say("quotes-note", `Could not load quotes: ${errorText(r)}`);
+  const rows = [];
+  for (const q of r.body.items) {
+    const lines = q.lines.length > 0 ? q.lines : [null];
+    for (const l of lines) {
+      rows.push(
+        el("tr", {},
+          el("td", {}, q.id),
+          el("td", {}, q.supplierName),
+          el("td", {}, q.portName),
+          el("td", {}, l ? l.grade : "—"),
+          el("td", { class: "num" }, l && l.qtyMt !== null ? fmtNumber(l.qtyMt) : "—"),
+          el("td", { class: "num" }, l ? `${q.currency} ${fmtNumber(l.pricePerMt)}` : "—"),
+          el("td", { class: "num" }, `${q.currency} ${fmtNumber(q.bargeFee)}`),
+          el("td", {}, badge(q.status)),
+          el("td", {}, q.documentId === null ? "—" : `#${q.documentId}`),
+        ),
+      );
+    }
+  }
+  $("quotes").replaceChildren(...rows);
+  $("quotes-note").textContent = r.body.items.length === 0 ? "No quotes yet." : "";
+}
+
+$("deliver").addEventListener("click", async () => {
+  const button = $("deliver");
+  button.disabled = true;
+  const r = await api("/api/inbox/deliver-next", { method: "POST" });
+  button.disabled = false;
+  if (r.ok) {
+    const left = r.body.remaining;
+    $("deliver-note").textContent =
+      `Delivered email #${r.body.documentId}${r.body.duplicate ? " (already stored)" : ""}; ${left} demo email${left === 1 ? "" : "s"} left.`;
+  } else if (r.status === 409) {
+    $("deliver-note").textContent = "No more demo emails to deliver.";
+  } else {
+    $("deliver-note").textContent = `Delivery failed: ${errorText(r)}`;
+  }
+  refresh();
+});
+
+// ---------- ask ----------
+
+function gateLine(gate) {
+  if (gate.passed) {
+    return el("p", { class: "note" }, badge("passed"), " Release gate: every number is a fact", gate.repaired ? " (after one repair turn)." : ".");
+  }
+  return el(
+    "div",
+    { class: "withheld" },
+    el("b", {}, "Answer withheld by the release gate."),
+    el("div", {}, "Withheld: these numbers had no fact"),
+    el("ul", {}, gate.ungroundedNumbers.map((n) => el("li", {}, n))),
+  );
+}
+
+$("ask").addEventListener("click", async () => {
+  const question = $("question").value.trim();
+  if (!question) return say("ask-note", "Type a question first.");
+  const button = $("ask");
+  button.disabled = true;
+  $("ask-note").textContent = "Asking the agent… this can take up to a minute.";
+  const r = await postJson("/api/ask", { question, conversationId: state.conversationId });
+  button.disabled = false;
+  if (!r.ok) {
+    $("ask-note").textContent = "";
+    $("answer").replaceChildren(el("p", { class: "error" }, `Ask failed: ${errorText(r)}`));
+    return;
+  }
+  const res = r.body;
+  state.conversationId = res.conversationId;
+  for (const id of res.recommendationIds) state.gateByRecommendation.set(id, res.gate);
+  $("ask-note").textContent = `Conversation #${res.conversationId}.`;
+  $("answer").replaceChildren(
+    res.answer === null ? el("div") : el("div", { class: "answer" }, res.answer),
+    gateLine(res.gate),
+    res.facts.length > 0 ? el("p", { class: "note" }, "Facts from the tools (click one for its source):") : "",
+    factChips(res.facts),
+    res.recommendationIds.length > 0
+      ? el("p", { class: "note" }, `Proposed recommendation #${res.recommendationIds.join(", #")} below; nothing is ordered until you approve.`)
+      : "",
+  );
+  refresh();
+});
+
+$("new-conversation").addEventListener("click", () => {
+  state.conversationId = null;
+  $("answer").replaceChildren();
+  $("ask-note").textContent = "New conversation.";
+});
+
+// ---------- recommendations ----------
+
+function gateOrigin(id) {
+  const gate = state.gateByRecommendation.get(id);
+  if (!gate) return el("p", { class: "note" }, "Release gate of the answer that proposed it: not seen on this page.");
+  if (gate.passed) return el("p", { class: "note" }, badge("passed"), " Proposed in an answer that passed the release gate.");
+  return el("p", { class: "error" }, badge("withheld"), " Proposed in an answer the release gate withheld. Check the facts before approving.");
+}
+
+function decisionLine(rec) {
+  const d = state.decisions.get(rec.id);
+  if (d?.error) return el("p", { class: "error" }, d.error);
+  if (d?.erpPoNumber) {
+    return el("p", {}, "Purchase order ", el("span", { class: "po" }, d.erpPoNumber), " confirmed by the ERP ", badge(d.erpSyncStatus), ".");
+  }
+  if (d && d.erpSyncStatus === "failed") {
+    return el("p", { class: "error" }, "Approved, but the ERP push failed. Approve again to retry with the same key.");
+  }
+  if (rec.status === "executed") return el("p", { class: "note" }, "Executed: the purchase order is in the ERP.");
+  return null;
+}
+
+const DECISION_PATHS = { approve: "/approve", reject: "/reject" };
+
+async function decide(rec, action, button) {
+  button.disabled = true;
+  const r = await api(`/api/recommendations/${rec.id}${DECISION_PATHS[action]}`, { method: "POST" });
+  state.decisions.set(rec.id, r.ok ? r.body : { error: `${action === "approve" ? "Approve" : "Reject"} failed: ${errorText(r)}` });
+  refresh();
+}
+
+function recommendationCard(rec) {
+  const actions = [];
+  if (rec.status === "pending" || rec.status === "approved") {
+    const approve = el("button", { class: "primary", type: "button" }, rec.status === "approved" ? "Retry ERP push" : "Approve");
+    approve.addEventListener("click", () => decide(rec, "approve", approve));
+    actions.push(approve);
+  }
+  if (rec.status === "pending") {
+    const reject = el("button", { type: "button" }, "Reject");
+    reject.addEventListener("click", () => decide(rec, "reject", reject));
+    actions.push(reject);
+  }
+  return el(
+    "div",
+    { class: "card" },
+    el("div", { class: "row" }, el("b", {}, `#${rec.id}`), badge(rec.status), el("span", { class: "muted" }, rec.type.replace(/_/g, " "))),
+    el("p", {}, rec.summary),
+    gateOrigin(rec.id),
+    factChips(rec.facts),
+    decisionLine(rec),
+    actions.length > 0 ? el("div", { class: "row" }, actions) : null,
+  );
+}
+
+async function loadRecommendations() {
+  const r = await api("/api/recommendations");
+  if (!r.ok) return say("recommendations-note", `Could not load recommendations: ${errorText(r)}`);
+  $("recommendations").replaceChildren(...r.body.items.map(recommendationCard));
+  $("recommendations-note").textContent =
+    r.body.items.length === 0 ? "None yet. Ask where to bunker; the agent can propose an order for you to approve." : "";
+}
+
+// ---------- model calls ----------
+
+async function loadLlmCalls() {
+  const r = await api("/api/llm-calls");
+  if (!r.ok) return say("llm-calls-note", `Could not load model calls: ${errorText(r)}`);
+  $("llm-calls").replaceChildren(
+    ...r.body.items.map((c) =>
+      el("tr", {},
+        el("td", {}, c.id),
+        el("td", {}, fmtTime(c.createdAt)),
+        el("td", {}, c.purpose),
+        el("td", {}, c.model),
+        el("td", {}, c.mode),
+        el("td", { class: "num" }, fmtNumber(c.latencyMs / 1000, 1)),
+        el("td", { class: "num" }, fmtNumber(c.inputTokens, 0)),
+        el("td", { class: "num" }, fmtNumber(c.outputTokens, 0)),
+        el("td", { class: "num" }, fmtNumber(c.cacheReadTokens, 0)),
+        el("td", { class: "num" }, fmtNumber(c.cacheWriteTokens, 0)),
+        el("td", { class: "num" }, fmtNumber(c.costUsd, 5)),
+        el("td", {}, c.stopReason || "—"),
+      ),
+    ),
+  );
+  $("llm-calls-note").textContent = r.body.items.length === 0 ? "No model calls recorded yet." : "";
+}
+
+// ---------- refresh & polling ----------
+
+async function loadHealth() {
+  const r = await api("/api/health");
+  $("health").textContent = r.ok
+    ? `API ${r.body.status} · LLM mode ${r.body.llmMode} · database ${r.body.db}`
+    : `API unreachable: ${errorText(r)}`;
+}
+
+let running = false;
+let queued = false;
+let timer = null;
+async function refresh() {
+  if (running) {
+    queued = true;
+    return;
+  }
+  running = true;
+  clearTimeout(timer);
+  try {
+    do {
+      queued = false;
+      await Promise.all([loadInbox(), loadQuotes(), loadRecommendations(), loadLlmCalls()]);
+    } while (queued);
+  } finally {
+    running = false;
+  }
+  // Poll while an extraction is still running.
+  if (state.inbox.some((i) => i.extractionStatus === "pending")) timer = setTimeout(refresh, 2000);
+}
+
+loadHealth();
+refresh();
+</script>
+</body>
+</html>

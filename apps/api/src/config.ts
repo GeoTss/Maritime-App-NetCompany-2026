@@ -26,6 +26,8 @@ export interface AppConfig {
   llmFallbacks: boolean;
   /** Absolute directory of LLM request/response recordings. */
   recordingsDir: string;
+  /** Base URL of the ERP that approved purchase orders are pushed to (the simulator by default). */
+  erpBaseUrl: string;
 }
 
 export const Effort = z.enum(["low", "medium", "high", "xhigh", "max"]);
@@ -44,6 +46,8 @@ export type SeedOnBoot = z.infer<typeof SeedOnBoot>;
 export const DEFAULT_WORLD_SEED = 20261114;
 /** world_meta.seed is a Postgres integer. */
 export const MAX_WORLD_SEED = 2_147_483_647;
+
+export const DEFAULT_ERP_BASE_URL = "http://localhost:4100";
 
 const blankToUndefined = (v: unknown) => (typeof v === "string" && v.trim() === "" ? undefined : v);
 
@@ -69,6 +73,14 @@ const EnvSchema = z.object({
   AGENT_EFFORT: z.preprocess(blankToUndefined, Effort.default("medium")),
   LLM_FALLBACKS: z.preprocess(blankToUndefined, z.enum(["on", "off"]).default("off")),
   RECORDINGS_DIR: z.preprocess(blankToUndefined, z.string().optional()),
+  ERP_BASE_URL: z.preprocess(
+    blankToUndefined,
+    z
+      .string()
+      .trim()
+      .refine((v) => URL.canParse(v) && /^https?:$/.test(new URL(v).protocol), "an http(s) URL")
+      .default(DEFAULT_ERP_BASE_URL),
+  ),
 });
 
 /**
@@ -107,5 +119,6 @@ export function loadConfig(env: Record<string, string | undefined>): AppConfig {
         ? e.RECORDINGS_DIR
         : resolve(REPO_ROOT, e.RECORDINGS_DIR)
       : DEFAULT_RECORDINGS_DIR,
+    erpBaseUrl: e.ERP_BASE_URL,
   };
 }

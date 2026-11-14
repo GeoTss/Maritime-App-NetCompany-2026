@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { ReadSource } from "./source.js";
 
-/** Marks every response so the console can badge fixture data (Phase 6). */
+/** Marks every response with its source ("fixture" or "db") so the console can badge it. */
 export const DATA_SOURCE_HEADER = "x-pharos-data";
 
 const notFound = { error: "not_found" } as const;
@@ -10,13 +10,13 @@ const notFound = { error: "not_found" } as const;
 const MAX_ID = 2_147_483_647;
 
 /** Positive integer ids that fit a Postgres integer only; anything else is treated as unknown. */
-function parseId(raw: string): number | null {
+export function parseId(raw: string): number | null {
   if (!/^[1-9]\d{0,9}$/.test(raw)) return null;
   const id = Number(raw);
   return id <= MAX_ID ? id : null;
 }
 
-export function createReadRoutes(read: ReadSource, dataTag = "fixture") {
+export function createReadRoutes(read: ReadSource, dataTag: string = read.dataTag) {
   const app = new Hono();
 
   app.use("*", async (c, next) => {

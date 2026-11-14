@@ -1,0 +1,137 @@
+import type { Sql } from "@pharos/db";
+import { connectTestDb, testDbLabel } from "@pharos/db/testing";
+import { DecisionResult } from "@pharos/shared";
+import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { createErpApp } from "../../../../services/erp-sim/src/app.js";
+import { createToolContext } from "../ai/tools/common.js";
+import { planBunkering } from "../ai/tools/plan-bunkering.js";
+import { proposeAction } from "../ai/tools/propose-action.js";
+import { createApp } from "../app.js";
+import { ASK_FIXTURE_NOW, prepareAskFixture } from "../ask/demo-fixture.js";
+import { createErpClient } from "../executor/erp-client.js";
+import { createFixtureSource } from "../read/fixtures.js";
+
+const sql = await connectTestDb("approvals_routes");
+
+if (!sql) {
+  describe("approval routes (Postgres)", () => {
+    it.skip(`skipped: Postgres unreachable for ${testDbLabel("approvals_routes")}`, () => {});
+  });
+}
+
+describe.skipIf(!sql)("approval routes (Postgres)", () => {
+  if (!sql) return;
+  const db: Sql = sql;
+  let recId: number;
+  let app: ReturnType<typeof createApp>;
+
+  beforeEach(async () => {
+    await prepareAskFixture(db);
+    const ctx = createToolContext({ sql: db, now: () => ASK_FIXTURE_NOW });
+    const planned = await planBunkering(ctx, { vessel: "Aegean Pioneer" });
+    const best = planned.facts.find((f) => f.id.endsWith("_bestOptionId"));
+    const proposed = await proposeAction(ctx, {
+      type: "purchase_order",
+      calculationId: (planned.data as { calculationId: number }).calculationId,
+      optionId: "MTMLA-kestrel",
+      factRefs: [best?.id ?? ""],
+      rationale: "Lowest total delivered cost.",
+    });
+    recId = (proposed.data as { recommendationId: number }).recommendationId;
+    const erpApp = createErpApp({ now: () => ASK_FIXTURE_NOW });
+    app = createApp({
+      llmMode: "replay",
+      pingDb: async () => true,
+      read: createFixtureSource(),
+      approvals: {
+        sql: db,
+        erp: createErpClient("http://erp.test", (input, init) => erpApp.request(input, init)),
+      },
+    });
+  });
+  afterAll(async () => {
+    await db.end();
+  });
+
+  const post = (path: string, body?: unknown) =>
+    app.request(
+      path,
+      body === undefined
+        ? { method: "POST" }
+        : {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(body),
+          },
+    );
+  const decidedBy = async () =>
+    (
+      await db<{ decided_by: string | null }[]>`
+      select decided_by from recommendations where id = ${recId}`
+    )[0]?.decided_by;
+
+  it("POST /api/recommendations/:id/approve returns the DecisionResult with the PO number", async () => {
+    const res = await post(`/api/recommendations/${recId}/approve`);
+    expect(res.status).toBe(200);
+    const body = DecisionResult.parse(await res.json());
+    expect(body).toMatchObject({
+      recommendationId: recId,
+      status: "executed",
+      erpPoNumber: "PO-000001",
+      erpSyncStatus: "synced",
+    });
+    expect(await decidedBy()).toBe("operator");
+    // Mounted before the read routes, so it is not tagged as read data.
+    expect(res.headers.get("x-pharos-data")).toBeNull();
+  });
+
+  it("takes decidedBy from the body", async () => {
+    const res = await post(`/api/recommendations/${recId}/approve`, { decidedBy: "dana" });
+    expect(res.status).toBe(200);
+    expect(await decidedBy()).toBe("dana");
+  });
+
+  it("reject is final: 200, then 409 for reject and approve", async () => {
+    const res = await post(`/api/recommendations/${recId}/reject`, {});
+    expect(res.status).toBe(200);
+    expect(DecisionResult.parse(await res.json())).toEqual({
+      recommendationId: recId,
+      status: "rejected",
+      orderId: null,
+      erpPoNumber: null,
+      erpSyncStatus: null,
+    });
+    const again = await post(`/api/recommendations/${recId}/reject`);
+    expect(again.status).toBe(409);
+    expect(await again.json()).toMatchObject({ error: "not_pending" });
+    const approve = await post(`/api/recommendations/${recId}/approve`);
+    expect(approve.status).toBe(409);
+    expect(await approve.json()).toMatchObject({ error: "already_rejected" });
+  });
+
+  it.each(["999999", "abc", "0"])("404s on recommendation id %s", async (id) => {
+    for (const action of ["approve", "reject"]) {
+      const res = await post(`/api/recommendations/${id}/${action}`);
+      expect(res.status).toBe(404);
+      expect(await res.json()).toMatchObject({ error: "not_found" });
+    }
+  });
+
+  it.each([
+    ["a non-string decidedBy", JSON.stringify({ decidedBy: 5 })],
+    ["an empty decidedBy", JSON.stringify({ decidedBy: "  " })],
+    ["an unknown field", JSON.stringify({ quantity: 500 })],
+    ["malformed JSON", "{"],
+  ])("400s on %s without deciding", async (_label, body) => {
+    const res = await app.request(`/api/recommendations/${recId}/approve`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body,
+    });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ error: "invalid_request" });
+    const [row] = await db<{ status: string }[]>`
+      select status from recommendations where id = ${recId}`;
+    expect(row?.status).toBe("pending");
+  });
+});

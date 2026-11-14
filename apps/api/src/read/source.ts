@@ -9,8 +9,10 @@ import type {
   VoyageSummary,
 } from "@pharos/shared";
 
-/** Where the read routes get their data. Fixtures today; the database-backed source replaces it. */
+/** Where the read routes get their data: the database (`server.ts`) or fixtures (tests). */
 export interface ReadSource {
+  /** Sent as the `x-pharos-data` header on every read response. */
+  readonly dataTag: "fixture" | "db";
   listVessels(): Promise<VesselSummary[]>;
   getVessel(id: number): Promise<VesselDetail | null>;
   listVoyages(): Promise<VoyageSummary[]>;

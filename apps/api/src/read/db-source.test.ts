@@ -1,0 +1,226 @@
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+import { generateWorld, type Sql, seedDatabase } from "@pharos/db";
+import { connectTestDb, testDbLabel } from "@pharos/db/testing";
+import {
+  BunkerPlan,
+  InboxItem,
+  InboxItemDetail,
+  listOf,
+  QuoteView,
+  RecommendationView,
+  VesselDetail,
+  VesselSummary,
+  VoyageDetail,
+  VoyageSummary,
+} from "@pharos/shared";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { Extractor } from "../ai/extract.js";
+import { createToolContext } from "../ai/tools/common.js";
+import { planBunkering } from "../ai/tools/plan-bunkering.js";
+import { proposeAction } from "../ai/tools/propose-action.js";
+import { createApp } from "../app.js";
+import { DEMO_INBOX_DIR } from "../inbox/routes.js";
+import { type IngestDeps, ingestRaw, processDocument } from "../ingest/workflow.js";
+import { createDbSource } from "./db-source.js";
+import {
+  buildDemoEmails,
+  createFixtureSource,
+  demoExtraction,
+  FIXTURE_ANCHOR,
+  FIXTURE_SEED,
+} from "./fixtures.js";
+
+const NOW = new Date("2026-11-14T08:05:00.000Z");
+
+const sql = await connectTestDb("db_source");
+
+if (!sql) {
+  describe("createDbSource (Postgres)", () => {
+    it.skip(`skipped: Postgres unreachable for ${testDbLabel("db_source")}`, () => {});
+  });
+}
+
+describe.skipIf(!sql)("createDbSource (Postgres)", () => {
+  if (!sql) return;
+  const db: Sql = sql;
+  const world = generateWorld({ seed: FIXTURE_SEED, anchor: FIXTURE_ANCHOR });
+  const kestrel = buildDemoEmails(world).find((e) => e.option.supplierKey === "kestrel");
+  const extractor: Extractor = {
+    model: "claude-haiku-5-5",
+    promptVersion: "extract-quote/v1",
+    async extract() {
+      if (!kestrel) throw new Error("no kestrel demo email");
+      return { output: demoExtraction(world, kestrel), metrics: [] };
+    },
+  };
+  const ingest: IngestDeps = { sql: db, extractor, now: () => NOW };
+  const app = createApp({ llmMode: "replay", pingDb: async () => true, read: createDbSource(db) });
+  const fixtures = createApp({
+    llmMode: "replay",
+    pingDb: async () => true,
+    read: createFixtureSource(),
+  });
+
+  let kestrelDocId: number;
+  let pendingDocId: number;
+  let recId: number;
+  let calculationId: number;
+
+  beforeAll(async () => {
+    await seedDatabase(db, { seed: FIXTURE_SEED, anchor: FIXTURE_ANCHOR, mode: "reset" });
+    const raw = (name: string) =>
+      readFile(join(DEMO_INBOX_DIR, name)).then((b) => new Uint8Array(b));
+    kestrelDocId = (await ingestRaw(ingest, await raw("01-kestrel-marsaxlokk.eml"), "demo_inbox"))
+      .documentId;
+    await processDocument(ingest, kestrelDocId);
+    // Stored but not processed: its extraction is still running as far as the inbox can tell.
+    pendingDocId = (await ingestRaw(ingest, await raw("02-straitline-gibraltar.eml"), "demo_inbox"))
+      .documentId;
+
+    const ctx = createToolContext({ sql: db, now: () => NOW });
+    const planned = await planBunkering(ctx, { vessel: "Aegean Pioneer" });
+    calculationId = (planned.data as { calculationId: number }).calculationId;
+    const best = planned.facts.find((f) => f.id.endsWith("_bestOptionId"));
+    const proposed = await proposeAction(ctx, {
+      type: "purchase_order",
+      calculationId,
+      optionId: "MTMLA-kestrel",
+      factRefs: [best?.id ?? ""],
+      rationale: "Lowest total delivered cost.",
+    });
+    recId = (proposed.data as { recommendationId: number }).recommendationId;
+  });
+  afterAll(async () => {
+    await db.end();
+  });
+
+  async function get(target: typeof app, path: string) {
+    const res = await target.request(path);
+    return { res, body: (await res.json()) as unknown };
+  }
+
+  it("tags every read response as db data", async () => {
+    for (const path of ["vessels", "voyages", "inbox", "quotes", "recommendations"]) {
+      const { res } = await get(app, `/api/${path}`);
+      expect(res.status).toBe(200);
+      expect(res.headers.get("x-pharos-data")).toBe("db");
+    }
+  });
+
+  it("returns the 8 seeded vessels, built exactly as the fixture source builds them", async () => {
+    const { items } = listOf(VesselSummary).parse((await get(app, "/api/vessels")).body);
+    expect(items).toHaveLength(8);
+    expect(items).toEqual(
+      listOf(VesselSummary).parse((await get(fixtures, "/api/vessels")).body).items,
+    );
+    const pioneer = items.find((v) => v.name === "MV Aegean Pioneer");
+    expect(pioneer?.alerts).toContain("lsmgo_below_margin_for_eca");
+    const detail = VesselDetail.parse((await get(app, `/api/vessels/${pioneer?.id}`)).body);
+    expect(detail).toEqual((await get(fixtures, `/api/vessels/${pioneer?.id}`)).body);
+  });
+
+  it("returns the seeded voyages with their detail", async () => {
+    const { items } = listOf(VoyageSummary).parse((await get(app, "/api/voyages")).body);
+    expect(items).toEqual(
+      listOf(VoyageSummary).parse((await get(fixtures, "/api/voyages")).body).items,
+    );
+    const first = items[0];
+    const detail = VoyageDetail.parse((await get(app, `/api/voyages/${first?.id}`)).body);
+    expect(detail.portCalls.length).toBeGreaterThan(0);
+  });
+
+  it("returns the ingested quote with its document, next to the seeded history", async () => {
+    const { items } = listOf(QuoteView).parse((await get(app, "/api/quotes")).body);
+    const ingested = items.find((q) => q.documentId === kestrelDocId);
+    expect(ingested).toMatchObject({
+      supplierName: "Kestrel Marine Fuels",
+      portName: "Marsaxlokk",
+      currency: kestrel?.option.currency,
+      bargeFee: kestrel?.option.bargeFee,
+      status: "received",
+      validUntil: null,
+      lines: [
+        { grade: "LSMGO", qtyMt: kestrel?.option.qtyMt, pricePerMt: kestrel?.option.pricePerMt },
+      ],
+    });
+    // Newest first; the seeded history (two ordered, two expired) has no document.
+    expect(items[0]?.id).toBe(ingested?.id);
+    expect(
+      items
+        .filter((q) => q.documentId === null)
+        .map((q) => q.status)
+        .sort(),
+    ).toEqual(["expired", "expired", "ordered", "ordered"]);
+    const detail = QuoteView.parse((await get(app, `/api/quotes/${ingested?.id}`)).body);
+    expect(detail).toEqual(ingested);
+  });
+
+  it("lists inbox documents newest first, pending while extraction runs", async () => {
+    const { items } = listOf(InboxItem).parse((await get(app, "/api/inbox")).body);
+    expect(items.map((i) => [i.documentId, i.extractionStatus])).toEqual([
+      [pendingDocId, "pending"],
+      [kestrelDocId, "extracted"],
+    ]);
+    expect(items[1]).toMatchObject({ kind: "email", subject: kestrel?.subject });
+  });
+
+  it("returns an inbox item's body, extraction and checks", async () => {
+    const detail = InboxItemDetail.parse((await get(app, `/api/inbox/${kestrelDocId}`)).body);
+    expect(detail.bodyText).toContain("Marsaxlokk");
+    expect(detail.extraction?.kind).toBe("quote");
+    expect(detail.checkResults.length).toBeGreaterThan(0);
+    expect(detail.checkResults.every((c) => c.passed)).toBe(true);
+    const pending = InboxItemDetail.parse((await get(app, `/api/inbox/${pendingDocId}`)).body);
+    expect(pending.extraction).toBeNull();
+    expect(pending.checkResults).toEqual([]);
+  });
+
+  it("returns the recommendation with facts re-derived from its calculation", async () => {
+    const { items } = listOf(RecommendationView).parse(
+      (await get(app, "/api/recommendations")).body,
+    );
+    expect(items).toHaveLength(1);
+    const rec = items[0];
+    const [calc] = await db<{ outputs: unknown }[]>`
+      select outputs from calculations where id = ${calculationId}`;
+    const plan = BunkerPlan.parse(calc?.outputs);
+    const index = plan.options.findIndex((o) => o.optionId === "MTMLA-kestrel");
+    const option = plan.options[index];
+    expect(rec).toMatchObject({
+      id: recId,
+      type: "purchase_order",
+      status: "pending",
+      calculationId,
+      optionId: "MTMLA-kestrel",
+      expectedSavingUsd: plan.savingVsCheapestHeadlineUsd,
+    });
+    expect(rec?.summary).toContain("Kestrel Marine Fuels");
+    expect(rec?.summary).toContain("Marsaxlokk");
+    for (const f of rec?.facts ?? []) {
+      expect(f.provenance).toMatchObject({ source: "calculation", calculationId });
+    }
+    const byPath = new Map(
+      rec?.facts.map((f) => [f.provenance.source === "calculation" ? f.provenance.path : "", f]),
+    );
+    expect(byPath.get(`options[${index}].qtyMt`)?.value).toBe(option?.qtyMt);
+    expect(byPath.get(`options[${index}].totalCostUsd`)?.value).toBe(option?.totalCostUsd);
+    expect(byPath.get(`options[${index}].headlinePriceUsdPerMt`)?.value).toBe(
+      option?.headlinePriceUsdPerMt,
+    );
+    // The same fact ids the agent cited, so stored factRefs resolve.
+    const ids = new Set(rec?.facts.map((f) => f.id));
+    for (const ref of rec?.factRefs ?? []) expect(ids.has(ref)).toBe(true);
+    const detail = RecommendationView.parse((await get(app, `/api/recommendations/${recId}`)).body);
+    expect(detail).toEqual(rec);
+  });
+
+  it.each(["vessels", "voyages", "inbox", "quotes", "recommendations"])(
+    "404s on an unknown /api/%s id",
+    async (path) => {
+      const { res, body } = await get(app, `/api/${path}/999999`);
+      expect(res.status).toBe(404);
+      expect(body).toEqual({ error: "not_found" });
+    },
+  );
+});

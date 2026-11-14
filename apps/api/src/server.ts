@@ -5,8 +5,10 @@ import { createLlmExtractor } from "./ai/extract.js";
 import { createLlm } from "./ai/llm.js";
 import { createApp } from "./app.js";
 import { ConfigError, loadConfig } from "./config.js";
-import { DEMO_INBOX_DIR } from "./inbox/routes.js";
-import { createFixtureSource } from "./read/fixtures.js";
+import { createErpClient } from "./executor/erp-client.js";
+import { DEMO_INBOX_DIR, type InboxDeps } from "./inbox/routes.js";
+import { processDocument } from "./ingest/workflow.js";
+import { createDbSource } from "./read/db-source.js";
 
 async function main() {
   let config: ReturnType<typeof loadConfig>;
@@ -42,21 +44,35 @@ async function main() {
     recordingsDir: config.recordingsDir,
     onCall: captureLlmCall,
   });
+  const log = (message: string) => console.warn(message);
+  const inbox: InboxDeps = {
+    sql,
+    extractor: createLlmExtractor(llm, config),
+    inboxDir: DEMO_INBOX_DIR,
+    log,
+  };
   const app = createApp({
     llmMode: config.llmMode,
     pingDb: () => pingDb(sql),
-    read: createFixtureSource(),
-    inbox: {
-      sql,
-      extractor: createLlmExtractor(llm, config),
-      inboxDir: DEMO_INBOX_DIR,
-      log: (message) => console.warn(message),
-    },
-    ask: { sql, llm, config, log: (message) => console.warn(message) },
+    read: createDbSource(sql),
+    inbox,
+    ask: { sql, llm, config, log },
+    approvals: { sql, erp: createErpClient(config.erpBaseUrl), log },
+    llmCalls: { sql },
   });
 
+  // Finish extractions a crash or restart interrupted (processDocument skips any no longer pending).
+  const pending = await sql<{ document_id: number }[]>`
+    select distinct document_id from extractions where status = 'pending' order by document_id`;
+  void (async () => {
+    for (const { document_id } of pending) await processDocument(inbox, document_id);
+  })();
+  if (pending.length > 0) console.log(`[api] resuming ${pending.length} pending extraction(s)`);
+
   const server = serve({ fetch: app.fetch, port: config.port }, (info) => {
-    console.log(`[api] listening on :${info.port} (LLM_MODE=${config.llmMode})`);
+    console.log(
+      `[api] listening on :${info.port} (LLM_MODE=${config.llmMode}, ERP ${config.erpBaseUrl})`,
+    );
   });
 
   const shutdown = async () => {

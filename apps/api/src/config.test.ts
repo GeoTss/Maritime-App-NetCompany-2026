@@ -44,6 +44,28 @@ describe("loadConfig", () => {
     }
   });
 
+  it("defaults ERP_BASE_URL to the local ERP simulator", () => {
+    expect(loadConfig({ ...base, LLM_MODE: "replay" }).erpBaseUrl).toBe("http://localhost:4100");
+    expect(loadConfig({ ...base, LLM_MODE: "replay", ERP_BASE_URL: " " }).erpBaseUrl).toBe(
+      "http://localhost:4100",
+    );
+  });
+
+  it("accepts an http(s) ERP_BASE_URL and rejects anything else, naming the variable", () => {
+    const c = loadConfig({ ...base, LLM_MODE: "replay", ERP_BASE_URL: "http://erp:4100" });
+    expect(c.erpBaseUrl).toBe("http://erp:4100");
+    for (const bad of ["erp:4100", "ftp://erp:4100", "not a url"]) {
+      try {
+        loadConfig({ ...base, LLM_MODE: "replay", ERP_BASE_URL: bad });
+        expect.unreachable(`ERP_BASE_URL=${bad} must be rejected`);
+      } catch (e) {
+        expect(e).toBeInstanceOf(ConfigError);
+        expect(String(e)).toMatch(/ERP_BASE_URL/);
+        expect(String(e)).not.toContain(bad);
+      }
+    }
+  });
+
   it("defaults SEED_ON_BOOT to if-empty and WORLD_SEED to 20261114", () => {
     const c = loadConfig({ ...base, LLM_MODE: "replay" });
     expect(c.seedOnBoot).toBe("if-empty");
