@@ -13,5 +13,10 @@
   },
   "devDependencies": {
     "drizzle-kit": "0.31.11"
+  },
+  "scripts": {
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx src/cli/migrate.ts",
+    "db:seed": "tsx src/cli/seed.ts"
   }
 }

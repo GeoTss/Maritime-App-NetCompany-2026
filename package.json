@@ -2,7 +2,7 @@
   "name": "pharos",
   "private": true,
   "type": "module",
-  "description": "Smart Maritime Operations Assistant — Bunker-to-Berth",
+  "description": "Smart Maritime Operations Assistant \u2014 Bunker-to-Berth",
   "engines": {
     "node": ">=22.12.0"
   },
@@ -20,7 +20,10 @@
     "verify": "npm run typecheck && npm run lint && npm run check:purity && npm run test",
     "dev:api": "npm run dev -w @pharos/api",
     "dev:erp": "npm run dev -w @pharos/erp-sim",
-    "smoke:pdf": "tsx scripts/pdf-smoke.ts"
+    "smoke:pdf": "tsx scripts/pdf-smoke.ts",
+    "db:generate": "npm run db:generate -w @pharos/db",
+    "db:migrate": "npm run db:migrate -w @pharos/db",
+    "db:seed": "npm run db:seed -w @pharos/db"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.7",
