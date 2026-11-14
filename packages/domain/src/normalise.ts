@@ -20,11 +20,17 @@ export function parseAmount(asWritten: string): number | null {
   if (/\d\s*(?:\/|-|–|—|to|or|and)\s*\d/.test(s)) return null;
   const m = /\d[\d,]*(?:\.\d+)?/.exec(s);
   if (!m) return null;
+  // Leading "." or "-" ("$.50", "-300") is malformed or signed: review.
+  if (/[.\-−]/.test(s[m.index - 1] ?? "")) return null;
   const token = m[0].replace(/,+$/, "");
   if (!/^\d+(?:\.\d+)?$/.test(token) && !/^\d{1,3}(?:,\d{3})+(?:\.\d+)?$/.test(token)) return null;
+  // Dot-grouped thousands ("9.000", "1.234") read as decimals would be a x1000 error.
+  if (/^\d{1,3}(?:\.\d{3})+$/.test(token)) return null;
   const rest = s.slice(m.index + m[0].length);
-  // "1 234,5" / "1 234": space-grouped; "1.234,5": dot-grouped with decimal comma.
-  if (/^[  ]\d{3}(?!\d)/.test(rest) || /^,\d/.test(rest)) return null;
+  // "1 234,5" / "1 234": space-grouped; "1.234,5" / "1.234.567": dot-grouped.
+  if (/^[  ]\d{3}(?!\d)/.test(rest) || /^[,.]\d/.test(rest)) return null;
+  // A second number after a connector (currency/unit words allowed between): range or alternative.
+  if (/(?:-|–|—|\/|\b(?:up to|to|or|and)\b)\s*[^\d\-–—/]{0,12}?\d/.test(rest)) return null;
   const value = Number(token.replace(/,/g, ""));
   return Number.isFinite(value) ? value : null;
 }
@@ -68,9 +74,9 @@ export function normalisePerUnit(raw: string | null): "per_mt" | "lump_sum" | nu
 
 // Grade families. Sulphur limits: LSMGO/DMA 0.1%, VLSFO 0.5%, HSFO 3.5% (ISO 8217 / MARPOL VI).
 const GRADE_PATTERNS: [FuelGrade, RegExp][] = [
-  ["LSMGO", /\b(?:ls)?mgo\b|\bdma\b(?=.*(?<!\d)0\.1)|(?<!\d)0\.1.*\bdma\b/],
-  ["VLSFO", /\bvlsfo\b|(?<!\d)0\.5\d*\s*%/],
-  ["HSFO", /\bhsfo\b|\bifo\s*380\b|\brmg\s*380\b|(?<!\d)3\.5\d*\s*%/],
+  ["LSMGO", /\b(?:ls)?mgo\b|\bdma\b(?=.*(?<!\d)0\.1(?!\d))|(?<!\d)0\.1(?!\d).*\bdma\b/],
+  ["VLSFO", /\bvlsfo\b|(?<!\d)0\.50?(?!\d)\s*%/],
+  ["HSFO", /\bhsfo\b|\bifo\s*380\b|\brmg\s*380\b|(?<!\d)3\.50?(?!\d)\s*%/],
 ];
 
 export function normaliseGrade(raw: string | null): FuelGrade | null {
@@ -93,5 +99,6 @@ export function evidenceSupports(
   if (ev === "") return false;
   if (!collapse(source).includes(ev)) return false;
   if (asWritten === null) return true;
+  if (collapse(asWritten) === "") return false;
   return ev.includes(collapse(asWritten));
 }

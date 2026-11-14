@@ -40,6 +40,19 @@ describe("parseAmount", () => {
     ["1,5", null],
     ["1.234,5", null],
     ["1 234", null],
+    ["USD 612 - USD 650", null],
+    ["612 USD or 650 USD", null],
+    ["300 usd/mt - 350 usd/mt", null],
+    ["300 up to 350", null],
+    ["300 and 350", null],
+    ["9.000 mt", null],
+    ["1.234", null],
+    ["1.234.567", null],
+    ["$.50", null],
+    ["-300", null],
+    ["USD -300", null],
+    ["0.5", 0.5],
+    ["612.50 usd/mt basis rotterdam", 612.5],
     // no number
     ["", null],
     ["   ", null],
@@ -141,6 +154,10 @@ describe("normaliseGrade", () => {
     // not a grade
     ["DMA", null],
     ["10.5% fuel", null],
+    ["0.55%", null],
+    ["0.55% fuel oil", null],
+    ["DMA 0.15", null],
+    ["DMA 0.1", "LSMGO"],
     ["", null],
     [null, null],
   ];
@@ -165,6 +182,10 @@ describe("evidenceSupports", () => {
   });
   it("rejects asWritten not inside evidence", () => {
     expect(evidenceSupports(source, "Basis Rotterdam.", "612.50")).toBe(false);
+  });
+  it("rejects blank non-null asWritten", () => {
+    expect(evidenceSupports(source, "Basis Rotterdam.", "")).toBe(false);
+    expect(evidenceSupports(source, "Basis Rotterdam.", "   ")).toBe(false);
   });
   it("rejects null or empty evidence", () => {
     expect(evidenceSupports(source, null, "612.50")).toBe(false);
