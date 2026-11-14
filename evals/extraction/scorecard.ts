@@ -342,6 +342,9 @@ export interface ScorecardMeta {
   finishedAt: string;
   /** Cases selected for the run. */
   selected: number;
+  /** Cases of the split skipped first, and the most taken after them (null: no limit). */
+  offset: number;
+  limit: number | null;
   repeatHard: number;
   /** Selected cases never run (the run stopped first). */
   notRun: string[];
@@ -394,7 +397,11 @@ export function renderScorecardMd(card: Scorecard, meta: ScorecardMeta): string 
   out.push(`- World: seed ${meta.seed}, anchor ${meta.anchor}`);
   out.push(`- Started ${meta.startedAt}, finished ${meta.finishedAt}`);
   out.push(
-    `- Cases: ${meta.selected} selected, ${card.cases} run, ${card.graded} graded, ${card.errors.length} errors` +
+    `- Cases: ${meta.selected} selected` +
+      (meta.offset > 0 || meta.limit !== null
+        ? ` (split.json order from case ${meta.offset + 1}${meta.limit === null ? "" : `, at most ${meta.limit}`})`
+        : "") +
+      `, ${card.cases} run, ${card.graded} graded, ${card.errors.length} errors` +
       (meta.repeatHard > 1 ? `; hard cases run ${meta.repeatHard} times` : ""),
   );
   out.push(`- Served models: ${meta.servedModels.join(", ") || "none (no model calls)"}`);

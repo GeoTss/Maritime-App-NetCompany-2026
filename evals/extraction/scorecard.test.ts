@@ -373,6 +373,8 @@ const META: ScorecardMeta = {
   startedAt: "2026-11-14T10:00:00.000Z",
   finishedAt: "2026-11-14T10:01:00.000Z",
   selected: 3,
+  offset: 0,
+  limit: null,
   repeatHard: 1,
   notRun: [],
   aborted: null,
@@ -432,6 +434,14 @@ describe("renderScorecardMd", () => {
     expect(md).toContain("| x | replay_miss | LLM replay miss: no recording |");
     expect(md).toMatch(/Latency per email.*20\.0 s/s);
     expect(md).toMatch(/Cost per email/);
+  });
+
+  it("names the chunk of the split an --offset / --limit run took", () => {
+    const md = renderScorecardMd(scorecard([run(grade())]), { ...meta, offset: 40, limit: 20 });
+    expect(md).toContain("- Cases: 3 selected (split.json order from case 41, at most 20), 1 run");
+    expect(renderScorecardMd(scorecard([run(grade())]), meta)).toContain(
+      "- Cases: 3 selected, 1 run",
+    );
   });
 
   it("shows a metric with N = 0 as not measured", () => {

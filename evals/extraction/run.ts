@@ -4,7 +4,8 @@
  * grade.ts and summed by scorecard.ts.
  *
  *   npm run eval -- --suite extraction --split dev --mode replay|live|record
- *                   [--oracle | --empty] [--repeat-hard N] [--label x] [--limit n] [--final]
+ *                   [--oracle | --empty] [--repeat-hard N] [--label x] [--offset n] [--limit n]
+ *                   [--final]
  *
  * Database (ruling R23): `connectTestDb("eval_extraction")`, seeded once per run (seed 20261114,
  * anchor 2026-11-14T08:00:00Z, plus the eval requirements). Before every case run, only what a
@@ -147,6 +148,8 @@ export interface RunArgs {
   repeatHard: number;
   label: string;
   limit: number | null;
+  /** Cases of the split skipped first (split.json order), so a big split runs in chunks. */
+  offset: number;
   final: boolean;
 }
 
@@ -163,11 +166,24 @@ const REPEAT_RECORD =
   "--repeat-hard with --mode record would overwrite each hard case's recording with its last run, " +
   "so replay could not reproduce the first-run headline. Measure variance with --mode live.";
 
-const VALUE_FLAGS = ["--suite", "--split", "--mode", "--repeat-hard", "--label", "--limit"];
+const VALUE_FLAGS = [
+  "--suite",
+  "--split",
+  "--mode",
+  "--repeat-hard",
+  "--label",
+  "--limit",
+  "--offset",
+];
 const BOOL_FLAGS = ["--oracle", "--empty", "--final"];
 
 function positiveInt(flag: string, v: string): number {
   if (!/^\d+$/.test(v) || Number(v) < 1) throw new Error(`${flag} needs a whole number >= 1`);
+  return Number(v);
+}
+
+function nonNegativeInt(flag: string, v: string): number {
+  if (!/^\d+$/.test(v)) throw new Error(`${flag} needs a whole number >= 0`);
   return Number(v);
 }
 
@@ -219,6 +235,7 @@ export function parseArgs(argv: string[]): RunArgs {
     throw new Error("--label needs a name made of letters, digits, '.', '_' or '-'");
   }
   const limitArg = values.get("--limit");
+  const offsetArg = values.get("--offset");
   return {
     suite: "extraction",
     split,
@@ -227,6 +244,7 @@ export function parseArgs(argv: string[]): RunArgs {
     repeatHard,
     label,
     limit: limitArg === undefined ? null : positiveInt("--limit", limitArg),
+    offset: offsetArg === undefined ? 0 : nonNegativeInt("--offset", offsetArg),
     final,
   };
 }
@@ -249,10 +267,19 @@ export interface GoldenCase {
 
 const SplitFile = z.object({ dev: z.array(z.string()), heldout: z.array(z.string()) });
 
-/** The split's case ids in split.json order; `ids` (a subset of the split) or `limit` narrows it. */
+/**
+ * The split's case ids in split.json order. `ids` (a subset of the split) picks cases directly;
+ * otherwise the first `offset` cases are skipped and at most `limit` taken, so a split too big
+ * for one pass runs in consecutive chunks.
+ */
 export async function selectCases(
   split: SplitName,
-  opts: { ids?: string[] | undefined; limit?: number | null | undefined; goldenDir?: string },
+  opts: {
+    ids?: string[] | undefined;
+    limit?: number | null | undefined;
+    offset?: number | undefined;
+    goldenDir?: string;
+  },
 ): Promise<string[]> {
   const dir = opts.goldenDir ?? GOLDEN_DIR;
   const file = SplitFile.parse(JSON.parse(await readFile(join(dir, "split.json"), "utf8")));
@@ -263,7 +290,11 @@ export async function selectCases(
     }
     return opts.ids;
   }
-  return opts.limit ? pool.slice(0, opts.limit) : pool;
+  const offset = opts.offset ?? 0;
+  if (offset >= pool.length) {
+    throw new Error(`--offset ${offset} leaves no case: the ${split} split has ${pool.length}`);
+  }
+  return pool.slice(offset, opts.limit ? offset + opts.limit : undefined);
 }
 
 async function loadCase(dir: string, id: string, withOracle: boolean): Promise<GoldenCase> {
@@ -807,7 +838,9 @@ export interface EvalOptions {
   label: string;
   repeatHard?: number;
   limit?: number | null;
-  /** Explicit case ids (a subset of the split), in place of `limit`. */
+  /** Cases of the split skipped first (split.json order). */
+  offset?: number;
+  /** Explicit case ids (a subset of the split), in place of `limit` and `offset`. */
   ids?: string[];
   final?: boolean;
   reportsDir: string;
@@ -881,7 +914,12 @@ export async function runExtractionEval(opts: EvalOptions): Promise<EvalResult> 
   const now = opts.now ?? (() => new Date());
   const goldenDir = opts.goldenDir ?? GOLDEN_DIR;
 
-  const ids = await selectCases(opts.split, { ids: opts.ids, limit: opts.limit, goldenDir });
+  const ids = await selectCases(opts.split, {
+    ids: opts.ids,
+    limit: opts.limit,
+    offset: opts.offset,
+    goldenDir,
+  });
   const cases = await Promise.all(
     ids.map((id) => loadCase(goldenDir, id, opts.extractor === "oracle")),
   );
@@ -899,7 +937,7 @@ export async function runExtractionEval(opts: EvalOptions): Promise<EvalResult> 
     const estimate = plan.length * ESTIMATE_PER_CASE_RUN_USD;
     if (estimate > RUN_CAP_USD) {
       throw new BudgetError(
-        `estimate $${estimate.toFixed(3)} (${plan.length} case runs x $${ESTIMATE_PER_CASE_RUN_USD}) exceeds the $${RUN_CAP_USD.toFixed(2)} per-pass cap: run fewer cases with --limit`,
+        `estimate $${estimate.toFixed(3)} (${plan.length} case runs x $${ESTIMATE_PER_CASE_RUN_USD}) exceeds the $${RUN_CAP_USD.toFixed(2)} per-pass cap: run the split in chunks with --offset and --limit (each chunk is its own pass)`,
       );
     }
     if (!opts.apiKey) throw new Error("ANTHROPIC_API_KEY is not set (add it to .env).");
@@ -1072,6 +1110,8 @@ async function runPlan(
       startedAt: startedAt.toISOString(),
       finishedAt: now().toISOString(),
       selected: new Set(plan.map((s) => s.c.truth.id)).size,
+      offset: opts.ids ? 0 : (opts.offset ?? 0),
+      limit: opts.ids ? null : (opts.limit ?? null),
       repeatHard: opts.repeatHard ?? 1,
       notRun,
       aborted,
@@ -1171,6 +1211,7 @@ async function main() {
       label: args.label,
       repeatHard: args.repeatHard,
       limit: args.limit,
+      offset: args.offset,
       final: args.final,
       apiKey,
       reportsDir: resolve(REPO_ROOT, "evals", "reports"),

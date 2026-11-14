@@ -25,12 +25,18 @@ npm run eval -- --suite extraction --split dev --empty     # an all-null quote: 
 # writes the recordings, so a later --mode replay reproduces the scorecard for free.
 npm run eval -- --suite extraction --split dev --mode record --label <name>
 
-# Paid, for run-to-run variance only: each hard case run 3 times (the first run is the headline)
-npm run eval -- --suite extraction --split dev --mode live --repeat-hard 3 --label <name>
+# Paid, for run-to-run variance only: each hard case run twice (the first run is the headline).
+# On the 84-case dev split (26 hard) that is 110 case runs, a $0.22 estimate, inside one pass.
+npm run eval -- --suite extraction --split dev --mode live --repeat-hard 2 --label <name>
+
+# Paid, a split too big for one $0.25 pass: consecutive chunks, each its own pass and ledger row
+npm run eval -- --suite extraction --split dev --mode record --offset 0 --limit 60 --label <name>-1
+npm run eval -- --suite extraction --split dev --mode record --offset 60 --limit 60 --label <name>-2
 ```
 
 Options: `--label x` (letters, digits, `.`, `_`, `-`; default: the mode, or `oracle` / `empty`),
-`--limit n` (the first n cases of the split in `split.json` order), `--split dev|heldout`
+`--offset n` (skip the first n cases of the split in `split.json` order; default 0),
+`--limit n` (at most n cases after the offset), `--split dev|heldout`
 (default dev), `--mode` (default replay).
 
 The runner refuses:
@@ -41,7 +47,10 @@ The runner refuses:
 - `--oracle` or `--empty` with `--mode live|record` (they make no calls), both together, unknown
   flags, and a second run on the same database while one is running (advisory lock).
 - A live or record pass whose estimate (case runs × $0.002, repeats included) is over the $0.25
-  per-pass cap, before any call. Narrow it with `--limit`.
+  per-pass cap, before any call. Run the split in consecutive chunks with `--offset` and
+  `--limit` instead; each chunk is checked against the cap and ledgered on its own. `--repeat-hard
+  3` on the 84-case dev split is 136 case runs ($0.272) and is refused; `--repeat-hard 2` is 110
+  ($0.22). An `--offset` that leaves no case is refused too.
 
 The exit code is 1 when the run stopped at the spend cap, failed (a non-Haiku model, an unreadable
 response body, a runner error), or was a replay run with misses. After Ctrl-C (SIGINT) or SIGTERM

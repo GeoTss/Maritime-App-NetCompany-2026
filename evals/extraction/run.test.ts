@@ -27,6 +27,7 @@ import {
   LEDGER_RUN,
   parseArgs,
   runExtractionEval,
+  selectCases,
 } from "./run.js";
 import { GOLDEN_DIR } from "./split.js";
 
@@ -119,6 +120,7 @@ describe("parseArgs", () => {
       repeatHard: 1,
       label: "replay",
       limit: null,
+      offset: 0,
       final: false,
     });
     expect(parseArgs(["--oracle", "--limit", "10"])).toMatchObject({
@@ -143,12 +145,44 @@ describe("parseArgs", () => {
     [["--label", "a b"], /--label/],
     [["--spilt", "heldout"], /unknown argument/],
     [["--limit"], /needs a value/],
+    [["--offset", "-1"], /--offset needs a whole number >= 0/],
+    [["--offset", "x"], /--offset needs a whole number >= 0/],
   ])("refuses %j", (argv, message) => {
     expect(() => parseArgs(argv)).toThrow(message);
   });
 
   it("allows --repeat-hard in live mode", () => {
     expect(parseArgs(["--mode", "live", "--repeat-hard", "3"]).repeatHard).toBe(3);
+  });
+
+  it("parses --offset (0 allowed) beside --limit", () => {
+    expect(parseArgs(["--oracle", "--offset", "40", "--limit", "20"])).toMatchObject({
+      offset: 40,
+      limit: 20,
+    });
+    expect(parseArgs(["--oracle", "--offset", "0"]).offset).toBe(0);
+  });
+});
+
+describe("selectCases --offset / --limit (chunks of a split, in split.json order)", () => {
+  it("skips the first n cases and takes the next --limit", async () => {
+    expect(await selectCases("dev", { offset: 10, limit: 5 })).toEqual(SPLIT.dev.slice(10, 15));
+    expect(await selectCases("dev", { offset: 60 })).toEqual(SPLIT.dev.slice(60));
+    expect(await selectCases("dev", { offset: 0, limit: 3 })).toEqual(SPLIT.dev.slice(0, 3));
+  });
+
+  it("consecutive chunks cover the split exactly once", async () => {
+    const chunks = [];
+    for (let at = 0; at < SPLIT.dev.length; at += 30) {
+      chunks.push(...(await selectCases("dev", { offset: at, limit: 30 })));
+    }
+    expect(chunks).toEqual(SPLIT.dev);
+  });
+
+  it("refuses an offset that leaves no case", async () => {
+    await expect(selectCases("dev", { offset: SPLIT.dev.length })).rejects.toThrow(
+      /--offset .* leaves no case/,
+    );
   });
 });
 
@@ -265,7 +299,7 @@ describe("runExtractionEval refusals (before any database, network or spend)", (
       await base({ ids: undefined, repeatHard: 30, apiKey: "test-key", fetch, ledgerPath }),
     );
     await expect(run).rejects.toBeInstanceOf(BudgetError);
-    await expect(run).rejects.toThrow(/per-pass cap.*--limit/);
+    await expect(run).rejects.toThrow(/per-pass cap.*--offset.*--limit/);
     expect(fetch).not.toHaveBeenCalled();
     expect(readLedger(ledgerPath)).toHaveLength(1);
   });
@@ -402,6 +436,13 @@ describe.skipIf(!sql)("extraction runner (database)", () => {
     expect(md).toContain(
       `| Critical-field accuracy | ${card.critical.n}/${card.critical.n} | 100.0 % |`,
     );
+  }, 120_000);
+
+  it("--offset with --limit runs exactly that chunk of the split", async () => {
+    const at = SPLIT.dev.length - 2;
+    const r = await dry({ ids: undefined, offset: at, limit: 5, label: "chunk" });
+    expect(r.rows.map((x) => x.id)).toEqual(SPLIT.dev.slice(at));
+    expect(r.meta).toMatchObject({ selected: 2, offset: at, limit: 5 });
   }, 120_000);
 
   it("leaves the seed intact and nothing of the cases behind", async () => {
