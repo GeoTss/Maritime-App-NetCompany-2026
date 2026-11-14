@@ -140,6 +140,10 @@ const run = (
 ) => evaluateExtraction(w, doc, out, ctx);
 const failed = (r: { checks: { check: string; passed: boolean }[] }) =>
   r.checks.filter((c) => !c.passed).map((c) => c.check);
+const receivedOn = (iso: string): EvaluationContext => ({
+  receivedAt: new Date(iso),
+  hasUnreadableAttachment: false,
+});
 const detailOf = (r: { checks: { check: string; detail: string | null }[] }, name: string) =>
   r.checks.find((c) => c.check === name)?.detail;
 
@@ -219,10 +223,10 @@ describe("check names", () => {
 });
 
 describe("validity_not_expired", () => {
-  const withValidity = (written: string) => {
+  const withValidity = (written: string, ctx: EvaluationContext = CTX) => {
     const out = quote();
     out.validUntil = dateField(written, `Valid until: ${written}`);
-    return run(out, email({ append: [`Valid until: ${written}`] }));
+    return run(out, email({ append: [`Valid until: ${written}`] }), ctx);
   };
 
   it("expired validity → needs_review / validity_not_expired", () => {
@@ -236,6 +240,27 @@ describe("validity_not_expired", () => {
     const r = withValidity("14 Nov 2026");
     expect(failed(r)).toEqual([]);
     expect(r.status === "extracted" && r.quote.validUntil).toBe("2026-11-14");
+  });
+
+  it("a validity with no year that reads as a past day fails: 30 Dec received 2 Jan", () => {
+    const r = withValidity("30 Dec", receivedOn("2027-01-02T09:00:00Z"));
+    expect(r.normalised.validUntil).toBe("2026-12-30");
+    expect(failed(r)).toEqual(["validity_not_expired"]);
+  });
+
+  it("a validity more than 60 days ahead fails: 1 Sep received 14 Nov", () => {
+    const r = withValidity("1 Sep");
+    expect(r.normalised.validUntil).toBe("2027-09-01");
+    expect(r.status).toBe("needs_review");
+    expect(failed(r)).toEqual(["validity_not_expired"]);
+    expect(detailOf(r, "validity_not_expired")).toContain(
+      "implausibly far ahead of the received date — check the year",
+    );
+  });
+
+  it("a validity 60 days ahead passes; 61 days ahead fails", () => {
+    expect(failed(withValidity("13 Jan 2027"))).toEqual([]);
+    expect(failed(withValidity("14 Jan 2027"))).toEqual(["validity_not_expired"]);
   });
 
   it("absent validity passes with the detail 'no validity stated'", () => {
@@ -253,11 +278,12 @@ describe("delivery dates (R7) and dates_parsed", () => {
     from: string | null,
     to: string | null,
     bodyLine = `Delivery: ${from ?? to}`,
+    ctx: EvaluationContext = CTX,
   ) => {
     const out = quote();
     if (from !== null) out.deliveryFrom = dateField(from, bodyLine);
     if (to !== null) out.deliveryTo = dateField(to, bodyLine);
-    return run(out, email({ append: [bodyLine] }));
+    return run(out, email({ append: [bodyLine] }), ctx);
   };
 
   it('"18-19 Nov" → deliveryFrom/To set', () => {
@@ -277,14 +303,32 @@ describe("delivery dates (R7) and dates_parsed", () => {
     }
   });
 
-  it("separate dates in each field give from and to; a single date fills both ends", () => {
+  it("separate dates in each field give from and to", () => {
     const both = withDelivery("18 Nov", "20 Nov", "Delivery: from 18 Nov to 20 Nov");
+    expect(failed(both)).toEqual([]);
     expect(both.normalised).toMatchObject({ deliveryFrom: "2026-11-18", deliveryTo: "2026-11-20" });
-    const single = withDelivery("on 18 Nov", null, "Delivery on 18 Nov");
-    expect(single.normalised).toMatchObject({
-      deliveryFrom: "2026-11-18",
-      deliveryTo: "2026-11-18",
-    });
+  });
+
+  it("a single date in deliveryFrom alone sets only the start", () => {
+    for (const written of ["from 18 Nov", "on 18 Nov"]) {
+      const r = withDelivery(written, null, `Delivery ${written}`);
+      expect(failed(r), written).toEqual([]);
+      expect(r.normalised, written).toMatchObject({ deliveryFrom: "2026-11-18", deliveryTo: null });
+      expect(r.status === "extracted" && [r.quote.deliveryFrom, r.quote.deliveryTo]).toEqual([
+        "2026-11-18",
+        null,
+      ]);
+    }
+  });
+
+  it("a single date in deliveryTo alone sets only the end", () => {
+    const r = withDelivery(null, "by 20 Nov", "Delivery by 20 Nov");
+    expect(failed(r)).toEqual([]);
+    expect(r.normalised).toMatchObject({ deliveryFrom: null, deliveryTo: "2026-11-20" });
+    expect(r.status === "extracted" && [r.quote.deliveryFrom, r.quote.deliveryTo]).toEqual([
+      null,
+      "2026-11-20",
+    ]);
   });
 
   it("a stated date that parses neither way fails dates_parsed only", () => {
@@ -300,6 +344,27 @@ describe("delivery dates (R7) and dates_parsed", () => {
 
   it("a window that ends before the email was received → delivery_window_valid", () => {
     const r = withDelivery("10-12 Nov", null);
+    expect(failed(r)).toEqual(["delivery_window_valid"]);
+  });
+
+  it("a window with no year that reads as past days fails: 28-30 Dec received 2 Jan", () => {
+    const r = withDelivery("28-30 Dec", null, undefined, receivedOn("2027-01-02T09:00:00Z"));
+    expect(r.normalised).toMatchObject({ deliveryFrom: "2026-12-28", deliveryTo: "2026-12-30" });
+    expect(failed(r)).toEqual(["delivery_window_valid"]);
+  });
+
+  it("a window ending more than 120 days after receipt fails; 120 days passes", () => {
+    const far = withDelivery("13-15 Mar 2027", null);
+    expect(failed(far)).toEqual(["delivery_window_valid"]);
+    expect(detailOf(far, "delivery_window_valid")).toContain(
+      "implausibly far ahead of the received date — check the year",
+    );
+    expect(failed(withDelivery("12-14 Mar 2027", null))).toEqual([]);
+  });
+
+  it("a start alone more than 120 days after receipt fails too", () => {
+    const r = withDelivery("from 1 Sep", null, "Delivery from 1 Sep");
+    expect(r.normalised.deliveryFrom).toBe("2027-09-01");
     expect(failed(r)).toEqual(["delivery_window_valid"]);
   });
 
@@ -411,6 +476,36 @@ describe("multi-grade quotes and requirement_found", () => {
     expect(r.status === "extracted" && r.quote.requirementId).toBe(vlsfoRequirement.id);
   });
 
+  it("a per-mt barge fee on a multi-grade quote fails amounts_parsed, whatever the line order", () => {
+    const perMt = {
+      value: 5,
+      currency: "USD",
+      perUnit: "per mt",
+      asWritten: "USD 5 per mt",
+      evidence: "Barge fee: USD 5 per mt",
+    };
+    const doc = email({
+      replace: [["Barge fee: USD 2,800 lump sum", "Barge fee: USD 5 per mt"]],
+      append: vlsfoLines,
+    });
+    const orders = [
+      [line("VLSFO", 500, vlsfoPrice), line("LSMGO", 300, 738)],
+      [line("LSMGO", 300, 738), line("VLSFO", 500, vlsfoPrice)],
+    ];
+    for (const lines of orders) {
+      const out = multiGrade();
+      out.lines = lines;
+      out.bargeFee = perMt;
+      const r = run(out, doc);
+      expect(r.status).toBe("needs_review");
+      expect(failed(r)).toEqual(["amounts_parsed"]);
+      expect(detailOf(r, "amounts_parsed")).toContain(
+        "per-mt barge fee on a multi-grade quote: total is ambiguous",
+      );
+      expect(r.normalised.bargeFee).toBeNull();
+    }
+  });
+
   it("a quote for a grade with no open requirement fails requirement_found", () => {
     const out = quote();
     out.lines = [line("VLSFO", 500, vlsfoPrice)];
@@ -473,6 +568,40 @@ describe("barge fee", () => {
     expect(r.status === "extracted" && r.quote.bargeFee).toBe(0);
     expect(r.normalised.bargeFee).toBe(0);
     expect(detailOf(r, "amounts_parsed")).toBe("barge fee not quoted; treated as included");
+  });
+
+  const NO_BARGE = { value: null, currency: null, perUnit: null, asWritten: null, evidence: null };
+
+  it("a barge charge written in the email but not transcribed fails amounts_parsed", () => {
+    for (const written of [
+      "Barge fee: USD 2,800 lump sum",
+      "Barging: 2800 $",
+      "barge fee 2,800 EUR",
+      "Barge: US$2800 lump sum",
+      "Barge delivery charge € 1.500",
+    ]) {
+      const out = quote();
+      out.bargeFee = NO_BARGE;
+      const doc = email({ replace: [["Barge fee: USD 2,800 lump sum", written]] });
+      const r = run(out, doc);
+      expect(r.status, written).toBe("needs_review");
+      expect(failed(r), written).toEqual(["amounts_parsed"]);
+      expect(detailOf(r, "amounts_parsed"), written).toBe(
+        "a barge charge is written in the email but was not transcribed",
+      );
+      expect(r.normalised.bargeFee, written).toBe(0);
+    }
+  });
+
+  it("a barge mentioned without a money amount is not a charge: delivery by barge, fee included", () => {
+    for (const written of ["Delivery by barge 18-19 Nov", "Barge fee included"]) {
+      const out = quote();
+      out.bargeFee = NO_BARGE;
+      const doc = email({ replace: [["Barge fee: USD 2,800 lump sum", written]] });
+      const r = run(out, doc);
+      expect(failed(r), written).toEqual([]);
+      expect(r.status === "extracted" && r.quote.bargeFee, written).toBe(0);
+    }
   });
 });
 

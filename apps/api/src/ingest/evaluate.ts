@@ -13,6 +13,7 @@ import { currentVoyage, openRequirements, type World } from "@pharos/db";
 import {
   bargeFeeTotal,
   evidenceSupports,
+  isoDayAfter,
   normaliseCurrency,
   normaliseGrade,
   normaliseMassUnit,
@@ -125,6 +126,21 @@ export function writtenIn(
   });
 }
 
+/** A validity this many days or fewer after the received day is plausible; further is a misread year. */
+const VALIDITY_MAX_DAYS_AHEAD = 60;
+/** A delivery window ending this many days or fewer after the received day is plausible. */
+const DELIVERY_MAX_DAYS_AHEAD = 120;
+const FAR_AHEAD = "implausibly far ahead of the received date — check the year";
+
+const BARGE_WORD = /\bbarg(e|ing)\b/i;
+/** A currency (USD, EUR, US$, $, €) right before or after a number, spaces ignored. */
+const CURRENCY_AMOUNT = /(?:US\$|USD|EUR|\$|€)\s*\d|\d\s*(?:US\$|USD|EUR|\$|€)/i;
+
+/** Some line of the email names a barge and holds a money amount: a barge charge is written. */
+function bargeChargeWritten(source: string): boolean {
+  return source.split(/\r?\n/).some((l) => BARGE_WORD.test(l) && CURRENCY_AMOUNT.test(l));
+}
+
 const bargeQuoted = (barge: MoneyField): boolean =>
   barge.value !== null || barge.asWritten !== null;
 
@@ -191,8 +207,9 @@ type DatePath = "deliveryFrom" | "deliveryTo" | "validUntil";
 /**
  * Dates (R7). A delivery field whose as-written text reads as a window gives its own end of it
  * (`from` for deliveryFrom, `to` for deliveryTo), else it is read as a single date. When only one
- * delivery field has an as-written text and it reads as a window, it fills both ends. The
- * reference for a missing year is the received time.
+ * delivery field has an as-written text and it reads as a real span (from ≠ to), it fills both
+ * ends; a single date ("by 20 Nov", "from 18 Nov") sets only its own field's end. The reference
+ * for a missing year is the received time.
  */
 function readDates(
   q: QuoteExtraction,
@@ -216,8 +233,8 @@ function readDates(
   const to = delivery("deliveryTo", q.deliveryTo);
   let deliveryFrom = from ? (from.window?.from ?? from.single) : null;
   let deliveryTo = to ? (to.window?.to ?? to.single) : null;
-  if (from?.window && !to) deliveryTo = from.window.to;
-  if (to?.window && !from) deliveryFrom = to.window.from;
+  if (from?.window && from.window.from !== from.window.to && !to) deliveryTo = from.window.to;
+  if (to?.window && to.window.from !== to.window.to && !from) deliveryFrom = to.window.from;
 
   const validUntil = parseQuoteDate(q.validUntil.asWritten, receivedAt);
   if (q.validUntil.asWritten !== null && validUntil === null) {
@@ -225,9 +242,6 @@ function readDates(
   }
   return { validUntil, deliveryFrom, deliveryTo, unparsed };
 }
-
-/** The received time's UTC day, as an ISO date. */
-const receivedDay = (receivedAt: Date): IsoDate => receivedAt.toISOString().slice(0, 10);
 
 // ---------- normalisation ----------
 
@@ -266,7 +280,8 @@ function normaliseQuote(world: World, doc: ExtractInput, q: QuoteExtraction, rec
     };
   });
 
-  // Barge fee: not quoted means included (0); a lump sum as is; per mt times the first line's qty.
+  // Barge fee: not quoted means included (0); a lump sum as is; per mt times the quantity of a
+  // single-line quote (on a multi-line quote the total is ambiguous: null).
   const quoted = bargeQuoted(q.bargeFee);
   const barge = quoted ? bargeUnit(q.bargeFee) : { unit: null, problem: null };
   const fee = quoted ? readAmount(q.bargeFee) : null;
@@ -274,7 +289,13 @@ function normaliseQuote(world: World, doc: ExtractInput, q: QuoteExtraction, rec
   let bargeFee: number | null = null;
   if (!quoted) bargeFee = 0;
   else if (fee !== null && fee >= 0 && barge.unit === "lump_sum") bargeFee = fee;
-  else if (fee !== null && fee >= 0 && barge.unit === "per_mt" && firstQty !== null) {
+  else if (
+    fee !== null &&
+    fee >= 0 &&
+    barge.unit === "per_mt" &&
+    lines.length === 1 &&
+    firstQty !== null
+  ) {
     bargeFee = bargeFeeTotal(fee, "per_mt", firstQty);
   }
 
@@ -485,9 +506,14 @@ export function evaluateExtraction(
   if (n.barge.quoted) {
     if (n.barge.fee === null || n.barge.fee < 0) {
       amountFailures.push(`Barge fee does not read as "${output.bargeFee.asWritten ?? ""}".`);
+    } else if (n.barge.unit === "per_mt" && lines.length > 1) {
+      amountFailures.push("per-mt barge fee on a multi-grade quote: total is ambiguous");
     } else if (n.barge.unit === "per_mt" && view.lines[0]?.qtyMt == null) {
       amountFailures.push("Barge fee is per mt, but the first line's quantity in mt is not known.");
     }
+  } else if (bargeChargeWritten(source)) {
+    // Absent means included only when the email names no barge charge the model left out.
+    amountFailures.push("a barge charge is written in the email but was not transcribed");
   }
   checks.push(
     check(
@@ -505,15 +531,25 @@ export function evaluateExtraction(
     ),
   );
 
-  // validity_not_expired: valid until the received day or later.
-  const today = receivedDay(ctx.receivedAt);
+  // validity_not_expired: valid until the received day or later, and not implausibly far ahead
+  // (a date with no year that resolved into the wrong year).
+  const today = isoDayAfter(ctx.receivedAt, 0);
   const validityStated = output.validUntil.asWritten !== null;
+  const validityFailures: string[] = [];
+  if (view.validUntil !== null && view.validUntil < today) {
+    validityFailures.push(
+      `The quote expired on ${view.validUntil}, before it was received on ${today}.`,
+    );
+  } else if (
+    view.validUntil !== null &&
+    view.validUntil > isoDayAfter(ctx.receivedAt, VALIDITY_MAX_DAYS_AHEAD)
+  ) {
+    validityFailures.push(`Validity ${view.validUntil} is ${FAR_AHEAD}.`);
+  }
   checks.push(
     check(
       "validity_not_expired",
-      view.validUntil !== null && view.validUntil < today
-        ? [`The quote expired on ${view.validUntil}, before it was received on ${today}.`]
-        : [],
+      validityFailures,
       !validityStated
         ? "no validity stated"
         : view.validUntil === null
@@ -523,7 +559,8 @@ export function evaluateExtraction(
   );
 
   // delivery_window_valid: once the stated delivery dates parse, the window ends no earlier than
-  // it starts and not before the received day. An unparsed one is left to dates_parsed.
+  // it starts, not before the received day, and not implausibly far ahead (a wrong year). Only
+  // one end stated: that end is judged. An unparsed date is left to dates_parsed.
   const deliveryStated =
     output.deliveryFrom.asWritten !== null || output.deliveryTo.asWritten !== null;
   const deliveryUnparsed = n.unparsedDates.some((d) => d.path !== "validUntil");
@@ -536,6 +573,11 @@ export function evaluateExtraction(
     const windowEnd = to ?? from;
     if (windowEnd !== null && windowEnd < today) {
       windowFailures.push(`The delivery window ends on ${windowEnd}, before receipt on ${today}.`);
+    } else if (
+      windowEnd !== null &&
+      windowEnd > isoDayAfter(ctx.receivedAt, DELIVERY_MAX_DAYS_AHEAD)
+    ) {
+      windowFailures.push(`The delivery window ends on ${windowEnd}, ${FAR_AHEAD}.`);
     }
   }
   checks.push(

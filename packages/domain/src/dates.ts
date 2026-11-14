@@ -4,8 +4,12 @@
  * only time input (no clock). Unparseable text returns null, never throws.
  */
 
-/** Window after which an undated-year date is read as next year (days before the reference). */
-const YEAR_ROLLOVER_GRACE_DAYS = 60;
+/**
+ * A date written without a year is the one day in [reference - 60 days, reference + 305 days):
+ * a year-long window that leans forward, since quotes mostly name days ahead of the email.
+ */
+const MISSING_YEAR_DAYS_BEFORE = 60;
+const MISSING_YEAR_DAYS_AFTER = 305;
 
 const MS_PER_DAY = 86_400_000;
 
@@ -122,13 +126,21 @@ function parseCleanParts(s: string, allowBareDay: boolean): Parts | null {
   return null;
 }
 
-/** Year for a date written without one: reference year, or next when > 60 days before the reference. */
+/**
+ * Year for a date written without one: of the reference year and the years either side, the one
+ * that puts the day in [reference - 60 days, reference + 305 days). Null when none does (29 Feb
+ * with no leap year in the window).
+ */
 function resolveMissingYear(m: number, d: number, reference: Date): number | null {
   const ref = refDayMs(reference);
+  const lo = ref - MISSING_YEAR_DAYS_BEFORE * MS_PER_DAY;
+  const hi = ref + MISSING_YEAR_DAYS_AFTER * MS_PER_DAY;
   const y = reference.getUTCFullYear();
-  const here = dayMs(y, m, d);
-  if (here === null) return null;
-  return ref - here > YEAR_ROLLOVER_GRACE_DAYS * MS_PER_DAY ? y + 1 : y;
+  const hits = [y - 1, y, y + 1].filter((c) => {
+    const ms = dayMs(c, m, d);
+    return ms !== null && ms >= lo && ms < hi;
+  });
+  return hits.length === 1 ? (hits[0] as number) : null;
 }
 
 function resolveParts(p: Parts, reference: Date): number | null {
@@ -138,8 +150,8 @@ function resolveParts(p: Parts, reference: Date): number | null {
 }
 
 /**
- * As-written quote date to ISO `YYYY-MM-DD`. Numeric dates are day/month. A missing year takes
- * the reference year, or the next year when that would be more than 60 days before the reference.
+ * As-written quote date to ISO `YYYY-MM-DD`. Numeric dates are day/month. A missing year puts
+ * the day in [reference - 60 days, reference + 305 days).
  */
 export function parseQuoteDate(asWritten: string | null, reference: Date): string | null {
   if (asWritten === null) return null;
@@ -218,6 +230,11 @@ export function parseDeliveryWindow(
   const range = parseRange(s, reference);
   if (range === null || range.to < range.from) return null;
   return { from: toIso(range.from), to: toIso(range.to) };
+}
+
+/** The ISO day `days` whole UTC days after the reference's UTC day (negative: before). */
+export function isoDayAfter(reference: Date, days: number): string {
+  return toIso(refDayMs(reference) + days * MS_PER_DAY);
 }
 
 /** Barge fee in the quote currency: fee x quantity for per-mt, the fee itself for a lump sum. */

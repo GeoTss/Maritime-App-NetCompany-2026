@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bargeFeeTotal, parseDeliveryWindow, parseQuoteDate } from "./dates.js";
+import { bargeFeeTotal, isoDayAfter, parseDeliveryWindow, parseQuoteDate } from "./dates.js";
 
 const REF = new Date("2026-11-14T09:30:00Z");
 
@@ -40,6 +40,29 @@ describe("parseQuoteDate", () => {
 
   it("rolls into next year: 5 Jan with reference 2026-12-20", () => {
     expect(parseQuoteDate("5 Jan", new Date("2026-12-20T00:00:00Z"))).toBe("2027-01-05");
+  });
+
+  // A missing year resolves into [reference - 60 days, reference + 305 days).
+  const NEW_YEAR = new Date("2027-01-02T10:00:00Z");
+  it.each([
+    ["30 Dec", "2026-12-30"],
+    ["5 Jan", "2027-01-05"],
+    ["2 Jan", "2027-01-02"],
+    // 2026-11-03 is exactly 60 days before the reference: still the earlier year
+    ["3 Nov", "2026-11-03"],
+    // 2026-11-02 is 61 days before: the later year (304 days ahead)
+    ["2 Nov", "2027-11-02"],
+  ])("rolls back across the year boundary: %s with reference 2027-01-02 -> %s", (input, iso) => {
+    expect(parseQuoteDate(input, NEW_YEAR)).toBe(iso);
+  });
+
+  it("a date up to 305 days ahead takes the later year: 1 Sep with reference 2026-11-14", () => {
+    expect(parseQuoteDate("1 Sep", REF)).toBe("2027-09-01");
+  });
+
+  it("29 Feb without a year takes the leap year in the window, else null", () => {
+    expect(parseQuoteDate("29 Feb", new Date("2027-12-01T00:00:00Z"))).toBe("2028-02-29");
+    expect(parseQuoteDate("29 Feb", REF)).toBeNull();
   });
 
   it.each([
@@ -123,8 +146,29 @@ describe("parseDeliveryWindow", () => {
     expect(parseDeliveryWindow(null, REF)).toBeNull();
   });
 
+  const NEW_YEAR = new Date("2027-01-02T10:00:00Z");
+  it.each([
+    ["28-30 Dec", { from: "2026-12-28", to: "2026-12-30" }],
+    ["30 Dec - 2 Jan", { from: "2026-12-30", to: "2027-01-02" }],
+    ["on 30 Dec", { from: "2026-12-30", to: "2026-12-30" }],
+    ["ETA 31 Dec +/- 1 day", { from: "2026-12-30", to: "2027-01-01" }],
+    ["3-5 Jan", { from: "2027-01-03", to: "2027-01-05" }],
+  ])("rolls back across the year boundary: %s with reference 2027-01-02", (input, expected) => {
+    expect(parseDeliveryWindow(input, NEW_YEAR)).toEqual(expected);
+  });
+
   it("is deterministic", () => {
     expect(parseDeliveryWindow("18-19 Nov", REF)).toEqual(parseDeliveryWindow("18-19 Nov", REF));
+  });
+});
+
+describe("isoDayAfter", () => {
+  it("counts whole UTC days from the reference's UTC day", () => {
+    expect(isoDayAfter(new Date("2026-11-14T23:30:00Z"), 0)).toBe("2026-11-14");
+    expect(isoDayAfter(new Date("2026-11-14T03:00:00Z"), 60)).toBe("2027-01-13");
+    expect(isoDayAfter(new Date("2026-11-14T03:00:00Z"), 120)).toBe("2027-03-14");
+    expect(isoDayAfter(new Date("2028-02-28T00:00:00Z"), 1)).toBe("2028-02-29");
+    expect(isoDayAfter(new Date("2027-01-02T00:00:00Z"), -3)).toBe("2026-12-30");
   });
 });
 
