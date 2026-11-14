@@ -10,7 +10,16 @@ export interface AppConfig {
   llmMode: LlmMode;
   anthropicApiKey: string | undefined;
   port: number;
+  /** What the API does with the synthetic world at boot. */
+  seedOnBoot: SeedOnBoot;
+  worldSeed: number;
 }
+
+export const SeedOnBoot = z.enum(["reset", "if-empty", "off"]);
+export type SeedOnBoot = z.infer<typeof SeedOnBoot>;
+
+/** Seed of the synthetic world's PRNG (the world is also anchored to boot time). */
+export const DEFAULT_WORLD_SEED = 20261114;
 
 const blankToUndefined = (v: unknown) => (typeof v === "string" && v.trim() === "" ? undefined : v);
 
@@ -19,6 +28,11 @@ const EnvSchema = z.object({
   LLM_MODE: z.preprocess(blankToUndefined, LlmMode.default("live")),
   ANTHROPIC_API_KEY: z.preprocess(blankToUndefined, z.string().optional()),
   API_PORT: z.preprocess(blankToUndefined, z.coerce.number().int().positive().default(4000)),
+  SEED_ON_BOOT: z.preprocess(blankToUndefined, SeedOnBoot.default("if-empty")),
+  WORLD_SEED: z.preprocess(
+    blankToUndefined,
+    z.coerce.number().int().nonnegative().default(DEFAULT_WORLD_SEED),
+  ),
 });
 
 /**
@@ -44,5 +58,7 @@ export function loadConfig(env: Record<string, string | undefined>): AppConfig {
     llmMode: e.LLM_MODE,
     anthropicApiKey: e.ANTHROPIC_API_KEY,
     port: e.API_PORT,
+    seedOnBoot: e.SEED_ON_BOOT,
+    worldSeed: e.WORLD_SEED,
   };
 }

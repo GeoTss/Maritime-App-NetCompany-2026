@@ -41,4 +41,28 @@ describe("loadConfig", () => {
       expect(String(e)).not.toContain("sk-secret-value");
     }
   });
+
+  it("defaults SEED_ON_BOOT to if-empty and WORLD_SEED to 20261114", () => {
+    const c = loadConfig({ ...base, LLM_MODE: "replay" });
+    expect(c.seedOnBoot).toBe("if-empty");
+    expect(c.worldSeed).toBe(20261114);
+  });
+
+  it("accepts SEED_ON_BOOT=reset and a custom WORLD_SEED", () => {
+    const c = loadConfig({ ...base, LLM_MODE: "replay", SEED_ON_BOOT: "reset", WORLD_SEED: "7" });
+    expect(c.seedOnBoot).toBe("reset");
+    expect(c.worldSeed).toBe(7);
+  });
+
+  it("rejects an unknown SEED_ON_BOOT and names the variable", () => {
+    expect(() => loadConfig({ ...base, LLM_MODE: "replay", SEED_ON_BOOT: "bogus" })).toThrow(
+      /SEED_ON_BOOT/,
+    );
+  });
+
+  it("requires WORLD_SEED to be an integer", () => {
+    expect(() => loadConfig({ ...base, LLM_MODE: "replay", WORLD_SEED: "1.5" })).toThrow(
+      /WORLD_SEED/,
+    );
+  });
 });

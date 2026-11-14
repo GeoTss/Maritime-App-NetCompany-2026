@@ -16,7 +16,7 @@
 - Seed code never uses `Math.random()` or the wall clock: seeded PRNG + injected `anchor: Date`. Same `(seed, anchor)` → byte-identical `JSON.stringify(world)`.
 - CO₂ factors (t CO₂ / t fuel, IMO MEPC.364(79) Cf): LSMGO **3.206**, VLSFO **3.114**, HSFO **3.114**.
 - ETS coverage factor: EU↔EU **1.0**, EU↔non-EU **0.5**, non-EU↔non-EU **0**; at berth in an EU port **1.0**. Phase-in (share of verified emissions surrendered): 2024 **0.4**, 2025 **0.7**, 2026+ **1.0**. Bunker-only stops are not ports of call (EU MRV Reg. 2015/757 art. 3), so they do not change voyage coverage.
-- 0.1 %-sulphur zones (ECA): Mediterranean (MARPOL Annex VI, in force 2025-05-01) and North Sea incl. English Channel east of 5°W. Rule used everywhere: a leg requires **LSMGO** if either end port is in an ECA, else **VLSFO** (conservative, planning-grade).
+- 0.1 %-sulphur zones (ECA): Mediterranean (MARPOL Annex VI, in force 2025-05-01) and North Sea incl. English Channel east of 5°W. Rule used everywhere: a leg requires **LSMGO** if any part of its real sea route lies in an ECA zone (`searoute-ts` ECA zones) or either end port is in an ECA, else **VLSFO** (conservative, planning-grade).
 - Consumption: cubic law, `mainMtPerDay(v) = refMtPerDay × (v / refSpeedKn)³`, plus constant `auxMtPerDay`; the whole ship burns the leg's required grade.
 - Fuel grades: `LSMGO | VLSFO | HSFO`. Currencies: `USD | EUR`. Money totals are reported in USD; conversion uses rates passed in, never fetched.
 - Calculators return unrounded numbers; rounding happens when facts are created (Phase 4).
@@ -181,7 +181,7 @@
 
 **Files:**
 
-- Create: `packages/db/src/seed/prng.ts`, `packages/db/src/seed/scenario.ts`, `packages/db/src/seed/world.ts`, `packages/db/src/seed/types.ts`
+- Create: `packages/db/src/seed/build-routes.ts`, `packages/db/src/seed/routes.generated.json`, `packages/db/src/seed/prng.ts`, `packages/db/src/seed/scenario.ts`, `packages/db/src/seed/world.ts`, `packages/db/src/seed/types.ts`
 - Test: `packages/db/src/seed/prng.test.ts`, `packages/db/src/seed/world.test.ts`
 
 **Interfaces:**
@@ -195,7 +195,7 @@
   - `buildDemoBunkerPlanInput(world: World): BunkerPlanInput` — assembles the planner input for Aegean Pioneer from world rows + `DEMO_SCENARIO` (used by tests, API fixtures and later the agent tool).
 - Scenario inputs (tunable; if an invariant fails, change these, never the test):
   - **12 ports** (UN/LOCODE, approx coords, `isEu`, `inEca`, `approachNm`): EGPSD Port Said (non-EU, ECA), GRPIR Piraeus, MTMLA Marsaxlokk/Malta, ITGOA Genoa, ESALG Algeciras, GIGIB Gibraltar (non-EU, ECA), PTSIE Sines (non-ECA), FRBES Brest (non-ECA: south of 48°30′N), FRLEH Le Havre, BEANR Antwerp, NLRTM Rotterdam, DEHAM Hamburg (all EU; Med and North Sea ports in ECA).
-  - **Route legs** (~16) as polylines that stay at sea (e.g. Malta→Gibraltar passes north of Cap Bon, ~37.5°N 11°E); `distanceNm = polylineNm(waypoints)` (1 dp); `requiredGrade` by the ECA endpoint rule; `etsCoverage = etsCoverage(from.isEu, to.isEu)` (the factor if that leg is sailed between two ports of call; voyage-level coverage comes from the voyage's origin/destination). Must include the demo path EGPSD→MTMLA→GIGIB→PTSIE→FRBES→NLRTM and GIGIB↔ESALG.
+  - **Route legs** (~16) come from the **real Eurostat 2025 maritime network** via `searoute-ts@2.3.1` (dependency of `@pharos/db` only; never imported by `packages/domain`). A script `packages/db/src/seed/build-routes.ts` (`npm run db:routes -w @pharos/db`) calls `seaRoute(fromLocode, toLocode, {units: "nauticalmiles", emissions: true})` with `searoute-ts/ports` and `searoute-ts/eca` loaded, and writes `packages/db/src/seed/routes.generated.json`: per leg `{from, to, waypoints (coords rounded to 4 dp, port coordinates prepended/appended), ecaFraction, libraryLengthNm, originSnapNm, destinationSnapNm}`. The file is committed; `generateWorld` reads it and never calls the library (fast, offline, byte-deterministic). Port coordinates come from `searoute-ts/ports` for the same UN/LOCODEs. `distanceNm = polylineNm(waypoints)` (1 dp); `requiredGrade` = LSMGO if `ecaFraction > 0` or either end port is in an ECA, else VLSFO (conservative); `etsCoverage = etsCoverage(from.isEu, to.isEu)` (the factor if that leg is sailed between two ports of call; voyage-level coverage comes from the voyage's origin/destination). Must include the demo path EGPSD→MTMLA→GIGIB→PTSIE→FRBES→NLRTM and GIGIB↔ESALG.
   - **8 vessels**, `trackingSource "simulator"`, MMSI 999000001–8, valid IMO check digits; mix of 4 bulk carriers, 2 tankers, 2 container ships. **MV Aegean Pioneer**: bulk carrier, 58 000 DWT, curve `{refSpeedKn 13, refMtPerDay 30, auxMtPerDay 2.5, minSpeedKn 9, maxSpeedKn 14.5}`, tanks LSMGO 450 / VLSFO 1 500 / HSFO 0, `dailyCostUsd 16 000`.
   - **Voyages**: each vessel one current voyage (+ optional completed previous one). Aegean Pioneer: EGPSD→NLRTM via the demo path, 12.5 kn, departed `anchor − 24 h`, so 300 nm along leg 1 at the anchor; discharge port call at NLRTM with `eta = etaAfter(anchor, remainingNm, 12.5)` and berth window `[eta − 6 h, eta + 48 h]`.
   - **Noon reports**: 5 per vessel at `anchor − k·24 h` (k = 0..4; the k = 0 report is the current state). Built backwards from the current ROB: `rob(k+1) = rob(k) + consumed(k)`, consumption from `legFuel`/`portStayFuelMt` and the leg grade (at port: aux at that port's grade). Aegean Pioneer current ROB: LSMGO **230**, VLSFO **620**.
@@ -214,7 +214,8 @@
   - `identity`: MMSIs 999000001–8 unique; every IMO passes the check digit (Σ first six digits × 7..2 mod 10 = 7th).
   - `fuel continuity` — per vessel and grade, consecutive reports: `robOlder − consumedNewer = robNewer` ± 0.1 mt; ROB never negative.
   - `ETA consistency` — each future port call's ETA = `etaAfter(anchor, remaining route nm, plannedSpeedKn)` ± 60 s.
-  - `grade-by-zone` — each leg's `requiredGrade` follows the ECA endpoint rule; `etsCoverage` equals `etsCoverage(from.isEu, to.isEu)`; `distanceNm` equals `polylineNm(waypoints)` ± 0.1.
+  - `routes are real` — every leg in the world exists in `routes.generated.json`; `libraryLengthNm − 1 ≤ distanceNm ≤ libraryLengthNm + originSnapNm + destinationSnapNm + 1` (the port-to-network stubs are the only extra); Port Said→Malta is 900–1 050 nm.
+  - `grade-by-zone` — each leg's `requiredGrade` follows the ECA rule above; `etsCoverage` equals `etsCoverage(from.isEu, to.isEu)`; `distanceNm` equals `polylineNm(waypoints)` ± 0.1.
   - `Aegean Pioneer is short on LSMGO for the ECA legs` — `projectFuelOnBoard` over the remaining legs (current leg remainder + rest) at 12.5 kn, 2 safety-margin days, from the k = 0 report: LSMGO `minRobMt ≥ 0` **and** `< safetyMarginMt.LSMGO`; `shortfallMt.LSMGO > 0`; `shortfallMt.VLSFO = 0`.
   - `demo trap` — `planBunkers(buildDemoBunkerPlanInput(world))`: `bestOptionId !== cheapestHeadlineOptionId`, the best option is feasible, `cheapestHeadlineOptionId` is the GIGIB offer, `savingVsCheapestHeadlineUsd > 0`.
   - `berth window` — baseline ETA is inside the window and the best option's `delayHours` < `berthWindowSlackHours`.

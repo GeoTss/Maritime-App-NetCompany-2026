@@ -2,7 +2,7 @@
   "name": "pharos",
   "private": true,
   "type": "module",
-  "description": "Smart Maritime Operations Assistant \u2014 Bunker-to-Berth",
+  "description": "Smart Maritime Operations Assistant — Bunker-to-Berth",
   "engines": {
     "node": ">=22.12.0"
   },

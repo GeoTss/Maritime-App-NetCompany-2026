@@ -47,6 +47,9 @@ services:
       DATABASE_URL: postgres://pharos:pharos@db:5432/pharos
       ERP_BASE_URL: http://erp:4100
       API_PORT: "4000"
+      # The API migrates, then reseeds the synthetic world anchored to boot time (reset|if-empty|off).
+      SEED_ON_BOOT: ${SEED_ON_BOOT:-reset}
+      WORLD_SEED: ${WORLD_SEED:-20261114}
       # Live by default; the API refuses to start without a key in live/record mode.
       LLM_MODE: ${LLM_MODE:-live}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
