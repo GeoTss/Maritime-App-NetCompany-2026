@@ -400,6 +400,9 @@ function buildRecommendation(world: World): RecommendationView {
     expectedSavingUsd: plan.savingVsCheapestHeadlineUsd,
     factRefs: facts.map((f) => f.id),
     facts,
+    // A fixture proposal: made by no ask, not approved.
+    gatePassed: null,
+    order: null,
   };
 }
 

@@ -15,11 +15,14 @@ import {
   VoyageSummary,
 } from "@pharos/shared";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { createErpApp } from "../../../../services/erp-sim/src/app.js";
 import type { Extractor } from "../ai/extract.js";
 import { createToolContext } from "../ai/tools/common.js";
 import { planBunkering } from "../ai/tools/plan-bunkering.js";
 import { proposeAction } from "../ai/tools/propose-action.js";
 import { createApp } from "../app.js";
+import { createErpClient } from "../executor/erp-client.js";
+import { approveRecommendation } from "../executor/execute.js";
 import { DEMO_INBOX_DIR } from "../inbox/routes.js";
 import { type IngestDeps, ingestRaw, processDocument } from "../ingest/workflow.js";
 import { createDbSource } from "./db-source.js";
@@ -194,6 +197,9 @@ describe.skipIf(!sql)("createDbSource (Postgres)", () => {
       calculationId,
       optionId: "MTMLA-kestrel",
       expectedSavingUsd: plan.savingVsCheapestHeadlineUsd,
+      // Proposed straight through the tool, not by an ask; not approved yet.
+      gatePassed: null,
+      order: null,
     });
     expect(rec?.summary).toContain("Kestrel Marine Fuels");
     expect(rec?.summary).toContain("Marsaxlokk");
@@ -223,4 +229,78 @@ describe.skipIf(!sql)("createDbSource (Postgres)", () => {
       expect(body).toEqual({ error: "not_found" });
     },
   );
+
+  // Runs last: approves the first recommendation and adds a second one.
+  describe("gate origin and order state", () => {
+    let withheldRecId: number;
+
+    /** What runAgent stores for an answer: its assistant message, linked from the proposals. */
+    const attachAnswer = async (id: number, gate: { passed: boolean; repaired: boolean }) => {
+      const [conv] = await db<{ id: number }[]>`
+        insert into conversations (title, created_at)
+        values ('Where should Aegean Pioneer bunker?', ${NOW.toISOString()}::timestamptz)
+        returning id`;
+      const content = {
+        answer: gate.passed ? "Bunker at Marsaxlokk." : null,
+        gate: { ...gate, ungroundedNumbers: gate.passed ? [] : ["8,000"] },
+      };
+      const [msg] = await db<{ id: number }[]>`
+        insert into messages (conversation_id, role, content, created_at)
+        values (${conv?.id ?? 0}, 'assistant', ${JSON.stringify(content)}::jsonb,
+                ${NOW.toISOString()}::timestamptz)
+        returning id`;
+      await db`update recommendations set message_id = ${msg?.id ?? 0} where id = ${id}`;
+    };
+
+    beforeAll(async () => {
+      // A second proposal (a fresh plan), made in an answer the release gate withheld.
+      const ctx = createToolContext({ sql: db, now: () => NOW });
+      const planned = await planBunkering(ctx, { vessel: "Aegean Pioneer" });
+      const best = planned.facts.find((f) => f.id.endsWith("_bestOptionId"));
+      const proposed = await proposeAction(ctx, {
+        type: "purchase_order",
+        calculationId: (planned.data as { calculationId: number }).calculationId,
+        optionId: "MTMLA-kestrel",
+        factRefs: [best?.id ?? ""],
+        rationale: "Lowest total delivered cost.",
+      });
+      withheldRecId = (proposed.data as { recommendationId: number }).recommendationId;
+      await attachAnswer(withheldRecId, { passed: false, repaired: true });
+
+      // The first proposal, from an answer that passed, approved and pushed to the ERP.
+      await attachAnswer(recId, { passed: true, repaired: false });
+      const erpApp = createErpApp({ now: () => NOW });
+      await approveRecommendation(
+        {
+          sql: db,
+          erp: createErpClient("http://erp.test", (input, init) => erpApp.request(input, init)),
+          now: () => NOW,
+        },
+        recId,
+        "alice",
+      );
+    });
+
+    it("shows a recommendation from a withheld answer as gatePassed false, still pending", async () => {
+      const rec = RecommendationView.parse(
+        (await get(app, `/api/recommendations/${withheldRecId}`)).body,
+      );
+      expect(rec).toMatchObject({ status: "pending", gatePassed: false, order: null });
+      const { items } = listOf(RecommendationView).parse(
+        (await get(app, "/api/recommendations")).body,
+      );
+      expect(items.map((r) => r.id)).toEqual([withheldRecId, recId]);
+    });
+
+    it("shows an executed recommendation with its order and PO number", async () => {
+      const [order] = await db<{ id: number }[]>`
+        select id from purchase_orders where recommendation_id = ${recId}`;
+      const rec = RecommendationView.parse((await get(app, `/api/recommendations/${recId}`)).body);
+      expect(rec).toMatchObject({
+        status: "executed",
+        gatePassed: true,
+        order: { orderId: order?.id, erpPoNumber: "PO-000001", erpSyncStatus: "synced" },
+      });
+    });
+  });
 });

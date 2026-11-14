@@ -8,6 +8,7 @@ import {
   LlmCall,
   ProposedAction,
   Provenance,
+  RecommendationView,
   RouteLeg,
 } from "./index.js";
 
@@ -188,6 +189,37 @@ describe("Phase 2 contracts", () => {
         ...order,
         lines: [{ grade: "LSMGO", qtyMt: 0, pricePerMt: 738 }],
       }).success,
+    ).toBe(false);
+  });
+
+  it("RecommendationView carries the proposing answer's gate and the order's ERP state", () => {
+    const rec = {
+      id: 1,
+      type: "purchase_order",
+      status: "executed",
+      calculationId: 7,
+      optionId: "MTMLA-kestrel",
+      summary: "Order LSMGO from Kestrel Marine Fuels at Marsaxlokk.",
+      expectedSavingUsd: 16171.54,
+      factRefs: ["f_plan_bunkering_7_bestOptionId"],
+      facts: [],
+      gatePassed: false,
+      order: { orderId: 3, erpPoNumber: "PO-000001", erpSyncStatus: "synced" },
+    };
+    expect(RecommendationView.parse(rec).order?.erpPoNumber).toBe("PO-000001");
+    // Not made by an ask, not approved yet.
+    expect(RecommendationView.safeParse({ ...rec, gatePassed: null, order: null }).success).toBe(
+      true,
+    );
+    const approvedUnsynced = { orderId: 3, erpPoNumber: null, erpSyncStatus: "failed" };
+    expect(RecommendationView.safeParse({ ...rec, order: approvedUnsynced }).success).toBe(true);
+    const { gatePassed: _g, ...noGate } = rec;
+    expect(RecommendationView.safeParse(noGate).success).toBe(false);
+    const { order: _o, ...noOrder } = rec;
+    expect(RecommendationView.safeParse(noOrder).success).toBe(false);
+    expect(
+      RecommendationView.safeParse({ ...rec, order: { ...rec.order, erpSyncStatus: "sent" } })
+        .success,
     ).toBe(false);
   });
 

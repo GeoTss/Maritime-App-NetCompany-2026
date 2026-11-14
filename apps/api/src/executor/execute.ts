@@ -16,7 +16,7 @@ import {
   type FuelGrade,
   type Id,
 } from "@pharos/shared";
-import { type ErpClient, ErpResponseError, ErpUnavailableError } from "./erp-client.js";
+import type { ErpClient } from "./erp-client.js";
 
 export interface ExecutorDeps {
   sql: Sql;
@@ -85,7 +85,7 @@ async function lockRecommendation(tx: Tx, id: Id): Promise<RecommendationRow> {
 /**
  * Approves a pending recommendation, writes its purchase order once, and pushes the order to the
  * ERP. Calling it again on an approved or executed recommendation re-uses the order and only
- * retries a push that has not synced. An ERP outage is not an error: the order is left `failed`
+ * retries a push that has not synced. A failed push is not an error: the order is left `failed`
  * (audited) and the recommendation stays `approved` until a later call syncs it.
  */
 export async function approveRecommendation(
@@ -203,10 +203,7 @@ async function createOrder(tx: Tx, rec: RecommendationRow, now: Date): Promise<I
   return order.id;
 }
 
-interface OrderRow {
-  id: number;
-  quote_id: number;
-  erp_sync_status: string;
+interface OrderCodesRow {
   idempotency_key: string;
   currency: "USD" | "EUR";
   barge_fee: number;
@@ -216,10 +213,9 @@ interface OrderRow {
 }
 
 /** The stored order as the ERP request: the same body every time, so retries stay idempotent. */
-async function loadOrder(sql: Sql, orderId: Id) {
-  const [row] = await sql<OrderRow[]>`
-    select po.id, po.quote_id, po.erp_sync_status, po.idempotency_key, q.currency, q.barge_fee,
-           s.erp_code, p.unlocode, v.imo
+async function erpRequestFor(sql: Sql, orderId: Id): Promise<ErpOrderRequest> {
+  const [row] = await sql<OrderCodesRow[]>`
+    select po.idempotency_key, q.currency, q.barge_fee, s.erp_code, p.unlocode, v.imo
     from purchase_orders po
       join quotes q on q.id = po.quote_id
       join suppliers s on s.id = q.supplier_id
@@ -232,7 +228,7 @@ async function loadOrder(sql: Sql, orderId: Id) {
   if (!row) throw new Error(`purchase order ${orderId} has no quote, supplier, port or vessel`);
   const lines = await sql<{ grade: FuelGrade; qty_mt: number; price_per_mt: number }[]>`
     select grade, qty_mt, price_per_mt from order_lines where order_id = ${orderId} order by id`;
-  const request: ErpOrderRequest = {
+  return {
     supplierErpCode: row.erp_code,
     vesselImo: row.imo,
     port: row.unlocode,
@@ -241,23 +237,29 @@ async function loadOrder(sql: Sql, orderId: Id) {
     bargeFee: row.barge_fee,
     reference: row.idempotency_key,
   };
-  return { row, request };
 }
 
-/** Pushes an unsynced order to the ERP and records the outcome. */
+/**
+ * Pushes an unsynced order to the ERP and records the outcome. Any failure of the push (ERP
+ * down, ERP refusal, or a stored order the ERP contract rejects) leaves the order `failed` with an
+ * `order.sync_failed` audit carrying the error; it is never thrown, so a later approve retries.
+ */
 async function pushOrder(deps: ExecutorDeps, recId: Id, orderId: Id): Promise<void> {
   const { sql } = deps;
-  const { row, request } = await loadOrder(sql, orderId);
-  if (row.erp_sync_status === "synced") return;
+  const [order] = await sql<
+    { quote_id: number; erp_sync_status: string; idempotency_key: string }[]
+  >`
+    select quote_id, erp_sync_status, idempotency_key from purchase_orders where id = ${orderId}`;
+  if (!order) throw new Error(`purchase order ${orderId} does not exist`);
+  if (order.erp_sync_status === "synced") return;
+  const key = order.idempotency_key;
 
   let confirmed: Awaited<ReturnType<ErpClient["placeOrder"]>>;
   try {
-    confirmed = await deps.erp.placeOrder(request, row.idempotency_key);
+    confirmed = await deps.erp.placeOrder(await erpRequestFor(sql, orderId), key);
   } catch (err) {
-    if (!(err instanceof ErpUnavailableError || err instanceof ErpResponseError)) throw err;
-    deps.log?.(
-      `[executor] order ${orderId} (${row.idempotency_key}): ERP push failed: ${err.message}`,
-    );
+    const error = err instanceof Error ? err.message : String(err);
+    deps.log?.(`[executor] order ${orderId} (${key}): ERP push failed: ${error}`);
     await sql.begin(async (tx) => {
       // A concurrent push may have synced it meanwhile; never downgrade that.
       const marked = await tx`
@@ -269,7 +271,7 @@ async function pushOrder(deps: ExecutorDeps, recId: Id, orderId: Id): Promise<vo
           recId,
           "order.sync_failed",
           EXECUTOR,
-          { orderId, idempotencyKey: row.idempotency_key, error: err.message },
+          { orderId, idempotencyKey: key, error },
           clock(deps),
         );
       }
@@ -284,10 +286,10 @@ async function pushOrder(deps: ExecutorDeps, recId: Id, orderId: Id): Promise<vo
       where id = ${orderId} and erp_sync_status <> 'synced' returning id`;
     if (synced.length === 0) return; // a concurrent push recorded the same PO first
     await tx`update recommendations set status = 'executed' where id = ${recId} and status = 'approved'`;
-    await tx`update quotes set status = 'ordered' where id = ${row.quote_id}`;
+    await tx`update quotes set status = 'ordered' where id = ${order.quote_id}`;
     await tx`
       update bunker_requirements set status = 'ordered'
-      where id = (select requirement_id from quotes where id = ${row.quote_id}) and status = 'open'`;
+      where id = (select requirement_id from quotes where id = ${order.quote_id}) and status = 'open'`;
     await audit(
       tx,
       recId,

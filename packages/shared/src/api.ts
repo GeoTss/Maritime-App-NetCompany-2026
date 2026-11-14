@@ -136,6 +136,19 @@ export const QuoteView = z.object({
 });
 export type QuoteView = z.infer<typeof QuoteView>;
 
+/** Where an approved purchase order stands with the ERP. */
+export const ErpSyncStatus = z.enum(["pending", "synced", "failed"]);
+export type ErpSyncStatus = z.infer<typeof ErpSyncStatus>;
+
+/** The purchase order the executor wrote for a recommendation, and its ERP state. */
+export const RecommendationOrder = z.object({
+  orderId: Id,
+  /** Null until the ERP has confirmed the order. */
+  erpPoNumber: z.string().nullable(),
+  erpSyncStatus: ErpSyncStatus,
+});
+export type RecommendationOrder = z.infer<typeof RecommendationOrder>;
+
 export const RecommendationView = z.object({
   id: Id,
   type: RecommendationType,
@@ -146,6 +159,10 @@ export const RecommendationView = z.object({
   expectedSavingUsd: z.number().nullable(),
   factRefs: z.array(FactId),
   facts: z.array(Fact),
+  /** Whether the answer that proposed it passed the release gate; null when no ask made it. */
+  gatePassed: z.boolean().nullable(),
+  /** The purchase order written on approval; null before approval (or after a rejection). */
+  order: RecommendationOrder.nullable(),
 });
 export type RecommendationView = z.infer<typeof RecommendationView>;
 
@@ -191,7 +208,7 @@ export const DecisionResult = z.object({
   status: RecommendationStatus,
   orderId: Id.nullable(),
   erpPoNumber: z.string().nullable(),
-  erpSyncStatus: z.enum(["pending", "synced", "failed"]).nullable(),
+  erpSyncStatus: ErpSyncStatus.nullable(),
 });
 export type DecisionResult = z.infer<typeof DecisionResult>;
 

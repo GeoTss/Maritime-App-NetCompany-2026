@@ -1,7 +1,10 @@
 /**
  * `POST /api/recommendations/:id/approve|reject` → `DecisionResult`. The human decision; the
- * executor does the rest. The optional body names who decided (`decidedBy`, default "operator")
- * and nothing else: an order's values always come from the stored calculation and quote.
+ * executor does the rest. The JSON body (`{}` or `{decidedBy}`, default "operator") names who
+ * decided and nothing else: an order's values always come from the stored calculation and quote.
+ *
+ * Only `application/json` is accepted (415 otherwise): a cross-site HTML form can send only
+ * form-encoded, multipart or text/plain bodies, so it can never approve or reject.
  */
 import { Hono } from "hono";
 import { z } from "zod";
@@ -24,17 +27,21 @@ export function createApprovalRoutes(deps: ApprovalDeps) {
 
   const decide = (path: "approve" | "reject", action: typeof approveRecommendation) =>
     app.post(`/:id/${path}`, async (c) => {
+      const type = (c.req.header("content-type") ?? "").split(";")[0]?.trim().toLowerCase();
+      if (type !== "application/json") {
+        return c.json(
+          { error: "unsupported_media_type", message: "Send the decision as application/json." },
+          415,
+        );
+      }
       const id = parseId(c.req.param("id"));
       if (id === null) return c.json({ error: "not_found" }, 404);
 
-      const text = await c.req.text();
-      let raw: unknown = {};
-      if (text.trim() !== "") {
-        try {
-          raw = JSON.parse(text);
-        } catch {
-          return c.json({ error: "invalid_request", message: "Body must be JSON." }, 400);
-        }
+      let raw: unknown;
+      try {
+        raw = JSON.parse(await c.req.text());
+      } catch {
+        return c.json({ error: "invalid_request", message: "Body must be JSON, e.g. {}." }, 400);
       }
       const body = DecisionBody.safeParse(raw);
       if (!body.success) {

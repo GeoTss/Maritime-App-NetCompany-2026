@@ -236,10 +236,8 @@ function factChips(facts) {
 const state = {
   inbox: [],
   conversationId: null,
-  /** recommendation id -> gate of the answer that proposed it (asks made on this page). */
-  gateByRecommendation: new Map(),
-  /** recommendation id -> latest DecisionResult or error from this page. */
-  decisions: new Map(),
+  /** recommendation id -> error of the last approve/reject from this page. */
+  decisionErrors: new Map(),
 };
 
 // ---------- inbox & quotes ----------
@@ -341,7 +339,6 @@ $("ask").addEventListener("click", async () => {
   }
   const res = r.body;
   state.conversationId = res.conversationId;
-  for (const id of res.recommendationIds) state.gateByRecommendation.set(id, res.gate);
   $("ask-note").textContent = `Conversation #${res.conversationId}.`;
   $("answer").replaceChildren(
     res.answer === null ? el("div") : el("div", { class: "answer" }, res.answer),
@@ -363,39 +360,40 @@ $("new-conversation").addEventListener("click", () => {
 
 // ---------- recommendations ----------
 
-function gateOrigin(id) {
-  const gate = state.gateByRecommendation.get(id);
-  if (!gate) return el("p", { class: "note" }, "Release gate of the answer that proposed it: not seen on this page.");
-  if (gate.passed) return el("p", { class: "note" }, badge("passed"), " Proposed in an answer that passed the release gate.");
+// Gate origin and order state come from the recommendation itself, so they survive a reload.
+function gateOrigin(rec) {
+  if (rec.gatePassed === null) return el("p", { class: "note" }, "Not proposed through an ask.");
+  if (rec.gatePassed) return el("p", { class: "note" }, badge("passed"), " Proposed in an answer that passed the release gate.");
   return el("p", { class: "error" }, badge("withheld"), " Proposed in an answer the release gate withheld. Check the facts before approving.");
 }
 
-function decisionLine(rec) {
-  const d = state.decisions.get(rec.id);
-  if (d?.error) return el("p", { class: "error" }, d.error);
-  if (d?.erpPoNumber) {
-    return el("p", {}, "Purchase order ", el("span", { class: "po" }, d.erpPoNumber), " confirmed by the ERP ", badge(d.erpSyncStatus), ".");
+function orderLine(rec) {
+  const order = rec.order;
+  if (!order) return null;
+  if (order.erpSyncStatus === "synced") {
+    return el("p", {}, "Purchase order ", el("span", { class: "po" }, order.erpPoNumber || "(no number)"), " confirmed by the ERP ", badge("synced"), ".");
   }
-  if (d && d.erpSyncStatus === "failed") {
-    return el("p", { class: "error" }, "Approved, but the ERP push failed. Approve again to retry with the same key.");
+  if (order.erpSyncStatus === "failed") {
+    return el("p", { class: "error" }, `Approved and order #${order.orderId} written, but the ERP push failed. Retry pushes it again with the same key.`);
   }
-  if (rec.status === "executed") return el("p", { class: "note" }, "Executed: the purchase order is in the ERP.");
-  return null;
+  return el("p", { class: "note" }, `Approved and order #${order.orderId} written; the ERP has not confirmed it yet. Retry pushes it with the same key.`);
 }
 
 const DECISION_PATHS = { approve: "/approve", reject: "/reject" };
 
 async function decide(rec, action, button) {
   button.disabled = true;
-  const r = await api(`/api/recommendations/${rec.id}${DECISION_PATHS[action]}`, { method: "POST" });
-  state.decisions.set(rec.id, r.ok ? r.body : { error: `${action === "approve" ? "Approve" : "Reject"} failed: ${errorText(r)}` });
+  const r = await postJson(`/api/recommendations/${rec.id}${DECISION_PATHS[action]}`, {});
+  if (r.ok) state.decisionErrors.delete(rec.id);
+  else state.decisionErrors.set(rec.id, `${action === "approve" ? "Approve" : "Reject"} failed: ${errorText(r)}`);
   refresh();
 }
 
 function recommendationCard(rec) {
   const actions = [];
   if (rec.status === "pending" || rec.status === "approved") {
-    const approve = el("button", { class: "primary", type: "button" }, rec.status === "approved" ? "Retry ERP push" : "Approve");
+    const label = rec.status === "approved" ? "Retry ERP push" : rec.gatePassed === false ? "Approve anyway" : "Approve";
+    const approve = el("button", { class: "primary", type: "button" }, label);
     approve.addEventListener("click", () => decide(rec, "approve", approve));
     actions.push(approve);
   }
@@ -409,9 +407,10 @@ function recommendationCard(rec) {
     { class: "card" },
     el("div", { class: "row" }, el("b", {}, `#${rec.id}`), badge(rec.status), el("span", { class: "muted" }, rec.type.replace(/_/g, " "))),
     el("p", {}, rec.summary),
-    gateOrigin(rec.id),
+    gateOrigin(rec),
     factChips(rec.facts),
-    decisionLine(rec),
+    orderLine(rec),
+    state.decisionErrors.has(rec.id) ? el("p", { class: "error" }, state.decisionErrors.get(rec.id)) : null,
     actions.length > 0 ? el("div", { class: "row" }, actions) : null,
   );
 }

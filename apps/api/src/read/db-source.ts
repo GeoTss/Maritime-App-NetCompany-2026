@@ -2,13 +2,16 @@
  * Database-backed ReadSource (what `server.ts` serves; responses are tagged `x-pharos-data: db`).
  * Vessels and voyages come from the stored world through the same builders as the fixture source.
  * Inbox items, quotes and recommendations are read from their tables. A recommendation's facts
- * are re-derived from the calculation it references, never from stored model text.
+ * are re-derived from the calculation it references, never from stored model text. Its gate
+ * origin is the stored gate result of the answer that proposed it; its order state comes from
+ * purchase_orders.
  */
 import { loadWorld, type Sql } from "@pharos/db";
 import {
   BunkerPlan,
   BunkerPlanInput,
   CheckResult,
+  type ErpSyncStatus,
   ExtractionOutput,
   type Fact,
   type Id,
@@ -142,6 +145,10 @@ interface RecommendationRow {
   inputs: unknown;
   outputs: unknown;
   voyage_no: string | null;
+  gate_passed: boolean | null;
+  order_id: number | null;
+  erp_po_number: string | null;
+  erp_sync_status: ErpSyncStatus | null;
 }
 
 /**
@@ -186,10 +193,18 @@ function bunkerOptionFacts(calculationId: Id, plan: BunkerPlan, optionId: string
 async function recommendations(sql: Sql, id?: Id): Promise<RecommendationView[]> {
   const rows = await sql<RecommendationRow[]>`
     select r.id, r.type, r.status, r.calculation_id, r.option_id, r.fact_refs,
-           r.expected_saving_usd, c.kind, c.inputs, c.outputs, vo.voyage_no
+           r.expected_saving_usd, c.kind, c.inputs, c.outputs, vo.voyage_no,
+           (m.content -> 'gate' ->> 'passed')::boolean as gate_passed,
+           po.id as order_id, po.erp_po_number, po.erp_sync_status
     from recommendations r
       join calculations c on c.id = r.calculation_id
       left join voyages vo on vo.id = c.voyage_id
+      -- The ask's stored answer: the agent links its proposals to it, with the gate result.
+      left join messages m on m.id = r.message_id
+      left join lateral (
+        select id, erp_po_number, erp_sync_status from purchase_orders
+        where recommendation_id = r.id order by id limit 1
+      ) po on true
     ${id === undefined ? sql`` : sql`where r.id = ${id}`}
     order by r.id desc`;
   if (rows.length === 0) return [];
@@ -211,6 +226,11 @@ async function recommendations(sql: Sql, id?: Id): Promise<RecommendationView[]>
       optionId: r.option_id,
       expectedSavingUsd: r.expected_saving_usd,
       factRefs: r.fact_refs,
+      gatePassed: r.gate_passed,
+      order:
+        r.order_id === null || r.erp_sync_status === null
+          ? null
+          : { orderId: r.order_id, erpPoNumber: r.erp_po_number, erpSyncStatus: r.erp_sync_status },
     };
     const input = BunkerPlanInput.safeParse(r.inputs);
     const plan = BunkerPlan.safeParse(r.outputs);

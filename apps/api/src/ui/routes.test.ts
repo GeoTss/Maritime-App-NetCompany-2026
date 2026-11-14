@@ -66,4 +66,18 @@ describe("GET /", () => {
       expect(html).toContain(path);
     }
   });
+
+  it("posts decisions as JSON (the routes refuse anything else)", async () => {
+    const { html } = await page();
+    const decide = html.match(/async function decide\([\s\S]*?\n}\n/)?.[0] ?? "";
+    expect(decide).toContain("postJson(");
+    expect(decide).not.toMatch(/\bapi\(/);
+  });
+
+  it("renders gate origin and order state from the recommendation, so they survive a reload", async () => {
+    const { html } = await page();
+    expect(html).toContain("rec.gatePassed");
+    expect(html).toContain("rec.order");
+    expect(html).not.toContain("gateByRecommendation");
+  });
 });

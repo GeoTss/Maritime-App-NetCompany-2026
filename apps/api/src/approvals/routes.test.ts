@@ -53,17 +53,16 @@ describe.skipIf(!sql)("approval routes (Postgres)", () => {
     await db.end();
   });
 
-  const post = (path: string, body?: unknown) =>
-    app.request(
-      path,
-      body === undefined
-        ? { method: "POST" }
-        : {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify(body),
-          },
-    );
+  /** A decision as the page and the smoke runner send it: JSON, `{}` when nobody is named. */
+  const post = (path: string, body: unknown = {}) =>
+    app.request(path, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  const status = async () =>
+    (await db<{ status: string }[]>`select status from recommendations where id = ${recId}`)[0]
+      ?.status;
   const decidedBy = async () =>
     (
       await db<{ decided_by: string | null }[]>`
@@ -122,6 +121,7 @@ describe.skipIf(!sql)("approval routes (Postgres)", () => {
     ["an empty decidedBy", JSON.stringify({ decidedBy: "  " })],
     ["an unknown field", JSON.stringify({ quantity: 500 })],
     ["malformed JSON", "{"],
+    ["an empty body", ""],
   ])("400s on %s without deciding", async (_label, body) => {
     const res = await app.request(`/api/recommendations/${recId}/approve`, {
       method: "POST",
@@ -130,8 +130,38 @@ describe.skipIf(!sql)("approval routes (Postgres)", () => {
     });
     expect(res.status).toBe(400);
     expect(await res.json()).toMatchObject({ error: "invalid_request" });
-    const [row] = await db<{ status: string }[]>`
-      select status from recommendations where id = ${recId}`;
-    expect(row?.status).toBe("pending");
+    expect(await status()).toBe("pending");
+  });
+
+  // A cross-site HTML form can only send these (or nothing); none of them may decide.
+  it.each([
+    ["no content-type and no body", undefined, undefined],
+    ["a form post", "application/x-www-form-urlencoded", "decidedBy=mallory"],
+    ["a multipart form post", "multipart/form-data; boundary=x", "--x--"],
+    ["a text/plain form post", "text/plain", '{"decidedBy":"mallory"}'],
+  ])("415s on %s and decides nothing", async (_label, type, body) => {
+    for (const action of ["approve", "reject"]) {
+      const res = await app.request(`/api/recommendations/${recId}/${action}`, {
+        method: "POST",
+        ...(type === undefined ? {} : { headers: { "content-type": type } }),
+        ...(body === undefined ? {} : { body }),
+      });
+      expect(res.status).toBe(415);
+      expect(await res.json()).toMatchObject({ error: "unsupported_media_type" });
+    }
+    expect(await status()).toBe("pending");
+    const [orders] = await db<{ n: number }[]>`select count(*)::int as n from purchase_orders
+      where recommendation_id = ${recId}`;
+    expect(orders?.n).toBe(0);
+  });
+
+  it("accepts application/json with a charset", async () => {
+    const res = await app.request(`/api/recommendations/${recId}/reject`, {
+      method: "POST",
+      headers: { "content-type": "application/json; charset=utf-8" },
+      body: "{}",
+    });
+    expect(res.status).toBe(200);
+    expect(await status()).toBe("rejected");
   });
 });

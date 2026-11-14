@@ -244,6 +244,52 @@ describe.skipIf(!sql)("executor (Postgres)", () => {
     ]);
   });
 
+  it("any push error, e.g. a stored order the ERP contract rejects, leaves the order failed and audited", async () => {
+    const [supplier] = await db<{ id: number; erp_code: string }[]>`
+      select s.id, s.erp_code from suppliers s join quotes q on q.supplier_id = s.id
+      where q.id = ${kestrelQuoteId}`;
+    await db`update suppliers set erp_code = '' where id = ${supplier?.id ?? 0}`;
+
+    const failed = DecisionResult.parse(await approveRecommendation(deps, recId, "alice"));
+    expect(failed).toMatchObject({
+      status: "approved",
+      erpSyncStatus: "failed",
+      erpPoNumber: null,
+    });
+    expect(erp.requests).toHaveLength(0);
+    const [audit] = await db<{ detail: { orderId: number; error: string } }[]>`
+      select detail from audit_events
+      where recommendation_id = ${recId} and kind = 'order.sync_failed'`;
+    expect(audit?.detail.orderId).toBe(failed.orderId);
+    expect(audit?.detail.error).toMatch(/supplierErpCode/);
+
+    await db`update suppliers set erp_code = ${supplier?.erp_code ?? ""} where id = ${supplier?.id ?? 0}`;
+    const retried = await approveRecommendation(deps, recId, "alice");
+    expect(retried).toMatchObject({
+      status: "executed",
+      erpSyncStatus: "synced",
+      erpPoNumber: "PO-000001",
+      orderId: failed.orderId,
+    });
+  });
+
+  it("an unexpected error from the ERP client is recorded the same way, not thrown", async () => {
+    const broken: ExecutorDeps = {
+      ...deps,
+      erp: {
+        placeOrder: async () => {
+          throw new Error("proxy closed the socket");
+        },
+      },
+    };
+    const result = await approveRecommendation(broken, recId, "alice");
+    expect(result).toMatchObject({ status: "approved", erpSyncStatus: "failed" });
+    const [audit] = await db<{ detail: { error: string } }[]>`
+      select detail from audit_events
+      where recommendation_id = ${recId} and kind = 'order.sync_failed'`;
+    expect(audit?.detail.error).toBe("proxy closed the socket");
+  });
+
   it("reject is final", async () => {
     const rejected = DecisionResult.parse(await rejectRecommendation(deps, recId, "carol"));
     expect(rejected).toEqual({
