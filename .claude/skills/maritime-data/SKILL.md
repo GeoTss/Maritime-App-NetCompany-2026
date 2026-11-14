@@ -10,7 +10,7 @@ The demo world must be **deterministic** (same seed → byte-identical data) and
 ## Change the synthetic world
 
 1. Edit the scenario inputs in `packages/db/src/seed/` (never hand-edit generated rows).
-2. `npm run db:seed -w @pharos/db` — reseeds the dev database. _(available from Phase 1)_
+2. `DATABASE_URL=postgres://pharos:pharos@localhost:5432/pharos npm run db:seed -w @pharos/db` — migrates, then resets and reseeds the dev database (`WORLD_SEED` overrides the default 20261114; the anchor is now). If the route graph or port list changed, first run `npm run db:routes -w @pharos/db` to regenerate `routes.generated.json`.
 3. `npm run test -- packages/db` — runs the seed invariant tests:
    - fuel continuity: each noon report's ROB = previous ROB − consumed (per grade, ±0.1 mt);
    - ETA consistency: port-call ETAs follow leg distance ÷ planned speed from the boot anchor;
