@@ -66,6 +66,68 @@ describe("parseAmount", () => {
   it("is deterministic", () => {
     expect(parseAmount("1,234.5")).toBe(parseAmount("1,234.5"));
   });
+
+  // Round 3: a hedge marker inside the as-written text itself means it is not one amount, so a
+  // model that keeps the literal span ("min 100 mt") but writes 100 cannot store it.
+  it.each([
+    "min 100 mt",
+    "min. 100 mt",
+    "minimum 100 mt",
+    "max 100 mt",
+    "max. 100 mt",
+    "maximum 100 mt",
+    "up to 100 mt",
+    "upto 100 mt",
+    "at least 100 mt",
+    "not exceeding 100 mt",
+    "around 100 mt",
+    "roughly 100 mt",
+    "approx. 100 mt",
+    "approximately 100 mt",
+    "appr. 100 mt",
+    "aprox. 100 mt",
+    "circa 100 mt",
+    "ca 100 mt",
+    "ca. 100 mt",
+    "c. 100 mt",
+    "est. 100 mt",
+    "estimated 100 mt",
+    "indicative USD 683 per mt",
+    "indicatively USD 683 per mt",
+    "100 mt or thereabouts",
+    "100 mt MOLOO",
+    "moloo 100 mt",
+    "100 mt more or less",
+    "± 100 mt",
+    "±100 mt",
+    "+/- 100 mt",
+    "+- 100 mt",
+    "100 mt plus/minus 5%",
+    "≈100 mt",
+    "~100 mt",
+    "100 mt min",
+    "100 mt max",
+    "around USD 683 per mt",
+    "max USD 683 per mt",
+    "USD 683 per mt max",
+    "MIN 100 MT",
+    "100+ mt",
+    "USD 683+ per mt",
+  ])("parseAmount(%j) = null: a hedge marker in the as-written text", (written) => {
+    expect(parseAmount(written)).toBeNull();
+  });
+
+  it.each([
+    ["Maxwell 100 mt", 100],
+    ["Minerva Fuels 100 mt", 100],
+    ["Cargo 100 mt", 100],
+    ["Best offer USD 683 per mt", 683],
+    ["Kestrel Inc. USD 683", 683],
+    ["USD 683 per mt", 683],
+    ["100 mt", 100],
+  ])("parseAmount(%j) = %j: marker words are whole words", (written, value) => {
+    expect(parseAmount(written)).toBe(value);
+  });
 });
 
 describe("normaliseCurrency", () => {
@@ -291,6 +353,55 @@ describe("hedgedInSource", () => {
     ["Quantity: 300 mt LSMGO +/- 5%", "300 mt"],
     // case and whitespace folded
     ["QUANTITY: ABT   100 MT", "100 mt"],
+    // round 3: tolerances and more markers before the amount
+    ["Quantity: +/- 300 mt", "300 mt"],
+    ["Quantity: ± 300 mt", "300 mt"],
+    ["Quantity: +/-300 mt", "300 mt"],
+    ["Qty: ±300 mt", "300 mt"],
+    ["Quantity: plus/minus 300 mt", "300 mt"],
+    ["Price: +/- USD 683 per mt", "USD 683 per mt"],
+    ["Quantity: upto 300 mt", "300 mt"],
+    ["Quantity: est. 300 mt", "300 mt"],
+    ["Quantity: estimated 300 mt", "300 mt"],
+    ["Quantity: appr. 300 mt", "300 mt"],
+    ["Quantity: aprox. 300 mt", "300 mt"],
+    ["Quantity: ca 300 mt", "300 mt"],
+    ["Quantity: abt. 300 mt", "300 mt"],
+    ["Quantity: not exceeding 300 mt", "300 mt"],
+    ["Quantity: some 300 mt", "300 mt"],
+    ["Price: indicatively USD 683 per mt", "USD 683 per mt"],
+    // a marker on the field label ("Approximate quantity: 300 mt")
+    ["Approximate quantity: 300 mt", "300 mt"],
+    ["Approx quantity 300 mt", "300 mt"],
+    ["Approx. quantity: 300 mt", "300 mt"],
+    ["Maximum quantity: 300 mt", "300 mt"],
+    ["Minimum quantity 300 mt", "300 mt"],
+    ["Min. quantity: 300 mt", "300 mt"],
+    ["Qty abt: 300 mt", "300 mt"],
+    ["Quantity (approx.): 300 mt", "300 mt"],
+    ["Quantity (abt): 300 mt", "300 mt"],
+    ["Quantity required (approx.): 300 mt", "300 mt"],
+    ["Approx. price: USD 683 per mt", "USD 683 per mt"],
+    ["Indicative price: USD 683 per mt", "USD 683 per mt"],
+    ["Indicative price (approx.): USD 683 per mt", "USD 683 per mt"],
+    // after the amount
+    ["Quantity: 300 mt or thereabouts", "300 mt"],
+    ["Quantity: 300 mt (abt)", "300 mt"],
+    ["Quantity: 300 mt +/-", "300 mt"],
+    ["Quantity: 300 mts appr.", "300 mts"],
+    ["Quantity: 300 mt approximately", "300 mt"],
+    ["Quantity: 300mt abt", "300mt"],
+    ["Quantity: 300 mt, 5 pct more or less", "300 mt"],
+    ["Quantity: 300 mt max.", "300 mt"],
+    ["Quantity: 100+ mt", "100"],
+    ["Quantity: 100 mt+", "100 mt"],
+    // a tolerance anywhere in the parenthesis right after the amount
+    ["Quantity: 300 mt (Seller's option +/- 5%)", "300 mt"],
+    ["Quantity: 300 mt (+/- 5% in Sellers option)", "300 mt"],
+    ["Price: USD 683 per mt (Platts-linked, +/- daily)", "USD 683 per mt"],
+    // a shorthand range: the second amount bare
+    ["Price: USD 683/690", "USD 683"],
+    ["Quantity: 100/150", "100"],
   ])("hedged: %s | %s", (line, asWritten) => {
     expect(hedged(line, asWritten)).toBe(true);
   });
@@ -314,6 +425,41 @@ describe("hedgedInSource", () => {
     ["Quantity: 1,200 mt VLSFO 0.5%", "1,200 mt"],
     ["Price: EUR 690 / mt", "EUR 690 / mt"],
     ["Price: USD 712 PMT", "USD 712 PMT"],
+    // round 3: a slash or dash between a quantity and a price, or before a non-amount, separates
+    // fields; a range needs two amounts of the same kind
+    ["LSMGO 0.1% / 100 mt / USD 683 pmt", "100 mt"],
+    ["LSMGO 0.1% / 100 mt / USD 683 pmt", "USD 683 pmt"],
+    ["LSMGO - 100 mt - USD 683/mt", "100 mt"],
+    ["LSMGO - 100 mt - USD 683/mt", "USD 683/mt"],
+    ["100 mt LSMGO @ USD 683 pmt / 22-24 Nov", "USD 683 pmt"],
+    ["LSMGO 100 mt @ USD 683 pmt - 22/24 Nov", "USD 683 pmt"],
+    ["Scheldt Express / Antwerp / LSMGO / 100 mt / USD 683", "100 mt"],
+    ["Scheldt Express / Antwerp / LSMGO / 100 mt / USD 683", "USD 683"],
+    ["Price: USD 683 per mt - 30 days credit", "USD 683 per mt"],
+    ["LSMGO: 100 mt - USD 683 pmt - 22/24 Nov", "100 mt"],
+    ["LSMGO: 100 mt - USD 683 pmt - 22/24 Nov", "USD 683 pmt"],
+    ["Qty 100 mt / Price USD 683 pmt", "100 mt"],
+    ["Qty 100 mt / Price USD 683 pmt", "USD 683 pmt"],
+    ["LSMGO 100 MT / VLSFO 500 MT", "100 MT"],
+    ["LSMGO 100 mt @ USD 683 pmt, 2 / 3 days notice", "USD 683 pmt"],
+    ["VLSFO 500 mt / LSMGO 100 mt", "500 mt"],
+    ["VLSFO 500 mt / LSMGO 100 mt", "100 mt"],
+    ["VLSFO USD 612 / LSMGO USD 683 pmt", "USD 612"],
+    ["LSMGO: 100 mt at USD 683 per mt, min. lifting 50 mt", "100 mt"],
+    ["LSMGO 100 mt min. lifting 50 mt", "100 mt"],
+    ["LSMGO 100 mt max tank capacity 400 mt", "100 mt"],
+    [
+      "Vessel / Port / Grade / Qty / Price: Scheldt Express / Antwerp / LSMGO / 100 mt / USD 683",
+      "100 mt",
+    ],
+    [
+      "Vessel / Port / Grade / Qty / Price: Scheldt Express / Antwerp / LSMGO / 100 mt / USD 683",
+      "USD 683",
+    ],
+    ["LSMGO 100 mt to be delivered 22-24 Nov", "100 mt"],
+    ["LSMGO 100 mt, USD 683 pmt, delivery 22 - 24 Nov", "USD 683 pmt"],
+    ["Price: USD 683 pmt or as per Platts", "USD 683 pmt"],
+    ["Maxwell Fuels: 300 mt", "300 mt"],
   ])("clean: %s | %s", (line, asWritten) => {
     expect(hedged(line, asWritten)).toBe(false);
   });
@@ -342,6 +488,30 @@ describe("hedgedInSource", () => {
     expect(hedgedInSource(twice, "100 mt", "100 mt")).toBe(true);
   });
 
+  it("a marker on the label line right above the amount counts (PDF and table text)", () => {
+    expect(hedgedInSource("Approx. quantity\n300 mt\nPrice", "300 mt", "300 mt")).toBe(true);
+    expect(hedgedInSource("Quantity (abt):\n300 mt", "300 mt", "300 mt")).toBe(true);
+    expect(hedgedInSource("Quantity:\n300 mt", "300 mt", "300 mt")).toBe(false);
+    // only when the amount opens its line
+    expect(hedgedInSource("Approx. quantity\nLSMGO 300 mt", "LSMGO 300 mt", "300 mt")).toBe(false);
+  });
+
+  it("the field kind decides what a bare amount is ranged with", () => {
+    // "100" as a quantity beside a price is a field separator; beside another quantity a range
+    expect(
+      hedgedInSource("LSMGO 100 / USD 683 pmt", "LSMGO 100 / USD 683 pmt", "100", "quantity"),
+    ).toBe(false);
+    expect(hedgedInSource("LSMGO 100 / 150 mt", "LSMGO 100 / 150 mt", "100", "quantity")).toBe(
+      true,
+    );
+    expect(hedgedInSource("Price: 683 / 690 pmt", "Price: 683 / 690 pmt", "683", "price")).toBe(
+      true,
+    );
+    expect(hedgedInSource("Price: 683 / 100 mt", "Price: 683 / 100 mt", "683", "price")).toBe(
+      false,
+    );
+  });
+
   it("falls back to the evidence itself when it is not in the source", () => {
     expect(hedgedInSource("other text", "Quantity: abt 100 mt", "100 mt")).toBe(true);
     expect(hedgedInSource("other text", "Quantity: 100 mt", "100 mt")).toBe(false);
@@ -351,5 +521,172 @@ describe("hedgedInSource", () => {
     expect(hedgedInSource("abt 300 mt", null, "300")).toBe(false);
     expect(hedgedInSource("abt 300 mt", "abt 300 mt", null)).toBe(false);
     expect(hedgedInSource("abt 300 mt", "abt 300 mt", "  ")).toBe(false);
+  });
+});
+
+// Regression suite (round 3): every hedge row the reviewers probed (rr3/hedge*.mts, rr3/inside.mts,
+// and round 1's hedge cases), in the source layout each probe used, with what it must give.
+describe("reviewer probe rows: hedgedInSource and parseAmount", () => {
+  const inEmail = (line: string) => `From: x\nSubject: y\n\nDear all,\n${line}\nBR`;
+  const hedged = (line: string, asWritten: string, evidence = line) =>
+    hedgedInSource(inEmail(line), evidence, asWritten);
+
+  // rr3/hedge-fr.mts: field separators between a quantity and a price, or before a non-amount.
+  it.each([
+    ["LSMGO 0.1% / 100 mt / USD 683 pmt", "100 mt"],
+    ["LSMGO 0.1% / 100 mt / USD 683 pmt", "USD 683 pmt"],
+    ["LSMGO - 100 mt - USD 683/mt", "100 mt"],
+    ["LSMGO - 100 mt - USD 683/mt", "USD 683/mt"],
+    ["100 mt LSMGO @ USD 683 pmt / 22-24 Nov", "USD 683 pmt"],
+    ["LSMGO 100 mt @ USD 683 pmt - 22/24 Nov", "USD 683 pmt"],
+    ["Scheldt Express / Antwerp / LSMGO / 100 mt / USD 683", "100 mt"],
+    ["Scheldt Express / Antwerp / LSMGO / 100 mt / USD 683", "USD 683"],
+    ["Price: USD 683 per mt - 30 days credit", "USD 683 per mt"],
+    ["LSMGO 100 mt min. lifting 50 mt", "100 mt"],
+    ["LSMGO 100 mt max tank capacity 400 mt", "100 mt"],
+    ["LSMGO: 100 mt - USD 683 pmt - 22/24 Nov", "100 mt"],
+    ["LSMGO: 100 mt - USD 683 pmt - 22/24 Nov", "USD 683 pmt"],
+    ["Qty 100 mt / Price USD 683 pmt", "100 mt"],
+    ["Qty 100 mt / Price USD 683 pmt", "USD 683 pmt"],
+    ["LSMGO 100 MT / VLSFO 500 MT", "100 MT"],
+    ["LSMGO 100 mt @ USD 683 pmt, 2 / 3 days notice", "USD 683 pmt"],
+    // rr3/hedge.mts clean summary lines
+    ["VLSFO 500 mt / LSMGO 100 mt", "500 mt"],
+    ["VLSFO 500 mt / LSMGO 100 mt", "100 mt"],
+    ["VLSFO USD 612 / LSMGO USD 683 pmt", "USD 612"],
+    ["LSMGO: 100 mt at USD 683 per mt, min. lifting 50 mt", "100 mt"],
+    ["LSMGO 100 mt to be delivered 22-24 Nov", "100 mt"],
+    ["LSMGO 100 mt, USD 683 pmt, delivery 22 - 24 Nov", "USD 683 pmt"],
+    ["Price: USD 683 pmt or as per Platts", "USD 683 pmt"],
+    // round 2 required clean lines (rr/i2.mts)
+    ["Price: USD 683 per mt, delivery 22-24 Nov", "USD 683 per mt"],
+    ["LSMGO 0.10%S 100 mt @ USD 683/mt 22-24 Nov", "USD 683/mt"],
+    ["Quantity: 100 mt (max tank capacity 400 mt)", "100 mt"],
+    ["Quantity: 100 mt, min. lifting 50 mt", "100 mt"],
+    ["Price: USD 683 per mt (ISO 8217-2017)", "USD 683 per mt"],
+    ["Price: USD 683 per mt, payment 30 days", "USD 683 per mt"],
+    ["Qty: 100 mt to MV Scheldt Express", "100 mt"],
+  ])("clean: %j | %j", (line, asWritten) => {
+    expect(hedged(line, asWritten)).toBe(false);
+  });
+
+  // rr3/hedge-old.mts, rr3/hedge.mts, rr/i2.mts: hedges (round 1 caught these, or should have).
+  it.each([
+    ["Quantity: +/- 300 mt", "300 mt"],
+    ["Quantity: ± 300 mt", "300 mt"],
+    ["Quantity: +/-300 mt", "300 mt"],
+    ["Qty: ±300 mt", "300 mt"],
+    ["Approx. quantity: 300 mt", "300 mt"],
+    ["Approximate quantity: 300 mt", "300 mt"],
+    ["Approx quantity 300 mt", "300 mt"],
+    ["Min. quantity: 300 mt", "300 mt"],
+    ["Maximum quantity: 300 mt", "300 mt"],
+    ["Minimum quantity 300 mt", "300 mt"],
+    ["Quantity required (approx.): 300 mt", "300 mt"],
+    ["Quantity: 300 mts appr.", "300 mts"],
+    ["Quantity: ca 300 mt", "300 mt"],
+    ["Quantity: upto 300 mt", "300 mt"],
+    ["Quantity: 300 mt (Seller's option +/- 5%)", "300 mt"],
+    ["Price approx. USD 683 per mt", "USD 683 per mt"],
+    ["Approx. price: USD 683 per mt", "USD 683 per mt"],
+    ["Price: +/- USD 683 per mt", "USD 683 per mt"],
+    ["Indicative price (approx.): USD 683 per mt", "USD 683 per mt"],
+    ["Quantity: est. 300 mt", "300 mt"],
+    ["Quantity: estimated 300 mt", "300 mt"],
+    ["Quantity: appr. 300 mt", "300 mt"],
+    ["Quantity: aprox. 300 mt", "300 mt"],
+    ["Quantity: abt. 300 mt", "300 mt"],
+    ["Quantity: not exceeding 300 mt", "300 mt"],
+    ["Quantity: max. 300 mt", "300 mt"],
+    ["Quantity: 300 mt or thereabouts", "300 mt"],
+    ["Quantity: 300 mt (abt)", "300 mt"],
+    ["Quantity: 300 mt +/-", "300 mt"],
+    ["Quantity: some 300 mt", "300 mt"],
+    ["Quantity: 300 mt (+/- 5% in Sellers option)", "300 mt"],
+    ["Quantity: 300 mt, 5 pct more or less", "300 mt"],
+    ["Quantity: 300 mt approximately", "300 mt"],
+    ["Quantity: 300mt abt", "300mt"],
+    ["Qty abt: 300 mt", "300 mt"],
+    ["Quantity (approx.): 300 mt", "300 mt"],
+    ["Quantity (abt): 300 mt", "300 mt"],
+    // rr/i2.mts quantity and price hedges
+    ["Quantity: 100 - 150 mt", "150 mt"],
+    ["Quantity: around 100 mt", "100 mt"],
+    ["Quantity: roughly 100 mt", "100 mt"],
+    ["Quantity: c. 100 mt", "100 mt"],
+    ["Quantity: 100 mt more or less", "100 mt"],
+    ["Quantity: 100 mt MOLOO", "100 mt"],
+    ["Quantity: 100 mt / 150 mt", "100 mt"],
+    ["Quantity: 100 mt or 150 mt", "100 mt"],
+    ["Quantity: at least 100 mt", "100 mt"],
+    ["Quantity: ≈100 mt", "100 mt"],
+    ["Quantity: 100 mt, 10% more or less at Seller's option", "100 mt"],
+    ["Quantity: 100 mt plus/minus 10%", "100 mt"],
+    ["Quantity: 100 mt ±10%", "100 mt"],
+    ["Quantity: 100 mt approx.", "100 mt"],
+    ["Price: USD 683 per mt or USD 690 per mt ex-pipe", "USD 683 per mt"],
+    ["Price: around USD 683 per mt", "USD 683 per mt"],
+    ["Price: indicatively USD 683 per mt", "USD 683 per mt"],
+    ["Price: USD 683 per mt (Platts-linked, +/- daily)", "USD 683 per mt"],
+    // round 1 (probe-qctx): a sub-span of a range, an approximation
+    ["We can offer LSMGO 0.1% at Algeciras, 280/320 mt at EUR 690 per mt.", "280"],
+    ["Quantity: abt 300 mt", "300 mt"],
+  ])("hedged: %j | %j", (line, asWritten) => {
+    expect(hedged(line, asWritten)).toBe(true);
+  });
+
+  it("rr/i2.mts: a shortened evidence span cannot hide the marker", () => {
+    expect(hedged("Quantity: abt 100 mt", "100 mt", "100 mt")).toBe(true);
+    expect(hedged("Quantity: 100-150 mt", "150 mt", "150 mt")).toBe(true);
+    expect(hedged("Quantity: 100/150 mt", "150 mt", "150 mt")).toBe(true);
+  });
+
+  it("rr3/hedge.mts: a marker on the label line above the amount", () => {
+    const src = "From: x\nSubject: y\n\nApprox. quantity\n300 mt\nPrice\nUSD 683 per mt\n";
+    expect(hedgedInSource(src, "300 mt", "300 mt")).toBe(true);
+    expect(
+      hedgedInSource("From: x\nSubject: y\n\nQuantity (abt):\n300 mt\n", "300 mt", "300 mt"),
+    ).toBe(true);
+  });
+
+  // rr3/inside.mts, rr3/hedge-aw.mts: the model keeps the hedged span in asWritten.
+  it.each([
+    "min 300 mt",
+    "min. 300 mt",
+    "minimum 300 mt",
+    "max 300 mt",
+    "max. 300 mt",
+    "maximum 300 mt",
+    "up to 300 mt",
+    "+/- 300 mt",
+    "± 300 mt",
+    "+- 300 mt",
+    "at least 300 mt",
+    "roughly 300 mt",
+    "around 300 mt",
+    "c. 300 mt",
+    "≈300 mt",
+    "300 mt MOLOO",
+    "300 mt min",
+    "300 mt max",
+    "300 mt more or less",
+    "moloo 300 mt",
+    "around USD 683 per mt",
+    "max USD 683 per mt",
+    "USD 683 per mt max",
+    "abt 300 mt",
+    "abt 100 mt",
+    "approx. 100 mt",
+    "about 100 mt",
+    "~100 mt",
+    "100 mt approx.",
+    "100 mt +/- 5%",
+    "circa 100 mt",
+    "abt USD 683 per mt",
+    "approx. USD 683 per mt",
+    "USD 683 per mt approx.",
+    "~USD 683 per mt",
+  ])("parseAmount(%j) = null", (asWritten) => {
+    expect(parseAmount(asWritten)).toBeNull();
   });
 });
