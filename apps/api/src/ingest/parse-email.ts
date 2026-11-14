@@ -66,9 +66,28 @@ const NO_OFFER_TYPES = new Set([
   "application/ics",
   "text/vcard",
   "text/x-vcard",
+  "text/directory",
   "application/pkcs7-signature",
+  "application/x-pkcs7-signature",
   "application/pgp-signature",
+  "application/pgp-keys",
 ]);
+/** The same kinds sent under a generic type: an invite, a contact card, an S/MIME signature. */
+const NO_OFFER_EXTENSION = /\.(?:ics|vcf|p7s)$/i;
+
+const carriesNoOffer = (contentType: string, filename: string | null) =>
+  NO_OFFER_TYPES.has(contentType) || NO_OFFER_EXTENSION.test(filename ?? "");
+
+/**
+ * Decoded text that is really binary (a spreadsheet or archive labelled text/plain): a NUL, or
+ * more than 1 in 20 characters a control or replacement character.
+ */
+function looksBinary(text: string): boolean {
+  if (text.includes("\u0000")) return true;
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are the point
+  const odd = text.match(/[\u0001-\u0008\u000e-\u001f\ufffd]/g)?.length ?? 0;
+  return text.length > 0 && odd / text.length > 0.05;
+}
 
 /** Marker-safe filename: attacker text can't fake a marker line. Only the marker is sanitised. */
 function markerName(filename: string | null): string {
@@ -99,6 +118,7 @@ async function attachmentText(
     text = htmlToText(typeof content === "string" ? content : new TextDecoder().decode(content));
   } else if (isPlainText(contentType, filename)) {
     text = typeof content === "string" ? content : new TextDecoder().decode(content);
+    if (looksBinary(text)) return null;
   }
   const normalised = normalise(text);
   return normalised.trim() === "" ? null : normalised;
@@ -131,7 +151,7 @@ export async function parseEmail(raw: Uint8Array): Promise<ParsedEmail> {
       typeof a.content === "string" ? a.content : new Uint8Array(a.content),
     );
     // Any attachment that yields no text may hold the offer, unless its type never does.
-    if (text === null && !NO_OFFER_TYPES.has(contentType)) hasUnreadableAttachment = true;
+    if (text === null && !carriesNoOffer(contentType, filename)) hasUnreadableAttachment = true;
     attachments.push({ filename, contentType, text });
   }
 

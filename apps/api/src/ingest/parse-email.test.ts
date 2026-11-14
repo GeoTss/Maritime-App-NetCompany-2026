@@ -251,6 +251,13 @@ describe("parseEmail", () => {
       ["text/x-vcard", "desk.vcf"],
       ["application/pkcs7-signature", "smime.p7s"],
       ["application/pgp-signature", "signature.asc"],
+      // round 3 (rr/i5.mts): the same kinds under their other names or a generic type
+      ["application/x-pkcs7-signature", "smime.p7s"],
+      ["application/pgp-keys", "key.asc"],
+      ["text/directory", "card.vcf"],
+      ["application/octet-stream", "invite.ics"],
+      ["application/octet-stream", "card.vcf"],
+      ["application/octet-stream", "smime.p7s"],
     ])("does not flag a %s attachment (%s): it carries no offer", async (type, name) => {
       const parsed = await parseEmail(mime([attached(type, name, "BEGIN:VCALENDAR")]));
       expect(parsed.attachments).toEqual([{ filename: name, contentType: type, text: null }]);
@@ -343,6 +350,52 @@ describe("parseEmail", () => {
       const parsed = await parseEmail(bytes("From: a@b.example\r\n\r\nhello\r\n"));
       expect(parsed.attachments).toEqual([]);
       expect(parsed.hasUnreadableAttachment).toBe(false);
+    });
+
+    // Regression suite (round 3, rr/i5.mts): what each attachment kind gives.
+    const XLSX = Buffer.from("504b0304140006000800000021", "hex").toString("binary");
+    const raw = (contentType: string, name: string, content: Buffer) =>
+      part(
+        [
+          `Content-Type: ${contentType}; name="${name}"`,
+          "Content-Transfer-Encoding: base64",
+          `Content-Disposition: attachment; filename="${name}"`,
+        ],
+        content.toString("base64"),
+      );
+    const CSV = "Grade,Qty,Price\nLSMGO,100 mt,USD 683 per mt\n";
+    it.each([
+      [
+        "OFFER.XLSX",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        true,
+        null,
+        XLSX,
+      ],
+      ["OFFER.XLSX", "application/octet-stream", true, null, XLSX],
+      ["offer.xls", "application/vnd.ms-excel", true, null, "\u00d0\u00cf\u0011\u00e0"],
+      [
+        "QUOTE.CSV",
+        "application/octet-stream",
+        false,
+        "Grade,Qty,Price\nLSMGO,100 mt,USD 683 per mt",
+        CSV,
+      ],
+      [
+        "quote.csv",
+        "application/vnd.ms-excel",
+        false,
+        "Grade,Qty,Price\nLSMGO,100 mt,USD 683 per mt",
+        CSV,
+      ],
+      ["winmail.dat", "application/ms-tnef", true, null, "\u0078\u009f\u003e\u0022\u0000"],
+      // a binary file labelled text/plain is unreadable, not garbage text for the model to read
+      ["offer.xlsx", "text/plain", true, null, XLSX],
+      ["offer.txt", "text/plain", true, null, "Price: USD 683 per mt\u0000\u0001\u0002"],
+    ] as const)("%s as %s: flag %s, text %j", async (name, type, flag, text, content) => {
+      const parsed = await parseEmail(mime([raw(type, name, Buffer.from(content, "binary"))]));
+      expect(parsed.attachments[0]?.text ?? null).toBe(text);
+      expect(parsed.hasUnreadableAttachment).toBe(flag);
     });
   });
 });
