@@ -2,38 +2,18 @@
  * The ingestion workflow: fixed steps, no agent.
  *
  *   ingestRaw:       parse -> dedupe by sha256 -> insert `documents` + a `pending` extraction
- *   processDocument: extract (LLM 1) -> record the call(s) -> checks in code -> quote or review
+ *   processDocument: extract (LLM 1) -> record the call(s) -> checks in code (`evaluate.ts`)
+ *                    -> quote or review
  *
  * The model only transcribes. Every stored number is parsed from the as-written text by
  * `packages/domain`, and every value must be backed by evidence found verbatim in the email.
  */
-import { loadWorld, type Sql, type World } from "@pharos/db";
-import {
-  evidenceSupports,
-  normaliseCurrency,
-  normaliseGrade,
-  normaliseMassUnit,
-  normalisePerUnit,
-  parseAmount,
-} from "@pharos/domain";
-import type {
-  CheckResult,
-  Currency,
-  ExtractionOutput,
-  FuelGrade,
-  Id,
-  QuoteExtraction,
-} from "@pharos/shared";
-import { type ExtractInput, ExtractionError, type Extractor, sourceText } from "../ai/extract.js";
+import { loadWorld, type Sql } from "@pharos/db";
+import type { CheckResult, ExtractionOutput, Id, IsoDate } from "@pharos/shared";
+import { type ExtractInput, ExtractionError, type Extractor } from "../ai/extract.js";
 import { type CallMetrics, recordLlmCall } from "../ai/llm.js";
+import { evaluateExtraction } from "./evaluate.js";
 import { parseEmail } from "./parse-email.js";
-import {
-  checkPriceBand,
-  openRequirement,
-  resolvePort,
-  resolveSupplier,
-  resolveVessel,
-} from "./resolve.js";
 
 export interface IngestDeps {
   sql: Sql;
@@ -58,6 +38,10 @@ const iso = (d: Date): string => d.toISOString();
 
 /** jsonb parameter, sent as JSON text and cast with `::jsonb` at the call site. */
 const json = (value: unknown): string => JSON.stringify(value);
+
+/** A quote date (ISO day) as a timestamptz parameter: UTC midnight of that day, or null. */
+const dayStart = (day: IsoDate | null): string | null =>
+  day === null ? null : `${day}T00:00:00.000Z`;
 
 /**
  * Stores a new email and its `pending` extraction, or returns the existing document for the same
@@ -107,6 +91,7 @@ interface PendingRow {
   body_text: string;
   /** postgres.js returns timestamptz as text. */
   received_at: string;
+  has_unreadable_attachment: boolean;
 }
 
 /**
@@ -119,7 +104,8 @@ export async function processDocument(deps: IngestDeps, documentId: Id): Promise
   let rawOutput: ExtractionOutput | null = null;
   try {
     const [row] = await sql<PendingRow[]>`
-      select e.id as extraction_id, e.status, d.sender, d.subject, d.body_text, d.received_at
+      select e.id as extraction_id, e.status, d.sender, d.subject, d.body_text, d.received_at,
+             d.has_unreadable_attachment
       from documents d join extractions e on e.document_id = d.id
       where d.id = ${documentId}
       order by e.id desc limit 1`;
@@ -130,7 +116,10 @@ export async function processDocument(deps: IngestDeps, documentId: Id): Promise
     const output = await extractAndRecord(deps, documentId, doc);
     rawOutput = output;
     const world = await loadWorld(sql);
-    const result = evaluateExtraction(world, doc, output);
+    const result = evaluateExtraction(world, doc, output, {
+      receivedAt: new Date(row.received_at),
+      hasUnreadableAttachment: row.has_unreadable_attachment,
+    });
     await sql.begin(async (tx) => {
       let quoteId: number | null = null;
       if (result.status === "extracted") {
@@ -138,7 +127,9 @@ export async function processDocument(deps: IngestDeps, documentId: Id): Promise
         const [quote] = await tx<{ id: number }[]>`
           insert into quotes (supplier_id, port_id, requirement_id, delivery_from, delivery_to,
                               valid_until, currency, barge_fee, status, extraction_id, received_at)
-          values (${q.supplierId}, ${q.portId}, ${q.requirementId}, null, null, null,
+          values (${q.supplierId}, ${q.portId}, ${q.requirementId},
+                  ${dayStart(q.deliveryFrom)}::timestamptz, ${dayStart(q.deliveryTo)}::timestamptz,
+                  ${dayStart(q.validUntil)}::timestamptz,
                   ${q.currency}, ${q.bargeFee}, 'received', ${row.extraction_id}, ${row.received_at}::timestamptz)
           returning id`;
         if (!quote) throw new Error("quotes insert returned no row");
@@ -200,302 +191,4 @@ async function extractAndRecord(
     if (err instanceof ExtractionError) await record(err.metrics);
     throw err;
   }
-}
-
-// ---------- checks (pure) ----------
-
-export interface NormalisedQuote {
-  supplierId: Id;
-  portId: Id;
-  requirementId: Id;
-  currency: Currency;
-  bargeFee: number;
-  lines: { grade: FuelGrade; qtyMt: number; pricePerMt: number }[];
-}
-
-export type Evaluation = {
-  fieldEvidence: Record<string, string | null>;
-  checks: CheckResult[];
-} & (
-  | { status: "extracted"; quote: NormalisedQuote }
-  | { status: "needs_review" }
-  | { status: "not_a_quote" }
-);
-
-interface EvidenceItem {
-  path: string;
-  evidence: string | null;
-  /** The text the evidence must contain; null when the field is absent (no check). */
-  mustContain: string | null;
-  present: boolean;
-}
-
-function evidenceItems(q: QuoteExtraction): EvidenceItem[] {
-  const text = (path: string, f: { value: string | null; evidence: string | null }) => ({
-    path,
-    evidence: f.evidence,
-    mustContain: f.value,
-    present: f.value !== null,
-  });
-  const written = (
-    path: string,
-    f: { asWritten: string | null; evidence: string | null; value?: number | null },
-  ) => ({
-    path,
-    evidence: f.evidence,
-    mustContain: f.asWritten,
-    present: f.asWritten !== null || (f.value ?? null) !== null,
-  });
-  return [
-    text("supplierName", q.supplierName),
-    text("vesselName", q.vesselName),
-    text("vesselImo", q.vesselImo),
-    text("port", q.port),
-    written("deliveryFrom", q.deliveryFrom),
-    written("deliveryTo", q.deliveryTo),
-    written("validUntil", q.validUntil),
-    written("bargeFee", q.bargeFee),
-    ...q.lines.flatMap((l, i) => [
-      text(`lines.${i}.grade`, l.grade),
-      written(`lines.${i}.quantity`, l.quantity),
-      written(`lines.${i}.price`, l.price),
-    ]),
-  ];
-}
-
-/** The number in the as-written text, if it parses and equals the transcribed value. */
-function readAmount(f: { value: number | null; asWritten: string | null }): number | null {
-  if (f.value === null || f.asWritten === null) return null;
-  const parsed = parseAmount(f.asWritten);
-  return parsed !== null && parsed === f.value ? parsed : null;
-}
-
-const foldText = (x: string): string => x.replace(/\s+/g, " ").trim().toLowerCase();
-const isWordChar = (c: string | undefined) => c !== undefined && /[a-z0-9]/.test(c);
-
-/**
- * Was the transcribed currency/unit string actually written in the field's as-written text (or,
- * failing that, its evidence)? Case- and whitespace-folded; an alphanumeric edge must sit on a
- * word boundary, so "mt" is not found inside "pmt" and "usd" not inside "usdt".
- */
-export function writtenIn(
-  raw: string | null,
-  field: { asWritten: string | null; evidence: string | null },
-): boolean {
-  if (raw === null) return false;
-  const needle = foldText(raw);
-  if (needle === "") return false;
-  return [field.asWritten, field.evidence].some((text) => {
-    if (text === null) return false;
-    const hay = foldText(text);
-    for (let at = hay.indexOf(needle); at >= 0; at = hay.indexOf(needle, at + 1)) {
-      const before = hay[at - 1];
-      const after = hay[at + needle.length];
-      const startOk = !isWordChar(needle[0]) || !isWordChar(before);
-      const endOk = !isWordChar(needle.at(-1)) || !isWordChar(after);
-      if (startOk && endOk) return true;
-    }
-    return false;
-  });
-}
-
-const check = (name: string, failures: string[]): CheckResult => ({
-  check: name,
-  passed: failures.length === 0,
-  detail: failures.length === 0 ? null : failures.join(" "),
-});
-
-/** Runs every check on one extraction; a quote is produced only when all of them pass. */
-export function evaluateExtraction(
-  world: World,
-  doc: ExtractInput,
-  output: ExtractionOutput,
-): Evaluation {
-  const source = sourceText(doc);
-  if (output.kind === "not_a_quote") {
-    // An unverifiable "not a quote" could hide a real offer: a human looks at it.
-    const found = evidenceSupports(source, output.evidence, null);
-    return {
-      status: found ? "not_a_quote" : "needs_review",
-      fieldEvidence: { notAQuote: output.evidence },
-      checks: [
-        check("evidence_found:notAQuote", found ? [] : ["Evidence not found in the email."]),
-      ],
-    };
-  }
-
-  const items = evidenceItems(output);
-  const fieldEvidence = Object.fromEntries(items.map((i) => [i.path, i.evidence]));
-  const checks: CheckResult[] = items
-    .filter((i) => i.present)
-    .map((i) =>
-      check(
-        `evidence_found:${i.path}`,
-        evidenceSupports(source, i.evidence, i.mustContain)
-          ? []
-          : [`Evidence for ${i.path} is missing, not verbatim in the email, or lacks the value.`],
-      ),
-    );
-
-  const lines = output.lines;
-  const barge = output.bargeFee;
-  const bargePresent = barge.value !== null || barge.asWritten !== null;
-
-  // currency_known: one recognised currency across every price and the barge fee.
-  const currencyFailures: string[] = [];
-  const currencies = [
-    ...lines.map((l, i) => [`lines.${i}.price`, l.price] as const),
-    ...(bargePresent ? [["bargeFee", barge] as const] : []),
-  ].map(([path, field]) => {
-    const raw = field.currency;
-    const c = normaliseCurrency(raw);
-    if (c === null) currencyFailures.push(`Currency "${raw ?? ""}" of ${path} is not recognised.`);
-    else if (!writtenIn(raw, field)) {
-      currencyFailures.push(`Currency "${raw}" of ${path} is not written in its text.`);
-    }
-    return c;
-  });
-  const known = [...new Set(currencies.filter((c): c is Currency => c !== null))];
-  if (known.length > 1) currencyFailures.push(`The quote mixes currencies (${known.join(", ")}).`);
-  const currency = currencyFailures.length === 0 ? (known[0] ?? null) : null;
-  checks.push(check("currency_known", currencyFailures));
-
-  // unit_known: quantities in mass, prices per mt, the barge fee a lump sum.
-  const unitFailures: string[] = [];
-  const notWritten = (raw: string | null, what: string) =>
-    unitFailures.push(`${what} "${raw ?? ""}" is not written in its text.`);
-  lines.forEach((l, i) => {
-    if (normaliseMassUnit(l.quantity.unit) === null) {
-      unitFailures.push(
-        `Quantity unit "${l.quantity.unit ?? ""}" of line ${i} is not a mass unit.`,
-      );
-    } else if (!writtenIn(l.quantity.unit, l.quantity)) {
-      notWritten(l.quantity.unit, `Quantity unit of line ${i}`);
-    }
-    if (normalisePerUnit(l.price.perUnit) !== "per_mt") {
-      unitFailures.push(`Price of line ${i} is not per mt ("${l.price.perUnit ?? ""}").`);
-    } else if (!writtenIn(l.price.perUnit, l.price)) {
-      notWritten(l.price.perUnit, `Price unit of line ${i}`);
-    }
-  });
-  if (bargePresent && normalisePerUnit(barge.perUnit) !== "lump_sum") {
-    unitFailures.push(`Barge fee is not a lump sum ("${barge.perUnit ?? ""}").`);
-  } else if (bargePresent && !writtenIn(barge.perUnit, barge)) {
-    notWritten(barge.perUnit, "Barge fee unit");
-  }
-  checks.push(check("unit_known", unitFailures));
-
-  // grade_known: every line's grade recognised, no grade twice.
-  const grades = lines.map((l) => normaliseGrade(l.grade.value));
-  const gradeFailures = grades.flatMap((g, i) =>
-    g === null ? [`Grade "${lines[i]?.grade.value ?? ""}" of line ${i} is not recognised.`] : [],
-  );
-  if (new Set(grades.filter((g) => g !== null)).size < grades.filter((g) => g !== null).length) {
-    gradeFailures.push("A grade appears on more than one line.");
-  }
-  checks.push(check("grade_known", gradeFailures));
-
-  // quantity_unambiguous: a single number, as written, greater than zero.
-  const quantities = lines.map((l) => readAmount(l.quantity));
-  checks.push(
-    check(
-      "quantity_unambiguous",
-      quantities.flatMap((q, i) =>
-        q === null || q <= 0
-          ? [
-              `Quantity of line ${i} is not a single amount ("${lines[i]?.quantity.asWritten ?? ""}").`,
-            ]
-          : [],
-      ),
-    ),
-  );
-
-  // amounts_parsed: prices and barge fee parse from the as-written text to the transcribed value.
-  const prices = lines.map((l) => readAmount(l.price));
-  const bargeFee = readAmount(barge);
-  const amountFailures = prices.flatMap((p, i) =>
-    p === null || p <= 0
-      ? [`Price of line ${i} does not read as "${lines[i]?.price.asWritten ?? ""}".`]
-      : [],
-  );
-  if (!bargePresent) amountFailures.push("No barge fee is quoted.");
-  else if (bargeFee === null || bargeFee < 0) {
-    amountFailures.push(`Barge fee does not read as "${barge.asWritten ?? ""}".`);
-  }
-  checks.push(check("amounts_parsed", amountFailures));
-
-  const vessel = resolveVessel(world, {
-    name: output.vesselName.value,
-    imo: output.vesselImo.value,
-  });
-  checks.push(check("vessel_resolved", vessel.detail ? [vessel.detail] : []));
-  const port = resolvePort(world, output.port.value);
-  checks.push(check("port_resolved", port.detail ? [port.detail] : []));
-  const supplier = resolveSupplier(world, doc.sender);
-  checks.push(check("supplier_resolved", supplier.detail ? [supplier.detail] : []));
-
-  // price_within_band: ±15 % of the port's latest market price for the grade.
-  checks.push(
-    check(
-      "price_within_band",
-      lines.flatMap((_, i) => {
-        const grade = grades[i];
-        const price = prices[i];
-        if (!port.port || !grade || price == null || !currency) {
-          return [`Line ${i} not checked: needs a resolved port, grade, price and currency.`];
-        }
-        const band = checkPriceBand(world, port.port.id, grade, price, currency);
-        return band.passed ? [] : [band.detail ?? `Line ${i} price is outside the band.`];
-      }),
-    ),
-  );
-
-  // requirement_found: an open requirement for each grade on the vessel's current voyage.
-  const requirements = grades.map((g) =>
-    vessel.vessel && g ? openRequirement(world, vessel.vessel.id, g) : null,
-  );
-  checks.push(
-    check(
-      "requirement_found",
-      requirements.flatMap((r, i) =>
-        r === null
-          ? [
-              vessel.vessel && grades[i]
-                ? `No open ${grades[i]} requirement on ${vessel.vessel.name}'s current voyage.`
-                : `Line ${i} not checked: needs a resolved vessel and grade.`,
-            ]
-          : [],
-      ),
-    ),
-  );
-
-  const allPassed = checks.every((c) => c.passed);
-  const requirementId = requirements[0]?.id;
-  if (
-    !allPassed ||
-    !supplier.supplier ||
-    !port.port ||
-    !currency ||
-    bargeFee === null ||
-    requirementId === undefined
-  ) {
-    return { status: "needs_review", fieldEvidence, checks };
-  }
-  return {
-    status: "extracted",
-    fieldEvidence,
-    checks,
-    quote: {
-      supplierId: supplier.supplier.id,
-      portId: port.port.id,
-      requirementId,
-      currency,
-      bargeFee,
-      lines: lines.map((_, i) => ({
-        grade: grades[i] as FuelGrade,
-        qtyMt: quantities[i] as number,
-        pricePerMt: prices[i] as number,
-      })),
-    },
-  };
 }

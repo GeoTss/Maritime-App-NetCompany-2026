@@ -7,7 +7,7 @@
  * because tool results are part of the next model request and so of its replay key.
  */
 import type { Sql, World } from "@pharos/db";
-import type { Fact, FactId, Id, ToolResult, Vessel, Voyage } from "@pharos/shared";
+import type { Fact, FactId, Id, ToolResult, Vessel } from "@pharos/shared";
 import { resolveVessel } from "../../ingest/resolve.js";
 
 export interface ToolCallLog {
@@ -132,9 +132,4 @@ export function findVessel(world: World, text: string): Vessel {
   const { vessel, detail } = resolveVessel(world, imo ? { name: null, imo } : { name: text, imo });
   if (!vessel) throw new Error(detail ?? `No fleet vessel matches "${text}".`);
   return vessel;
-}
-
-/** The vessel's voyage that is not completed, if any. */
-export function currentVoyage(world: World, vessel: Vessel): Voyage | null {
-  return world.voyages.find((v) => v.vesselId === vessel.id && v.status !== "completed") ?? null;
 }

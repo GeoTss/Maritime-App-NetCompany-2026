@@ -3,12 +3,11 @@ import { describe, expect, it } from "vitest";
 import { FIXTURE_ANCHOR, FIXTURE_SEED } from "../read/fixtures.js";
 import {
   checkPriceBand,
-  currentVoyage,
   latestMarketPrice,
   latestUsdRate,
-  openRequirement,
   resolvePort,
   resolveSupplier,
+  resolveSupplierName,
   resolveVessel,
 } from "./resolve.js";
 
@@ -70,7 +69,41 @@ describe("resolveSupplier", () => {
   });
 });
 
-describe("market band and requirement", () => {
+describe("resolveSupplierName", () => {
+  const name = (written: string | null) => resolveSupplierName(world, written)?.name ?? null;
+
+  it("matches a full supplier name, case- and whitespace-folded", () => {
+    expect(name("Kestrel Marine Fuels")).toBe("Kestrel Marine Fuels");
+    expect(name("  STRAIT   line fuels ")).toBe("Strait Line Fuels");
+  });
+
+  it("matches a token-bounded prefix of a supplier's full name", () => {
+    expect(name("Kestrel")).toBe("Kestrel Marine Fuels");
+    expect(name("kestrel marine")).toBe("Kestrel Marine Fuels");
+    expect(name("Kes")).toBeNull();
+    expect(name("Kestrel Marine Fu")).toBeNull();
+  });
+
+  it("is null for a name with extra words, an unknown name, or nothing", () => {
+    expect(name("Kestrel Marine Fuels Ltd")).toBeNull();
+    expect(name("Acme Oil")).toBeNull();
+    expect(name("")).toBeNull();
+    expect(name(null)).toBeNull();
+  });
+
+  it("is null when the name matches more than one supplier", () => {
+    const twin = {
+      ...world.suppliers[0],
+      id: 99,
+      name: "Kestrel Shipping",
+    } as (typeof world.suppliers)[number];
+    const w = { ...world, suppliers: [...world.suppliers, twin] };
+    expect(resolveSupplierName(w, "Kestrel")).toBeNull();
+    expect(resolveSupplierName(w, "Kestrel Marine")?.name).toBe("Kestrel Marine Fuels");
+  });
+});
+
+describe("market band", () => {
   it("uses the latest market price for the port and grade", () => {
     const id = portId("MTMLA");
     const rows = world.portFuelPrices.filter((p) => p.portId === id && p.grade === "LSMGO");
@@ -105,14 +138,5 @@ describe("market band and requirement", () => {
       "EUR",
     );
     expect(band.passed, band.detail ?? "").toBe(true);
-  });
-
-  it("finds the open LSMGO requirement on Aegean Pioneer's current voyage, none for HSFO", () => {
-    const voyage = currentVoyage(world, pioneer?.id ?? 0);
-    expect(voyage?.voyageNo).toBe(DEMO_SCENARIO.voyageNo);
-    const req = openRequirement(world, pioneer?.id ?? 0, "LSMGO");
-    expect(req?.qtyMt).toBe(DEMO_SCENARIO.requirement.qtyMt);
-    expect(req?.voyageId).toBe(voyage?.id);
-    expect(openRequirement(world, pioneer?.id ?? 0, "HSFO")).toBeNull();
   });
 });

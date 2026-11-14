@@ -9,8 +9,9 @@ import { createLlmExtractor, ExtractionError, type Extractor } from "../ai/extra
 import { type CallMetrics, createLlm } from "../ai/llm.js";
 import { DEFAULT_RECORDINGS_DIR } from "../config.js";
 import { buildDemoEmails, FIXTURE_ANCHOR, FIXTURE_SEED } from "../read/fixtures.js";
+import { writtenIn } from "./evaluate.js";
 import { DEMO_RECORDING_CONFIG } from "./record-demo-extractions.js";
-import { type IngestDeps, ingestRaw, processDocument, writtenIn } from "./workflow.js";
+import { type IngestDeps, ingestRaw, processDocument } from "./workflow.js";
 
 const INBOX = new URL("../../../../fixtures/demo-inbox/", import.meta.url);
 const kestrelRaw = new Uint8Array(await readFile(new URL("01-kestrel-marsaxlokk.eml", INBOX)));
@@ -456,7 +457,41 @@ describe.skipIf(!sql)("ingestion workflow (Postgres)", () => {
     await processDocument(d, documentId);
     const ex = await extractionOf(documentId);
     expect(ex.status).toBe("needs_review");
-    expect(failedChecks(ex.check_results)).toEqual(["supplier_resolved"]);
+    // R16: the quote still names Kestrel Marine Fuels while the look-alike domain names nobody.
+    expect(failedChecks(ex.check_results)).toEqual(["supplier_resolved", "supplier_name_matches"]);
+  });
+
+  it("an extracted quote stores its validity and delivery window as UTC midnights", async () => {
+    const raw = kestrelWith(
+      "Barge fee: USD 2,800 lump sum",
+      "Barge fee: USD 2,800 lump sum\nDelivery: 18-19 Nov\nValid until: 15 Nov 2026",
+    );
+    const out = kestrelOutput();
+    out.deliveryFrom = { asWritten: "18-19 Nov", evidence: "Delivery: 18-19 Nov" };
+    out.validUntil = { asWritten: "15 Nov 2026", evidence: "Valid until: 15 Nov 2026" };
+    const d = deps(fakeExtractor(() => out));
+    const { documentId } = await ingestRaw(d, raw, "upload");
+    await processDocument(d, documentId);
+    const ex = await extractionOf(documentId);
+    expect(failedChecks(ex.check_results)).toEqual([]);
+    const [q] = await db<{ delivery_from: string; delivery_to: string; valid_until: string }[]>`
+      select delivery_from, delivery_to, valid_until from quotes where extraction_id = ${ex.id}`;
+    expect(
+      [q?.delivery_from, q?.delivery_to, q?.valid_until].map((v) =>
+        new Date(String(v)).toISOString(),
+      ),
+    ).toEqual(["2026-11-18T00:00:00.000Z", "2026-11-19T00:00:00.000Z", "2026-11-15T00:00:00.000Z"]);
+  });
+
+  it("a document flagged with an unreadable attachment → needs_review with attachment_text_found failed", async () => {
+    const d = deps(fakeExtractor(kestrelOutput));
+    const { documentId } = await ingestRaw(d, kestrelRaw, "upload");
+    await db`update documents set has_unreadable_attachment = true where id = ${documentId}`;
+    await processDocument(d, documentId);
+    const ex = await extractionOf(documentId);
+    expect(ex.status).toBe("needs_review");
+    expect(failedChecks(ex.check_results)).toEqual(["attachment_text_found"]);
+    expect(await quoteCount()).toBe(0);
   });
 
   it("an extractor error marks the extraction failed with the message and still records the call", async () => {

@@ -4,19 +4,11 @@
  * next port call.
  */
 import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
-import { fobProjectionInput, loadWorld, voyageState } from "@pharos/db";
+import { currentVoyage, fobProjectionInput, loadWorld, voyageState } from "@pharos/db";
 import { DOMAIN_CODE_VERSION, projectFuelOnBoard } from "@pharos/domain";
 import { type Fact, FUEL_GRADES, type ToolResult } from "@pharos/shared";
 import { z } from "zod";
-import {
-  calcFact,
-  currentVoyage,
-  dbFact,
-  findVessel,
-  json,
-  runTool,
-  type ToolContext,
-} from "./common.js";
+import { calcFact, dbFact, findVessel, json, runTool, type ToolContext } from "./common.js";
 
 export const TOOL = "get_vessel_status";
 
@@ -51,7 +43,7 @@ export function getVesselStatus(ctx: ToolContext, input: VesselStatusInput): Pro
         null,
       ),
     ];
-    const voyage = currentVoyage(world, vessel);
+    const voyage = currentVoyage(world, vessel.id);
     if (!voyage) {
       return {
         facts,

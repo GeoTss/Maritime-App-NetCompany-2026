@@ -4,19 +4,18 @@
  * the plan, and the plan is stored as a calculation that every fact (and any proposal) points at.
  */
 import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
-import { type BunkerOffer, buildBunkerPlanInput, loadWorld, optionIdFor } from "@pharos/db";
+import {
+  type BunkerOffer,
+  buildBunkerPlanInput,
+  currentVoyage,
+  loadWorld,
+  openRequirements,
+  optionIdFor,
+} from "@pharos/db";
 import { DOMAIN_CODE_VERSION, planBunkers } from "@pharos/domain";
 import type { BunkerOptionResult, Fact, Quote, ToolResult } from "@pharos/shared";
 import { z } from "zod";
-import {
-  calcFact,
-  currentVoyage,
-  dbFact,
-  findVessel,
-  json,
-  runTool,
-  type ToolContext,
-} from "./common.js";
+import { calcFact, dbFact, findVessel, json, runTool, type ToolContext } from "./common.js";
 
 export const TOOL = "plan_bunkering";
 
@@ -46,12 +45,8 @@ export function planBunkering(ctx: ToolContext, input: PlanBunkeringInput): Prom
   return runTool(ctx, TOOL, input, async () => {
     const world = await loadWorld(ctx.sql);
     const vessel = findVessel(world, input.vessel);
-    const voyage = currentVoyage(world, vessel);
-    const requirement = voyage
-      ? world.bunkerRequirements
-          .filter((r) => r.voyageId === voyage.id && r.status === "open")
-          .sort((a, b) => a.id - b.id)[0]
-      : undefined;
+    const voyage = currentVoyage(world, vessel.id);
+    const requirement = voyage ? openRequirements(world, voyage.id)[0] : undefined;
     if (!voyage || !requirement) {
       return {
         facts: [],
@@ -96,7 +91,7 @@ export function planBunkering(ctx: ToolContext, input: PlanBunkeringInput): Prom
       };
     }
 
-    const planInput = buildBunkerPlanInput(world, voyage.id, offers);
+    const planInput = buildBunkerPlanInput(world, voyage.id, offers, requirement.grade);
     const plan = planBunkers(planInput);
     const [calc] = await ctx.sql<{ id: number }[]>`
       insert into calculations (kind, inputs, outputs, code_version, voyage_id, weather_snapshot_id, created_at)

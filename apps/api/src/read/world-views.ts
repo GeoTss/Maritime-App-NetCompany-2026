@@ -3,7 +3,7 @@
  * `loadWorld`) and the fixture source (`generateWorld`). Every number comes from the world rows or
  * a `packages/domain` calculator.
  */
-import { DEMO_SCENARIO, type World } from "@pharos/db";
+import { currentVoyage, DEMO_SCENARIO, type World } from "@pharos/db";
 import {
   legsForRoute,
   projectFuelOnBoard,
@@ -64,7 +64,7 @@ export function buildVessels(world: World) {
       `noon report for ${vessel.name}`,
     );
     const position = latest(world.vesselPositions, vessel.id, (p) => p.ts);
-    const voyage = world.voyages.find((v) => v.vesselId === vessel.id && v.status !== "completed");
+    const voyage = currentVoyage(world, vessel.id);
 
     const fob: FobProjection | null = voyage
       ? projectFuelOnBoard({

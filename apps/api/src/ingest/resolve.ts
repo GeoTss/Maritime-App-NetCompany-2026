@@ -5,16 +5,7 @@
  */
 import type { World } from "@pharos/db";
 import { PRICE_BAND_FRACTION, priceWithinBand, toUsd } from "@pharos/domain";
-import type {
-  BunkerRequirement,
-  Currency,
-  FuelGrade,
-  Port,
-  PortFuelPrice,
-  Supplier,
-  Vessel,
-  Voyage,
-} from "@pharos/shared";
+import type { Currency, FuelGrade, Port, PortFuelPrice, Supplier, Vessel } from "@pharos/shared";
 
 const fold = (s: string): string => s.trim().replace(/\s+/g, " ").toLowerCase();
 
@@ -90,6 +81,22 @@ export function resolveSupplier(
     : { supplier: null, detail: `Sender domain "${domain}" is not a known supplier.` };
 }
 
+/**
+ * The supplier a name in the text refers to: the case- and whitespace-folded name equals a
+ * supplier's full name, or is a prefix of it that ends on a word boundary ("Kestrel" names
+ * "Kestrel Marine Fuels"; "Kes" and "Kestrel Marine Fuels Ltd" name nobody). Null unless exactly
+ * one supplier matches.
+ */
+export function resolveSupplierName(world: World, written: string | null): Supplier | null {
+  const key = written ? fold(written) : "";
+  if (key === "") return null;
+  const hits = world.suppliers.filter((s) => {
+    const full = fold(s.name);
+    return full.startsWith(key) && !/[\p{L}\p{N}]/u.test(full[key.length] ?? "");
+  });
+  return hits.length === 1 ? (hits[0] ?? null) : null;
+}
+
 const latestBy = <T>(rows: T[], at: (r: T) => Date): T | null =>
   rows.reduce<T | null>((best, r) => (best === null || at(r) > at(best) ? r : best), null);
 
@@ -136,29 +143,4 @@ export function checkPriceBand(
         passed: false,
         detail: `${grade} ${currency} ${pricePerMt}/mt is outside ±15 % of the market price.`,
       };
-}
-
-/** The vessel's voyage in progress, else its earliest planned one. */
-export function currentVoyage(world: World, vesselId: number): Voyage | null {
-  const mine = world.voyages.filter((v) => v.vesselId === vesselId);
-  return (
-    mine.find((v) => v.status === "underway") ??
-    mine.filter((v) => v.status === "planned").sort((a, b) => a.id - b.id)[0] ??
-    null
-  );
-}
-
-/** The lowest-id open requirement for `grade` on the vessel's current voyage. */
-export function openRequirement(
-  world: World,
-  vesselId: number,
-  grade: FuelGrade,
-): BunkerRequirement | null {
-  const voyage = currentVoyage(world, vesselId);
-  if (!voyage) return null;
-  return (
-    world.bunkerRequirements
-      .filter((r) => r.voyageId === voyage.id && r.grade === grade && r.status === "open")
-      .sort((a, b) => a.id - b.id)[0] ?? null
-  );
 }
