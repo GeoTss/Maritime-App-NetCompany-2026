@@ -184,6 +184,34 @@ describe("selectCases --offset / --limit (chunks of a split, in split.json order
       /--offset .* leaves no case/,
     );
   });
+
+  // Regression suite (round 3, rr3/d.mts).
+  it("parses a chunked final held-out record pass (arguments only; nothing runs)", () => {
+    expect(
+      parseArgs([
+        "--split",
+        "heldout",
+        "--final",
+        "--mode",
+        "record",
+        "--offset",
+        "120",
+        "--limit",
+        "60",
+        "--label",
+        "ho-2",
+      ]),
+    ).toMatchObject({ split: "heldout", final: true, mode: "record", offset: 120, limit: 60 });
+  });
+
+  it("refuses a fractional --offset", () => {
+    expect(() => parseArgs(["--offset", "1.5"])).toThrow(/--offset needs a whole number >= 0/);
+  });
+
+  it("explicit ids win over --offset", async () => {
+    const id = SPLIT.dev[3] ?? "";
+    expect(await selectCases("dev", { ids: [id], offset: 50 })).toEqual([id]);
+  });
 });
 
 setFlagsFromString("--expose-gc");
@@ -309,6 +337,17 @@ describe("runExtractionEval refusals (before any database, network or spend)", (
     await expect(
       runExtractionEval(await base({ ledgerPath: await tempLedger(0) })),
     ).rejects.toThrow(/ANTHROPIC_API_KEY/);
+  });
+
+  it("the 84-case dev variance pass: --repeat-hard 2 fits one pass, --repeat-hard 3 is refused", async () => {
+    const all = { ids: undefined, apiKey: undefined, ledgerPath: await tempLedger(0) };
+    // 2: under the cap, so it reaches the key check; 3: over the cap, refused first.
+    await expect(runExtractionEval(await base({ ...all, repeatHard: 2 }))).rejects.toThrow(
+      /ANTHROPIC_API_KEY/,
+    );
+    await expect(runExtractionEval(await base({ ...all, repeatHard: 3 }))).rejects.toThrow(
+      /per-pass cap/,
+    );
   });
 
   it("refuses a paid run without a key, naming the variable", async () => {
