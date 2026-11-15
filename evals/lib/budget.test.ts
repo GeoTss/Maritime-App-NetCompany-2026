@@ -122,7 +122,7 @@ describe("per-phase budget", () => {
   });
   it("the real budget file covers Phase 6, the current phase", () => {
     expect(readBudgetConfig(DEFAULT_BUDGET_PATH).phase).toBe(6);
-    expect(currentPhase()).toBe(5);
+    expect(currentPhase()).toBe(6);
   });
   it("rejects a malformed budget file naming it", () => {
     const path = join(mkdtempSync(join(tmpdir(), "budget-")), "budget.json");
