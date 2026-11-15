@@ -323,6 +323,19 @@ describe("hazard zones", () => {
     expect(r.bestCandidateId).toBe("B");
   });
 
+  it("a hazard does not change a candidate's chosen speed or cost, only its verdict", () => {
+    const base = makeInput({ arriveBy: at(110) });
+    const clear = optimiseRouteSpeed(base);
+    const crossing = optimiseRouteSpeed({ ...base, hazards: [onTrack] });
+    const a = clear.options[0] as RouteOptionResult;
+    const b = crossing.options[0] as RouteOptionResult;
+    expect(a.speedKn).toBeLessThan(BULK.maxSpeedKn);
+    expect({ ...b, feasible: a.feasible, reasons: a.reasons, hazardIds: a.hazardIds }).toEqual(a);
+    expect(b.feasible).toBe(false);
+    expect(b.reasons).toEqual(["crosses_hazard"]);
+    expect(b.hazardIds).toEqual(["h-on"]);
+  });
+
   it("is deterministic with hazards", () => {
     const input = makeInput({ hazards: [onTrack] });
     expect(JSON.stringify(optimiseRouteSpeed(input))).toBe(

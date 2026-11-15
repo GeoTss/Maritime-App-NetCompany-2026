@@ -26,6 +26,9 @@ const SAME_POINT_NM = 1;
 /** Further penalty attempts after the first (shortest) path. */
 const MAX_EXTRA_ATTEMPTS = 6;
 
+/** Edges are sampled at points no more than this far apart (nm) when tested against hazard zones. */
+const HAZARD_SAMPLE_NM = 10;
+
 const nodeKey = (p: LatLon): string =>
   `${Math.round(p.lat * NODE_KEY_SCALE)},${Math.round(p.lon * NODE_KEY_SCALE)}`;
 
@@ -221,8 +224,8 @@ export interface CandidateRouteOptions {
   /** Farthest (nm) start or end may be from the network (default 150). */
   maxSnapNm?: number;
   /**
-   * Hazard zones to route round: an edge whose endpoint or midpoint lies inside one weighs
-   * `HAZARD_EDGE_PENALTY` × its length in every search, so the path goes round whenever the
+   * Hazard zones to route round: an edge with a sample point inside one weighs
+   * (sampled every 10 nm or less, endpoints included) `HAZARD_EDGE_PENALTY` × its length in every search, so the path goes round whenever the
    * network allows (and through only when it does not).
    */
   avoid?: HazardZone[];
@@ -277,11 +280,13 @@ export function candidateRoutes(
     if (avoid.length === 0) return e.nm;
     const a = graph.nodes[e.a] as LatLon;
     const b = graph.nodes[e.b] as LatLon;
-    const mid = { lat: (a.lat + b.lat) / 2, lon: (a.lon + b.lon) / 2 };
-    const hit =
-      zonesContaining(a, avoid).length > 0 ||
-      zonesContaining(b, avoid).length > 0 ||
-      zonesContaining(mid, avoid).length > 0;
+    const pieces = Math.max(1, Math.ceil(e.nm / HAZARD_SAMPLE_NM));
+    let hit = false;
+    for (let k = 0; k <= pieces && !hit; k++) {
+      const t = k / pieces;
+      const q = { lat: a.lat + (b.lat - a.lat) * t, lon: a.lon + (b.lon - a.lon) * t };
+      hit = zonesContaining(q, avoid).length > 0;
+    }
     return hit ? e.nm * HAZARD_EDGE_PENALTY : e.nm;
   });
   const first = shortestPath(graph, from.node, to.node, (e) => base[e] as number);

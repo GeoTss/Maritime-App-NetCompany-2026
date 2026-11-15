@@ -198,15 +198,18 @@ interface Ranked {
 
 /**
  * Feasible before infeasible, then cost, fuel, earlier candidate, lower speed. When none is
- * feasible, the earliest ETA first, then the same order.
+ * feasible, the earliest ETA first, then the same order. `passes` says what counts as feasible:
+ * across candidates the real verdict; across one candidate's speeds only the speed-dependent
+ * reasons, since `crosses_hazard` is the same at every speed (so the speed is chosen as if the
+ * hazard were absent, and the option is still reported infeasible).
  */
-function pickBest(list: Ranked[]): Ranked {
-  const anyFeasible = list.some((r) => r.option.feasible);
+function pickBest(list: Ranked[], passes: (o: RouteOptionResult) => boolean): Ranked {
+  const anyFeasible = list.some((r) => passes(r.option));
   const better = (x: Ranked, y: Ranked): boolean => {
     const a = x.option;
     const b = y.option;
     if (anyFeasible) {
-      if (a.feasible !== b.feasible) return a.feasible;
+      if (passes(a) !== passes(b)) return passes(a);
     } else {
       const ea = Date.parse(a.eta);
       const eb = Date.parse(b.eta);
@@ -250,9 +253,9 @@ export function optimiseRouteSpeed(rawInput: RouteSpeedInput): RouteSpeedResult 
       if (i === baseIndex && s === input.baseline.speedKn) baseline = option;
       return { option, candidate: i };
     });
-    return pickBest(ranked);
+    return pickBest(ranked, (o) => !o.reasons.includes("misses_arrive_by"));
   });
-  const best = pickBest(options).option;
+  const best = pickBest(options, (o) => o.feasible).option;
   const base = baseline as RouteOptionResult | null;
   if (!base) throw new Error("baseline option was not evaluated");
   return {

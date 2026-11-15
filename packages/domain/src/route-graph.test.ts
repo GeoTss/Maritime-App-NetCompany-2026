@@ -174,6 +174,24 @@ describe("candidateRoutes with hazards to avoid", () => {
     ]);
   });
 
+  it("an edge passing through a zone off its endpoints and midpoint is penalised", () => {
+    // Direct S-E as one 240 nm edge; zone at (0, 1) radius 25 nm: endpoints 60 and 180 nm away,
+    // midpoint (0, 2) 120 nm away, but the edge runs straight through it.
+    const long = buildRouteGraph([
+      [S, E],
+      [S, N, E],
+    ]);
+    const zone = { id: "long", center: p(0, 1), radiusNm: 25 };
+    expect(candidateRoutes(long, S, E, { max: 1 })[0]?.points).toEqual([S, S, E, E]);
+    expect(candidateRoutes(long, S, E, { max: 1, avoid: [zone] })[0]?.points).toEqual([
+      S,
+      S,
+      N,
+      E,
+      E,
+    ]);
+  });
+
   it("an empty avoid list is the same as none", () => {
     expect(candidateRoutes(diamond(), S, E, { avoid: [] })).toEqual(
       candidateRoutes(diamond(), S, E),
