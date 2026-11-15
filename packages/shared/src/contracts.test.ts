@@ -5,12 +5,15 @@ import {
   AskEvent,
   AskResponse,
   AskResult,
+  AuditEventView,
   BunkerOptionResult,
   CalculateInput,
   ConsumptionCurve,
+  DecisionBody,
   DraftedMessage,
   EmissionsInput,
   ErpOrderRequest,
+  EvalSummary,
   ExtractionOutput,
   ExtractionTruth,
   FuelEuCostInput,
@@ -23,6 +26,7 @@ import {
   NormalisedView,
   PlanBunkeringInput,
   PlanRouteSpeedInput,
+  PortView,
   ProposeActionInput,
   ProposedAction,
   Provenance,
@@ -31,12 +35,15 @@ import {
   RecommendationStatus,
   RecommendationView,
   ReviewCorrection,
+  ReviewReference,
   RouteLeg,
   RouteOptionResult,
   RouteSpeedInput,
+  SimClockView,
   Vessel,
   VesselStatusInput,
   Voyage,
+  VoyageDetail,
   WeatherGrid,
 } from "./index.js";
 
@@ -837,5 +844,78 @@ describe("Phase 6 contracts", () => {
   it("QA_CATEGORIES gains compliance, appended last", () => {
     expect(QA_CATEGORIES).toHaveLength(10);
     expect(QA_CATEGORIES[9]).toBe("compliance");
+  });
+
+  it("SimClockView is strict and needs anchor, now and pinned", () => {
+    const ok = {
+      anchor: "2026-11-14T08:00:00.000Z",
+      now: "2026-11-14T08:05:00.000Z",
+      pinned: true,
+    };
+    expect(SimClockView.parse(ok)).toEqual(ok);
+    expect(() => SimClockView.parse({ ...ok, extra: 1 })).toThrow();
+    expect(() => SimClockView.parse({ anchor: ok.anchor, now: ok.now })).toThrow();
+  });
+
+  it("PortView carries a position and the EU flag", () => {
+    const port = {
+      id: 1,
+      name: "Rotterdam",
+      unlocode: "NLRTM",
+      position: { lat: 51.9, lon: 4.1 },
+      isEu: true,
+    };
+    expect(PortView.parse(port)).toEqual(port);
+    expect(() => PortView.parse({ ...port, position: { lat: 91, lon: 4 } })).toThrow();
+  });
+
+  it("VoyageDetail requires a planned track", () => {
+    expect(VoyageDetail.shape.plannedTrack).toBeDefined();
+    expect(VoyageDetail.shape.plannedTrack.safeParse([{ lat: 1, lon: 2 }]).success).toBe(true);
+  });
+
+  it("AuditEventView takes an ISO time", () => {
+    const row = {
+      id: 1,
+      recommendationId: 2,
+      kind: "approved",
+      actor: "operator",
+      detail: {},
+      at: "2026-11-14T08:05:00.000Z",
+    };
+    expect(AuditEventView.parse(row).at).toBe(row.at);
+    expect(() => AuditEventView.parse({ ...row, at: "yesterday" })).toThrow();
+  });
+
+  it("ReviewReference and DecisionBody are strict", () => {
+    expect(ReviewReference.parse({ vessels: [], ports: [], suppliers: [] })).toBeTruthy();
+    expect(() => ReviewReference.parse({ vessels: [], ports: [] })).toThrow();
+    expect(DecisionBody.parse({})).toEqual({});
+    expect(DecisionBody.parse({ decidedBy: "  ops  " })).toEqual({ decidedBy: "ops" });
+    expect(() => DecisionBody.parse({ decidedBy: "" })).toThrow();
+    expect(() => DecisionBody.parse({ approve: true })).toThrow();
+  });
+
+  it("EvalSummary accepts only live dev runs and k <= n", () => {
+    const suite = {
+      suite: "qa",
+      split: "dev",
+      label: "dev-haiku-p6",
+      model: "claude-haiku-5-5",
+      promptVersion: "agent-system/v5",
+      runAt: "2026-11-16T10:00:00.000Z",
+      mode: "live",
+      metrics: [
+        { key: "grounded", label: "Grounded answers", k: 33, n: 33, rate: 1, ci95: [0.89, 1] },
+      ],
+      latency: [{ key: "answerMean", label: "Answer, mean", seconds: 4.6 }],
+      costUsdPerItem: 0.001,
+    };
+    const ok = { generatedAt: "2026-11-16T10:05:00.000Z", suites: [suite] };
+    expect(EvalSummary.parse(ok)).toEqual(ok);
+    expect(() => EvalSummary.parse({ ...ok, suites: [{ ...suite, mode: "replay" }] })).toThrow();
+    expect(() => EvalSummary.parse({ ...ok, suites: [{ ...suite, split: "heldout" }] })).toThrow();
+    const bad = { ...suite, metrics: [{ ...suite.metrics[0], k: 34 }] };
+    expect(() => EvalSummary.parse({ ...ok, suites: [bad] })).toThrow();
   });
 });

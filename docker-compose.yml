@@ -50,6 +50,8 @@ services:
       # The API migrates, then reseeds the synthetic world anchored to boot time (reset|if-empty|off).
       SEED_ON_BOOT: ${SEED_ON_BOOT:-reset}
       WORLD_SEED: ${WORLD_SEED:-20261114}
+      # Pin the demo world to this instant and freeze the request clock at anchor + 5 min (recorded demo). Blank = boot time.
+      DEMO_ANCHOR: ${DEMO_ANCHOR:-}
       # Model per prompt (default Claude Haiku 5.5), effort, refusal fallbacks (on|off). Blank = app default.
       EXTRACT_MODEL: ${EXTRACT_MODEL:-}
       AGENT_MODEL: ${AGENT_MODEL:-}
@@ -79,6 +81,8 @@ services:
       WEATHER_MODE: ${WEATHER_MODE:-recorded}
       # The labelled synthetic demo hazard: always loaded in replay mode; with live AIS only when on.
       DEMO_HAZARDS: ${DEMO_HAZARDS:-off}
+      # With a pinned anchor the worker loads the recorded sources once at that instant (no real-time replay).
+      DEMO_ANCHOR: ${DEMO_ANCHOR:-}
       AISSTREAM_API_KEY: ${AISSTREAM_API_KEY:-}
 
   web:

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { ConsumptionCurve, FobProjection } from "./calculators.js";
 import {
   AisTraffic,
+  AuditEvent,
   CheckResult,
   ExtractionStatus,
   GateAttempt,
@@ -86,6 +87,8 @@ export type PortCallView = z.infer<typeof PortCallView>;
 
 export const VoyageDetail = VoyageSummary.extend({
   portCalls: z.array(PortCallView),
+  /** The planned track for the map: the route legs' waypoints, joined in order (≥ 2 points). */
+  plannedTrack: z.array(LatLon),
   legs: z.array(
     z.object({
       fromPortId: Id,
@@ -429,3 +432,98 @@ export const PortCongestionList = listOf(PortCongestionView);
 export type PortCongestionList = z.infer<typeof PortCongestionList>;
 export const SourceStatusList = listOf(SourceStatusView);
 export type SourceStatusList = z.infer<typeof SourceStatusList>;
+
+// ---------- Phase 6: ops console ----------
+
+/** `GET /api/clock`: the demo world's anchor and the clock every request reads. */
+export const SimClockView = z
+  .object({
+    anchor: IsoDateTime,
+    now: IsoDateTime,
+    /** True when the stack runs on a pinned demo anchor (DEMO_ANCHOR), so `now` is frozen. */
+    pinned: z.boolean(),
+  })
+  .strict();
+export type SimClockView = z.infer<typeof SimClockView>;
+
+/** A port for the map: name, code, position and whether it is in the EU. */
+export const PortView = z
+  .object({
+    id: Id,
+    name: z.string().min(1),
+    unlocode: z.string().min(1),
+    position: LatLon,
+    isEu: z.boolean(),
+  })
+  .strict();
+export type PortView = z.infer<typeof PortView>;
+export const PortList = listOf(PortView);
+export type PortList = z.infer<typeof PortList>;
+
+/** One audit-log row as the console shows it. */
+export const AuditEventView = AuditEvent.omit({ at: true }).extend({ at: IsoDateTime });
+export type AuditEventView = z.infer<typeof AuditEventView>;
+export const AuditEventList = listOf(AuditEventView);
+export type AuditEventList = z.infer<typeof AuditEventList>;
+
+/** `GET /api/review/reference`: the choices a reviewer picks from when correcting a quote. */
+export const ReviewReference = z
+  .object({
+    vessels: z.array(z.object({ id: Id, imo: z.string(), name: z.string() }).strict()),
+    ports: z.array(z.object({ id: Id, unlocode: z.string(), name: z.string() }).strict()),
+    suppliers: z.array(z.object({ id: Id, name: z.string() }).strict()),
+  })
+  .strict();
+export type ReviewReference = z.infer<typeof ReviewReference>;
+
+/** The body of approve and reject: who decided (defaults to the operator). */
+export const DecisionBody = z
+  .object({ decidedBy: z.string().trim().min(1).max(100).optional() })
+  .strict();
+export type DecisionBody = z.infer<typeof DecisionBody>;
+
+const Ci95 = z.tuple([z.number().min(0).max(1), z.number().min(0).max(1)]);
+
+/** `GET /api/eval/summary`: published live-run scorecards (dev split) for the evaluation page. */
+export const EvalSummary = z
+  .object({
+    generatedAt: IsoDateTime,
+    suites: z.array(
+      z
+        .object({
+          suite: z.enum(["extraction", "qa"]),
+          split: z.literal("dev"),
+          label: z.string().min(1),
+          model: z.string().min(1),
+          promptVersion: z.string().min(1),
+          runAt: IsoDateTime,
+          mode: z.literal("live"),
+          metrics: z.array(
+            z
+              .object({
+                key: z.string().min(1),
+                label: z.string().min(1),
+                k: z.number().int().nonnegative(),
+                n: z.number().int().nonnegative(),
+                rate: z.number().min(0).max(1).nullable(),
+                ci95: Ci95.nullable(),
+              })
+              .strict()
+              .refine((m) => m.k <= m.n, { message: "k must not exceed n" }),
+          ),
+          latency: z.array(
+            z
+              .object({
+                key: z.string().min(1),
+                label: z.string().min(1),
+                seconds: z.number().nonnegative(),
+              })
+              .strict(),
+          ),
+          costUsdPerItem: z.number().nonnegative(),
+        })
+        .strict(),
+    ),
+  })
+  .strict();
+export type EvalSummary = z.infer<typeof EvalSummary>;
