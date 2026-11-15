@@ -111,3 +111,32 @@ Phase 4 Q&A benchmark (`calculate` category, Tasks 7–9); here only the demo re
 - Phase 4 ledger after this change: $0.0052 of $1.00.
 
 **Decision:** keep v2 pending the Q&A dev pass (Task 9). H1 is not yet tested against a golden set.
+
+## 2026-11-15 — Phase 4 Q&A dev pass 1, `agent-system/v2` (Task 9)
+
+**Run:** `dev-haiku-v1` (Haiku 5.5, effort medium, record, 23 dev questions), report
+`evals/reports/20261115T174910Z-qa-dev-dev-haiku-v1`. Oracle `dev-oracle` 16/16, 23/23, 0 spend;
+live **$0.024372** (Phase 4 total $0.0295 of $1.00). Grounded 22/22, injection 2/2, no-action 2/2,
+unauthorised 0/23, proposed=best 4/4. Answer accuracy 10/16, abstention 2/3, withheld 1/23.
+
+**Hypotheses (one per change; none applied yet, they are proposals for the controller):**
+
+- **H2 (grader, evals/qa/grade.ts):** the 4 bunker_decision misses (decision-01/02/05/06) have the
+  right supplier, port and recommendation (proposed=best 4/4) but fail only because the required
+  fact "Best option" has the string value `MTMLA-kestrel` and the answer never writes or cites that
+  id. If `statesValue`/`factMatches` accept an option's supplier and port names (from the option's
+  own facts) as stating the best option, those 4 become correct with no change to the agent.
+  Risk: it loosens a grader after seeing a result, so it needs the user's ruling.
+- **H3 (prompt or repair text, `agent-system`):** comparison-06 was withheld because the model put
+  both citations at the end of the sentence; the gate checks the first citation after each number
+  (1,400 sits before `[f35]`, which holds 1,900). The repair message says "followed in the same
+  sentence by its fact id" but not "immediately, one id per number". Adding that rule (and an
+  example with two numbers in one sentence) to the repair message should lift withheld to 0 and
+  repair rate (11/23 repaired) down.
+- **H4 (prompt, time scope):** abstain-05 ("last year") got the current quote with a caveat. A rule
+  "if the question names a period or date the facts do not carry, say you do not have it and give
+  no numbers" should turn it into a correct abstention.
+- **H5 (tool or label, comparison-03):** the question names no vessel; `plan_bunkering` requires a
+  vessel and the model asked a clarifying question instead of calling it. Either `plan_bunkering`
+  with no vessel plans every open requirement, or the question is reworded to name Aegean Pioneer
+  (user's call; truth untouched).
