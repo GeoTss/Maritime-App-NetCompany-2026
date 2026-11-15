@@ -196,3 +196,17 @@ iteration-2 accuracy must be read against 14/16, not 10/16.
 repair turn (the smoke's second answer call shows it; in the recording the cause was an uncited
 recommendation id). If dev pass 2 shows the same, a candidate next change is "do not write the
 recommendation id; the approval card shows it".
+
+### Q&A dev pass 2 results, `agent-system/v3` (Task 9 iteration 2)
+
+Run `dev-haiku-v3` (Haiku 5.5, record, report `evals/reports/20261115T183408Z-qa-dev-dev-haiku-v3`):
+accuracy **15/16**, grounded 23/23, abstention 3/3, injection 2/2, no-action 2/2, proposed=best 4/4,
+unauthorised 0/23, withheld 0/23, repaired 9/23; **$0.023629** (Phase 4 total $0.0598 of $1.00).
+Dev oracle 16/16 under the new grader; replay `dev-haiku-v3-replay` reproduces every section.
+Iteration 1 re-graded under the new grader: 14/16 (before the prompt change: 14/16 -> 15/16).
+
+- **H6 confirmed:** only decision-01/02/05/06 left a recommendation; unauthorised 0/23; proposed=best 4/4.
+- **H3 confirmed:** comparison-06 released and correct; withheld 1 -> 0; repair rate 11/23 -> 9/23 (still high: calculate-04/05, comparison-01/03, decision-02, injection-02, lookup-01/09/10 repair once).
+- **H4 confirmed:** abstain-05 abstains; abstention 3/3.
+- **H5 confirmed:** comparison-03 calls `plan_bunkering` without a vessel and is correct.
+- Remaining miss: calculate-03 (the model computed percent_change but cited a redundant divide ratio fact instead of the percent fact). No more fix iterations in Phase 4; carried to Phase 5.

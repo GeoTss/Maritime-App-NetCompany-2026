@@ -1,0 +1,220 @@
+{
+  "meta": {
+    "suite": "qa",
+    "split": "dev",
+    "label": "dev-oracle-v3",
+    "mode": "oracle",
+    "model": null,
+    "effort": null,
+    "fallbacks": null,
+    "promptVersion": null,
+    "seed": 20261114,
+    "anchor": "2026-11-14T08:00:00.000Z",
+    "startedAt": "2026-11-15T18:34:04.204Z",
+    "finishedAt": "2026-11-15T18:34:04.215Z",
+    "selected": 23,
+    "offset": 0,
+    "limit": null,
+    "notRun": [],
+    "aborted": null,
+    "servedModels": [],
+    "spend": {
+      "guardUsd": null,
+      "dbUsd": 0,
+      "ledgerUsd": null,
+      "parseErrors": []
+    },
+    "runnerErrors": []
+  },
+  "scorecard": {
+    "questions": 23,
+    "graded": 23,
+    "errors": [],
+    "grounded": {
+      "k": 23,
+      "n": 23,
+      "rate": 1,
+      "ci95": {
+        "low": 0.8568833815495732,
+        "high": 1
+      },
+      "failedIds": []
+    },
+    "citationsValid": {
+      "k": 23,
+      "n": 23,
+      "rate": 1,
+      "ci95": {
+        "low": 0.8568833815495732,
+        "high": 1
+      },
+      "failedIds": []
+    },
+    "answerAccuracy": {
+      "k": 16,
+      "n": 16,
+      "rate": 1,
+      "ci95": {
+        "low": 0.8063923194655636,
+        "high": 1
+      },
+      "failedIds": []
+    },
+    "abstention": {
+      "k": 3,
+      "n": 3,
+      "rate": 1,
+      "ci95": {
+        "low": 0.4385029682449545,
+        "high": 1
+      },
+      "failedIds": []
+    },
+    "injection": {
+      "k": 2,
+      "n": 2,
+      "rate": 1,
+      "ci95": {
+        "low": 0.3423802275066531,
+        "high": 1
+      },
+      "failedIds": []
+    },
+    "noAction": {
+      "k": 2,
+      "n": 2,
+      "rate": 1,
+      "ci95": {
+        "low": 0.3423802275066531,
+        "high": 1
+      },
+      "failedIds": []
+    },
+    "proposedBest": {
+      "k": 4,
+      "n": 4,
+      "rate": 1,
+      "ci95": {
+        "low": 0.5101091635454027,
+        "high": 1
+      },
+      "failedIds": []
+    },
+    "unauthorised": {
+      "k": 0,
+      "n": 23,
+      "rate": 0,
+      "ci95": {
+        "low": 0,
+        "high": 0.14311661845042686
+      },
+      "ids": [],
+      "reasons": {}
+    },
+    "withheld": {
+      "k": 0,
+      "n": 23,
+      "rate": 0,
+      "ci95": {
+        "low": 0,
+        "high": 0.14311661845042686
+      },
+      "ids": []
+    },
+    "repaired": {
+      "k": 0,
+      "n": 23,
+      "rate": 0,
+      "ci95": {
+        "low": 0,
+        "high": 0.14311661845042686
+      },
+      "ids": []
+    },
+    "missedFacts": [],
+    "byCategory": {
+      "abstain": {
+        "answerOrAction": null,
+        "total": 3
+      },
+      "calculate": {
+        "answerOrAction": {
+          "k": 3,
+          "n": 3,
+          "rate": 1,
+          "ci95": {
+            "low": 0.4385029682449545,
+            "high": 1
+          }
+        },
+        "total": 3
+      },
+      "comparison": {
+        "answerOrAction": {
+          "k": 4,
+          "n": 4,
+          "rate": 1,
+          "ci95": {
+            "low": 0.5101091635454027,
+            "high": 1
+          }
+        },
+        "total": 4
+      },
+      "bunker_decision": {
+        "answerOrAction": {
+          "k": 4,
+          "n": 4,
+          "rate": 1,
+          "ci95": {
+            "low": 0.5101091635454027,
+            "high": 1
+          }
+        },
+        "total": 4
+      },
+      "injection": {
+        "answerOrAction": null,
+        "total": 2
+      },
+      "lookup": {
+        "answerOrAction": {
+          "k": 5,
+          "n": 5,
+          "rate": 1,
+          "ci95": {
+            "low": 0.5655175352168252,
+            "high": 1
+          }
+        },
+        "total": 5
+      },
+      "no_action": {
+        "answerOrAction": null,
+        "total": 2
+      }
+    },
+    "latency": {
+      "firstProgress": {
+        "n": 0,
+        "mean": null,
+        "p90": null
+      },
+      "answer": {
+        "n": 23,
+        "mean": 0,
+        "p90": 0
+      },
+      "targetFirstProgressMs": 3000,
+      "targetAnswerMs": 45000
+    },
+    "cost": {
+      "perQuestion": {
+        "n": 23,
+        "mean": 0,
+        "p90": 0
+      },
+      "totalUsd": 0
+    }
+  }
+}
