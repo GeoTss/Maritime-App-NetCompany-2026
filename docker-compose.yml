@@ -67,5 +67,17 @@ services:
       timeout: 3s
       retries: 20
 
+  worker:
+    <<: *node
+    command: ["npm", "run", "start", "-w", "@pharos/worker"]
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://pharos:pharos@db:5432/pharos
+      AIS_MODE: ${AIS_MODE:-replay}
+      WEATHER_MODE: ${WEATHER_MODE:-recorded}
+      AISSTREAM_API_KEY: ${AISSTREAM_API_KEY:-}
+
 volumes:
   pgdata:

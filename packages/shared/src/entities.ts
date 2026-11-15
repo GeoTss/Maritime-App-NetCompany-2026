@@ -100,6 +100,15 @@ export const AisTraffic = z.object({
 });
 export type AisTraffic = z.infer<typeof AisTraffic>;
 
+/** Whether a data source is running live or from a recording. */
+export const SourceStatus = z.object({
+  source: z.enum(["ais", "weather"]),
+  mode: z.enum(["live", "recorded"]),
+  detail: z.string().nullable(),
+  updatedAt: Ts,
+});
+export type SourceStatus = z.infer<typeof SourceStatus>;
+
 export const VoyageStatus = z.enum(["planned", "underway", "completed"]);
 export const Voyage = z.object({
   id: Id,

@@ -2,6 +2,7 @@
 import { z } from "zod";
 import { ConsumptionCurve, FobProjection } from "./calculators.js";
 import {
+  AisTraffic,
   CheckResult,
   ExtractionStatus,
   GateAttempt,
@@ -26,6 +27,7 @@ import {
   LatLon,
   ShipType,
 } from "./primitives.js";
+import { RouteCandidate, RouteSpeedResult } from "./routing.js";
 
 export const ApiError = z.object({ error: z.string().min(1) });
 export type ApiError = z.infer<typeof ApiError>;
@@ -324,3 +326,70 @@ export const ReviewDecision = z.object({
   quoteId: Id.nullable(),
 });
 export type ReviewDecision = z.infer<typeof ReviewDecision>;
+
+export const RoutePlanResponse = z
+  .object({
+    calculationId: Id,
+    weatherSnapshotId: Id.nullable(),
+    subject: z.string().min(1),
+    destination: z.string().min(1),
+    candidates: z.array(RouteCandidate),
+    result: RouteSpeedResult,
+    computeMs: z.number().nonnegative(),
+  })
+  .strict();
+export type RoutePlanResponse = z.infer<typeof RoutePlanResponse>;
+
+export const AisTrafficView = AisTraffic.omit({ updatedAt: true }).extend({
+  updatedAt: IsoDateTime,
+});
+export type AisTrafficView = z.infer<typeof AisTrafficView>;
+
+export const PortCongestionView = z
+  .object({
+    portId: Id,
+    portName: z.string().min(1),
+    unlocode: z.string().min(1),
+    anchoredCount: z.number().int().nonnegative(),
+    waitingHours: z.number().nonnegative(),
+    observedAt: IsoDateTime,
+    source: z.enum(["seed", "ais"]),
+  })
+  .strict();
+export type PortCongestionView = z.infer<typeof PortCongestionView>;
+
+export const WeatherView = z
+  .object({
+    snapshotId: Id,
+    source: z.string().min(1),
+    modelRun: z.string().nullable(),
+    fetchedAt: IsoDateTime,
+    startAt: IsoDateTime,
+    stepHours: z.number().positive(),
+    steps: z.number().int().positive(),
+    step: z.number().int().nonnegative(),
+    points: z.array(
+      z
+        .object({
+          lat: LatLon.shape.lat,
+          lon: LatLon.shape.lon,
+          waveHeightM: z.number().nullable(),
+          waveDirDeg: z.number().nullable(),
+          windSpeedKn: z.number().nullable(),
+          windDirDeg: z.number().nullable(),
+        })
+        .strict(),
+    ),
+  })
+  .strict();
+export type WeatherView = z.infer<typeof WeatherView>;
+
+export const SourceStatusView = z
+  .object({
+    source: z.enum(["ais", "weather"]),
+    mode: z.enum(["live", "recorded"]),
+    detail: z.string().nullable(),
+    updatedAt: IsoDateTime,
+  })
+  .strict();
+export type SourceStatusView = z.infer<typeof SourceStatusView>;

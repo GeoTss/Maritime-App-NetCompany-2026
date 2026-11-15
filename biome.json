@@ -15,6 +15,8 @@
       "!fixtures/llm-recordings",
       "!.npm-cache",
       "!**/*.pdf",
+      "!fixtures/recorded",
+      "!**/*.generated.json",
       "!**/*.md"
     ]
   },

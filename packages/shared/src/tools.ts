@@ -105,3 +105,25 @@ export const CalculateInput = z
     }
   });
 export type CalculateInput = z.infer<typeof CalculateInput>;
+
+export const PlanRouteSpeedInput = z
+  .object({
+    vessel: z
+      .string()
+      .trim()
+      .min(1)
+      .describe("Fleet vessel name or IMO, or a ship seen on AIS by name or 9-digit MMSI."),
+    destination: z
+      .string()
+      .trim()
+      .min(1)
+      .optional()
+      .describe("Port name or UN/LOCODE. Required for a ship that is not in the fleet."),
+  })
+  .strict();
+export type PlanRouteSpeedInput = z.infer<typeof PlanRouteSpeedInput>;
+
+export const PortCongestionInput = z
+  .object({ port: z.string().trim().min(1).describe("Port name or 5-letter UN/LOCODE.") })
+  .strict();
+export type PortCongestionInput = z.infer<typeof PortCongestionInput>;

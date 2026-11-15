@@ -31,7 +31,12 @@
     "smoke:pdf": "tsx scripts/pdf-smoke.ts",
     "db:generate": "npm run db:generate -w @pharos/db",
     "db:migrate": "npm run db:migrate -w @pharos/db",
-    "db:seed": "npm run db:seed -w @pharos/db"
+    "db:seed": "npm run db:seed -w @pharos/db",
+    "routes:network": "tsx packages/integrations/src/routes/build-network.ts",
+    "record:weather": "tsx packages/integrations/src/cli/record-weather.ts",
+    "smoke:weather": "tsx packages/integrations/src/cli/smoke-weather.ts",
+    "record:ais": "tsx --env-file=.env packages/integrations/src/cli/record-ais.ts",
+    "smoke:ais": "tsx --env-file=.env packages/integrations/src/cli/smoke-ais.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.7",

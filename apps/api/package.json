@@ -13,6 +13,7 @@
     "@hono/zod-validator": "0.9.1",
     "@pharos/db": "*",
     "@pharos/domain": "*",
+    "@pharos/integrations": "*",
     "@pharos/shared": "*",
     "hono": "4.13.18",
     "html-to-text": "10.0.1",

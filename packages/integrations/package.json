@@ -1,0 +1,17 @@
+{
+  "name": "@pharos/integrations",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@pharos/db": "*",
+    "@pharos/domain": "*",
+    "@pharos/shared": "*",
+    "postgres": "4.1.1",
+    "searoute-ts": "2.3.1",
+    "zod": "4.6.7"
+  }
+}

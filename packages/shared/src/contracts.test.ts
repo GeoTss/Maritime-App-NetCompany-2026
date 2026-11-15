@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  AisObservation,
   AskEvent,
   AskResponse,
   AskResult,
@@ -16,6 +17,7 @@ import {
   LlmCall,
   NormalisedView,
   PlanBunkeringInput,
+  PlanRouteSpeedInput,
   ProposeActionInput,
   ProposedAction,
   Provenance,
@@ -25,7 +27,9 @@ import {
   RecommendationView,
   ReviewCorrection,
   RouteLeg,
+  RouteSpeedInput,
   VesselStatusInput,
+  WeatherGrid,
 } from "./index.js";
 
 const text = (value: string | null, evidence: string | null = value) => ({ value, evidence });
@@ -597,5 +601,76 @@ describe("QaTruth", () => {
       "no_action",
       "injection",
     ]);
+  });
+});
+
+describe("Phase 5 contracts", () => {
+  const series = (n: number) => Array.from({ length: n }, () => 1);
+  const point = (n: number, m = n) => ({
+    lat: 36,
+    lon: 14,
+    waveHeightM: series(n),
+    waveDirDeg: series(n),
+    windSpeedKn: series(m),
+    windDirDeg: series(n),
+    currentSpeedKn: series(n),
+    currentDirDeg: series(n),
+  });
+  const grid = { startAt: "2026-11-15T00:00:00Z", stepHours: 3, points: [point(4)] };
+
+  it("WeatherGrid rejects series of unequal length", () => {
+    expect(WeatherGrid.safeParse(grid).success).toBe(true);
+    expect(WeatherGrid.safeParse({ ...grid, points: [point(4, 3)] }).success).toBe(false);
+    expect(WeatherGrid.safeParse({ ...grid, points: [point(4), point(5)] }).success).toBe(false);
+  });
+
+  it("RouteSpeedInput rejects an empty candidates list", () => {
+    const input = {
+      startAt: "2026-11-15T00:00:00Z",
+      candidates: [],
+      baseline: { candidateId: "a", speedKn: 12 },
+      curve: { refSpeedKn: 12, refMtPerDay: 30, auxMtPerDay: 2, minSpeedKn: 8, maxSpeedKn: 15 },
+      speedStepKn: 0.5,
+      stepNm: 10,
+      arriveBy: null,
+      notBefore: null,
+      dailyCostUsd: 10000,
+      fuelPriceUsdPerMt: { LSMGO: 800, VLSFO: 600, HSFO: 500 },
+      etsCoverage: 0.5,
+      market: { euaPriceEur: 70, eurUsd: 1.1, year: 2026 },
+      weather: null,
+    };
+    expect(RouteSpeedInput.safeParse(input).success).toBe(false);
+    const ok = {
+      ...input,
+      candidates: [
+        {
+          id: "a",
+          label: "Direct",
+          points: [
+            { lat: 0, lon: 0 },
+            { lat: 1, lon: 1 },
+          ],
+        },
+      ],
+    };
+    expect(RouteSpeedInput.safeParse(ok).success).toBe(true);
+  });
+
+  it("AisObservation rejects an 8-digit mmsi", () => {
+    const base = {
+      kind: "static",
+      name: null,
+      shipType: null,
+      destination: null,
+      ts: "2026-11-15T00:00:00Z",
+    };
+    expect(AisObservation.safeParse({ ...base, mmsi: "123456789" }).success).toBe(true);
+    expect(AisObservation.safeParse({ ...base, mmsi: "12345678" }).success).toBe(false);
+  });
+
+  it("PlanRouteSpeedInput rejects an unknown key", () => {
+    expect(PlanRouteSpeedInput.safeParse({ vessel: "Aegean Pioneer" }).success).toBe(true);
+    expect(PlanRouteSpeedInput.safeParse({ vessel: "x", speedKn: 12 }).success).toBe(false);
   });
 });
