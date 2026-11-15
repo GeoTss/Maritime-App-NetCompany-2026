@@ -20,23 +20,41 @@ const str = (id: string, value: string): Fact => ({
 
 describe("numericTokens", () => {
   it("reads thousands commas, decimals, a leading currency sign and a trailing percent", () => {
+    const none = { currency: null, unit: null };
     expect(numericTokens("$233,851.20 and €9,000 and 12.5% and 7")).toEqual([
-      { text: "233,851.20", value: 233851.2, decimals: 2, multiplier: 1, percent: false },
-      { text: "9,000", value: 9000, decimals: 0, multiplier: 1, percent: false },
-      { text: "12.5%", value: 12.5, decimals: 1, multiplier: 1, percent: true },
-      { text: "7", value: 7, decimals: 0, multiplier: 1, percent: false },
+      {
+        text: "233,851.20",
+        value: 233851.2,
+        decimals: 2,
+        multiplier: 1,
+        percent: false,
+        ...none,
+        currency: "USD",
+      },
+      {
+        text: "9,000",
+        value: 9000,
+        decimals: 0,
+        multiplier: 1,
+        percent: false,
+        ...none,
+        currency: "EUR",
+      },
+      { text: "12.5%", value: 12.5, decimals: 1, multiplier: 1, percent: true, ...none, unit: "%" },
+      { text: "7", value: 7, decimals: 0, multiplier: 1, percent: false, ...none },
     ]);
   });
 
   it("reads a scale suffix as a multiplier", () => {
+    const none = { percent: false, currency: null, unit: null };
     expect(numericTokens("$16k, 1.2M, 3 mn, €2bn, 8 thousand, 5 million, 2 billion")).toEqual([
-      { text: "16k", value: 16_000, decimals: 0, multiplier: 1_000, percent: false },
-      { text: "1.2M", value: 1_200_000, decimals: 1, multiplier: 1_000_000, percent: false },
-      { text: "3 mn", value: 3_000_000, decimals: 0, multiplier: 1_000_000, percent: false },
-      { text: "2bn", value: 2e9, decimals: 0, multiplier: 1e9, percent: false },
-      { text: "8 thousand", value: 8_000, decimals: 0, multiplier: 1_000, percent: false },
-      { text: "5 million", value: 5e6, decimals: 0, multiplier: 1e6, percent: false },
-      { text: "2 billion", value: 2e9, decimals: 0, multiplier: 1e9, percent: false },
+      { text: "16k", value: 16_000, decimals: 0, multiplier: 1_000, ...none, currency: "USD" },
+      { text: "1.2M", value: 1_200_000, decimals: 1, multiplier: 1_000_000, ...none },
+      { text: "3 mn", value: 3_000_000, decimals: 0, multiplier: 1_000_000, ...none },
+      { text: "2bn", value: 2e9, decimals: 0, multiplier: 1e9, ...none, currency: "EUR" },
+      { text: "8 thousand", value: 8_000, decimals: 0, multiplier: 1_000, ...none },
+      { text: "5 million", value: 5e6, decimals: 0, multiplier: 1e6, ...none },
+      { text: "2 billion", value: 2e9, decimals: 0, multiplier: 1e9, ...none },
     ]);
   });
 
@@ -448,4 +466,302 @@ describe("checkNumbers", () => {
       expect(result.ungroundedNumbers).toEqual(c.ungrounded ?? []);
     });
   }
+});
+
+describe("numericTokens: currency, unit, sign and formats", () => {
+  it("carries the currency and unit written next to each number", () => {
+    expect(
+      numericTokens(
+        "USD 738 per mt, $712/mt, US$700 per tonne, 738 EUR/t, €9,000, 26 USD, " +
+          "8 thousand dollars, 1.2 million euros, 300 mt, 12 tonnes, 70 percent, 4 %, " +
+          "11.12 hours, a 36.32-hour delay, 1,234 t CO₂, 56 tCO2, 12.5 kn, 2,450 nm, 3 days",
+      ).map((t) => [t.text, t.currency, t.unit]),
+    ).toEqual([
+      ["738", "USD", "/mt"],
+      ["712", "USD", "/mt"],
+      ["700", "USD", "/mt"],
+      ["738", "EUR", "/mt"],
+      ["9,000", "EUR", null],
+      ["26", "USD", null],
+      ["8 thousand", "USD", null],
+      ["1.2 million", "EUR", null],
+      ["300", null, "mt"],
+      ["12", null, "mt"],
+      ["70%", null, "%"],
+      ["4%", null, "%"],
+      ["11.12", null, "h"],
+      ["36.32", null, "h"],
+      ["1,234", null, "t CO₂"],
+      ["56", null, "t CO₂"],
+      ["12.5", null, "kn"],
+      ["2,450", null, "nm"],
+      ["3", null, "days"],
+    ]);
+  });
+
+  it("does not read a letter glued to the next number as a unit", () => {
+    expect(numericTokens("2026-11-15T10:30 and 26 USD2").map((t) => [t.text, t.unit])).toEqual([
+      ["2026", null],
+      ["11", null],
+      ["15", null],
+      ["10", null],
+      ["30", null],
+      ["26", null],
+      ["2", null],
+    ]);
+  });
+
+  it("reads a leading minus as negative, but not a hyphen after a letter or digit", () => {
+    expect(
+      numericTokens("-26 USD, −$26, $-26, USD -26, AP-2611, 2026-11-15, 10-12 days").map((t) => [
+        t.text,
+        t.value,
+      ]),
+    ).toEqual([
+      ["-26", -26],
+      ["-26", -26],
+      ["-26", -26],
+      ["-26", -26],
+      ["2611", 2611],
+      ["2026", 2026],
+      ["11", 11],
+      ["15", 15],
+      ["10", 10],
+      ["12", 12],
+    ]);
+  });
+
+  it("reads space-grouped thousands as one number", () => {
+    expect(
+      numericTokens("233 914, 1 234 567.5, 233\u00a0914 and 12 34").map((t) => [t.text, t.value]),
+    ).toEqual([
+      ["233 914", 233_914],
+      ["1 234 567.5", 1_234_567.5],
+      ["233\u00a0914", 233_914],
+      ["12", 12],
+      ["34", 34],
+    ]);
+  });
+
+  it("skips the digits of names that state no amount", () => {
+    expect(
+      numericTokens("CO2, CO₂, tCO2, IMO 2020, ISO 8217, ISO 8217:2017, MARPOL Annex VI"),
+    ).toEqual([]);
+  });
+});
+
+/** A fact with a unit and a label, as the tools emit them. */
+const labelled = (
+  id: string,
+  value: number | string,
+  unit: string | null,
+  label: string = id,
+): Fact => ({ ...calc(id, value, unit), label });
+
+const SAVING_LABEL = "Saving of the best option against the cheapest headline price, in total cost";
+
+describe("checkNumbers v2", () => {
+  const cases: {
+    name: string;
+    answer: string;
+    facts: Fact[];
+    passed: boolean;
+    ungrounded?: string[];
+  }[] = [
+    // unit and currency must agree
+    {
+      name: '"USD 738 per mt" vs a EUR/mt fact of 738 is ungrounded',
+      answer: "Kestrel quotes USD 738 per mt [f_p].",
+      facts: [labelled("f_p", 738, "EUR/mt")],
+      passed: false,
+      ungrounded: ["738"],
+    },
+    {
+      name: '"738 mt" vs a USD/mt fact of 738 is ungrounded',
+      answer: "Kestrel offers 738 mt [f_p].",
+      facts: [labelled("f_p", 738, "USD/mt")],
+      passed: false,
+      ungrounded: ["738"],
+    },
+    {
+      name: '"EUR 738" vs a EUR/mt fact of 738 is grounded',
+      answer: "Kestrel quotes EUR 738 [f_p].",
+      facts: [labelled("f_p", 738, "EUR/mt")],
+      passed: true,
+    },
+    {
+      name: '"-26 USD" vs a saving fact of 26 with "cheaper" is grounded',
+      answer: "Kestrel works out cheaper, at -26 USD [f_s].",
+      facts: [labelled("f_s", 26, "USD", SAVING_LABEL)],
+      passed: true,
+    },
+    {
+      name: '"USD … per mt" and "$…/mt" are equivalent to a USD/mt fact',
+      answer: "USD 738 per mt [f_a], $712/mt [f_b] and 700 USD per tonne [f_c].",
+      facts: [
+        labelled("f_a", 738, "USD/mt"),
+        labelled("f_b", 712, "USD/mt"),
+        labelled("f_c", 700, "USD/mt"),
+      ],
+      passed: true,
+    },
+    {
+      name: '"percent" is equivalent to a % fact',
+      answer: "Strait Line is 3.6 percent [f_c] dearer.",
+      facts: [labelled("f_c", 3.6, "%")],
+      passed: true,
+    },
+    {
+      name: "written units that agree with the fact units are grounded",
+      answer:
+        "300 mt [f_q] in 11.12 hours [f_d] at 12.5 kn [f_s] over 2,450 nm [f_n], " +
+        "3 days [f_t], 1,234 t CO₂ [f_c] and €9,000 [f_e].",
+      facts: [
+        labelled("f_q", 300, "mt"),
+        labelled("f_d", 11.12, "h"),
+        labelled("f_s", 12.5, "kn"),
+        labelled("f_n", 2450, "nm"),
+        labelled("f_t", 3, "days"),
+        labelled("f_c", 1234.2, "t CO₂"),
+        labelled("f_e", 9000, "EUR"),
+      ],
+      passed: true,
+    },
+    {
+      name: "a currency that disagrees with the fact is ungrounded",
+      answer: "The barge fee is $9,000 [f_e].",
+      facts: [labelled("f_e", 9000, "EUR")],
+      passed: false,
+      ungrounded: ["9,000"],
+    },
+    {
+      name: "a unit that disagrees with the fact is ungrounded",
+      answer: "The delay is 11 days [f_d].",
+      facts: [labelled("f_d", 11, "h")],
+      passed: false,
+      ungrounded: ["11"],
+    },
+    {
+      name: "a percentage of a fact in USD is ungrounded",
+      answer: "That is 12% [f_x].",
+      facts: [labelled("f_x", 12, "USD")],
+      passed: false,
+      ungrounded: ["12%"],
+    },
+    {
+      name: "a percentage is not a % fact times 100",
+      answer: "That is 50% [f_p].",
+      facts: [labelled("f_p", 0.5, "%")],
+      passed: false,
+      ungrounded: ["50%"],
+    },
+    {
+      name: "a fact with no unit is not unit-checked",
+      answer: "Short by 12.4 mt [f_x].",
+      facts: [labelled("f_x", 12.4, null)],
+      passed: true,
+    },
+    // sign
+    {
+      name: "a negative number never matches a positive fact",
+      answer: "The total is -26 USD [f_t], which is lower.",
+      facts: [labelled("f_t", 26, "USD", "Total delivered cost")],
+      passed: false,
+      ungrounded: ["-26"],
+    },
+    {
+      name: "a negative saving needs less, lower or cheaper in its sentence",
+      answer: "Kestrel costs -26 USD more [f_s].",
+      facts: [labelled("f_s", 26, "USD", SAVING_LABEL)],
+      passed: false,
+      ungrounded: ["-26"],
+    },
+    {
+      name: "a negative difference said to be lower is grounded",
+      answer: "Kestrel's price is −$26 lower [f_c].",
+      facts: [labelled("f_c", 26, "USD/mt", "difference of headline price and headline price")],
+      passed: true,
+    },
+    {
+      name: "a negative number matches a negative fact",
+      answer: "The balance is -12.4 mt [f_b].",
+      facts: [labelled("f_b", -12.4, "mt")],
+      passed: true,
+    },
+    // not numeric claims
+    {
+      name: "chemical and regulation names are not numbers",
+      answer:
+        "CO2 and CO₂ are capped under IMO 2020; the fuel meets ISO 8217:2017 and MARPOL Annex VI.",
+      facts: [],
+      passed: true,
+    },
+    {
+      name: "CO2 in a unit does not hide the amount before it",
+      answer: "It emits 1,234 t CO2.",
+      facts: [],
+      passed: false,
+      ungrounded: ["1,234"],
+    },
+    {
+      name: "a clock time a fact holds passes uncited, in either form",
+      answer: "Arrives 08:00 UTC, so the pilot boards at 8:00.",
+      facts: [str("f_eta", "2026-11-15T08:00:00.000Z")],
+      passed: true,
+    },
+    {
+      name: "a zero-padded clock time matches a fact written without the zero",
+      answer: "Pilot at 06:30.",
+      facts: [str("f_pilot", "6:30 LT")],
+      passed: true,
+    },
+    {
+      name: "a clock time no fact holds is checked as numbers",
+      answer: "Arrives 09:00 UTC.",
+      facts: [str("f_eta", "2026-11-15T08:00:00.000Z")],
+      passed: false,
+      ungrounded: ["09", "00"],
+    },
+    {
+      name: "an IMO number equal to a fact passes uncited",
+      answer: "Aegean Pioneer, IMO 9480019, is at sea.",
+      facts: [str("f_imo", "9480019")],
+      passed: true,
+    },
+    {
+      name: "an IMO number no fact equals is ungrounded",
+      answer: "Aegean Pioneer, IMO 9480020, is at sea.",
+      facts: [str("f_imo", "9480019")],
+      passed: false,
+      ungrounded: ["9480020"],
+    },
+    // space-grouped thousands
+    {
+      name: "a space-grouped number is one number, grounded at its precision",
+      answer: "Total $233 914 [f_x].",
+      facts: [labelled("f_x", 233914.449, "USD")],
+      passed: true,
+    },
+    {
+      name: "an uncited space-grouped number is listed whole",
+      answer: "Total 233 914.",
+      facts: [],
+      passed: false,
+      ungrounded: ["233 914"],
+    },
+  ];
+
+  for (const c of cases) {
+    it(c.name, () => {
+      const result = checkNumbers(c.answer, c.facts);
+      expect(result.ungroundedNumbers).toEqual(c.ungrounded ?? []);
+      expect(result.passed).toBe(c.passed);
+    });
+  }
+
+  it("records its pass as attempt 1", () => {
+    expect(checkNumbers("Saves $8,000.", []).attempts).toEqual([
+      { attempt: 1, passed: false, ungroundedNumbers: ["8,000"] },
+    ]);
+  });
 });

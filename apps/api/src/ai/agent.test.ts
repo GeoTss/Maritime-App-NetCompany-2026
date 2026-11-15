@@ -313,6 +313,99 @@ describe.skipIf(!sql)("runAgent (Postgres)", () => {
     expect(two.facts.map((f) => f.id)).toContain(total?.id);
   });
 
+  const gateAttemptsOf = async (messageId: number) => {
+    const [row] = await db<{ gate_attempts: unknown }[]>`
+      select gate_attempts from messages where id = ${messageId}`;
+    return row?.gate_attempts;
+  };
+
+  it("stores each gate attempt on the assistant message and returns them", async () => {
+    const { deps } = scriptedDeps([
+      textReply(1, "That saves about 8,000 dollars."),
+      textReply(2, "Bunker at Marsaxlokk with Kestrel Marine Fuels."),
+    ]);
+    const res = await runAgent(deps, "Where?");
+    const attempts = [
+      { attempt: 1, passed: false, ungroundedNumbers: ["8,000"] },
+      { attempt: 2, passed: true, ungroundedNumbers: [] },
+    ];
+    expect(res.gate.attempts).toEqual(attempts);
+    expect(await gateAttemptsOf(res.messageId)).toEqual(attempts);
+    // Only the assistant message carries gate attempts.
+    const stored = await messagesOf(res.conversationId);
+    const user = stored.find((m) => m.role === "user");
+    expect(await gateAttemptsOf(user?.id ?? 0)).toEqual([]);
+  });
+
+  it("a repair turn that fails still stores the first gate attempt", async () => {
+    const { deps } = scriptedDeps([
+      textReply(1, "Kestrel is $8,000 cheaper than Strait Line."),
+      scriptedMessage(2, [], "refusal"),
+    ]);
+    await expect(runAgent(deps, "Who is cheaper?")).rejects.toBeInstanceOf(AgentError);
+    const [assistant] = await db<{ id: number }[]>`
+      select id from messages where role = 'assistant' order by id desc limit 1`;
+    expect(await gateAttemptsOf(assistant?.id ?? 0)).toEqual([
+      { attempt: 1, passed: false, ungroundedNumbers: ["8,000"] },
+    ]);
+  });
+
+  it("a number only in the question is not a fact", async () => {
+    const answer = "Yes, Kestrel quoted USD 738 per mt.";
+    const { deps } = scriptedDeps([textReply(1, answer), textReply(2, answer)]);
+    const res = await runAgent(deps, "Kestrel quoted USD 738 per mt for LSMGO, right?");
+    expect(res.facts).toEqual([]);
+    expect(res.answer).toBeNull();
+    const attempts = [
+      { attempt: 1, passed: false, ungroundedNumbers: ["738"] },
+      { attempt: 2, passed: false, ungroundedNumbers: ["738"] },
+    ];
+    expect(res.gate).toEqual({
+      passed: false,
+      repaired: true,
+      ungroundedNumbers: ["738"],
+      attempts,
+    });
+    expect(await gateAttemptsOf(res.messageId)).toEqual(attempts);
+  });
+
+  it("uncited arithmetic is withheld", async () => {
+    const headline = (req: ScriptedRequest, option: number) => {
+      const plan = lastToolResultOf(req, "plan_bunkering");
+      const fact = plan.facts.find((f) =>
+        f.id.endsWith(`_options.${option}.headlinePriceUsdPerMt`),
+      );
+      if (!fact) throw new Error(`no headline price for option ${option}`);
+      return fact;
+    };
+    const { deps } = scriptedDeps([
+      toolCall(1, "plan_bunkering", { vessel: "Aegean Pioneer" }),
+      (req: ScriptedRequest) => {
+        const kestrel = headline(req, 0);
+        const strait = headline(req, 1);
+        return textReply(
+          2,
+          `Kestrel quotes $${kestrel.value}/mt [${kestrel.id}] and Strait Line ` +
+            `$${strait.value}/mt [${strait.id}]; the difference is 26 USD/mt.`,
+        );
+      },
+      // The repair cites a fact, but the fact is not 26: no calculate call, no derived fact.
+      (req: ScriptedRequest) =>
+        textReply(3, `The difference is 26 USD/mt [${headline(req, 0).id}].`),
+    ]);
+    const res = await runAgent(deps, "How much cheaper is Strait Line's headline price?");
+    const prices = res.facts.filter((f) => f.id.endsWith(".headlinePriceUsdPerMt"));
+    expect(prices.map((f) => f.value)).toEqual([738, 712]);
+    expect(res.facts.some((f) => f.value === 26)).toBe(false);
+    expect(res.answer).toBeNull();
+    expect(res.gate).toMatchObject({ passed: false, repaired: true, ungroundedNumbers: ["26"] });
+    expect(res.gate.attempts).toEqual([
+      { attempt: 1, passed: false, ungroundedNumbers: ["26"] },
+      { attempt: 2, passed: false, ungroundedNumbers: ["26"] },
+    ]);
+    expect(await gateAttemptsOf(res.messageId)).toEqual(res.gate.attempts);
+  });
+
   it("a refusal fails the ask with AgentError, and the call is still recorded", async () => {
     const { deps } = scriptedDeps([scriptedMessage(1, [], "refusal")]);
     await expect(runAgent(deps, "Where?")).rejects.toBeInstanceOf(AgentError);

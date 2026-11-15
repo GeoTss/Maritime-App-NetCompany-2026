@@ -2,12 +2,13 @@
  * LLM 2: the ops agent. One tool-runner loop over typed tools; deterministic code computes every
  * number as a cited fact, and the release gate withholds any answer whose numbers are not facts
  * (after one repair turn). Each ask's fact ledger starts with the conversation's earlier facts.
- * Conversations, messages and model calls are persisted.
+ * Conversations, messages (with each gate attempt on the assistant message) and model calls are
+ * persisted.
  */
 import type Anthropic from "@anthropic-ai/sdk";
 import type { BetaToolRunnerParams } from "@anthropic-ai/sdk/lib/tools/BetaToolRunner";
 import type { Sql } from "@pharos/db";
-import type { AskResponse, Fact, GateResult, Id } from "@pharos/shared";
+import type { AskResponse, Fact, GateAttempt, GateResult, Id } from "@pharos/shared";
 import type { AppConfig } from "../config.js";
 import { withCallCapture } from "./call-capture.js";
 import { loadConversationFacts } from "./fact-ledger.js";
@@ -175,10 +176,12 @@ async function insertMessage(
   role: StoredMessage["role"],
   content: unknown,
   at: Date,
+  gateAttempts: GateAttempt[] = [],
 ): Promise<Id> {
   const [row] = await sql<{ id: number }[]>`
-    insert into messages (conversation_id, role, content, created_at)
-    values (${conversationId}, ${role}, ${json(content)}::jsonb, ${at.toISOString()}::timestamptz)
+    insert into messages (conversation_id, role, content, gate_attempts, created_at)
+    values (${conversationId}, ${role}, ${json(content)}::jsonb, ${json(gateAttempts)}::jsonb,
+            ${at.toISOString()}::timestamptz)
     returning id`;
   if (!row) throw new Error("messages insert returned no row");
   return row.id;
@@ -188,6 +191,8 @@ async function insertMessage(
  * Answers one question, in a new conversation or a given one. The answer is released only if
  * every number in it is a fact a tool returned in this conversation; otherwise one repair turn
  * runs, and if that also fails the answer is withheld (`answer: null`, `gate.passed: false`).
+ * Each gate attempt is stored on the assistant message (`gate_attempts`), also when a later turn
+ * fails, and returned as `gate.attempts`.
  * Throws `ConversationNotFoundError` for an unknown conversation and `AgentError` when the model
  * gives no usable answer (both after recording the calls made).
  */
@@ -221,10 +226,13 @@ export async function runAgent(
 
   const ctx = createToolContext({ sql, now, priorFacts });
   const tools = agentTools(ctx);
+  /** Every gate pass so far, kept outside the run so a failed repair turn still stores attempt 1. */
+  const attempts: GateAttempt[] = [];
   const run = await withCallCapture(async () => {
     const first = await runTurn(deps, tools, [...history, { role: "user", content: question }]);
     const text = answerOf(first.final);
     const gate = checkNumbers(text, [...ctx.ledger.values()]);
+    attempts.push(...gate.attempts);
     if (gate.passed) return { text, gate };
     const repair = await runTurn(deps, tools, [
       ...first.history,
@@ -232,14 +240,12 @@ export async function runAgent(
     ]);
     const repaired = answerOf(repair.final);
     const second = checkNumbers(repaired, [...ctx.ledger.values()]);
-    const again: GateResult = {
-      ...second,
-      repaired: true,
-      attempts: [
-        ...gate.attempts,
-        { attempt: 2, passed: second.passed, ungroundedNumbers: second.ungroundedNumbers },
-      ],
-    };
+    attempts.push({
+      attempt: 2,
+      passed: second.passed,
+      ungroundedNumbers: second.ungroundedNumbers,
+    });
+    const again: GateResult = { ...second, repaired: true, attempts: [...attempts] };
     return { text: repaired, gate: again };
   });
 
@@ -266,6 +272,7 @@ export async function runAgent(
       "assistant",
       { answer: null, error, ...meta },
       now(),
+      attempts,
     );
     await linkRecommendations(messageId);
     deps.log?.(`[agent] conversation ${convId}: ${error}`);
@@ -287,6 +294,7 @@ export async function runAgent(
       ...meta,
     },
     now(),
+    gate.attempts,
   );
   await linkRecommendations(messageId);
   if (!gate.passed) {
