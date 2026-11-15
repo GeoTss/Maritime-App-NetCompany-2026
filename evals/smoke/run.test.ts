@@ -107,12 +107,43 @@ describe.skipIf(!sql)("live smoke runner (in-process, replay)", () => {
     };
   }
 
+  /** Wraps the in-process fetch: `rewrite` may replace a response's JSON body per path. */
+  const rewriting = (
+    realFetch: typeof fetch,
+    rewrite: (path: string, body: unknown) => unknown,
+    seen: string[] = [],
+  ) =>
+    (async (url: string, init?: RequestInit) => {
+      const path = new URL(url).pathname;
+      seen.push(path);
+      const res = await realFetch(url, init);
+      const body = rewrite(
+        path,
+        await res
+          .clone()
+          .json()
+          .catch(() => undefined),
+      );
+      return body === undefined ? res : new Response(JSON.stringify(body), { status: res.status });
+    }) as typeof fetch;
+
   it("passes end to end, writes the report and the marker", async () => {
     const { dir, options } = await build();
-    const result: SmokeResult = await runSmoke(options);
+    const seen: string[] = [];
+    const result: SmokeResult = await runSmoke({
+      ...options,
+      fetch: rewriting(options.fetch, () => undefined, seen),
+    });
     expect(result.failures).toEqual([]);
     expect(result.ok).toBe(true);
     expect(result.exitCode).toBe(0);
+    // The ask goes through the stream, and the approved recommendation's drafts are read.
+    expect(seen).toContain("/api/ask/stream");
+    expect(seen).not.toContain("/api/ask");
+    expect(seen.some((p) => /^\/api\/recommendations\/\d+\/drafts$/.test(p))).toBe(true);
+    expect(result.report.askEvents?.progress).toBeGreaterThanOrEqual(1);
+    expect(result.report.askEvents?.answer).toBe(1);
+    expect(result.report.drafts).toEqual(["master_instruction", "supplier_confirmation"]);
 
     const r = result.report;
     expect(r.label).toBe("dryrun");
@@ -172,26 +203,6 @@ describe.skipIf(!sql)("live smoke runner (in-process, replay)", () => {
     expect(result.failures.join("\n")).toMatch(/price/);
     await expect(access(join(dir, "markers", "live-smoke"))).rejects.toThrow();
   });
-
-  /** Wraps the in-process fetch: `rewrite` may replace a response's JSON body per path. */
-  const rewriting = (
-    realFetch: typeof fetch,
-    rewrite: (path: string, body: unknown) => unknown,
-    seen: string[] = [],
-  ) =>
-    (async (url: string, init?: RequestInit) => {
-      const path = new URL(url).pathname;
-      seen.push(path);
-      const res = await realFetch(url, init);
-      const body = rewrite(
-        path,
-        await res
-          .clone()
-          .json()
-          .catch(() => undefined),
-      );
-      return body === undefined ? res : new Response(JSON.stringify(body), { status: res.status });
-    }) as typeof fetch;
 
   it.each([
     ["a non-Haiku agent model", { agentModel: "claude-sonnet-5-5" }, /claude-sonnet-5-5/],
@@ -255,7 +266,7 @@ describe.skipIf(!sql)("live smoke runner (in-process, replay)", () => {
     expect(result.failures[0]).toContain("extraction ended needs_review");
     expect(result.failures[0]).toContain("quantity: range written as 300/350 mt");
     expect(result.failures[0]).not.toContain("currency");
-    expect(seen).not.toContain("/api/ask");
+    expect(seen).not.toContain("/api/ask/stream");
     expect(result.report.steps.map((s) => s.name)).toEqual(["email-1"]);
     expect(JSON.parse(await readFile(join(result.reportDir, "report.json"), "utf8")).ok).toBe(
       false,
@@ -299,9 +310,89 @@ describe.skipIf(!sql)("live smoke runner (in-process, replay)", () => {
     expect(result.exitCode).toBe(1);
     expect(result.failures).toHaveLength(1);
     expect(result.failures[0]).toContain("extraction still pending");
-    expect(seen).not.toContain("/api/ask");
+    expect(seen).not.toContain("/api/ask/stream");
     expect(result.report.steps.map((s) => s.name)).toEqual(["email-1"]);
     await access(join(result.reportDir, "report.json"));
+    await expect(access(join(dir, "markers", "live-smoke"))).rejects.toThrow();
+  });
+
+  /** Rewrites the ask stream's SSE text (the in-process stream is read whole). */
+  const rewritingStream = (realFetch: typeof fetch, rewrite: (text: string) => string) =>
+    (async (url: string, init?: RequestInit) => {
+      const res = await realFetch(url, init);
+      if (new URL(url).pathname !== "/api/ask/stream") return res;
+      return new Response(rewrite(await res.text()), {
+        status: res.status,
+        headers: { "content-type": "text/event-stream" },
+      });
+    }) as typeof fetch;
+  const blocks = (text: string) => text.split("\n\n").filter((b) => b.trim() !== "");
+
+  it("fails when the ask stream sends no progress event before its answer", async () => {
+    const { dir, options } = await build();
+    const noProgress = rewritingStream(options.fetch, (text) =>
+      blocks(text)
+        .filter((b) => !b.includes("event: progress"))
+        .map((b) => `${b}\n\n`)
+        .join(""),
+    );
+    const result = await runSmoke({ ...options, fetch: noProgress });
+    expect(result.ok).toBe(false);
+    expect(result.failures.join("\n")).toMatch(/no progress event before its answer/);
+    await expect(access(join(dir, "markers", "live-smoke"))).rejects.toThrow();
+  });
+
+  it("fails when the ask stream sends more than one answer event", async () => {
+    const { options } = await build();
+    const twice = rewritingStream(options.fetch, (text) => {
+      const answer = blocks(text).find((b) => b.includes("event: answer")) ?? "";
+      return `${text}${answer}\n\n`;
+    });
+    const result = await runSmoke({ ...options, fetch: twice });
+    expect(result.ok).toBe(false);
+    expect(result.failures.join("\n")).toMatch(/2 answer events, expected exactly 1/);
+  });
+
+  it("stops on an error event from the ask stream, before any approval", async () => {
+    const { options } = await build();
+    const seen: string[] = [];
+    const failing = rewritingStream(
+      rewriting(options.fetch, () => undefined, seen),
+      () => `event: error\ndata: ${JSON.stringify({ type: "error", message: "boom" })}\n\n`,
+    );
+    const result = await runSmoke({ ...options, fetch: failing });
+    expect(result.ok).toBe(false);
+    expect(result.failures.join("\n")).toMatch(/error event: boom/);
+    expect(seen.some((p) => p.endsWith("/approve"))).toBe(false);
+  });
+
+  it.each([
+    [
+      "one draft",
+      (items: { kind: string }[]) => items.slice(0, 1),
+      /1 drafted messages, expected 2/,
+    ],
+    [
+      "a sent draft",
+      (items: { status: string }[]) =>
+        items.map((d, i) => (i === 0 ? { ...d, status: "sent" } : d)),
+      /status sent, expected draft/,
+    ],
+    [
+      "two drafts of one kind",
+      (items: { kind: string }[]) => items.map((d) => ({ ...d, kind: "master_instruction" })),
+      /draft kinds master_instruction, master_instruction/,
+    ],
+  ])("fails when the approved recommendation has %s", async (_n, change, why) => {
+    const { dir, options } = await build();
+    const tampered = rewriting(options.fetch, (path, body) =>
+      /^\/api\/recommendations\/\d+\/drafts$/.test(path)
+        ? { items: change((body as { items: never[] }).items) }
+        : undefined,
+    );
+    const result = await runSmoke({ ...options, fetch: tampered });
+    expect(result.ok).toBe(false);
+    expect(result.failures.join("\n")).toMatch(why);
     await expect(access(join(dir, "markers", "live-smoke"))).rejects.toThrow();
   });
 
@@ -389,10 +480,13 @@ describe.skipIf(!sql)("live smoke runner (in-process, replay)", () => {
       const ledger = join(dir, "ledger.jsonl");
       await writeFile(ledger, "");
       const real = options.fetch;
-      // The ask really runs (so its agent calls are recorded) but the caller sees an HTTP 500.
+      // The ask really runs to its end (so its agent calls are recorded: the stream is read
+      // through) but the caller sees an HTTP 500.
       const failing = (async (url: string, init?: RequestInit) => {
         const res = await real(url, init);
-        return new URL(url).pathname === "/api/ask" ? new Response("boom", { status: 500 }) : res;
+        if (new URL(url).pathname !== "/api/ask/stream") return res;
+        await res.text();
+        return new Response("boom", { status: 500 });
       }) as typeof fetch;
       const result = await runSmoke({
         ...options,

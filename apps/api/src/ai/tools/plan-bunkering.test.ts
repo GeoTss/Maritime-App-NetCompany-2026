@@ -36,8 +36,9 @@ describe.skipIf(!sql)("plan_bunkering (Postgres)", () => {
     return row;
   };
 
-  it("input is strict", () => {
+  it("input is strict; the vessel is optional", () => {
     expect(() => PlanBunkeringInput.parse({ vessel: "Aegean Pioneer", qtyMt: 300 })).toThrow();
+    expect(PlanBunkeringInput.parse({})).toEqual({});
   });
 
   it("plan_bunkering ranks MTMLA-kestrel first and GIGIB-straitline as cheapest headline", async () => {
@@ -237,6 +238,56 @@ describe.skipIf(!sql)("plan_bunkering (Postgres)", () => {
     expect(result.facts.filter((f) => f.id.endsWith("_voyages.voyageNo"))).toHaveLength(1);
     expect(new Set(result.facts.map((f) => f.id)).size).toBe(result.facts.length);
     for (const f of result.facts) expect(f.label).not.toMatch(/\d/);
+  });
+
+  it("with no vessel it plans every vessel with an open requirement: today Aegean Pioneer, as if named", async () => {
+    const unnamed = await planBunkering(ctx(), {});
+    await prepareAskFixture(db); // same ids again, so the two results can be compared whole
+    const named = await planBunkering(ctx(), { vessel: "Aegean Pioneer" });
+    expect(unnamed).toEqual(named);
+    expect(unnamed.data).toMatchObject({
+      vessel: "MV Aegean Pioneer",
+      bestOptionId: "MTMLA-kestrel",
+    });
+  });
+
+  it("with no vessel and several vessels to plan, plans each and names the vessel in every label", async () => {
+    // An open VLSFO requirement on Coral Horizon's current voyage, with no quote for it yet.
+    await db`
+      insert into bunker_requirements (voyage_id, grade, qty_mt, status, created_at)
+      values ((select id from voyages where voyage_no = 'CH-2613'), 'VLSFO', 400, 'open',
+              ${ASK_FIXTURE_NOW.toISOString()}::timestamptz)`;
+    const result = await planBunkering(ctx(), {});
+    const data = result.data as { vessels: { vessel: string; calculationId?: number }[] };
+    expect(data.vessels.map((v) => v.vessel)).toEqual(["MV Aegean Pioneer", "MV Coral Horizon"]);
+    expect(JSON.stringify(data.vessels[1])).toMatch(/no received quotes/i);
+
+    // Aegean Pioneer's plan is the one it gets alone (same option ids), each label scoped to it.
+    const calc = await latestCalc();
+    expect(data.vessels[0]?.calculationId).toBe(calc.id);
+    expect(BunkerPlan.parse(calc.outputs).bestOptionId).toBe("MTMLA-kestrel");
+    expect(result.facts.length).toBeGreaterThan(0);
+    for (const f of result.facts) {
+      expect(f.label.startsWith("MV Aegean Pioneer: ")).toBe(true);
+      expect(f.label).not.toMatch(/\d/);
+    }
+    expect(result.facts.find((f) => f.id.endsWith("_bestOptionId"))).toMatchObject({
+      value: "MTMLA-kestrel",
+      label: "MV Aegean Pioneer: Best option (lowest total cost, feasible)",
+    });
+    expect(
+      result.facts.find((f) => f.id === `f_plan_bunkering_${calc.id}_options.0.totalCostUsd`)
+        ?.label,
+    ).toBe(
+      "MV Aegean Pioneer: MTMLA-kestrel (Kestrel Marine Fuels, Marsaxlokk): total delivered cost",
+    );
+  });
+
+  it("with no vessel and no open requirement anywhere it returns a fact-free result", async () => {
+    await db`update bunker_requirements set status = 'ordered' where status = 'open'`;
+    const result = await planBunkering(ctx(), {});
+    expect(result.facts).toEqual([]);
+    expect(JSON.stringify(result.data)).toMatch(/no vessel has an open bunker requirement/i);
   });
 
   it("a vessel with no open requirement gets a fact-free result", async () => {

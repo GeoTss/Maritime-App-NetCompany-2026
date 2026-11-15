@@ -126,7 +126,7 @@ export async function approveRecommendation(
       await audit(tx, id, "recommendation.approved", decidedBy, {}, now);
     }
     if (status !== "approved" && status !== "failed") return false; // executing or executed
-    await beginExecution(tx, { ...rec, status }, now);
+    await beginExecution(tx, { ...rec, status }, now, decidedBy);
     return true;
   });
   if (run) await pushAndFinish(deps, id);
@@ -147,7 +147,7 @@ export async function executeRecommendation(deps: ExecutorDeps, id: Id): Promise
         `Recommendation ${id} is ${rec.status}; only an approved recommendation can be executed.`,
       );
     }
-    await beginExecution(tx, rec, now);
+    await beginExecution(tx, rec, now, EXECUTOR);
   });
   await pushAndFinish(deps, id);
   return decisionOf(deps.sql, id);
@@ -177,12 +177,20 @@ export async function rejectRecommendation(
   return decisionOf(deps.sql, id);
 }
 
-/** approved -start-> executing, or failed -retry-> executing; writes the order if none exists. */
-async function beginExecution(tx: Tx, rec: RecommendationRow, now: Date): Promise<void> {
+/**
+ * approved -start-> executing, or failed -retry-> executing; writes the order if none exists. A
+ * retry is audited as `actor`: the human whose approval retried it, or the executor.
+ */
+async function beginExecution(
+  tx: Tx,
+  rec: RecommendationRow,
+  now: Date,
+  actor: string,
+): Promise<void> {
   const retry = rec.status === "failed";
   const next = transition(rec.status, retry ? "retry" : "start");
   await tx`update recommendations set status = ${next} where id = ${rec.id}`;
-  if (retry) await audit(tx, rec.id, "recommendation.retried", EXECUTOR, {}, now);
+  if (retry) await audit(tx, rec.id, "recommendation.retried", actor, {}, now);
   const [existing] = await tx<{ id: number }[]>`
     select id from purchase_orders where recommendation_id = ${rec.id} order by id limit 1`;
   if (!existing) await createOrder(tx, rec, now);
@@ -224,6 +232,9 @@ async function createOrder(tx: Tx, rec: RecommendationRow, now: Date): Promise<I
   if (quote.status !== "received" && quote.status !== "accepted") {
     refuse(`quote ${quote.id} is ${quote.status}.`);
   }
+  // One purchase order per quote (Phase 4 limit). A multi-grade quote can back the plans of
+  // several grades, but once one of them is ordered the quote is taken: a second grade's
+  // recommendation from the same quote is refused here rather than ordering it twice.
   const [taken] = await tx<{ id: number }[]>`
     select id from purchase_orders where quote_id = ${quote.id}`;
   if (taken) refuse(`quote ${quote.id} already has purchase order ${taken.id}.`);
@@ -361,9 +372,14 @@ async function pushAndFinish(deps: ExecutorDeps, recId: Id): Promise<void> {
           status = 'confirmed'
         where id = ${orderId}`;
       await tx`update quotes set status = 'ordered' where id = ${order.quote_id}`;
+      // The requirement the plan was for: the voyage's lowest-id open requirement of the plan's
+      // grade (the planner's rule), not the one the quote links (a quote may offer other grades).
       await tx`
         update bunker_requirements set status = 'ordered'
-        where id = (select requirement_id from quotes where id = ${order.quote_id}) and status = 'open'`;
+        where id = (
+          select r.id from bunker_requirements r join calculations c on c.voyage_id = r.voyage_id
+          where c.id = ${rec.calculation_id} and r.grade = c.inputs->>'grade' and r.status = 'open'
+          order by r.id limit 1)`;
       await audit(
         tx,
         recId,

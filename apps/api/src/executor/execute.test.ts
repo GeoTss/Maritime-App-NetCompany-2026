@@ -319,6 +319,65 @@ describe.skipIf(!sql)("executor (Postgres)", () => {
     ]);
   });
 
+  it("a retry is audited as the human who approved it again, not the executor", async () => {
+    erp.mode = "down";
+    await approveRecommendation(deps, recId, "alice");
+    erp.mode = "up";
+    await approveRecommendation(deps, recId, "bob");
+    const rows = await db<{ kind: string; actor: string }[]>`
+      select kind, actor from audit_events where recommendation_id = ${recId} order by id`;
+    expect(rows.filter((r) => r.kind === "recommendation.retried")).toEqual([
+      { kind: "recommendation.retried", actor: "bob" },
+    ]);
+    expect(rows.find((r) => r.kind === "recommendation.approved")?.actor).toBe("alice");
+  });
+
+  it("a multi-grade quote: executing the VLSFO plan closes the voyage's VLSFO requirement, not the quote's LSMGO one", async () => {
+    // A VLSFO requirement on the demo voyage, and Kestrel's quote (linked to the LSMGO
+    // requirement) also offering VLSFO, so it backs both plans.
+    await db`
+      insert into bunker_requirements (voyage_id, grade, qty_mt, status, created_at)
+      values ((select id from voyages where voyage_no = ${DEMO_SCENARIO.voyageNo}), 'VLSFO', 200,
+              'open', ${ASK_FIXTURE_NOW.toISOString()}::timestamptz)`;
+    await db`
+      insert into quote_lines (quote_id, grade, qty_mt, price_per_mt)
+      values (${kestrelQuoteId}, 'VLSFO', 200, 590)`;
+    const ctx = createToolContext({ sql: db, now: () => ASK_FIXTURE_NOW });
+    const planned = await planBunkering(ctx, { vessel: "Aegean Pioneer" });
+    const vlsfo = (
+      planned.data as { plans: { calculationId: number; grade: string; bestOptionId: string }[] }
+    ).plans.find((p) => p.grade === "VLSFO");
+    expect(vlsfo?.bestOptionId).toBe("VLSFO-MTMLA-kestrel");
+    const best = planned.facts.find(
+      (f) =>
+        f.id.endsWith("_bestOptionId") &&
+        f.provenance.source === "calculation" &&
+        f.provenance.calculationId === vlsfo?.calculationId,
+    );
+    const proposed = await proposeAction(ctx, {
+      type: "purchase_order",
+      calculationId: vlsfo?.calculationId,
+      optionId: "VLSFO-MTMLA-kestrel",
+      factRefs: [best?.id],
+      rationale: "Lowest total delivered cost.",
+    });
+    const vlsfoRec = (proposed.data as { recommendationId: number }).recommendationId;
+
+    const result = await approveRecommendation(deps, vlsfoRec, "alice");
+    expect(result.status).toBe("executed");
+    const lines = await db<{ grade: string }[]>`
+      select ol.grade from order_lines ol join purchase_orders po on po.id = ol.order_id
+      where po.recommendation_id = ${vlsfoRec}`;
+    expect(lines.map((l) => l.grade)).toEqual(["VLSFO"]);
+    const requirements = await db<{ grade: string; status: string }[]>`
+      select r.grade, r.status from bunker_requirements r join voyages v on v.id = r.voyage_id
+      where v.voyage_no = ${DEMO_SCENARIO.voyageNo} order by r.id`;
+    expect(requirements).toEqual([
+      { grade: "LSMGO", status: "open" },
+      { grade: "VLSFO", status: "ordered" },
+    ]);
+  });
+
   it("any push error, e.g. a stored order the ERP contract rejects, leaves the order failed and audited", async () => {
     const [supplier] = await db<{ id: number; erp_code: string }[]>`
       select s.id, s.erp_code from suppliers s join quotes q on q.supplier_id = s.id

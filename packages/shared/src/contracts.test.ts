@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   AskEvent,
   AskResponse,
+  AskResult,
   CalculateInput,
   ConsumptionCurve,
   DraftedMessage,
@@ -172,8 +173,8 @@ describe("domain primitives", () => {
 });
 
 describe("Phase 2 contracts", () => {
-  it("AskResponse carries a withheld answer with the failing numbers", () => {
-    const r = AskResponse.parse({
+  it("AskResult (inside the API) carries a withheld answer with the failing numbers", () => {
+    const r = AskResult.parse({
       conversationId: 1,
       messageId: 2,
       answer: null,
@@ -370,6 +371,9 @@ describe("Phase 4 tool inputs", () => {
       vessel: "Aegean Pioneer",
     });
     expect(PlanBunkeringInput.safeParse({ vessel: "9123456" }).success).toBe(true);
+    // No vessel: plan every vessel's open requirements.
+    expect(PlanBunkeringInput.parse({})).toEqual({});
+    expect(PlanBunkeringInput.safeParse({ vessel: "" }).success).toBe(false);
     expect(VesselStatusInput.safeParse({ vessel: "x", extra: 1 }).success).toBe(false);
     const proposal = {
       type: "purchase_order",
@@ -424,8 +428,8 @@ describe("Phase 4 ask events, recommendations and drafts", () => {
     gate: {
       passed: true,
       repaired: false,
-      ungroundedNumbers: [],
-      attempts: [{ attempt: 1, passed: true, ungroundedNumbers: [] }],
+      ungroundedCount: 0,
+      attempts: [{ attempt: 1, passed: true, ungroundedCount: 0 }],
     },
     recommendationIds: [],
     llmCallIds: [],
@@ -435,9 +439,38 @@ describe("Phase 4 ask events, recommendations and drafts", () => {
     expect(AskResponse.safeParse(response).success).toBe(true);
     const bad = {
       ...response,
-      gate: { ...response.gate, attempts: [{ attempt: 3, passed: true, ungroundedNumbers: [] }] },
+      gate: { ...response.gate, attempts: [{ attempt: 3, passed: true, ungroundedCount: 0 }] },
     };
     expect(AskResponse.safeParse(bad).success).toBe(false);
+  });
+
+  it("AskResponse (HTTP) counts the withheld numbers and never carries them", () => {
+    const withheld = {
+      ...response,
+      answer: null,
+      gate: {
+        passed: false,
+        repaired: true,
+        ungroundedCount: 1,
+        attempts: [
+          { attempt: 1, passed: false, ungroundedCount: 1 },
+          { attempt: 2, passed: false, ungroundedCount: 1 },
+        ],
+      },
+    };
+    expect(AskResponse.safeParse(withheld).success).toBe(true);
+    const leaked = { ...withheld, gate: { ...withheld.gate, ungroundedNumbers: ["9999.5"] } };
+    expect(AskResponse.safeParse(leaked).success).toBe(false);
+    const leakedAttempt = {
+      ...withheld,
+      gate: {
+        ...withheld.gate,
+        attempts: [{ attempt: 1, passed: false, ungroundedCount: 1, ungroundedNumbers: ["1"] }],
+      },
+    };
+    expect(AskResponse.safeParse(leakedAttempt).success).toBe(false);
+    expect(AskResponse.safeParse({ ...withheld, withheldAnswer: "9999.5" }).success).toBe(false);
+    expect(AskEvent.safeParse({ type: "answer", response: leaked }).success).toBe(false);
   });
 
   it("AskEvent discriminates on type and keeps answer text out of progress", () => {

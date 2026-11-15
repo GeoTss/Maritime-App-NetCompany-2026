@@ -82,6 +82,36 @@ describe.skipIf(!sql)("POST /api/ask (Postgres)", () => {
     expect(res.headers.get("x-pharos-data")).toBeNull();
   });
 
+  it("a withheld answer is null and its numbers never leave the API: counts only", async () => {
+    const withheld = "The delivered price is 9999.5 USD per tonne.";
+    const { app } = appWith([
+      toolCall(1, "plan_bunkering", { vessel: "Aegean Pioneer" }),
+      textReply(2, withheld),
+      textReply(3, withheld),
+    ]);
+    const res = await post(app, { question: "What is the price?" });
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    expect(text).not.toContain("9999.5");
+    expect(text).not.toContain("delivered price");
+    expect(text).not.toContain("ungroundedNumbers");
+    const body = AskResponse.parse(JSON.parse(text));
+    expect(body.answer).toBeNull();
+    expect(body.gate).toEqual({
+      passed: false,
+      repaired: true,
+      ungroundedCount: 1,
+      attempts: [
+        { attempt: 1, passed: false, ungroundedCount: 1 },
+        { attempt: 2, passed: false, ungroundedCount: 1 },
+      ],
+    });
+    // The full lists stay on the stored message, for review, audit and evals.
+    const [msg] = await db<{ gate_attempts: { ungroundedNumbers: string[] }[] }[]>`
+      select gate_attempts from messages where id = ${body.messageId}`;
+    expect(msg?.gate_attempts.map((a) => a.ungroundedNumbers)).toEqual([["9999.5"], ["9999.5"]]);
+  });
+
   it("a missing conversationId starts a new conversation", async () => {
     const { app } = appWith([textReply(1, "Kestrel.")]);
     const res = await post(app, { question: "Who?" });
@@ -238,9 +268,12 @@ describe.skipIf(!sql)("POST /api/ask (Postgres)", () => {
     const res = await stream(app, { question: "What is the price?" });
     const { text, events } = await readEvents(res);
     expect(text).not.toContain("delivered price");
+    expect(text).not.toContain("9999.5");
+    expect(text).not.toContain("ungroundedNumbers");
     const answer = events.find((e) => e.type === "answer");
     expect(answer?.type === "answer" && answer.response.answer).toBeNull();
     expect(answer?.type === "answer" && answer.response.gate.passed).toBe(false);
+    expect(answer?.type === "answer" && answer.response.gate.ungroundedCount).toBe(1);
     expect(events.filter((e) => e.type === "answer")).toHaveLength(1);
   });
 

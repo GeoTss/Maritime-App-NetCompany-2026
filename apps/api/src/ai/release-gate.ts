@@ -141,11 +141,12 @@ const CURRENCY_AFTER_FORMS = lookup(CURRENCIES.map((c): [Currency, string[]] => 
 const UNIT_FORMS = lookup(Object.entries(UNITS) as [Unit, string[]][]);
 
 /**
- * A sign and/or currency right before a number: "-26", "$26", "-$26", "$-26", "USD -26". A hyphen
- * glued to a letter or digit ("AP-2611", "2026-11-15") is not a minus.
+ * A sign and/or currency right before a number: "-26", "$26", "-$26", "$-26", "USD -26". The minus
+ * may be a hyphen, a minus sign or an en dash ("–26"). One glued to a letter or digit ("AP-2611",
+ * "2026-11-15", the range "10–12") is not a minus.
  */
 const SIGN_AND_CURRENCY_BEFORE = new RegExp(
-  `(?:(?<![\\p{L}\\p{N}])([-−]))?(?:(?<![A-Za-z])(${alternation([...CURRENCY_BEFORE_FORMS.keys()])})[ \\t]?([-−])?)?$`,
+  `(?:(?<![\\p{L}\\p{N}])([-−–]))?(?:(?<![A-Za-z])(${alternation([...CURRENCY_BEFORE_FORMS.keys()])})[ \\t]?([-−–])?)?$`,
   "iu",
 );
 /** A currency right after a number or its scale suffix: "26 USD", "8 thousand dollars". */
@@ -437,6 +438,16 @@ function signAgrees(token: NumericToken, fact: Fact, sentence: string): boolean 
   if (typeof fact.value !== "number") return false;
   if (fact.value <= 0) return true;
   return SIGNED_DELTA.label.test(fact.label) && SIGNED_DELTA.words.test(sentence);
+}
+
+/**
+ * Some number in `text` shows `fact`'s value as the gate reads it: at the precision displayed,
+ * with the currency and unit written next to it (if any) agreeing with the fact's unit. Sign and
+ * citations are not looked at. The Q&A grader uses it so an answer states a value exactly when
+ * the gate would read it as that value.
+ */
+export function statesFact(text: string, fact: Fact): boolean {
+  return scan(text, []).some((token) => valueMatches(token, fact) && unitAgrees(token, fact));
 }
 
 function grounded(token: Scanned, cited: Fact[], sentence: string): boolean {

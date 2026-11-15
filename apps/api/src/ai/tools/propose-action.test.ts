@@ -123,6 +123,12 @@ describe.skipIf(!sql)("propose_action (Postgres)", () => {
     expect(await recommendations()).toHaveLength(0);
   });
 
+  it("its description limits proposals to questions that ask for a decision", () => {
+    const { description } = proposeActionTool(ctx) as { description?: string };
+    expect(description).toMatch(/only when the operator asks you to decide/);
+    expect(description).toMatch(/never when they only look something up, compare/);
+  });
+
   it("rejects a model-typed quantity, price or speed (strict input)", () => {
     const tool = proposeActionTool(ctx);
     for (const extra of [{ qtyMt: 300 }, { pricePerMt: 700 }, { speedKn: 11 }]) {

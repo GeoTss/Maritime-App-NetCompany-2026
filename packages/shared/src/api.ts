@@ -193,6 +193,11 @@ export type AskRequest = z.infer<typeof AskRequest>;
 /** Outcome of the release gate: every number in an answer must match a tool fact (see GateAttempt). */
 export { GateAttempt } from "./entities.js";
 
+/**
+ * The full gate result, with the ungrounded numbers themselves. It stays inside the API: stored on
+ * the assistant message (`content.gate`, `gate_attempts`) for review, audit and evals, and returned
+ * by `runAgent`. HTTP responses carry `GateSummary` instead.
+ */
 export const GateResult = z.object({
   passed: z.boolean(),
   repaired: z.boolean(),
@@ -202,16 +207,46 @@ export const GateResult = z.object({
 });
 export type GateResult = z.infer<typeof GateResult>;
 
-export const AskResponse = z.object({
+/** One gate attempt as the HTTP API shows it: how many numbers had no fact, never which. */
+export const GateAttemptSummary = z
+  .object({
+    attempt: z.union([z.literal(1), z.literal(2)]),
+    passed: z.boolean(),
+    ungroundedCount: z.number().int().nonnegative(),
+  })
+  .strict();
+export type GateAttemptSummary = z.infer<typeof GateAttemptSummary>;
+
+/**
+ * The gate as the HTTP API shows it. Counts only: a withheld number never reaches the user, not
+ * even in a list of what was withheld. Strict, so a full `GateResult` fails to parse here.
+ */
+export const GateSummary = z
+  .object({
+    passed: z.boolean(),
+    repaired: z.boolean(),
+    ungroundedCount: z.number().int().nonnegative(),
+    attempts: z.array(GateAttemptSummary),
+  })
+  .strict();
+export type GateSummary = z.infer<typeof GateSummary>;
+
+const askFields = {
   conversationId: Id,
   messageId: Id,
   /** Null when the gate withheld the answer. */
   answer: z.string().nullable(),
   facts: z.array(Fact),
-  gate: GateResult,
   recommendationIds: z.array(Id),
   llmCallIds: z.array(Id),
-});
+};
+
+/** What `runAgent` returns inside the API (and to the Q&A runner): the full gate. Never sent. */
+export const AskResult = z.object({ ...askFields, gate: GateResult });
+export type AskResult = z.infer<typeof AskResult>;
+
+/** `POST /api/ask` (and the stream's answer event): the released answer and the gate's counts. */
+export const AskResponse = z.object({ ...askFields, gate: GateSummary }).strict();
 export type AskResponse = z.infer<typeof AskResponse>;
 
 /**

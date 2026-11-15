@@ -1,9 +1,10 @@
 /**
  * `plan_bunkering`: ranks the received quotes for each open bunker requirement of a vessel's
- * current voyage (one plan per grade) by total delivered cost. A quote is offered for a grade when
- * it is still valid and has a line of that grade, so a multi-grade quote serves every plan. The
- * planner input is built from the world and the quotes, `planBunkers` computes each plan, and each
- * plan is stored as a calculation that its facts (and any proposal) point at.
+ * current voyage (one plan per grade) by total delivered cost; with no vessel named, of every
+ * vessel's current voyage. A quote is offered for a grade when it is still valid and has a line of
+ * that grade, so a multi-grade quote serves every plan. The planner input is built from the world
+ * and the quotes, `planBunkers` computes each plan, and each plan is stored as a calculation that
+ * its facts (and any proposal) point at.
  */
 import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
 import {
@@ -24,6 +25,7 @@ import {
   type Quote,
   type QuoteLine,
   type ToolResult,
+  type Vessel,
   type Voyage,
 } from "@pharos/shared";
 import {
@@ -198,76 +200,105 @@ async function planRequirement(
   };
 }
 
+/** One plan per grade: the lowest-id open requirement of each (the planner's own rule). */
+function requirementsToPlan(world: World, voyage: Voyage | null): BunkerRequirement[] {
+  if (!voyage) return [];
+  return openRequirements(world, voyage.id).filter(
+    (r, i, all) => all.findIndex((x) => x.grade === r.grade) === i,
+  );
+}
+
+/** Plans one vessel's current voyage: one plan per open requirement (per grade). */
+async function planVessel(ctx: ToolContext, world: World, vessel: Vessel): Promise<ToolResult> {
+  const voyage = currentVoyage(world, vessel.id);
+  const requirements = requirementsToPlan(world, voyage);
+  if (!voyage || requirements.length === 0) {
+    return {
+      facts: [],
+      data: { vessel: vessel.name, message: `${vessel.name} has no open bunker requirement.` },
+    };
+  }
+
+  // Received, still-valid quotes for the voyage's open requirements, oldest first. A quote
+  // links one requirement but may offer other grades too, so every plan sees every quote.
+  const now = ctx.now();
+  const open = new Set(openRequirements(world, voyage.id).map((r) => r.id));
+  const quotes = world.quotes
+    .filter(
+      (q) =>
+        q.requirementId !== null &&
+        open.has(q.requirementId) &&
+        q.status === "received" &&
+        quoteExpiry(q, now) === null,
+    )
+    .sort((a, b) => a.receivedAt.getTime() - b.receivedAt.getTime() || a.id - b.id);
+
+  const multi = requirements.length > 1;
+  const outcomes: PlanOutcome[] = [];
+  for (const r of requirements) {
+    outcomes.push(await planRequirement(ctx, world, vessel.name, voyage, r, quotes, multi));
+  }
+  const facts = outcomes.flatMap((o) => o.facts);
+  // The voyage an answer may mention ("voyage AP-2611"), once for every plan.
+  if (facts.length > 0) {
+    facts.push(
+      dbFact(
+        TOOL,
+        { table: "voyages", rowId: voyage.id, field: "voyageNo" },
+        "Voyage number",
+        voyage.voyageNo,
+        null,
+      ),
+    );
+  }
+
+  if (multi) {
+    return {
+      facts,
+      data: {
+        vessel: vessel.name,
+        voyageNo: voyage.voyageNo,
+        plans: outcomes.map((o) => o.plan),
+      },
+    };
+  }
+  const only = outcomes[0] as PlanOutcome;
+  if (!("calculationId" in only.plan)) {
+    return { facts: [], data: { vessel: vessel.name, ...only.plan } };
+  }
+  const { calculationId, ...plan } = only.plan;
+  return {
+    facts,
+    data: { calculationId, vessel: vessel.name, voyageNo: voyage.voyageNo, ...plan },
+  };
+}
+
+/**
+ * With no vessel named, every vessel whose current voyage has an open requirement, in fleet order.
+ * One such vessel gets exactly its own result; with several, `data.vessels` holds each vessel's
+ * result and every fact label starts with the vessel's name (option ids stay as they are).
+ */
+async function planFleet(ctx: ToolContext, world: World): Promise<ToolResult> {
+  const vessels = [...world.vessels]
+    .sort((a, b) => a.id - b.id)
+    .filter((v) => requirementsToPlan(world, currentVoyage(world, v.id)).length > 0);
+  if (vessels.length === 0) {
+    return { facts: [], data: { message: "No vessel has an open bunker requirement." } };
+  }
+  if (vessels.length === 1) return planVessel(ctx, world, vessels[0] as Vessel);
+  const results: ToolResult[] = [];
+  for (const v of vessels) {
+    const r = await planVessel(ctx, world, v);
+    results.push({ ...r, facts: r.facts.map((f) => ({ ...f, label: `${v.name}: ${f.label}` })) });
+  }
+  return { facts: results.flatMap((r) => r.facts), data: { vessels: results.map((r) => r.data) } };
+}
+
 export function planBunkering(ctx: ToolContext, input: PlanBunkeringInput): Promise<ToolResult> {
   return runTool(ctx, TOOL, input, async () => {
     const world = await loadWorld(ctx.sql);
-    const vessel = findVessel(world, input.vessel);
-    const voyage = currentVoyage(world, vessel.id);
-    // One plan per grade: the lowest-id open requirement of each (the planner's own rule).
-    const requirements = voyage
-      ? openRequirements(world, voyage.id).filter(
-          (r, i, all) => all.findIndex((x) => x.grade === r.grade) === i,
-        )
-      : [];
-    if (!voyage || requirements.length === 0) {
-      return {
-        facts: [],
-        data: { vessel: vessel.name, message: `${vessel.name} has no open bunker requirement.` },
-      };
-    }
-
-    // Received, still-valid quotes for the voyage's open requirements, oldest first. A quote
-    // links one requirement but may offer other grades too, so every plan sees every quote.
-    const now = ctx.now();
-    const open = new Set(openRequirements(world, voyage.id).map((r) => r.id));
-    const quotes = world.quotes
-      .filter(
-        (q) =>
-          q.requirementId !== null &&
-          open.has(q.requirementId) &&
-          q.status === "received" &&
-          quoteExpiry(q, now) === null,
-      )
-      .sort((a, b) => a.receivedAt.getTime() - b.receivedAt.getTime() || a.id - b.id);
-
-    const multi = requirements.length > 1;
-    const outcomes: PlanOutcome[] = [];
-    for (const r of requirements) {
-      outcomes.push(await planRequirement(ctx, world, vessel.name, voyage, r, quotes, multi));
-    }
-    const facts = outcomes.flatMap((o) => o.facts);
-    // The voyage an answer may mention ("voyage AP-2611"), once for every plan.
-    if (facts.length > 0) {
-      facts.push(
-        dbFact(
-          TOOL,
-          { table: "voyages", rowId: voyage.id, field: "voyageNo" },
-          "Voyage number",
-          voyage.voyageNo,
-          null,
-        ),
-      );
-    }
-
-    if (multi) {
-      return {
-        facts,
-        data: {
-          vessel: vessel.name,
-          voyageNo: voyage.voyageNo,
-          plans: outcomes.map((o) => o.plan),
-        },
-      };
-    }
-    const only = outcomes[0] as PlanOutcome;
-    if (!("calculationId" in only.plan)) {
-      return { facts: [], data: { vessel: vessel.name, ...only.plan } };
-    }
-    const { calculationId, ...plan } = only.plan;
-    return {
-      facts,
-      data: { calculationId, vessel: vessel.name, voyageNo: voyage.voyageNo, ...plan },
-    };
+    if (input.vessel === undefined) return planFleet(ctx, world);
+    return planVessel(ctx, world, findVessel(world, input.vessel));
   });
 }
 
@@ -275,10 +306,12 @@ export function planBunkeringTool(ctx: ToolContext) {
   return betaZodTool({
     name: TOOL,
     description:
-      "Bunker plan for a vessel's open fuel requirement: ranks every received supplier quote by total " +
-      "delivered cost (fuel, barge fee, deviation, delay and EU ETS cost) and checks feasibility " +
-      "(quantity, tank space, safety margin, berth window). Stores the plan as a calculation and " +
-      "returns its calculationId, the best option and citable facts per option.",
+      "Bunker plans for open fuel requirements: one plan per open requirement (per grade) of a " +
+      "vessel's current voyage, or of every vessel's when no vessel is given. Each plan ranks every " +
+      "received, still-valid supplier quote by total delivered cost (fuel, barge fee, deviation, " +
+      "delay and EU ETS cost) and checks feasibility (quantity, tank space, safety margin, berth " +
+      "window). Each plan is stored as a calculation; the result gives each plan's calculationId, " +
+      "best option and citable facts per option (with several plans, a plans or vessels list).",
     inputSchema: PlanBunkeringInput,
     run: async (input) => JSON.stringify(await planBunkering(ctx, input)),
   });

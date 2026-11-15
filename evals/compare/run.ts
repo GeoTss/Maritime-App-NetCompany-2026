@@ -430,13 +430,22 @@ async function askOne(
   if (parsed?.success) {
     const ans = parsed.data;
     result.outcome = classifyOutcome(ans.gate);
-    result.gate = ans.gate;
     result.factCount = ans.facts.length;
     result.answer = ans.answer;
     result.conversationId = ans.conversationId;
-    result.ungroundedNumbers = ans.gate.ungroundedNumbers;
     const [msg] = await sql<{ content: JsonRow | null }[]>`
       select content from messages where id = ${ans.messageId}`;
+    // The HTTP response counts the withheld numbers; the stored message keeps the list.
+    const stored = msg?.content?.gate as { ungroundedNumbers?: unknown } | undefined;
+    const numbers = Array.isArray(stored?.ungroundedNumbers)
+      ? (stored.ungroundedNumbers as string[])
+      : [];
+    result.gate = {
+      passed: ans.gate.passed,
+      repaired: ans.gate.repaired,
+      ungroundedNumbers: numbers,
+    };
+    result.ungroundedNumbers = numbers;
     const cited = msg?.content?.citedFactIds;
     result.citedFactCount = Array.isArray(cited) ? new Set(cited as string[]).size : 0;
     const withheld = msg?.content?.withheldAnswer;

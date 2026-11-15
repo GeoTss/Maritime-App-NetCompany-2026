@@ -107,9 +107,12 @@ export function proposeActionTool(ctx: ToolContext) {
     name: TOOL,
     description:
       "Propose a purchase order for one feasible option of a stored bunker plan, for a human to " +
-      "approve. Creates a pending recommendation only: nothing is ordered or sent. Takes the plan's " +
-      "calculationId and optionId, and factRefs that are facts of that same plan; quantities and " +
-      "prices come from the stored plan, never from you.",
+      "approve. Use it only when the operator asks you to decide (where or from whom to buy, which " +
+      "offer to take, a recommendation or an order), never when they only look something up, " +
+      "compare, ask for a calculation or say not to order yet. Creates a pending recommendation " +
+      "only: nothing is ordered or sent. Takes the plan's calculationId and optionId, and factRefs " +
+      "that are facts of that same plan; quantities and prices come from the stored plan, never " +
+      "from you.",
     inputSchema: ProposeActionInput,
     run: async (input) => JSON.stringify(await proposeAction(ctx, input)),
   });

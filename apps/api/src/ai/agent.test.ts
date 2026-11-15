@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
 import type { Sql } from "@pharos/db";
 import { connectTestDb, testDbLabel } from "@pharos/db/testing";
-import { AskResponse, type Fact } from "@pharos/shared";
+import { AskResult, type Fact } from "@pharos/shared";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 import { ASK_FIXTURE_NOW, DEMO_QUESTION, prepareAskFixture } from "../ask/demo-fixture.js";
@@ -16,11 +16,12 @@ import {
   AgentError,
   agentRunnerParams,
   ConversationNotFoundError,
+  repairMessage,
   runAgent,
 } from "./agent.js";
 import { captureLlmCall } from "./call-capture.js";
 import { type CallMetrics, createLlm, type LlmFetch } from "./llm.js";
-import { PROMPT_VERSION } from "./prompts/agent-system.js";
+import { AGENT_SYSTEM, PROMPT_VERSION } from "./prompts/agent-system.js";
 import { citedFactIds, numericTokens } from "./release-gate.js";
 import {
   lastToolResult,
@@ -67,7 +68,21 @@ describe("agent request", () => {
     expect("temperature" in params).toBe(false);
     expect("betas" in params).toBe(false);
     expect("fallbacks" in params).toBe(false);
-    expect(PROMPT_VERSION).toBe("agent-system/v2");
+    expect(PROMPT_VERSION).toBe("agent-system/v3");
+  });
+
+  it("the prompt proposes only when the operator asks for a decision (not unconditionally)", () => {
+    expect(AGENT_SYSTEM).not.toMatch(/after plan_bunkering, for each plan .*call propose_action/);
+    expect(AGENT_SYSTEM).toMatch(/Call propose_action only when the operator asks you to decide/);
+    expect(AGENT_SYSTEM).toMatch(/Do not call it when the operator only looks something up/);
+  });
+
+  it("the repair turn asks for one fact id immediately after each number", () => {
+    const text = repairMessage(["1,400"]);
+    expect(text).toContain('"1,400"');
+    expect(text).toMatch(/immediately after that number/);
+    expect(text).toMatch(/one id per number/);
+    expect(text).toMatch(/never gather the ids at the end of a sentence/i);
   });
 
   it("sends server-side fallbacks only when enabled with an Opus model", () => {
@@ -198,7 +213,7 @@ describe.skipIf(!sql)("runAgent (Postgres)", () => {
       textReply(1, "Kestrel is $8,000 cheaper than Strait Line."),
       textReply(2, "Kestrel is still 8,000 cheaper."),
     ]);
-    const res = AskResponse.parse(await runAgent(deps, "Who is cheaper?"));
+    const res = AskResult.parse(await runAgent(deps, "Who is cheaper?"));
     expect(res.answer).toBeNull();
     expect(res.gate).toEqual({
       passed: false,
@@ -488,7 +503,7 @@ describe.skipIf(!sql)("runAgent (Postgres)", () => {
       config: ASK_RECORDING_CONFIG,
       now: () => ASK_FIXTURE_NOW,
     };
-    const res = AskResponse.parse(await runAgent(deps, DEMO_QUESTION));
+    const res = AskResult.parse(await runAgent(deps, DEMO_QUESTION));
     expect(res.gate.passed).toBe(true);
     expect(res.answer).not.toBeNull();
     expect(uncitedNumbers(res.answer ?? "", res.facts)).toEqual([]);

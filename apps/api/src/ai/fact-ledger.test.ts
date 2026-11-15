@@ -1,6 +1,6 @@
 import type { Sql } from "@pharos/db";
 import { connectTestDb, testDbLabel } from "@pharos/db/testing";
-import { AskResponse, type Fact } from "@pharos/shared";
+import { AskResult, type Fact } from "@pharos/shared";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { ASK_FIXTURE_NOW, DEMO_QUESTION, prepareAskFixture } from "../ask/demo-fixture.js";
 import { type AgentDeps, runAgent } from "./agent.js";
@@ -108,7 +108,7 @@ describe.skipIf(!sql)("fact ledger (Postgres)", () => {
 
     // Turn 2 is a new request: the model calls calculate with the ids it saw in turn 1.
     let derived: Fact | undefined;
-    const two = AskResponse.parse(
+    const two = AskResult.parse(
       await runAgent(
         scriptedDeps([
           toolCall(1, "calculate", { op: "subtract", operands }),

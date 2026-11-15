@@ -8,7 +8,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { BetaToolRunnerParams } from "@anthropic-ai/sdk/lib/tools/BetaToolRunner";
 import type { Sql } from "@pharos/db";
-import type { AskResponse, Fact, GateAttempt, GateResult, Id } from "@pharos/shared";
+import type { AskResult, Fact, GateAttempt, GateResult, Id } from "@pharos/shared";
 import type { AppConfig } from "../config.js";
 import { withCallCapture } from "./call-capture.js";
 import { loadConversationFacts } from "./fact-ledger.js";
@@ -171,9 +171,10 @@ export function repairMessage(ungrounded: string[]): string {
   return (
     `Your answer was withheld because these numbers or citations are not backed by a tool fact: ` +
     `${list}. Write the answer again using only numbers that are values of facts the tools ` +
-    "returned, in ASCII digits, each followed in the same sentence by its fact id in square " +
-    "brackets, and cite only fact ids the tools returned. Do not work out any number yourself; " +
-    "leave out anything no fact supports."
+    "returned, in ASCII digits. Put the id of the fact each number comes from in square brackets " +
+    "immediately after that number (after its unit, if it has one), one id per number; never " +
+    "gather the ids at the end of a sentence. Cite only fact ids the tools returned. Do not work " +
+    "out any number yourself; leave out anything no fact supports."
   );
 }
 
@@ -220,7 +221,8 @@ async function insertMessage(
  * every number in it is a fact a tool returned in this conversation; otherwise one repair turn
  * runs, and if that also fails the answer is withheld (`answer: null`, `gate.passed: false`).
  * Each gate attempt is stored on the assistant message (`gate_attempts`), also when a later turn
- * fails, and returned as `gate.attempts`.
+ * fails, and returned as `gate.attempts`. The result carries the ungrounded numbers themselves; the
+ * HTTP routes send only their counts (ask/response.ts).
  * Throws `ConversationNotFoundError` for an unknown conversation and `AgentError` when the model
  * gives no usable answer (both after recording the calls made).
  */
@@ -228,7 +230,7 @@ export async function runAgent(
   deps: AgentDeps,
   question: string,
   conversationId?: Id | null,
-): Promise<AskResponse> {
+): Promise<AskResult> {
   const { sql } = deps;
   const now = deps.now ?? (() => new Date());
 

@@ -10,13 +10,17 @@
 2. Delivers both demo emails, polls each extraction until it leaves `pending` (90 s timeout) and
    times deliver -> extraction (target about 20 s).
 3. Checks the two quotes against `DEMO_SCENARIO` (supplier, port, currency, price, barge fee, qty).
-4. Asks the demo question and times the round trip (target about 45 s); asserts the release gate
-   passed, at least one fact, and a pending `MTMLA-kestrel` recommendation.
-5. Approves it and asserts an `erpPoNumber`.
+4. Asks the demo question over `POST /api/ask/stream` and times the round trip (target about
+   45 s); asserts at least one `progress` event before exactly one `answer` event (an `error`
+   event stops the run), the release gate passed, at least one fact, and a pending
+   `MTMLA-kestrel` recommendation.
+5. Approves it and asserts an `erpPoNumber`; then `GET /api/recommendations/:id/drafts` must hold
+   2 drafted messages, both status `draft`: one `supplier_confirmation`, one `master_instruction`.
 6. Reads `/api/llm-calls` (this run's extractions plus the ask's `llmCallIds`).
 
 Writes `evals/reports/<UTC timestamp>-smoke-<label>/report.json` and `report.md` (step latencies,
-per-purpose totals with the model used, every call, totals) and prints the table. On success it
+the ask stream's event counts, the draft kinds, per-purpose totals with the model used, every call,
+totals) and prints the table. On success it
 touches `.claude/state/markers/live-smoke` (`MARKERS_DIR` overrides the directory). Exit codes:
 0 pass, 1 failed assertion(s) (all listed), 2 API not in live mode.
 
@@ -24,7 +28,7 @@ The demo inbox can be delivered once per world. A second run exits 1 with "inbox
 delivered"; reset with `docker compose up -d --force-recreate api erp` (SEED_ON_BOOT=reset; recreating the
 ERP simulator clears its in-memory orders too).
 
-Phase 3 runs Haiku 5.5 only, so the smoke refuses an API configured with another model (step 1).
+Every live run uses Haiku 5.5 only, so the smoke refuses an API configured with another model (step 1).
 Model comparisons are `evals/compare/`, under their own budget.
 
 `/api/llm-calls` returns only the newest 200 rows, so run the smoke against a freshly restarted API.

@@ -333,8 +333,7 @@ function gateLine(gate) {
     "div",
     { class: "withheld" },
     el("b", {}, "Answer withheld by the release gate."),
-    el("div", {}, "Withheld: these numbers had no fact"),
-    el("ul", {}, gate.ungroundedNumbers.map((n) => el("li", {}, n))),
+    el("div", {}, `${gate.ungroundedCount} number${gate.ungroundedCount === 1 ? "" : "s"} had no fact.`),
   );
 }
 

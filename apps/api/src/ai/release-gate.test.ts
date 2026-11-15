@@ -1,6 +1,6 @@
 import type { Fact } from "@pharos/shared";
 import { describe, expect, it } from "vitest";
-import { checkNumbers, citedFactIds, numericTokens } from "./release-gate.js";
+import { checkNumbers, citedFactIds, numericTokens, statesFact } from "./release-gate.js";
 
 const calc = (id: string, value: number | string | boolean, unit: string | null = null): Fact => ({
   id,
@@ -530,11 +530,12 @@ describe("numericTokens: currency, unit, sign and formats", () => {
 
   it("reads a leading minus as negative, but not a hyphen after a letter or digit", () => {
     expect(
-      numericTokens("-26 USD, −$26, $-26, USD -26, AP-2611, 2026-11-15, 10-12 days").map((t) => [
-        t.text,
-        t.value,
-      ]),
+      numericTokens(
+        "-26 USD, −$26, $-26, USD -26, –26 USD, $–26, AP-2611, 2026-11-15, 10-12 days, 10–12 days",
+      ).map((t) => [t.text, t.value]),
     ).toEqual([
+      ["-26", -26],
+      ["-26", -26],
       ["-26", -26],
       ["-26", -26],
       ["-26", -26],
@@ -543,6 +544,8 @@ describe("numericTokens: currency, unit, sign and formats", () => {
       ["2026", 2026],
       ["11", 11],
       ["15", 15],
+      ["10", 10],
+      ["12", 12],
       ["10", 10],
       ["12", 12],
     ]);
@@ -685,6 +688,20 @@ describe("checkNumbers v2", () => {
       facts: [labelled("f_t", 26, "USD", "Total delivered cost")],
       passed: false,
       ungrounded: ["-26"],
+    },
+    {
+      name: 'an en dash reads as a minus: "–26 USD" never matches a positive non-saving fact',
+      answer: "The total is –26 USD [f_t].",
+      facts: [labelled("f_t", 26, "USD", "Total delivered cost")],
+      passed: false,
+      ungrounded: ["-26"],
+    },
+    {
+      name: "an en dash between numbers is a range, not a minus",
+      answer: "The delay is 10–12 hours [f_a].",
+      facts: [labelled("f_a", 12, "h")],
+      passed: false,
+      ungrounded: ["10"],
     },
     {
       name: "a negative saving needs less, lower or cheaper in its sentence",
@@ -843,5 +860,28 @@ describe("checkNumbers v2", () => {
     expect(checkNumbers("Saves $8,000.", []).attempts).toEqual([
       { attempt: 1, passed: false, ungroundedNumbers: ["8,000"] },
     ]);
+  });
+});
+
+describe("statesFact: the text shows a fact's value as the gate reads it", () => {
+  const total = labelled("f_t", 233_914.449, "USD", "total delivered cost");
+  it.each([
+    ["$233,914.45", true],
+    ["$233,914", true],
+    ["USD 234k", true],
+    ["$0.23 million", true],
+    ["$240k", false],
+    ["233,914 mt", false],
+    ["EUR 233,914", false],
+    ["", false],
+    ["See [f_t].", false],
+  ])("%s -> %s", (text, want) => {
+    expect(statesFact(`Total ${text} [f_t].`, total)).toBe(want);
+  });
+
+  it("needs no citation, and reads a percentage of a fraction fact as the gate does", () => {
+    expect(statesFact("It holds 300 mt.", labelled("f_q", 300, "mt"))).toBe(true);
+    expect(statesFact("That is 70%.", labelled("f_r", 0.7, null))).toBe(true);
+    expect(statesFact("That is 70%.", labelled("f_r", 0.7, "USD"))).toBe(false);
   });
 });

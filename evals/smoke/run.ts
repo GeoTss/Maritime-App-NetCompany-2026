@@ -1,22 +1,25 @@
 /**
  * Live smoke + measurement: drives the running API over HTTP (deliver both demo emails, wait for
- * extraction, check the two quotes, ask the demo question, approve the recommendation) and reports
- * step latencies and every model call's tokens, latency and cost.
+ * extraction, check the two quotes, ask the demo question over the SSE stream, approve the
+ * recommendation, read its drafted messages) and reports step latencies and every model call's
+ * tokens, latency and cost.
  *
  *   npm run eval:smoke -- [--label <name>]        (API_URL, default http://localhost:4000)
  *
- * Needs no key: the API holds it. Before it starts it checks the Phase 3 budget ledger
- * (evals/spend-ledger.jsonl) and afterwards appends its cost. Before the first paid call it stops
- * unless /api/health reports Haiku as both the extraction and the agent model; any non-Haiku
- * model in /api/llm-calls afterwards fails the run. Exits 2 if the API is not in live mode, 1 on any failed
- * assertion (all listed), 0 on success (and touches the live-smoke marker).
+ * Needs no key: the API holds it. Before it starts it checks the current phase's budget
+ * (evals/budget.json against evals/spend-ledger.jsonl) and afterwards appends its cost. Before the
+ * first paid call it stops unless /api/health reports Haiku as both the extraction and the agent
+ * model; any non-Haiku model in /api/llm-calls afterwards fails the run. Exits 2 if the API is not
+ * in live mode, 1 on any failed assertion (all listed), 0 on success (and touches the live-smoke
+ * marker).
  */
 import { mkdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { DEMO_SCENARIO } from "@pharos/db";
 import {
-  AskResponse,
+  AskEvent,
+  type AskResponse,
   DecisionResult,
   DeliverResult,
   HealthResponse,
@@ -40,7 +43,7 @@ export const EXPECTED_OPTION_ID = "MTMLA-kestrel";
 
 /** Section 6 targets (ms); the email target lives in evals/lib/targets.ts. */
 export const TARGET_ASK_MS = 45_000;
-/** A run costing more than this fails (and writes no marker). Per run; not the $3 phase budget. */
+/** A run costing more than this fails (and writes no marker). Per run; not the phase budget. */
 export const RUN_CAP_USD = 0.25;
 /** Estimated cost of one smoke run (about $0.004 measured); checked against the ledger up front. */
 export const SMOKE_ESTIMATE_USD = 0.01;
@@ -104,6 +107,13 @@ export interface PurposeTotals {
   costUsd: number;
 }
 
+/** Counts of the ask stream's events, by type. */
+export interface AskEventCounts {
+  progress: number;
+  answer: number;
+  error: number;
+}
+
 export interface SmokeReport {
   label: string;
   startedAt: string;
@@ -112,6 +122,10 @@ export interface SmokeReport {
   ok: boolean;
   failures: string[];
   steps: StepTiming[];
+  /** The ask stream's events (null when the run stopped before the ask). */
+  askEvents: AskEventCounts | null;
+  /** Kinds of the approved recommendation's drafted messages, sorted (empty if none were read). */
+  drafts: string[];
   calls: CallRow[];
   byPurpose: PurposeTotals[];
   totals: {
@@ -179,12 +193,32 @@ export function summarise(calls: CallRow[]): Pick<SmokeReport, "byPurpose" | "to
   };
 }
 
+/** The events of an ask stream's SSE body, each checked against `AskEvent`. */
+export function parseAskStream(text: string): AskEvent[] {
+  return text
+    .split("\n\n")
+    .filter((block) => block.trim() !== "")
+    .map((block) => {
+      const data = block
+        .split("\n")
+        .filter((l) => l.startsWith("data:"))
+        .map((l) => l.slice(5).trim())
+        .join("");
+      return AskEvent.parse(JSON.parse(data));
+    });
+}
+
 export function renderMarkdown(r: SmokeReport): string {
   const out: string[] = [];
   out.push(`# Live smoke: ${r.label}`, "");
   out.push(`- Started: ${r.startedAt}`, `- API: ${r.apiUrl} (llmMode ${r.llmMode ?? "unknown"})`);
   out.push(`- Result: ${r.ok ? "PASS" : "FAIL"}`);
   for (const f of r.failures) out.push(`  - ${f}`);
+  const e = r.askEvents;
+  out.push(
+    `- Ask stream: ${e ? `${e.progress} progress, ${e.answer} answer, ${e.error} error events` : "not reached"}`,
+  );
+  out.push(`- Drafts: ${r.drafts.length > 0 ? r.drafts.join(", ") : "none read"}`);
   out.push(
     "",
     "## Step latency",
@@ -245,6 +279,8 @@ export async function runSmoke(opts: SmokeOptions): Promise<SmokeResult> {
   let exitCode: 0 | 1 | 2 = 0;
   const documentIds: number[] = [];
   let askCallIds: number[] = [];
+  let askEvents: AskEventCounts | null = null;
+  let drafts: string[] = [];
 
   const check = (cond: boolean, message: string) => {
     if (!cond) failures.push(message);
@@ -447,17 +483,40 @@ export async function runSmoke(opts: SmokeOptions): Promise<SmokeResult> {
       );
     }
 
-    // 3. Ask the demo question.
-    const answer = await time("ask", TARGET_ASK_MS, async () =>
-      parsed(
-        await call("POST", "/api/ask", { question: DEMO_QUESTION, conversationId: null }),
-        AskResponse,
-        "POST /api/ask",
-      ),
+    // 3. Ask the demo question over the stream: progress first, then exactly one answer.
+    const events = await time("ask", TARGET_ASK_MS, async () => {
+      const res = await call("POST", "/api/ask/stream", {
+        question: DEMO_QUESTION,
+        conversationId: null,
+      });
+      const text = await res.text();
+      if (!res.ok) throw new Stop(`POST /api/ask/stream: HTTP ${res.status} ${text.slice(0, 300)}`);
+      try {
+        return parseAskStream(text);
+      } catch (err) {
+        throw new Stop(`POST /api/ask/stream: unreadable event stream: ${(err as Error).message}`);
+      }
+    });
+    const count = (type: AskEvent["type"]) => events.filter((e) => e.type === type).length;
+    askEvents = { progress: count("progress"), answer: count("answer"), error: count("error") };
+    const failed = events.find((e) => e.type === "error");
+    if (failed?.type === "error")
+      throw new Stop(`the ask stream sent an error event: ${failed.message}`);
+    const firstAnswer = events.findIndex((e) => e.type === "answer");
+    check(
+      (firstAnswer < 0 ? events : events.slice(0, firstAnswer)).some((e) => e.type === "progress"),
+      "the ask stream sent no progress event before its answer",
     );
     check(
+      askEvents.answer === 1,
+      `the ask stream sent ${askEvents.answer} answer events, expected exactly 1`,
+    );
+    const answerEvent = events[firstAnswer];
+    if (answerEvent?.type !== "answer") throw new Stop("the ask stream sent no answer event");
+    const answer: AskResponse = answerEvent.response;
+    check(
       answer.gate.passed,
-      `release gate did not pass (ungrounded: ${answer.gate.ungroundedNumbers.join(", ") || "none"})`,
+      `release gate did not pass (${answer.gate.ungroundedCount} numbers had no fact)`,
     );
     check(answer.answer !== null && answer.answer.trim() !== "", "answer is empty or withheld");
     check(answer.facts.length >= 1, "answer carries no facts (no fact chip)");
@@ -490,9 +549,27 @@ export async function runSmoke(opts: SmokeOptions): Promise<SmokeResult> {
         typeof decision.erpPoNumber === "string" && decision.erpPoNumber !== "",
         `approve returned no erpPoNumber (status ${decision.status}, erp ${decision.erpSyncStatus})`,
       );
+
+      // 5. The executor drafted one supplier confirmation and one master instruction, never sent.
+      const items = (
+        await parsed(
+          await call("GET", `/api/recommendations/${target.id}/drafts`),
+          z.object({ items: z.array(z.object({ kind: z.string(), status: z.string() })) }),
+          `GET /api/recommendations/${target.id}/drafts`,
+        )
+      ).items;
+      drafts = items.map((d) => d.kind).sort();
+      check(items.length === 2, `${items.length} drafted messages, expected 2`);
+      for (const d of items) {
+        check(d.status === "draft", `drafted ${d.kind} has status ${d.status}, expected draft`);
+      }
+      check(
+        drafts.join() === "master_instruction,supplier_confirmation",
+        `draft kinds ${drafts.join(", ")}, expected master_instruction and supplier_confirmation`,
+      );
     }
 
-    // 5. This run's model calls: the two documents' extractions plus the ask's calls.
+    // 6. This run's model calls: the two documents' extractions plus the ask's calls.
     askCallIds = answer.llmCallIds;
     const loaded = await loadCalls();
     calls = loaded.rows;
@@ -558,6 +635,8 @@ export async function runSmoke(opts: SmokeOptions): Promise<SmokeResult> {
     ok,
     failures,
     steps,
+    askEvents,
+    drafts,
     calls,
     ...summarise(calls),
   };

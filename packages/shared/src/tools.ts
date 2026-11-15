@@ -17,7 +17,13 @@ const VesselRef = z
 export const VesselStatusInput = z.object({ vessel: VesselRef }).strict();
 export type VesselStatusInput = z.infer<typeof VesselStatusInput>;
 
-export const PlanBunkeringInput = z.object({ vessel: VesselRef }).strict();
+export const PlanBunkeringInput = z
+  .object({
+    vessel: VesselRef.optional().describe(
+      'Vessel name (e.g. "Aegean Pioneer") or 7-digit IMO. Omit it to plan every vessel with an open requirement.',
+    ),
+  })
+  .strict();
 export type PlanBunkeringInput = z.infer<typeof PlanBunkeringInput>;
 
 /** `ProposedAction` as one strict object (the union compiles to `oneOf`, which a tool cannot use). */

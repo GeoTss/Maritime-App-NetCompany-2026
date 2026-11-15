@@ -1,10 +1,14 @@
-/** `POST /api/ask`: one question to the ops agent (`AskRequest` -> `AskResponse`). */
+/**
+ * `POST /api/ask`: one question to the ops agent (`AskRequest` -> `AskResponse`, whose gate carries
+ * counts only; see response.ts).
+ */
 import Anthropic from "@anthropic-ai/sdk";
 import { AskRequest } from "@pharos/shared";
 import { type Context, Hono } from "hono";
 import { type AgentDeps, AgentError, ConversationNotFoundError, runAgent } from "../ai/agent.js";
 import { ReplayMissError } from "../ai/llm.js";
 import { requireContentType } from "../http/require-content-type.js";
+import { toAskResponse } from "./response.js";
 import { streamAsk } from "./stream.js";
 
 export function createAskRoutes(deps: AgentDeps) {
@@ -39,9 +43,8 @@ export function createAskRoutes(deps: AgentDeps) {
   app.post("/", async (c) => {
     const request = await readRequest(c);
     if (request instanceof Response) return request;
-    const parsed = { data: request };
     try {
-      return c.json(await runAgent(deps, parsed.data.question, parsed.data.conversationId));
+      return c.json(toAskResponse(await runAgent(deps, request.question, request.conversationId)));
     } catch (err) {
       if (err instanceof ConversationNotFoundError) {
         return c.json({ error: "conversation_not_found", message: err.message }, 404);
