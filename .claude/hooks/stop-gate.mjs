@@ -15,7 +15,14 @@ import {
   run,
 } from "./lib.mjs";
 
-const CODE = /\.(ts|tsx|mts|mjs|js|json)$/;
+const CODE = /\.(ts|tsx|mts|cts|mjs|js|jsx|json|css)$/;
+
+/** The TypeScript projects to check for a set of changed files (the web app has its own). */
+export function typecheckProjects(changed) {
+  const projects = ["tsconfig.json"];
+  if (changed.some((f) => f.startsWith("apps/web/"))) projects.push("apps/web/tsconfig.json");
+  return projects;
+}
 
 /**
  * Pure decision function (unit-tested).
@@ -69,7 +76,13 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   );
   if (changed.length === 0 || !existsSync(bin("tsc"))) process.exit(0);
 
-  const tsc = run(bin("tsc"), ["-p", "tsconfig.json"], { timeoutMs: 180_000 });
+  const runs = typecheckProjects(changed).map((p) =>
+    run(bin("tsc"), ["-p", p], { timeoutMs: 180_000 }),
+  );
+  const tsc = {
+    code: runs.some((r) => r.code !== 0) ? 1 : 0,
+    out: runs.map((r) => r.out).join("\n"),
+  };
   const testArgs = ["run", "--changed", "--passWithNoTests", ...(scope ?? [])];
   const tests = run(bin("vitest"), testArgs, { timeoutMs: 240_000 });
   const purity = changed.some((f) => f.startsWith("packages/domain/"))

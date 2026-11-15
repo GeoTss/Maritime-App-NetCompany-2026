@@ -8,7 +8,7 @@ import { checkEdit } from "./guard-edit.mjs";
 // @ts-expect-error — plain .mjs modules without type declarations
 import { REPO_ROOT } from "./lib.mjs";
 // @ts-expect-error — plain .mjs modules without type declarations
-import { evaluateGate } from "./stop-gate.mjs";
+import { evaluateGate, typecheckProjects } from "./stop-gate.mjs";
 
 const hook = (name: string, payload: unknown) =>
   spawnSync("node", [join(REPO_ROOT, ".claude/hooks", name)], {
@@ -58,6 +58,23 @@ describe("guard-bash", () => {
       /lead-only/,
     );
     expect(checkCommand("npm run test", { agentType: "frontend-engineer" })).toBeNull();
+  });
+
+  it("blocks installer CLIs from builder agents only", () => {
+    const fe = { agentType: "frontend-engineer" };
+    for (const cmd of [
+      "npx shadcn@latest add dialog",
+      "npx shadcn@4.23.0 add button -c apps/web",
+      "npx --yes shadcn add sonner",
+      "npx impeccable install --providers=claude",
+      "npx playwright install chromium",
+      "npm exec shadcn add tabs",
+      "pnpm dlx shadcn add tabs",
+    ])
+      expect(checkCommand(cmd, fe), cmd).toMatch(/lead-only/);
+    expect(checkCommand("npx impeccable detect apps/web/src", fe)).toBeNull();
+    expect(checkCommand("npx playwright test", fe)).toBeNull();
+    expect(checkCommand("npx shadcn@4.23.0 add button -c apps/web")).toBeNull();
   });
 
   it("exits 2 with a message when run as a hook", () => {
@@ -118,6 +135,14 @@ describe("stop-gate evaluateGate", () => {
       out: "apps/api/src/a.ts(3,7): error TS2322: Type 'string' is not assignable to type 'number'.",
     };
     expect(evaluateGate({ ...base, tsc })).toMatch(/TS2322/);
+  });
+
+  it("typechecks the web app only when it changed", () => {
+    expect(typecheckProjects(["apps/api/src/a.ts"])).toEqual(["tsconfig.json"]);
+    expect(typecheckProjects(["apps/web/src/app.tsx"])).toEqual([
+      "tsconfig.json",
+      "apps/web/tsconfig.json",
+    ]);
   });
 
   it("ignores type errors outside a subagent's scope", () => {

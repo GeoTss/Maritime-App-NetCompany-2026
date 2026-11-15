@@ -58,8 +58,13 @@ export function checkCommand(command, { agentType = "", cwd = REPO_ROOT } = {}) 
   // Only the lead session changes dependencies (one shared lockfile).
   if (agentType && BUILDER_AGENTS.includes(agentType)) {
     if (
-      /\bnpm\s+(install|i|add|ci|uninstall|remove|rm|update|up)\b/.test(cmd) ||
-      /\bnpx\s+-y\b/.test(cmd)
+      /\bnpm\s+(install|i|add|ci|uninstall|remove|rm|update|up|exec)\b/.test(cmd) ||
+      /\b(pnpm|yarn|bun)\s+(install|i|add|remove|dlx|x)\b/.test(cmd) ||
+      /\bnpx\s+-y\b/.test(cmd) ||
+      // These CLIs install packages or browsers themselves.
+      /\bnpx\s+(--yes\s+)?shadcn(@\S+)?\b/.test(cmd) ||
+      /\bnpx\s+(--yes\s+)?impeccable(@\S+)?\s+(install|update|link)\b/.test(cmd) ||
+      /\bnpx\s+playwright\s+install\b/.test(cmd)
     )
       return `Dependency changes are lead-only. Ask the lead to add the package (agent: ${agentType}).`;
   }

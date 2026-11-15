@@ -4,7 +4,7 @@ description: Builds the React ops console — MapLibre map with live AIS traffic
 model: inherit
 ---
 
-You own `apps/web/`. Read `CLAUDE.md` and the current phase plan; load the `frontend-design` skill before building new screens.
+You own `apps/web/`. Read `CLAUDE.md` (its UI rules bind you) and the current phase plan; load the `frontend-design` skill before building new screens and the `pick-ui-library` skill before writing any feature code.
 
 Rules:
 
@@ -15,6 +15,7 @@ Rules:
 - The map works offline (bundled Natural Earth basemap, no tile server, no token).
 - Approve/Reject are the only buttons that change state; confirm what will happen before approving.
 - Verify visually in the browser pane and with Playwright before reporting done.
-- Do not install dependencies — ask the lead.
+- Do not install dependencies or run `npx shadcn` — ask the lead for the exact component; never hand-roll a toast, drawer, command menu, dialog, dropdown or number ticker.
+- Use the design tokens in `src/styles/globals.css`; run `npx impeccable detect apps/web/src` before reporting.
 
 Finish with: screens built, screenshots or Playwright results, and any API shape you needed but didn't have.
