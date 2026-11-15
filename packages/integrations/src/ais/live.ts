@@ -14,6 +14,16 @@ export interface WsLike {
 }
 export type WebSocketCtor = new (url: string) => WsLike;
 
+/** Positions and static data, plus the safety, aid-to-navigation and SAR aircraft messages (hazards). */
+export const AIS_MESSAGE_TYPES = [
+  "PositionReport",
+  "ShipStaticData",
+  "SafetyBroadcastMessage",
+  "AddressedSafetyMessage",
+  "AidsToNavigationReport",
+  "StandardSearchAndRescueAircraftReport",
+];
+
 const MIN_BACKOFF_MS = 1_000;
 const MAX_BACKOFF_MS = 30_000;
 
@@ -26,7 +36,7 @@ async function frameText(data: unknown): Promise<string | null> {
 }
 
 /**
- * Live AISStream client. The subscription (key, boxes, the two message types) is sent on open, well
+ * Live AISStream client. The subscription (key, boxes, the message types) is sent on open, well
  * inside the 3 s limit. The key and the subscription body are never logged. Reconnects with a
  * backoff of 1 s doubling to 30 s, reset once a message arrives.
  */
@@ -71,7 +81,7 @@ export function createLiveAis(opts: {
               JSON.stringify({
                 APIKey: opts.apiKey,
                 BoundingBoxes: opts.boxes,
-                FilterMessageTypes: ["PositionReport", "ShipStaticData"],
+                FilterMessageTypes: AIS_MESSAGE_TYPES,
               }),
             );
             log("ais: connected to AISStream, subscription sent");

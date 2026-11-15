@@ -1,16 +1,29 @@
 export { AIS_BOXES, type AisBox } from "./ais/boxes.js";
+export { foldHazard, HAZARD_LABEL_MAX, type HazardMap } from "./ais/hazards.js";
 export {
   type AisIngester,
   congestionFor,
   createAisIngester,
   refreshCongestion,
+  upsertHazards,
 } from "./ais/ingest.js";
-export { AISSTREAM_URL, createLiveAis, type WebSocketCtor, type WsLike } from "./ais/live.js";
+export {
+  AIS_MESSAGE_TYPES,
+  AISSTREAM_URL,
+  createLiveAis,
+  type WebSocketCtor,
+  type WsLike,
+} from "./ais/live.js";
 export { normaliseAisMessage } from "./ais/normalise.js";
 export { createReplayAis, parseCapture, readCaptureFile } from "./ais/replay.js";
 export { createSimulatorAis } from "./ais/simulator.js";
 export { type AisProvider, abortableSleep } from "./ais/types.js";
-export { loadRecordedSources, RECORDED_DIR, recordedLiveData } from "./recorded.js";
+export {
+  loadRecordedSources,
+  RECORDED_DIR,
+  recordedLiveData,
+  syntheticHazards,
+} from "./recorded.js";
 export { loadSeaNetwork } from "./routes/network.js";
 export { upsertSourceStatus } from "./source-status.js";
 export { DEMO_REGION, gridPoints } from "./weather/grid-points.js";

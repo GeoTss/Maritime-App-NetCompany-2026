@@ -5,7 +5,7 @@ import { loadWorld, seedDatabase } from "@pharos/db";
 import { connectTestDb } from "@pharos/db/testing";
 import type { WeatherGrid } from "@pharos/shared";
 import { afterAll, describe, expect, it } from "vitest";
-import { position, staticData } from "./ais/__helpers.js";
+import { aton, position, safety, sar, staticData } from "./ais/__helpers.js";
 import { loadRecordedSources, recordedLiveData } from "./recorded.js";
 
 const sql = await connectTestDb("integrations_recorded");
@@ -64,6 +64,12 @@ function writeFixtures(extraLines = 0): string {
     },
     { offsetMs: 3000, message: position(211000003, 0, -30) },
     { offsetMs: 4000, message: { MessageType: "Other", MetaData: {}, Message: {} } },
+    { offsetMs: 4100, message: position(970123456, 36.5, -5.5) },
+    { offsetMs: 4200, message: sar(111232001, 36.6, -5.4) },
+    { offsetMs: 4300, message: aton(992111001, 36.1, -5.4, true, "NEW WRECK") },
+    { offsetMs: 4400, message: aton(992111002, 36.2, -5.4, false, "BUOY") },
+    { offsetMs: 4500, message: safety(211000001, "ROCKS ADRIFT") },
+    { offsetMs: 4600, message: safety(211000099, "UNKNOWN SENDER") },
   ];
   for (let i = 0; i < extraLines; i++) {
     lines.push({
@@ -76,12 +82,19 @@ function writeFixtures(extraLines = 0): string {
     `${lines.map((l) => JSON.stringify(l)).join("\n")}\n`,
   );
   writeFileSync(join(dir, "weather-snapshot.json"), JSON.stringify(grid));
+  writeFileSync(
+    join(dir, "synthetic-hazards.json"),
+    JSON.stringify([
+      { id: "synthetic:1", label: "SYNTHETIC TEST", lat: 38, lon: 12, radiusNm: 25 },
+    ]),
+  );
   return dir;
 }
 
 const dump = async () => {
   return {
     traffic: await sql`select * from ais_traffic order by mmsi`,
+    hazards: await sql`select * from nav_hazards order by id`,
     congestion: await sql`select * from port_congestion where source = 'ais' order by id`,
     weather: await sql`select * from weather_snapshots order by id`,
     status: await sql`select source, mode, detail, updated_at from source_status order by source`,
@@ -124,7 +137,7 @@ describe("recorded sources", () => {
     await loadRecordedSources(sql, { anchor: ANCHOR, dir });
     const live = recordedLiveData({ anchor: ANCHOR, ports: world.ports, dir });
     expect(live.traffic.map((t) => t.mmsi)).toEqual(["211000001", "211000002", "211000003"]);
-    expect(live.traffic.at(-1)?.updatedAt).toEqual(new Date(ANCHOR.getTime() - 1000)); // last accepted message
+    expect(live.traffic.at(-1)?.updatedAt).toEqual(new Date(ANCHOR.getTime() - 1600)); // last traffic message (offset 3000 of 4600)
     expect(live.congestion).toEqual([
       { portId: port.id, anchoredCount: 1, waitingHours: 1.5, observedAt: ANCHOR },
     ]);
@@ -157,6 +170,36 @@ describe("recorded sources", () => {
       name: "TEST ONE",
       shipType: "cargo",
       destination: "PIRAEUS",
+    });
+    const hz = await sql`select * from nav_hazards order by id`;
+    expect(live.hazards.map((h) => h.id)).toEqual(
+      [
+        "ais:distress_beacon:970123456",
+        "ais:safety_message:211000001",
+        "ais:sar_aircraft:111232001",
+        "ais:aton:992111001",
+        "synthetic:1",
+      ].sort((a, b) => a.localeCompare(b)),
+    );
+    expect(
+      hz.map((r) => ({
+        id: r.id,
+        kind: r.kind,
+        source: r.source,
+        mmsi: r.mmsi,
+        lat: r.lat,
+        lon: r.lon,
+        label: r.label,
+        radiusNm: r.radius_nm,
+        observedAt: new Date(r.observed_at),
+      })),
+    ).toEqual(live.hazards);
+    expect(live.hazards.find((h) => h.id === "synthetic:1")).toMatchObject({
+      kind: "synthetic",
+      source: "synthetic",
+      mmsi: null,
+      radiusNm: 25,
+      observedAt: ANCHOR,
     });
     const cong = await sql`select * from port_congestion where source = 'ais' order by id`;
     expect(

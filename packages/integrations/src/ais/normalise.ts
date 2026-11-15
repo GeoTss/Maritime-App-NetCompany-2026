@@ -43,6 +43,11 @@ function parseTime(v: string | null | undefined, fallback: Date): string {
   return fallback.toISOString();
 }
 
+/** MMSI prefixes of AIS-SART (970), man-overboard (972) and EPIRB-AIS (974) devices. */
+const DISTRESS_PREFIXES = ["970", "972", "974"];
+const validLat = (v: number) => Number.isFinite(v) && v >= -90 && v <= 90;
+const validLon = (v: number) => Number.isFinite(v) && v >= -180 && v <= 180;
+
 /** Raw AISStream message to a normalised observation; null for anything unusable. Never throws. */
 export function normaliseAisMessage(raw: unknown, now: Date = new Date()): AisObservation | null {
   const parsed = AisStreamMessage.safeParse(raw);
@@ -55,6 +60,9 @@ export function normaliseAisMessage(raw: unknown, now: Date = new Date()): AisOb
     const mmsi = String(MetaData.MMSI ?? p.UserID);
     if (!Number.isFinite(p.Latitude) || p.Latitude < -90 || p.Latitude > 90) return null;
     if (!Number.isFinite(p.Longitude) || p.Longitude < -180 || p.Longitude > 180) return null;
+    if (DISTRESS_PREFIXES.some((x) => mmsi.startsWith(x))) {
+      return validated({ kind: "distress", mmsi, lat: p.Latitude, lon: p.Longitude, ts });
+    }
     const sog = p.Sog;
     const cog = p.Cog;
     const status = p.NavigationalStatus;
@@ -79,6 +87,47 @@ export function normaliseAisMessage(raw: unknown, now: Date = new Date()): AisOb
       name: cleanName(s.Name) ?? cleanName(MetaData.ShipName),
       shipType: shipType(s.Type),
       destination: cleanName(s.Destination),
+      ts,
+    });
+  }
+
+  const safety =
+    MessageType === "SafetyBroadcastMessage"
+      ? Message.SafetyBroadcastMessage
+      : MessageType === "AddressedSafetyMessage"
+        ? Message.AddressedSafetyMessage
+        : undefined;
+  if (safety) {
+    const text = cleanName(safety.Text);
+    if (text === null) return null;
+    return validated({ kind: "safety", mmsi: String(MetaData.MMSI ?? safety.UserID), text, ts });
+  }
+
+  if (MessageType === "AidsToNavigationReport" && Message.AidsToNavigationReport) {
+    const a = Message.AidsToNavigationReport;
+    if (!validLat(a.Latitude) || !validLon(a.Longitude)) return null;
+    return validated({
+      kind: "aton",
+      mmsi: String(MetaData.MMSI ?? a.UserID),
+      name: cleanName(a.Name) ?? cleanName(MetaData.ShipName),
+      lat: a.Latitude,
+      lon: a.Longitude,
+      virtual: a.VirtualAtoN === true,
+      ts,
+    });
+  }
+
+  if (
+    MessageType === "StandardSearchAndRescueAircraftReport" &&
+    Message.StandardSearchAndRescueAircraftReport
+  ) {
+    const a = Message.StandardSearchAndRescueAircraftReport;
+    if (!validLat(a.Latitude) || !validLon(a.Longitude)) return null;
+    return validated({
+      kind: "sar",
+      mmsi: String(MetaData.MMSI ?? a.UserID),
+      lat: a.Latitude,
+      lon: a.Longitude,
       ts,
     });
   }

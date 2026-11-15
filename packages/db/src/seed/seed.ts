@@ -93,7 +93,8 @@ export async function seedDatabase(
 
     // Identity sequences still sit at 1; move each past its seeded ids. Empty tables are untouched.
     for (const table of ALL_TABLES) {
-      if (!("id" in getTableColumns(table))) continue;
+      // Only integer identity ids have a sequence (nav_hazards has a text id).
+      if (getTableColumns(table).id?.dataType !== "number") continue;
       const name = getTableName(table);
       await tx.execute(
         dsql.raw(

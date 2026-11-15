@@ -1,0 +1,9 @@
+[
+  {
+    "id": "synthetic:1",
+    "label": "SYNTHETIC TEST HAZARD — drifting container reported (demo data)",
+    "lat": 40.3411,
+    "lon": 13.8445,
+    "radiusNm": 25
+  }
+]

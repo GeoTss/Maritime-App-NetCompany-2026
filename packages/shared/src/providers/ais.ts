@@ -26,6 +26,23 @@ export const AisShipStaticData = z
   .loose();
 export type AisShipStaticData = z.infer<typeof AisShipStaticData>;
 
+/** Message types 12 and 14 (addressed and broadcast safety text). */
+export const AisSafetyMessage = z.object({ UserID: z.number().int(), Text: z.string() }).loose();
+/** Message type 21 (aid to navigation). */
+export const AisAidsToNavigationReport = z
+  .object({
+    UserID: z.number().int(),
+    Name: z.string().nullish(),
+    Latitude: z.number(),
+    Longitude: z.number(),
+    VirtualAtoN: z.boolean().nullish(),
+  })
+  .loose();
+/** Message type 9 (search-and-rescue aircraft position). */
+export const AisSarAircraftReport = z
+  .object({ UserID: z.number().int(), Latitude: z.number(), Longitude: z.number() })
+  .loose();
+
 export const AisStreamMessage = z
   .object({
     MessageType: z.string().min(1),
@@ -42,6 +59,10 @@ export const AisStreamMessage = z
       .object({
         PositionReport: AisPositionReport.optional(),
         ShipStaticData: AisShipStaticData.optional(),
+        SafetyBroadcastMessage: AisSafetyMessage.optional(),
+        AddressedSafetyMessage: AisSafetyMessage.optional(),
+        AidsToNavigationReport: AisAidsToNavigationReport.optional(),
+        StandardSearchAndRescueAircraftReport: AisSarAircraftReport.optional(),
       })
       .loose(),
   })
@@ -71,6 +92,39 @@ export const AisObservation = z.discriminatedUnion("kind", [
       name: z.string().nullable(),
       shipType: z.enum(["cargo", "tanker", "passenger", "other"]).nullable(),
       destination: z.string().nullable(),
+      ts: IsoDateTime,
+    })
+    .strict(),
+  z
+    .object({ kind: z.literal("safety"), mmsi: Mmsi, text: z.string().min(1), ts: IsoDateTime })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("aton"),
+      mmsi: Mmsi,
+      name: z.string().nullable(),
+      lat: LatLon.shape.lat,
+      lon: LatLon.shape.lon,
+      virtual: z.boolean(),
+      ts: IsoDateTime,
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("sar"),
+      mmsi: Mmsi,
+      lat: LatLon.shape.lat,
+      lon: LatLon.shape.lon,
+      ts: IsoDateTime,
+    })
+    .strict(),
+  /** A position report from an AIS-SART, man-overboard or EPIRB-AIS device (MMSI 970, 972, 974). */
+  z
+    .object({
+      kind: z.literal("distress"),
+      mmsi: Mmsi,
+      lat: LatLon.shape.lat,
+      lon: LatLon.shape.lon,
       ts: IsoDateTime,
     })
     .strict(),

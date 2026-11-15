@@ -14,6 +14,7 @@ const pairs: Pair[] = [
   ["Vessel", shared.Vessel, schema.vessels],
   ["VesselPosition", shared.VesselPosition, schema.vesselPositions],
   ["AisTraffic", shared.AisTraffic, schema.aisTraffic],
+  ["NavHazard", shared.NavHazard, schema.navHazards],
   ["Voyage", shared.Voyage, schema.voyages],
   ["PortCall", shared.PortCall, schema.portCalls],
   ["NoonReport", shared.NoonReport, schema.noonReports],
@@ -43,9 +44,9 @@ describe("drizzle schema mirrors the shared entities", () => {
     expect(Object.keys(getTableColumns(table)).sort()).toEqual(Object.keys(entity.shape).sort());
   });
 
-  it("has 28 entity tables plus world_meta (29 in all)", () => {
+  it("has 29 entity tables plus world_meta (30 in all)", () => {
     const names = [...pairs.map(([, , t]) => getTableName(t)), getTableName(schema.worldMeta)];
-    expect(new Set(names).size).toBe(29);
+    expect(new Set(names).size).toBe(30);
     expect(names).toContain("world_meta");
   });
 

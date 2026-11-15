@@ -2,7 +2,7 @@ import { currentVoyage, loadWorld, seedDatabase, voyageState } from "@pharos/db"
 import { connectTestDb } from "@pharos/db/testing";
 import { positionAt, sailedNmAt } from "@pharos/domain";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { position, staticData } from "./__helpers.js";
+import { aton, position, safety, sar, staticData } from "./__helpers.js";
 import { createAisIngester, refreshCongestion } from "./ingest.js";
 import { normaliseAisMessage } from "./normalise.js";
 import { createSimulatorAis } from "./simulator.js";
@@ -102,6 +102,73 @@ describe("AIS ingester", () => {
     expect(await count()).toBe(before + 1);
     const [last] = await sql`select source from vessel_positions order by id desc limit 1`;
     expect(last?.source).toBe(vessel.trackingSource);
+  });
+});
+
+describe("hazards", () => {
+  const hazards = () =>
+    sql`select id, kind, source, mmsi, lat, lon, label, radius_nm from nav_hazards order by id`;
+
+  it("stores distress beacons and SAR aircraft as hazards, not traffic", async () => {
+    const ing = createAisIngester(sql, { now: () => ANCHOR, throttleMs: 0 });
+    await ing.ingest(position(970123456, 36.5, -5.5));
+    await ing.ingest(sar(111232001, 36.6, -5.4));
+    expect(await sql`select 1 from ais_traffic`).toHaveLength(0);
+    expect(
+      await sql`select 1 from vessel_positions where ts = ${ANCHOR.toISOString()}::timestamptz and lat = 36.5`,
+    ).toHaveLength(0);
+    expect(await hazards()).toEqual([
+      {
+        id: "ais:distress_beacon:970123456",
+        kind: "distress_beacon",
+        source: "ais",
+        mmsi: "970123456",
+        lat: 36.5,
+        lon: -5.5,
+        label: "Distress beacon 970123456",
+        radius_nm: null,
+      },
+      {
+        id: "ais:sar_aircraft:111232001",
+        kind: "sar_aircraft",
+        source: "ais",
+        mmsi: "111232001",
+        lat: 36.6,
+        lon: -5.4,
+        label: "SAR aircraft 111232001",
+        radius_nm: null,
+      },
+    ]);
+  });
+
+  it("keeps only virtual aids to navigation", async () => {
+    const ing = createAisIngester(sql, { now: () => ANCHOR });
+    await ing.ingest(aton(992111001, 36.1, -5.4, true, "NEW WRECK"));
+    await ing.ingest(aton(992111002, 36.2, -5.4, false, "BUOY"));
+    expect((await hazards()).map((h) => [h.id, h.label])).toEqual([
+      ["ais:aton:992111001", "NEW WRECK"],
+    ]);
+    expect(ing.stats().accepted).toBe(2);
+  });
+
+  it("places a safety message at the sender's last known position and skips unknown senders", async () => {
+    const ing = createAisIngester(sql, { now: () => ANCHOR, throttleMs: 0 });
+    await ing.ingest(position(211000040, 36.7, -5.6));
+    await ing.ingest(safety(211000040, `  ${"x".repeat(200)}  `));
+    await ing.ingest(safety(211000041, "NOBODY KNOWS WHERE I AM"));
+    const rows = await hazards();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ id: "ais:safety_message:211000040", lat: 36.7, lon: -5.6 });
+    expect(rows[0]?.label).toBe("x".repeat(160));
+  });
+
+  it("a newer observation of the same id replaces the row", async () => {
+    const ing = createAisIngester(sql, { now: () => ANCHOR });
+    await ing.ingest(sar(111232001, 36.6, -5.4));
+    await ing.ingest(sar(111232001, 36.7, -5.3));
+    const rows = await hazards();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ lat: 36.7, lon: -5.3 });
   });
 });
 

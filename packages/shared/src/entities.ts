@@ -100,6 +100,29 @@ export const AisTraffic = z.object({
 });
 export type AisTraffic = z.infer<typeof AisTraffic>;
 
+export const NavHazardKind = z.enum([
+  "distress_beacon",
+  "sar_aircraft",
+  "aton",
+  "safety_message",
+  "synthetic",
+]);
+export type NavHazardKind = z.infer<typeof NavHazardKind>;
+
+/** A navigational hazard: from AIS safety traffic, or the labelled synthetic one for the demo. `label` is untrusted text. */
+export const NavHazard = z.object({
+  id: z.string().min(1),
+  kind: NavHazardKind,
+  source: z.enum(["ais", "synthetic"]),
+  mmsi: z.string().nullable(),
+  lat: LatLon.shape.lat,
+  lon: LatLon.shape.lon,
+  label: z.string(),
+  radiusNm: NonNeg.nullable(),
+  observedAt: Ts,
+});
+export type NavHazard = z.infer<typeof NavHazard>;
+
 /** Whether a data source is running live or from a recording. */
 export const SourceStatus = z.object({
   source: z.enum(["ais", "weather"]),

@@ -38,3 +38,41 @@ export const staticData = (mmsi: number, extra: Record<string, unknown> = {}) =>
     },
   },
 });
+
+const meta = (mmsi: number) => ({
+  MMSI: mmsi,
+  ShipName: "",
+  time_utc: "2026-11-15 10:00:00.000000000 +0000 UTC",
+});
+
+export const safety = (
+  mmsi: number,
+  text: string,
+  type: "SafetyBroadcastMessage" | "AddressedSafetyMessage" = "SafetyBroadcastMessage",
+) => ({
+  MessageType: type,
+  MetaData: meta(mmsi),
+  Message: { [type]: { UserID: mmsi, Text: text } },
+});
+
+export const aton = (mmsi: number, lat: number, lon: number, virtual: boolean, name = "WRECK") => ({
+  MessageType: "AidsToNavigationReport",
+  MetaData: meta(mmsi),
+  Message: {
+    AidsToNavigationReport: {
+      UserID: mmsi,
+      Name: name,
+      Latitude: lat,
+      Longitude: lon,
+      VirtualAtoN: virtual,
+    },
+  },
+});
+
+export const sar = (mmsi: number, lat: number, lon: number) => ({
+  MessageType: "StandardSearchAndRescueAircraftReport",
+  MetaData: meta(mmsi),
+  Message: {
+    StandardSearchAndRescueAircraftReport: { UserID: mmsi, Latitude: lat, Longitude: lon },
+  },
+});

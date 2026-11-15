@@ -23,7 +23,9 @@ export const newFoldState = (held: Map<string, HeldStatic> = new Map()): FoldSta
  * message; name, ship type and destination take the newest non-null value and otherwise keep the
  * previous one. Static data that precedes a position is held, then applied to that position's row.
  */
-export function foldObservation(state: FoldState, obs: AisObservation, at: Date): void {
+export type TrafficObservation = Extract<AisObservation, { kind: "position" | "static" }>;
+
+export function foldObservation(state: FoldState, obs: TrafficObservation, at: Date): void {
   const prev = state.rows.get(obs.mmsi);
   if (obs.kind === "static") {
     if (prev) {

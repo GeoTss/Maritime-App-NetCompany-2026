@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { position, staticData } from "./__helpers.js";
+import { aton, position, safety, sar, staticData } from "./__helpers.js";
 import { AIS_BOXES } from "./boxes.js";
 import { normaliseAisMessage } from "./normalise.js";
 
@@ -43,6 +43,54 @@ describe("normaliseAisMessage", () => {
     const p = normaliseAisMessage(position(211000001, 1, 1, { NavigationalStatus: 5 }));
     expect(p).toMatchObject({ navStatus: "moored" });
     expect(type(72)).toMatchObject({ name: "STATIC NAME" }); // falls back to the metadata name
+  });
+
+  it("maps safety, aid-to-navigation, SAR aircraft and distress-beacon messages", () => {
+    const ts = "2026-11-15T10:00:00.000Z";
+    expect(normaliseAisMessage(safety(211000001, " ROCKS ADRIFT@@ "))).toEqual({
+      kind: "safety",
+      mmsi: "211000001",
+      text: "ROCKS ADRIFT",
+      ts,
+    });
+    expect(
+      normaliseAisMessage(safety(211000001, "SEE CHART", "AddressedSafetyMessage")),
+    ).toMatchObject({
+      kind: "safety",
+      text: "SEE CHART",
+    });
+    expect(normaliseAisMessage(safety(211000001, "@@@"))).toBeNull();
+    expect(normaliseAisMessage(aton(992111001, 36.1, -5.4, true))).toEqual({
+      kind: "aton",
+      mmsi: "992111001",
+      name: "WRECK",
+      lat: 36.1,
+      lon: -5.4,
+      virtual: true,
+      ts,
+    });
+    expect(normaliseAisMessage(aton(992111002, 36.1, -5.4, false))).toMatchObject({
+      virtual: false,
+    });
+    expect(normaliseAisMessage(aton(992111002, 91, -5.4, true))).toBeNull();
+    expect(normaliseAisMessage(sar(111232001, 36.2, -5.3))).toEqual({
+      kind: "sar",
+      mmsi: "111232001",
+      lat: 36.2,
+      lon: -5.3,
+      ts,
+    });
+    for (const mmsi of [970123456, 972123456, 974123456]) {
+      expect(normaliseAisMessage(position(mmsi, 36.3, -5.2))).toMatchObject({
+        kind: "distress",
+        mmsi: String(mmsi),
+        lat: 36.3,
+        lon: -5.2,
+      });
+    }
+    expect(normaliseAisMessage(position(971123456, 36.3, -5.2))).toMatchObject({
+      kind: "position",
+    });
   });
 
   it("has the five demo boxes with latitude first", () => {

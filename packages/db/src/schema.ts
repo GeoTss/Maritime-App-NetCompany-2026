@@ -12,6 +12,7 @@ import type {
   GradeAmounts,
   Id,
   LatLon,
+  NavHazardKind,
   RecommendationStatus,
 } from "@pharos/shared";
 import {
@@ -108,6 +109,19 @@ export const aisTraffic = pgTable("ais_traffic", {
   navStatus: text(),
   destination: text(),
   updatedAt: ts().notNull(),
+});
+
+/** Navigational hazards from AIS safety traffic plus the labelled synthetic demo hazard. */
+export const navHazards = pgTable("nav_hazards", {
+  id: text().primaryKey(),
+  kind: text().$type<NavHazardKind>().notNull(),
+  source: text().$type<"ais" | "synthetic">().notNull(),
+  mmsi: text(),
+  lat: doublePrecision().notNull(),
+  lon: doublePrecision().notNull(),
+  label: text().notNull(),
+  radiusNm: doublePrecision(),
+  observedAt: ts().notNull(),
 });
 
 /** Whether each external data source (AIS, weather) is running live or from a recording. */

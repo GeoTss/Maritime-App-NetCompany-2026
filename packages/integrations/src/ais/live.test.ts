@@ -72,7 +72,14 @@ describe("createLiveAis", () => {
           [36.4, -5],
         ],
       ],
-      FilterMessageTypes: ["PositionReport", "ShipStaticData"],
+      FilterMessageTypes: [
+        "PositionReport",
+        "ShipStaticData",
+        "SafetyBroadcastMessage",
+        "AddressedSafetyMessage",
+        "AidsToNavigationReport",
+        "StandardSearchAndRescueAircraftReport",
+      ],
     });
     expect(FakeSocket.instances[0]?.url).toBe("wss://stream.aisstream.io/v0/stream");
     const all = logs.join("\n");

@@ -5,8 +5,9 @@ import {
   portCongestion,
   WAIT_HOURS_PER_ANCHORED_VESSEL,
 } from "@pharos/domain";
-import type { AisTraffic, Id, Port } from "@pharos/shared";
+import type { AisObservation, AisTraffic, Id, NavHazard, Port } from "@pharos/shared";
 import { foldObservation, type HeldStatic, newFoldState } from "./fold.js";
+import { foldHazard, type HazardMap } from "./hazards.js";
 import { normaliseAisMessage } from "./normalise.js";
 
 const CHUNK = 1000;
@@ -52,6 +53,28 @@ export function congestionFor(
   return out;
 }
 
+/** Insert hazard rows; a hazard with the same id is replaced by the newer observation. */
+export async function upsertHazards(sql: Sql, hazards: NavHazard[]): Promise<void> {
+  for (let i = 0; i < hazards.length; i += CHUNK) {
+    const rows = hazards.slice(i, i + CHUNK).map((h) => ({
+      id: h.id,
+      kind: h.kind,
+      source: h.source,
+      mmsi: h.mmsi,
+      lat: h.lat,
+      lon: h.lon,
+      label: h.label,
+      radius_nm: h.radiusNm,
+      observed_at: h.observedAt.toISOString(),
+    }));
+    await sql`insert into nav_hazards ${sql(rows as never[])}
+      on conflict (id) do update set
+        kind = excluded.kind, source = excluded.source, mmsi = excluded.mmsi,
+        lat = excluded.lat, lon = excluded.lon, label = excluded.label,
+        radius_nm = excluded.radius_nm, observed_at = excluded.observed_at`;
+  }
+}
+
 export interface AisIngester {
   ingest(raw: unknown): Promise<void>;
   /** Same as `ingest` for many messages, each stamped with its own receipt time, in bulk writes. */
@@ -86,6 +109,7 @@ export function createAisIngester(
     const staticTouched = new Set<string>();
     const fleetMap = await loadFleet();
 
+    const normalised: { obs: AisObservation; at: Date }[] = [];
     for (const { raw, at } of items) {
       const obs = normaliseAisMessage(raw, at);
       if (!obs) {
@@ -93,6 +117,27 @@ export function createAisIngester(
         continue;
       }
       accepted++;
+      normalised.push({ obs, at });
+    }
+
+    // Senders of safety messages: their last known position from before this batch.
+    const known = new Map<string, { lat: number; lon: number }>();
+    const senders = [
+      ...new Set(normalised.flatMap(({ obs }) => (obs.kind === "safety" ? [obs.mmsi] : []))),
+    ];
+    if (senders.length > 0) {
+      const found = await sql<{ mmsi: string; lat: number; lon: number }[]>`
+        select mmsi, lat, lon from ais_traffic where mmsi in ${sql(senders)}`;
+      for (const r of found) known.set(r.mmsi, { lat: r.lat, lon: r.lon });
+    }
+    const hazards: HazardMap = new Map();
+    const positionOf = (mmsi: string) => state.rows.get(mmsi) ?? known.get(mmsi);
+
+    for (const { obs, at } of normalised) {
+      if (obs.kind !== "position" && obs.kind !== "static") {
+        foldHazard(hazards, obs, at, positionOf);
+        continue;
+      }
       const atMs = at.getTime();
       if (obs.kind === "static") {
         foldObservation(state, obs, at);
@@ -162,6 +207,8 @@ export function createAisIngester(
         returning t.mmsi`;
       for (const r of updated) pendingStatic.delete(r.mmsi);
     }
+
+    await upsertHazards(sql, [...hazards.values()]);
 
     for (let i = 0; i < fleetRows.length; i += CHUNK) {
       await sql`insert into vessel_positions ${sql(fleetRows.slice(i, i + CHUNK) as never[])}`;

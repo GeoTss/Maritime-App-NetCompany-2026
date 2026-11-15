@@ -7,6 +7,7 @@ import {
   ExtractionStatus,
   GateAttempt,
   LlmCall,
+  NavHazard,
   PortCallPurpose,
   QuoteStatus,
   RecommendationStatus,
@@ -344,6 +345,11 @@ export const AisTrafficView = AisTraffic.omit({ updatedAt: true }).extend({
   updatedAt: IsoDateTime,
 });
 export type AisTrafficView = z.infer<typeof AisTrafficView>;
+
+export const NavHazardView = NavHazard.omit({ observedAt: true }).extend({
+  observedAt: IsoDateTime,
+});
+export type NavHazardView = z.infer<typeof NavHazardView>;
 
 export const PortCongestionView = z
   .object({
