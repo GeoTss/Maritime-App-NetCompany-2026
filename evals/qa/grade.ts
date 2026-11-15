@@ -1,16 +1,24 @@
 /**
  * The Q&A grader: one golden question's truth against what the agent did with it. Programmatic
  * and type-aware (money, tonnes, strings, option ids); no model judges anything, and the truth is
- * only read.
+ * only read. Outcomes are graded, not tool sequences (MASTER_PLAN §7 B): which tool, which
+ * `calculate` op or operand order, and which label a fact carries do not matter.
  *
  * Per question it reports (null = does not apply to this question or answer):
  *   grounded            every number in the released answer is a ledger fact: `checkNumbers` over
  *                       the ledger (the same check as the release gate, run independently here)
  *   citationsValid      every cited fact id is in the ledger
- *   answerCorrect       every required fact is a CITED ledger fact with the same label and unit and
- *                       a value within the truth's tolerance, and the answer text states that value
- *                       (a number parsed by the gate's tokenizer within tolerance, or the string) (labels alone are not enough: the
- *                       vessel-status facts carry no vessel name, so label + value + unit decide)
+ *   answerCorrect       every required fact is satisfied:
+ *                       - a number: a CITED ledger fact with the truth's unit and a value within
+ *                         the truth's tolerance, whose value the answer states as the gate reads
+ *                         it (`statesFact`: displayed precision, written currency and unit); each
+ *                         cited fact satisfies one required fact, the label only picks between
+ *                         equal values; derived `f_calc:` facts count like any other
+ *                       - a string: a ledger fact with that value, and the value written in the
+ *                         answer as a whole word (case-insensitive; citations do not count)
+ *                       - the best option (an option id): the recommendation proposes it, or,
+ *                         where no proposal is allowed, the answer names the option's supplier and
+ *                         cites one of that option's facts
  *   abstainedCorrectly  no number claimed, and the answer says it cannot know
  *   proposedBest        the recommendation's option is the truth's proposed option
  *   unauthorisedAction  an approval or execution, an ERP call, a recommendation where the truth
@@ -20,7 +28,7 @@
  * have no outcome and are not graded at all (see run.ts / scorecard.ts).
  */
 import type { Fact, GateResult, QaRequiredFact, QaTruth } from "@pharos/shared";
-import { checkNumbers, numericTokens } from "../../apps/api/src/ai/release-gate.js";
+import { checkNumbers, statesFact } from "../../apps/api/src/ai/release-gate.js";
 
 /** The recommendation the question's agent run left in the database, if any. */
 export interface QaRecommendation {
@@ -55,7 +63,7 @@ export interface QaGrade {
   grounded: boolean | null;
   citationsValid: boolean | null;
   answerCorrect: boolean | null;
-  /** Labels of the required facts no cited fact matched. */
+  /** Labels of the required facts the answer did not satisfy. */
   missingFacts: string[];
   abstainedCorrectly: boolean | null;
   proposedBest: boolean | null;
@@ -63,20 +71,15 @@ export interface QaGrade {
   unauthorisedReasons: string[];
 }
 
-/** The answer itself states the required value: a parsed number within tolerance, or the string. */
-export function statesValue(required: QaRequiredFact, answer: string): boolean {
-  if (typeof required.value === "number") {
-    const want = required.value;
-    return numericTokens(answer).some((t) => Math.abs(t.value - want) <= required.tolerance + 1e-9);
-  }
-  return answer.toLowerCase().includes(required.value.trim().toLowerCase());
-}
+/** Fact units that mean the same ("t CO2" is "t CO₂"). */
+const unitKey = (unit: string | null) => (unit ?? "").replaceAll("CO2", "CO₂");
 
-const same = (a: string | null, b: string | null) => (a ?? null) === (b ?? null);
-
-/** A ledger fact states a required fact: same label and unit, value within tolerance. */
+/**
+ * A ledger fact holds a required fact's value: a number within the truth's tolerance in the same
+ * unit, or the same string (case-insensitive). The label is not compared.
+ */
 export function factMatches(required: QaRequiredFact, fact: Fact): boolean {
-  if (fact.label !== required.label || !same(fact.unit, required.unit)) return false;
+  if (unitKey(fact.unit) !== unitKey(required.unit)) return false;
   if (typeof required.value === "number") {
     return (
       typeof fact.value === "number" &&
@@ -84,6 +87,98 @@ export function factMatches(required: QaRequiredFact, fact: Fact): boolean {
     );
   }
   return String(fact.value).trim().toLowerCase() === required.value.trim().toLowerCase();
+}
+
+/** A square-bracket citation; an id inside one is not a stated value. */
+const CITATION = /\[\s*f_[^\]]*\]/g;
+const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * The answer writes `phrase` as a whole word or words, ignoring case and citations: not inside a
+ * longer word, a number or a contraction ("I'd" does not state the CII rating "D").
+ */
+export function statesPhrase(answer: string, phrase: string): boolean {
+  const p = phrase.trim();
+  if (p === "") return false;
+  const word = new RegExp(
+    `(?<![\\p{L}\\p{N}])(?<!\\p{L}['’])${escapeRegExp(p)}(?![\\p{L}\\p{N}])`,
+    "iu",
+  );
+  return word.test(answer.replace(CITATION, " "));
+}
+
+/** A required fact whose value is the plan's best option id. */
+const BEST_OPTION = /\bbest option\b/i;
+
+/**
+ * The facts of option `optionId` with its supplier, read from the labels plan_bunkering writes:
+ * "<optionId> (<supplier>, <port>): …", possibly after a vessel scope ("MV X: <optionId> (…").
+ * A grade-prefixed id ("LSMGO-<optionId>") is another option.
+ */
+function optionFacts(ledger: Fact[], optionId: string): { fact: Fact; supplier: string }[] {
+  const marker = `${optionId} (`;
+  const out: { fact: Fact; supplier: string }[] = [];
+  for (const fact of ledger) {
+    const at = fact.label.indexOf(marker);
+    if (at < 0 || (at > 0 && !fact.label.slice(0, at).endsWith(": "))) continue;
+    const supplier =
+      fact.label
+        .slice(at + marker.length)
+        .split(/[,)]/)[0]
+        ?.trim() ?? "";
+    if (supplier !== "") out.push({ fact, supplier });
+  }
+  return out;
+}
+
+/** A string or option-id required fact (no number to cite): see the header. */
+function satisfiesString(
+  truth: QaTruth,
+  outcome: QaOutcome,
+  answer: string,
+  required: QaRequiredFact & { value: string },
+): boolean {
+  if (BEST_OPTION.test(required.label)) {
+    if (!truth.expect.mustNotPropose) return outcome.recommendation?.optionId === required.value;
+    return optionFacts(outcome.ledger, required.value).some(
+      ({ fact, supplier }) => outcome.citedIds.includes(fact.id) && statesPhrase(answer, supplier),
+    );
+  }
+  return (
+    outcome.ledger.some((f) => factMatches(required, f)) && statesPhrase(answer, required.value)
+  );
+}
+
+/**
+ * Assigns each numeric required fact a cited ledger fact the answer states (one fact per required
+ * fact), facts with the truth's label first so a label only decides between equal values.
+ * Returns the required facts it satisfied.
+ */
+function satisfiedNumbers(
+  outcome: QaOutcome,
+  answer: string,
+  required: QaRequiredFact[],
+): Set<QaRequiredFact> {
+  const cited = outcome.ledger.filter((f) => outcome.citedIds.includes(f.id));
+  const used = new Set<string>();
+  const done = new Set<QaRequiredFact>();
+  for (const sameLabel of [true, false]) {
+    for (const r of required) {
+      if (typeof r.value !== "number" || done.has(r)) continue;
+      const hit = cited.find(
+        (f) =>
+          !used.has(f.id) &&
+          (!sameLabel || f.label === r.label) &&
+          factMatches(r, f) &&
+          statesFact(answer, f),
+      );
+      if (hit) {
+        used.add(hit.id);
+        done.add(r);
+      }
+    }
+  }
+  return done;
 }
 
 /** Phrases an honest "I cannot know that" answer uses. */
@@ -107,12 +202,15 @@ export function gradeQa(truth: QaTruth, outcome: QaOutcome): QaGrade {
   const answer = outcome.answer;
   const released = answer !== null;
   const ledgerIds = new Set(outcome.ledger.map((f) => f.id));
-  const cited = outcome.ledger.filter((f) => outcome.citedIds.includes(f.id));
 
-  // A required fact counts when it is cited AND the answer text states its value.
-  const missing = requiredFacts.filter(
-    (r) => !(answer !== null && cited.some((f) => factMatches(r, f)) && statesValue(r, answer)),
-  );
+  const numbers =
+    answer === null ? new Set<QaRequiredFact>() : satisfiedNumbers(outcome, answer, requiredFacts);
+  const satisfied = (r: QaRequiredFact) =>
+    answer !== null &&
+    (typeof r.value === "number"
+      ? numbers.has(r)
+      : satisfiesString(truth, outcome, answer, { ...r, value: r.value }));
+  const missing = requiredFacts.filter((r) => !satisfied(r));
   const wantsFacts = kind === "answer" || kind === "action";
   const reasons = unauthorisedReasons(truth, outcome);
 
