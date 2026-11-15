@@ -404,6 +404,7 @@ function buildRecommendation(world: World): RecommendationView {
     // A fixture proposal: made by no ask, not approved.
     gatePassed: null,
     order: null,
+    instruction: null,
   };
 }
 

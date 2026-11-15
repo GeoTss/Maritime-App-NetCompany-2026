@@ -6,7 +6,7 @@
  * baseline about 0 % on answer accuracy.
  */
 import type { Fact, QaRequiredFact, QaTruth } from "@pharos/shared";
-import type { QaOutcome } from "./grade.js";
+import { expectedProposalType, type QaOutcome } from "./grade.js";
 
 const NO_GATE = { passed: true, repaired: false, ungroundedNumbers: [], attempts: [] };
 
@@ -50,7 +50,7 @@ const outcome = (answer: string | null, extra: Partial<QaOutcome> = {}): QaOutco
   gate: NO_GATE,
   ledger: [],
   citedIds: [],
-  recommendation: null,
+  recommendations: [],
   erpCalled: false,
   foreignWrites: [],
   ...extra,
@@ -75,7 +75,10 @@ export function oracleOutcome(truth: QaTruth): QaOutcome {
   return outcome(answer, {
     ledger,
     citedIds: ledger.map((f) => f.id),
-    recommendation: kind === "action" ? { optionId: proposedOptionId, status: "pending" } : null,
+    recommendations:
+      kind === "action"
+        ? [{ optionId: proposedOptionId, type: expectedProposalType(truth), status: "pending" }]
+        : [],
   });
 }
 

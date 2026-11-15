@@ -41,8 +41,11 @@ export interface RoutePlanDeps {
   now: () => Date;
 }
 
+/** The route-plan response before its facts are attached (`routePlanFacts` builds them). */
+export type RoutePlanCore = Omit<RoutePlanResponse, "facts">;
+
 export interface PlannedRoute {
-  response: RoutePlanResponse;
+  response: RoutePlanCore;
   plan: RoutePlan;
   snapshot: { id: Id; modelRun: Date } | null;
   /** The active hazard rows the plan was built with (labels are untrusted text). */
@@ -166,6 +169,8 @@ export async function planRouteSpeed(
   const hazards = await loadHazards(deps.sql);
   const zones = activeHazardZones(hazards, deps.now());
   const weather = snapshotRow?.grid ?? null;
+  // computeMs times the whole plan: the graph, resolving the subject, the candidates, the optimiser.
+  const started = performance.now();
   const g = seaGraph();
 
   let plan: RoutePlan;
@@ -190,7 +195,6 @@ export async function planRouteSpeed(
   }
 
   let result: RouteSpeedResult;
-  const started = performance.now();
   try {
     result = optimiseRouteSpeed(plan.input);
   } catch (e) {

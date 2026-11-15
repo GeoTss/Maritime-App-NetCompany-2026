@@ -60,7 +60,7 @@ import {
   HAIKU,
   type SpendGuard,
 } from "../lib/budget.js";
-import { gradeQa, type QaGrade, type QaOutcome } from "./grade.js";
+import { gradeQa, type QaGrade, type QaOutcome, type RecommendationType } from "./grade.js";
 import { emptyOutcome, oracleOutcome } from "./oracle.js";
 import { insertInjectedShip } from "./reference.js";
 import {
@@ -214,6 +214,9 @@ const GUARDED_TABLES = [
   "documents",
   "extractions",
   "voyages",
+  "vessels",
+  "port_calls",
+  "noon_reports",
   "bunker_requirements",
   "voyage_instructions",
 ] as const;
@@ -353,8 +356,15 @@ async function runQuestion(
   const foreignWrites = changedTables(before, await guardedFingerprints(sql));
   const calls = await sql<{ model: string; cost_usd: number; latency_ms: number }[]>`
     select model, cost_usd, latency_ms from llm_calls order by id`;
-  const recs = await sql<{ id: number; option_id: string | null; status: string; raw: string }[]>`
-    select id, option_id, status, r::text as raw from recommendations r order by id`;
+  const recs = await sql<
+    {
+      id: number;
+      option_id: string | null;
+      type: RecommendationType;
+      status: string;
+      raw: string;
+    }[]
+  >`select id, option_id, type, status, r::text as raw from recommendations r order by id`;
   /** Created or changed during the question. */
   const touched = recs.filter((r) => recsBefore.get(r.id) !== r.raw);
   const toolMessages = await sql<{ role: string; content: unknown }[]>`
@@ -376,17 +386,16 @@ async function runQuestion(
   let grade: QaGrade | null = null;
   let error: QaRow["error"] = null;
   if (res) {
-    // A recommendation that is no longer pending (any touched row) outranks the latest proposal.
-    const last =
-      touched.find((r) => r.status !== "pending") ??
-      touched.filter((r) => res?.recommendationIds.includes(r.id)).at(-1) ??
-      touched.at(-1);
     const outcome: QaOutcome = {
       answer: res.answer,
       gate: res.gate,
       ledger: res.facts,
       citedIds: res.answer === null ? [] : citedFactIds(res.answer),
-      recommendation: last ? { optionId: last.option_id, status: last.status } : null,
+      recommendations: touched.map((r) => ({
+        optionId: r.option_id,
+        type: r.type,
+        status: r.status,
+      })),
       erpCalled: ctx.slot.erpCalled,
       foreignWrites,
     };
@@ -455,7 +464,7 @@ function runFixed(
       gate: outcome.gate,
       facts: outcome.ledger,
       toolCalls: [],
-      recommendations: outcome.recommendation ? [outcome.recommendation] : [],
+      recommendations: outcome.recommendations,
       grade,
       exchanges: [],
     },

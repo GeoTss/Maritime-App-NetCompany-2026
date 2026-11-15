@@ -1,4 +1,5 @@
 import type { AisBox } from "./boxes.js";
+import { normaliseAisMessage } from "./normalise.js";
 import { type AisProvider, abortableSleep } from "./types.js";
 
 export const AISSTREAM_URL = "wss://stream.aisstream.io/v0/stream";
@@ -26,6 +27,8 @@ export const AIS_MESSAGE_TYPES = [
 
 const MIN_BACKOFF_MS = 1_000;
 const MAX_BACKOFF_MS = 30_000;
+/** A connection open this long counts as healthy even if no frame yielded an observation. */
+const STABLE_OPEN_MS = 30_000;
 
 async function frameText(data: unknown): Promise<string | null> {
   if (typeof data === "string") return data;
@@ -38,7 +41,9 @@ async function frameText(data: unknown): Promise<string | null> {
 /**
  * Live AISStream client. The subscription (key, boxes, the message types) is sent on open, well
  * inside the 3 s limit. The key and the subscription body are never logged. Reconnects with a
- * backoff of 1 s doubling to 30 s, reset once a message arrives.
+ * backoff of 1 s doubling to 30 s, reset only by a frame that yields an observation or by a
+ * connection that stayed open 30 s: AISStream answers a bad key with an error frame and a close,
+ * which must keep backing off.
  */
 export function createLiveAis(opts: {
   apiKey: string;
@@ -47,10 +52,13 @@ export function createLiveAis(opts: {
   log?: (line: string) => void;
   /** Test seam: replaces the real wait between reconnects. */
   sleep?: (ms: number, signal: AbortSignal) => Promise<void>;
+  /** Test seam: the clock (ms) that times how long a connection stayed open. */
+  now?: () => number;
 }): AisProvider {
   const WS = opts.WebSocketImpl ?? (globalThis.WebSocket as unknown as WebSocketCtor);
   const log = opts.log ?? ((l) => console.log(l));
   const sleep = opts.sleep ?? abortableSleep;
+  const now = opts.now ?? Date.now;
 
   return {
     mode: "live",
@@ -65,8 +73,10 @@ export function createLiveAis(opts: {
             log("ais: could not open the AISStream socket");
             return resolve();
           }
+          let openedAt: number | null = null;
           const finish = () => {
             signal.removeEventListener("abort", onAbort);
+            if (openedAt !== null && now() - openedAt >= STABLE_OPEN_MS) delay = MIN_BACKOFF_MS;
             resolve();
           };
           const onAbort = () => {
@@ -77,6 +87,7 @@ export function createLiveAis(opts: {
           };
           signal.addEventListener("abort", onAbort, { once: true });
           ws.onopen = () => {
+            openedAt = now();
             ws.send(
               JSON.stringify({
                 APIKey: opts.apiKey,
@@ -89,13 +100,16 @@ export function createLiveAis(opts: {
           ws.onmessage = (ev) => {
             void frameText(ev.data).then((text) => {
               if (text === null) return;
-              delay = MIN_BACKOFF_MS;
+              let message: unknown;
               try {
-                onMessage(JSON.parse(text) as unknown);
+                message = JSON.parse(text) as unknown;
               } catch {
                 // Unparseable frame: pass the text through so the ingester counts it as dropped.
                 onMessage(text);
+                return;
               }
+              if (normaliseAisMessage(message) !== null) delay = MIN_BACKOFF_MS;
+              onMessage(message);
             });
           };
           ws.onerror = () => {};

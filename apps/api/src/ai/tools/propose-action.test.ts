@@ -252,6 +252,23 @@ describe.skipIf(!sql)("propose_action (Postgres)", () => {
       expect(ctx.recommendationIds).toEqual([rows[0]?.id]);
     });
 
+    it("a feasible route that is not the best is proposed without an expected saving", async () => {
+      const plan = await routePlan();
+      const other = plan.result.options.find(
+        (o) => o.feasible && o.candidateId !== plan.result.bestCandidateId,
+      );
+      if (!other) throw new Error("the demo route plan has no second feasible route");
+      await proposeAction(ctx, instruction(plan, other.candidateId));
+      const rows = await recommendations();
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({
+        type: "voyage_instruction",
+        option_id: other.candidateId,
+        status: "pending",
+        expected_saving_usd: null,
+      });
+    });
+
     it("a type that does not match the calculation kind is a tool error naming both", async () => {
       const plan = await routePlan();
       await expect(

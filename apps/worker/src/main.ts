@@ -9,11 +9,10 @@ import {
   createReplayAis,
   createSimulatorAis,
   createWeatherProvider,
+  ensureLiveBaseline,
   insertWeatherSnapshot,
   RECORDED_DIR,
   refreshCongestion,
-  syntheticHazards,
-  upsertHazards,
   upsertSourceStatus,
 } from "@pharos/integrations";
 import { loadWorkerConfig } from "./config.js";
@@ -26,8 +25,18 @@ const RESTART_DELAY_MS = 30_000;
 const log = (line: string) => console.log(`[${new Date().toISOString()}] ${line}`);
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
-/** Run `fn` now and then every `everyMs` until aborted; a failure is logged, never fatal. */
-async function every(name: string, everyMs: number, signal: AbortSignal, fn: () => Promise<void>) {
+/**
+ * Run `fn` now (or after `firstDelayMs`) and then every `everyMs` until aborted; a failure is
+ * logged, never fatal.
+ */
+async function every(
+  name: string,
+  everyMs: number,
+  signal: AbortSignal,
+  fn: () => Promise<void>,
+  firstDelayMs = 0,
+) {
+  if (firstDelayMs > 0) await abortableSleep(firstDelayMs, signal);
   while (!signal.aborted) {
     try {
       await fn();
@@ -62,11 +71,37 @@ async function main() {
   for (const sig of ["SIGINT", "SIGTERM"] as const) process.on(sig, () => ctrl.abort());
   const { signal } = ctrl;
 
-  if (cfg.loadSyntheticHazards) {
-    // The labelled synthetic hazard the demo routes around; real AIS hazards need no such help.
-    const hazards = syntheticHazards(RECORDED_DIR, new Date());
-    await upsertHazards(sql, hazards);
-    log(`worker: loaded ${hazards.length} synthetic demo hazard(s)`);
+  const weather = createWeatherProvider({ mode: cfg.weatherMode });
+  const aisMode = cfg.aisMode === "live" ? "live" : "recorded";
+  const aisDetail = (rows: number | null) =>
+    cfg.aisMode === "off"
+      ? "AIS ingestion is off"
+      : rows === null
+        ? cfg.aisMode
+        : `${cfg.aisMode}; ${rows} congestion rows`;
+  /**
+   * The API reseeds on boot (SEED_ON_BOOT=reset truncates the live tables too): put back a weather
+   * snapshot, the labelled synthetic demo hazard and the source rows whenever they are missing.
+   */
+  const baseline = async (now: Date) => {
+    const r = await ensureLiveBaseline(sql, {
+      now,
+      weather,
+      loadSyntheticHazards: cfg.loadSyntheticHazards,
+      ais: { mode: aisMode, detail: aisDetail(null) },
+    });
+    if (r.weatherInserted || r.hazardsUpserted > 0) {
+      log(
+        `worker: baseline restored (weather ${r.weatherInserted ? "inserted" : "present"}, ${r.hazardsUpserted} synthetic hazard(s))`,
+      );
+    }
+    return r;
+  };
+  let weatherAtStart = false;
+  try {
+    weatherAtStart = (await baseline(new Date())).weatherInserted;
+  } catch (e) {
+    log(`baseline: ${errText(e)}`);
   }
 
   const ingester = createAisIngester(sql, { now: () => new Date() });
@@ -100,34 +135,50 @@ async function main() {
       const rows = await refreshCongestion(sql, now);
       await upsertSourceStatus(sql, {
         source: "ais",
-        mode: cfg.aisMode === "live" ? "live" : "recorded",
-        detail:
-          cfg.aisMode === "off"
-            ? "AIS ingestion is off"
-            : `${cfg.aisMode}; ${rows} congestion rows`,
+        mode: aisMode,
+        detail: aisDetail(rows),
         at: now,
       });
     }),
   );
 
-  const weather = createWeatherProvider({ mode: cfg.weatherMode });
+  // The baseline again every 5 minutes (it ran at start), so a reseed while the worker runs heals.
   tasks.push(
-    every("weather", WEATHER_INTERVAL_MS, signal, async () => {
-      const now = new Date();
-      const load = await weather.load(now);
-      const id = await insertWeatherSnapshot(sql, {
-        grid: load.grid,
-        source: load.source,
-        fetchedAt: now,
-      });
-      await upsertSourceStatus(sql, {
-        source: "weather",
-        mode: load.mode,
-        detail: `snapshot ${id} from ${load.source}`,
-        at: now,
-      });
-      log(`weather: stored snapshot ${id} (${load.mode})`);
-    }),
+    every(
+      "baseline",
+      CONGESTION_INTERVAL_MS,
+      signal,
+      async () => {
+        await baseline(new Date());
+      },
+      CONGESTION_INTERVAL_MS,
+    ),
+  );
+
+  // The weather refresh: at start (unless the baseline just stored a snapshot) and every 6 hours.
+  tasks.push(
+    every(
+      "weather",
+      WEATHER_INTERVAL_MS,
+      signal,
+      async () => {
+        const now = new Date();
+        const load = await weather.load(now);
+        const id = await insertWeatherSnapshot(sql, {
+          grid: load.grid,
+          source: load.source,
+          fetchedAt: now,
+        });
+        await upsertSourceStatus(sql, {
+          source: "weather",
+          mode: load.mode,
+          detail: `snapshot ${id} from ${load.source}`,
+          at: now,
+        });
+        log(`weather: stored snapshot ${id} (${load.mode})`);
+      },
+      weatherAtStart ? WEATHER_INTERVAL_MS : 0,
+    ),
   );
 
   await Promise.all(tasks);

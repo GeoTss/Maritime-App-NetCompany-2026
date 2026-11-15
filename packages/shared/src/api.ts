@@ -159,6 +159,15 @@ export const RecommendationOrder = z.object({
 });
 export type RecommendationOrder = z.infer<typeof RecommendationOrder>;
 
+/** The voyage instruction the executor recorded for an approved voyage-instruction proposal. */
+export const RecommendationInstruction = z.object({
+  instructionId: Id,
+  candidateId: z.string().min(1),
+  speedKn: z.number().positive(),
+  eta: IsoDateTime,
+});
+export type RecommendationInstruction = z.infer<typeof RecommendationInstruction>;
+
 export const RecommendationView = z.object({
   id: Id,
   type: RecommendationType,
@@ -173,6 +182,8 @@ export const RecommendationView = z.object({
   gatePassed: z.boolean().nullable(),
   /** The purchase order written on approval; null before approval (or after a rejection). */
   order: RecommendationOrder.nullable(),
+  /** The voyage instruction recorded on approval; null before it (and for a purchase order). */
+  instruction: RecommendationInstruction.nullable(),
 });
 export type RecommendationView = z.infer<typeof RecommendationView>;
 
@@ -276,6 +287,8 @@ export const DecisionResult = z.object({
   orderId: Id.nullable(),
   erpPoNumber: z.string().nullable(),
   erpSyncStatus: ErpSyncStatus.nullable(),
+  /** The recorded voyage instruction (a voyage-instruction proposal once executed), else null. */
+  instructionId: Id.nullable(),
 });
 export type DecisionResult = z.infer<typeof DecisionResult>;
 
@@ -336,6 +349,9 @@ export const RoutePlanResponse = z
     destination: z.string().min(1),
     candidates: z.array(RouteCandidate),
     result: RouteSpeedResult,
+    /** The plan's citable facts, the ones `plan_route_speed` returns: every number the map shows. */
+    facts: z.array(Fact),
+    /** Milliseconds to plan: resolving the subject, building the route graph and candidates, optimising. */
     computeMs: z.number().nonnegative(),
   })
   .strict();

@@ -139,6 +139,7 @@ describe.skipIf(!sql)("executor (Postgres)", () => {
       status: "executed",
       erpPoNumber: "PO-000001",
       erpSyncStatus: "synced",
+      instructionId: null,
     });
 
     const orders = await ordersOf(recId);
@@ -303,6 +304,7 @@ describe.skipIf(!sql)("executor (Postgres)", () => {
       orderId: down.orderId,
       erpPoNumber: "PO-000001",
       erpSyncStatus: "synced",
+      instructionId: null,
     });
     expect(await ordersOf(recId)).toHaveLength(1);
     expect(erp.requests.map((r) => r.key)).toEqual([
@@ -541,6 +543,7 @@ describe.skipIf(!sql)("executor (Postgres)", () => {
       orderId: null,
       erpPoNumber: null,
       erpSyncStatus: null,
+      instructionId: null,
     });
     const rec = await recommendation(recId);
     expect(rec?.status).toBe("rejected");
@@ -628,12 +631,16 @@ describe.skipIf(!sql)("executor (Postgres)", () => {
         select planned_speed_kn from voyages where voyage_no = ${DEMO_SCENARIO.voyageNo}`;
       const orders = await orderCount();
       const result = DecisionResult.parse(await approveRecommendation(deps, viId, "alice"));
+      const [instruction] = await db<{ id: number }[]>`
+        select id from voyage_instructions where recommendation_id = ${viId}`;
+      expect(instruction).toBeDefined();
       expect(result).toEqual({
         recommendationId: viId,
         status: "executed",
         orderId: null,
         erpPoNumber: null,
         erpSyncStatus: null,
+        instructionId: instruction?.id,
       });
 
       const { option, candidate, destination, voyageId } = await stored();

@@ -28,6 +28,20 @@ describe("loadWorkerConfig", () => {
     expect(logs[0]).toContain("AISSTREAM_API_KEY");
   });
 
+  it("a whitespace-only key counts as not set; a padded key is trimmed", () => {
+    const logs: string[] = [];
+    const blank = loadWorkerConfig({ ...base, AIS_MODE: "live", AISSTREAM_API_KEY: "  \n" }, (l) =>
+      logs.push(l),
+    );
+    expect(blank).toMatchObject({ aisMode: "replay", aisApiKey: undefined });
+    expect(logs[0]).toContain("AISSTREAM_API_KEY");
+    const padded = loadWorkerConfig(
+      { ...base, AIS_MODE: "live", AISSTREAM_API_KEY: " k\n" },
+      () => {},
+    );
+    expect(padded).toMatchObject({ aisMode: "live", aisApiKey: "k" });
+  });
+
   it("live with a key stays live", () => {
     const cfg = loadWorkerConfig({ ...base, AIS_MODE: "live", AISSTREAM_API_KEY: "k" }, () => {});
     expect(cfg.aisMode).toBe("live");

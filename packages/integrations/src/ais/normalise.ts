@@ -25,11 +25,23 @@ function shipType(
   return "other";
 }
 
-const cleanName = (v: string | null | undefined): string | null => {
-  // AIS pads names with "@" and spaces.
-  const t = (v ?? "").replace(/@+/g, " ").trim();
-  return t === "" ? null : t;
+/** The AIS field size of a ship name and of a destination (characters). */
+export const AIS_NAME_MAX = 20;
+
+// C0 and C1 control characters (NUL, ESC, CR, LF, ...): never part of AIS 6-bit text.
+// biome-ignore lint/suspicious/noControlCharactersInRegex: matching them is the point
+const CONTROL = /[\u0000-\u001f\u007f-\u009f]/g;
+
+/**
+ * Untrusted AIS text as stored: control characters stripped, the "@" padding AIS uses turned to
+ * spaces, trimmed, and cut to `max` characters when given; null when nothing is left.
+ */
+const cleanText = (v: string | null | undefined, max?: number): string | null => {
+  const t = (v ?? "").replace(CONTROL, "").replace(/@+/g, " ").trim();
+  const cut = max === undefined ? t : t.slice(0, max).trimEnd();
+  return cut === "" ? null : cut;
 };
+const cleanName = (v: string | null | undefined): string | null => cleanText(v, AIS_NAME_MAX);
 
 /** AISStream sends "2026-11-15 10:00:00.123456789 +0000 UTC"; ISO strings are accepted too. */
 function parseTime(v: string | null | undefined, fallback: Date): string {
@@ -98,7 +110,7 @@ export function normaliseAisMessage(raw: unknown, now: Date = new Date()): AisOb
         ? Message.AddressedSafetyMessage
         : undefined;
   if (safety) {
-    const text = cleanName(safety.Text);
+    const text = cleanText(safety.Text);
     if (text === null) return null;
     return validated({ kind: "safety", mmsi: String(MetaData.MMSI ?? safety.UserID), text, ts });
   }
@@ -109,7 +121,7 @@ export function normaliseAisMessage(raw: unknown, now: Date = new Date()): AisOb
     return validated({
       kind: "aton",
       mmsi: String(MetaData.MMSI ?? a.UserID),
-      name: cleanName(a.Name) ?? cleanName(MetaData.ShipName),
+      name: cleanText(a.Name) ?? cleanName(MetaData.ShipName),
       lat: a.Latitude,
       lon: a.Longitude,
       virtual: a.VirtualAtoN === true,

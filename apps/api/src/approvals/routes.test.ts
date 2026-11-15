@@ -99,6 +99,7 @@ describe.skipIf(!sql)("approval routes (Postgres)", () => {
       orderId: null,
       erpPoNumber: null,
       erpSyncStatus: null,
+      instructionId: null,
     });
     const again = await post(`/api/recommendations/${recId}/reject`);
     expect(again.status).toBe(409);

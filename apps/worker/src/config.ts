@@ -4,7 +4,11 @@ const Env = z.object({
   DATABASE_URL: z.string().min(1),
   AIS_MODE: z.enum(["live", "replay", "off"]).default("replay"),
   WEATHER_MODE: z.enum(["live", "recorded"]).default("recorded"),
-  AISSTREAM_API_KEY: z.string().optional(),
+  // Trimmed: a whitespace-only key is not set (and a pasted newline is not part of it).
+  AISSTREAM_API_KEY: z
+    .string()
+    .optional()
+    .transform((v) => v?.trim() || undefined),
   DEMO_HAZARDS: z.enum(["on", "off"]).default("off"),
 });
 

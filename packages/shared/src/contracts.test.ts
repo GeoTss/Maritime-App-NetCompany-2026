@@ -233,8 +233,26 @@ describe("Phase 2 contracts", () => {
       facts: [],
       gatePassed: false,
       order: { orderId: 3, erpPoNumber: "PO-000001", erpSyncStatus: "synced" },
+      instruction: null,
     };
     expect(RecommendationView.parse(rec).order?.erpPoNumber).toBe("PO-000001");
+    // A voyage instruction: the recorded instruction, no order.
+    const recorded = {
+      instructionId: 2,
+      candidateId: "B",
+      speedKn: 11.5,
+      eta: "2026-11-20T06:00:00.000Z",
+    };
+    expect(
+      RecommendationView.safeParse({
+        ...rec,
+        type: "voyage_instruction",
+        order: null,
+        instruction: recorded,
+      }).success,
+    ).toBe(true);
+    const { instruction: _i, ...noInstruction } = rec;
+    expect(RecommendationView.safeParse(noInstruction).success).toBe(false);
     // Not made by an ask, not approved yet.
     expect(RecommendationView.safeParse({ ...rec, gatePassed: null, order: null }).success).toBe(
       true,

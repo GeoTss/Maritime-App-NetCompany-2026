@@ -2,6 +2,7 @@ import type { Sql } from "@pharos/db";
 import { connectTestDb, testDbLabel } from "@pharos/db/testing";
 import {
   AisTrafficList,
+  type Fact,
   HazardZoneList,
   PortCongestionList,
   RoutePlanResponse,
@@ -9,6 +10,8 @@ import {
   WeatherView,
 } from "@pharos/shared";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { createToolContext } from "../ai/tools/common.js";
+import { planRouteSpeedFacts } from "../ai/tools/route-speed.js";
 import { createApp } from "../app.js";
 import { ASK_FIXTURE_NOW, prepareAskFixture } from "../ask/demo-fixture.js";
 import { createFixtureSource } from "../read/fixtures.js";
@@ -55,6 +58,42 @@ describe.skipIf(!sql)("live routes (Postgres)", () => {
     const [row] = await db<{ kind: string }[]>`
       select kind from calculations where id = ${body.calculationId}`;
     expect(row?.kind).toBe("route_speed");
+  });
+
+  it("POST /api/route-plan serves the facts plan_route_speed returns for the same input", async () => {
+    // Each plan stores its own calculation, so ids differ; compare with the id taken out.
+    const keyed = (facts: Fact[], id: number) =>
+      facts.map((f) => {
+        const p = f.provenance;
+        return {
+          ...f,
+          id: f.id.replace(`f_plan_route_speed_${id}_`, "f_plan_route_speed_CALC_"),
+          value: f.label === "Route calculation id" ? "CALC" : f.value,
+          provenance:
+            p.source === "calculation"
+              ? { ...p, calculationId: 0 }
+              : p.source === "db" && p.table === "calculations"
+                ? { ...p, rowId: 0 }
+                : p,
+        };
+      });
+    for (const input of [{ vessel: "Thessaly Star" }, { vessel: "Aegean Pioneer" }]) {
+      const res = await post(input);
+      expect(res.status).toBe(200);
+      const body = RoutePlanResponse.parse(await res.json());
+      const tool = await planRouteSpeedFacts(
+        createToolContext({ sql: db, now: () => ASK_FIXTURE_NOW }),
+        input,
+      );
+      const { calculationId } = tool.data as { calculationId: number };
+      expect(body.facts.length).toBeGreaterThan(20);
+      expect(keyed(body.facts, body.calculationId)).toEqual(keyed(tool.facts, calculationId));
+      // Every number the map would show is a fact: the best option's figures are among them.
+      const best = body.result.options.find((o) => o.candidateId === body.result.bestCandidateId);
+      for (const v of [best?.distanceNm, best?.totalCostUsd, body.result.savingVsBaselineUsd]) {
+        expect(body.facts.some((f) => f.value === v)).toBe(true);
+      }
+    }
   });
 
   it("POST /api/route-plan is 415 without a JSON content type and 422 for an unknown ship", async () => {

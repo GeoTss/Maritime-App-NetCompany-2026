@@ -86,4 +86,63 @@ describe("createLiveAis", () => {
     expect(all).not.toContain(KEY);
     expect(all).not.toContain("BoundingBoxes");
   });
+
+  /** Opens, sends one frame, then closes; `openMs` is how long it stays open on the fake clock. */
+  const oneFrameSocket = (frame: () => string, clock: { t: number }, openMs = 0) =>
+    class implements WsLike {
+      static count = 0;
+      onopen: WsLike["onopen"] = null;
+      onmessage: WsLike["onmessage"] = null;
+      onclose: WsLike["onclose"] = null;
+      onerror: WsLike["onerror"] = null;
+      constructor(public url: string) {
+        setTimeout(() => {
+          this.onopen?.({});
+          this.onmessage?.({ data: frame() });
+          setTimeout(() => {
+            clock.t += openMs;
+            this.onerror?.({});
+            this.onclose?.({});
+          }, 1);
+        }, 0);
+      }
+      send() {}
+      close() {
+        this.onclose?.({});
+      }
+    };
+
+  async function delaysFor(socket: ReturnType<typeof oneFrameSocket>, clock: { t: number }) {
+    const delays: number[] = [];
+    const ctrl = new AbortController();
+    const provider = createLiveAis({
+      apiKey: KEY,
+      boxes: [],
+      WebSocketImpl: socket,
+      log: () => {},
+      now: () => clock.t,
+      sleep: async (ms) => {
+        delays.push(ms);
+        if (delays.length === 4) ctrl.abort();
+      },
+    });
+    await provider.run(() => {}, ctrl.signal);
+    return delays;
+  }
+
+  it("an error frame then a close keeps backing off (no observation, no reset)", async () => {
+    const clock = { t: 0 };
+    const socket = oneFrameSocket(() => JSON.stringify({ error: "Api Key Is Not Valid" }), clock);
+    expect(await delaysFor(socket, clock)).toEqual([1000, 2000, 4000, 8000]);
+  });
+
+  it("a frame that yields an observation, or 30 s open, resets the backoff", async () => {
+    const clock = { t: 0 };
+    const good = oneFrameSocket(() => JSON.stringify(position(211000001, 36, -5.5)), clock);
+    expect(await delaysFor(good, clock)).toEqual([1000, 1000, 1000, 1000]);
+    const longOpen = oneFrameSocket(() => "{}", clock, 30_000);
+    expect(await delaysFor(longOpen, clock)).toEqual([1000, 1000, 1000, 1000]);
+    const shortOpen = oneFrameSocket(() => "{}", clock, 29_000);
+    expect(await delaysFor(shortOpen, clock)).toEqual([1000, 2000, 4000, 8000]);
+  });
 });

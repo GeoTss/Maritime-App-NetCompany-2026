@@ -357,7 +357,7 @@ const ROUTE_OPTION_FIELD = {
 } as const;
 
 function resolveRoute(world: World, ref: Extract<FactRef, { src: "route" }>): QaRequiredFact {
-  const { plan, result, mmsi, hazards, modelRun } = qaRoute(world, ref.subject, ref.vessel);
+  const { plan, result, mmsi, modelRun } = qaRoute(world, ref.subject, ref.vessel);
   const S = subjectLabel(plan, mmsi);
   const rows = routeSpeedFactRows(plan, result, { id: 0, modelRun }, { mmsi });
   const byPath = (path: string) =>

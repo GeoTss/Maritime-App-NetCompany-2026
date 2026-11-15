@@ -886,6 +886,91 @@ describe("checkNumbers v2", () => {
       passed: false,
       ungrounded: ["1", "2"],
     },
+    // Phase 5 fix wave: a voyage number (P1) and a crossed hazard's id (T7b) are identifiers too
+    {
+      name: "a voyage number a voyageNo fact holds passes uncited",
+      answer: "Voyage AP-2611 needs 300 mt [f_q].",
+      facts: [
+        dbText("f_vn", "AP-2611", "Aegean Pioneer: voyage number", {
+          table: "voyages",
+          rowId: 4,
+          field: "voyageNo",
+        }),
+        labelled("f_q", 300, "mt"),
+      ],
+      passed: true,
+    },
+    {
+      name: "a voyage number no voyageNo fact holds is ungrounded",
+      answer: "Voyage AP-2611 needs 300 mt [f_q].",
+      facts: [labelled("f_q", 300, "mt")],
+      passed: false,
+      ungrounded: ["2611"],
+    },
+    {
+      name: "a voyage number equal to free text (an AIS name) is checked as numbers",
+      answer: "Voyage AP-2611 needs 300 mt [f_q].",
+      facts: [
+        dbText("f_n", "AP-2611", "MMSI 205795000: AIS ship name", {
+          table: "ais_traffic",
+          rowId: "205795000",
+          field: "name",
+        }),
+        labelled("f_q", 300, "mt"),
+      ],
+      passed: false,
+      ungrounded: ["2611"],
+    },
+    {
+      name: "a different voyage number than the fact's is ungrounded",
+      answer: "Voyage AP-2612 is open.",
+      facts: [
+        dbText("f_vn", "AP-2611", "Aegean Pioneer: voyage number", {
+          table: "voyages",
+          rowId: 4,
+          field: "voyageNo",
+        }),
+      ],
+      passed: false,
+      ungrounded: ["2612"],
+    },
+    {
+      name: "the MMSI of a crossed (not avoided) AIS hazard its label fact's row holds passes uncited",
+      answer: "Route A passes the distress beacon of MMSI 970123456.",
+      facts: [
+        dbText("f_hl", "SART ACTIVE", "Reported hazard ais:distress_beacon:970123456", {
+          table: "nav_hazards",
+          rowId: "ais:distress_beacon:970123456",
+          field: "label",
+        }),
+      ],
+      passed: true,
+    },
+    {
+      name: "a crossed hazard's id its label fact's row holds passes uncited",
+      answer: "Route A crosses ais:distress_beacon:970123456.",
+      facts: [
+        dbText("f_hl", "SART ACTIVE", "Reported hazard ais:distress_beacon:970123456", {
+          table: "nav_hazards",
+          rowId: "ais:distress_beacon:970123456",
+          field: "label",
+        }),
+      ],
+      passed: true,
+    },
+    {
+      name: "a row id of another table does not back an MMSI",
+      answer: "MMSI 205795000 is in the area.",
+      facts: [
+        dbText("f_n", "OCEAN", "MMSI 111111111: AIS ship name", {
+          table: "ais_traffic",
+          rowId: "x:205795000",
+          field: "name",
+        }),
+      ],
+      passed: false,
+      ungrounded: ["205795000"],
+    },
     {
       name: "a quantity space-grouped onto a held hazard id is checked",
       answer: "Avoids synthetic:1 950 t.",

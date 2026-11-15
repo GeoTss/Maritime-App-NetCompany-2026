@@ -670,10 +670,14 @@ async function decisionOf(sql: Sql, id: Id): Promise<DecisionResult> {
       order_id: number | null;
       erp_po_number: string | null;
       erp_sync_status: string | null;
+      instruction_id: number | null;
     }[]
   >`
-    select r.status, po.id as order_id, po.erp_po_number, po.erp_sync_status
-    from recommendations r left join purchase_orders po on po.recommendation_id = r.id
+    select r.status, po.id as order_id, po.erp_po_number, po.erp_sync_status,
+           vi.id as instruction_id
+    from recommendations r
+      left join purchase_orders po on po.recommendation_id = r.id
+      left join voyage_instructions vi on vi.recommendation_id = r.id
     where r.id = ${id}
     order by po.id limit 1`;
   if (!row) throw new DecisionError("not_found", `Recommendation ${id} does not exist.`);
@@ -683,5 +687,6 @@ async function decisionOf(sql: Sql, id: Id): Promise<DecisionResult> {
     orderId: row.order_id,
     erpPoNumber: row.erp_po_number,
     erpSyncStatus: row.erp_sync_status,
+    instructionId: row.instruction_id,
   });
 }

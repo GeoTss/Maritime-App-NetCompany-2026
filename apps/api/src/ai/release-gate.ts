@@ -106,26 +106,38 @@ const NOT_CLAIMS: {
       // backs it whole ("205795000") or as a segment ("ais:distress_beacon:970123456").
       const named = new RegExp(`MMSI ${mmsi}(?!\\d)`);
       return facts.some(
-        (f) => identifierValue(f)?.split(":").includes(mmsi) === true || named.test(f.label),
+        (f) => identifierValues(f).some((v) => v.split(":").includes(mmsi)) || named.test(f.label),
       );
     },
   },
   {
     what: "an identifier such as a hazard id (synthetic:1, ais:distress_beacon:970123456) an identifier fact holds",
     pattern: /(?<![A-Za-z0-9_:])[A-Za-z][A-Za-z0-9_]*(?::[A-Za-z0-9_]+)+/g,
-    exempt: (m, facts) => facts.some((f) => identifierValue(f) === m[0]),
+    exempt: (m, facts) => facts.some((f) => identifierValues(f).includes(m[0])),
+  },
+  {
+    what: "a hyphenated code such as a voyage number (AP-2611) an identifier fact holds",
+    pattern: /(?<![A-Za-z0-9_:-])[A-Za-z][A-Za-z0-9]*(?:-[A-Za-z0-9]+)+(?![A-Za-z0-9_:-])/g,
+    exempt: (m, facts) => facts.some((f) => identifierValues(f).includes(m[0])),
   },
 ];
 
 /**
- * The value of a fact read from an identifier column (a row's `id`, such as a hazard id, or an
- * `mmsi` field), else null. Only such a value can make an MMSI or an identifier a non-claim: free
- * text (an AIS ship name, a hazard label) is untrusted and a number fact is an amount.
+ * The identifiers a fact carries, from columns code fills: the string value of a row's `id`
+ * (such as a hazard id), of an `mmsi` field or of a `voyageNo` field, and the row id of a
+ * `nav_hazards` fact (hazard ids are built by code, so a crossed hazard's label fact names its
+ * id). Only these can make an MMSI, an identifier or a code a non-claim: free text (an AIS ship
+ * name, a hazard label) is untrusted and a number fact is an amount.
  */
-function identifierValue(fact: Fact): string | null {
+function identifierValues(fact: Fact): string[] {
   const p = fact.provenance;
-  if (typeof fact.value !== "string" || p.source !== "db") return null;
-  return p.field === "id" || /(?:^|\.)mmsi$/.test(p.field) ? fact.value : null;
+  if (p.source !== "db") return [];
+  const out: string[] = [];
+  if (typeof fact.value === "string" && /^(?:id|(?:.*\.)?(?:mmsi|voyageNo))$/.test(p.field)) {
+    out.push(fact.value);
+  }
+  if (p.table === "nav_hazards") out.push(String(p.rowId));
+  return out;
 }
 
 /** A negative number may state a positive saving or difference said to be less. */

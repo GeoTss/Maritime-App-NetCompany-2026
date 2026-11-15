@@ -157,6 +157,10 @@ interface RecommendationRow {
   order_id: number | null;
   erp_po_number: string | null;
   erp_sync_status: ErpSyncStatus | null;
+  instruction_id: number | null;
+  instruction_candidate_id: string | null;
+  instruction_speed_kn: number | null;
+  instruction_eta: string | Date | null;
 }
 
 /**
@@ -249,7 +253,9 @@ async function recommendations(sql: Sql, id?: Id): Promise<RecommendationView[]>
     select r.id, r.type, r.status, r.calculation_id, r.option_id, r.fact_refs,
            r.expected_saving_usd, c.kind, c.inputs, c.outputs, vo.voyage_no,
            (m.content -> 'gate' ->> 'passed')::boolean as gate_passed,
-           po.id as order_id, po.erp_po_number, po.erp_sync_status
+           po.id as order_id, po.erp_po_number, po.erp_sync_status,
+           vi.id as instruction_id, vi.candidate_id as instruction_candidate_id,
+           vi.speed_kn as instruction_speed_kn, vi.eta as instruction_eta
     from recommendations r
       join calculations c on c.id = r.calculation_id
       left join voyages vo on vo.id = c.voyage_id
@@ -259,6 +265,8 @@ async function recommendations(sql: Sql, id?: Id): Promise<RecommendationView[]>
         select id, erp_po_number, erp_sync_status from purchase_orders
         where recommendation_id = r.id order by id limit 1
       ) po on true
+      -- At most one per recommendation (unique index).
+      left join voyage_instructions vi on vi.recommendation_id = r.id
     ${id === undefined ? sql`` : sql`where r.id = ${id}`}
     order by r.id desc`;
   if (rows.length === 0) return [];
@@ -285,6 +293,18 @@ async function recommendations(sql: Sql, id?: Id): Promise<RecommendationView[]>
         r.order_id === null || r.erp_sync_status === null
           ? null
           : { orderId: r.order_id, erpPoNumber: r.erp_po_number, erpSyncStatus: r.erp_sync_status },
+      instruction:
+        r.instruction_id === null ||
+        r.instruction_candidate_id === null ||
+        r.instruction_speed_kn === null ||
+        r.instruction_eta === null
+          ? null
+          : {
+              instructionId: r.instruction_id,
+              candidateId: r.instruction_candidate_id,
+              speedKn: r.instruction_speed_kn,
+              eta: new Date(r.instruction_eta).toISOString(),
+            },
     };
     if (r.kind === "route_speed") {
       const view = routeOptionView(r.calculation_id, r.inputs, r.outputs, r.option_id);

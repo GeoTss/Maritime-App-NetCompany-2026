@@ -302,7 +302,12 @@ describe.skipIf(!sql)("createDbSource (Postgres)", () => {
       const rec = RecommendationView.parse(
         (await get(app, `/api/recommendations/${withheldRecId}`)).body,
       );
-      expect(rec).toMatchObject({ status: "pending", gatePassed: false, order: null });
+      expect(rec).toMatchObject({
+        status: "pending",
+        gatePassed: false,
+        order: null,
+        instruction: null,
+      });
       const { items } = listOf(RecommendationView).parse(
         (await get(app, "/api/recommendations")).body,
       );
@@ -317,6 +322,7 @@ describe.skipIf(!sql)("createDbSource (Postgres)", () => {
         status: "executed",
         gatePassed: true,
         order: { orderId: order?.id, erpPoNumber: "PO-000001", erpSyncStatus: "synced" },
+        instruction: null,
       });
     });
   });
@@ -371,6 +377,7 @@ describe.skipIf(!sql)("createDbSource (Postgres)", () => {
         optionId: result.bestCandidateId,
         expectedSavingUsd: result.savingVsBaselineUsd,
         order: null,
+        instruction: null,
       });
       expect(rec.summary).toBe(
         `Instruct ${inputs.subject} to ${inputs.destination}: ${label} (route ${result.bestCandidateId}).`,
@@ -392,6 +399,42 @@ describe.skipIf(!sql)("createDbSource (Postgres)", () => {
       const ids = new Set(rec.facts.map((f) => f.id));
       expect(rec.factRefs.length).toBe(4);
       for (const ref of rec.factRefs) expect(ids.has(ref)).toBe(true);
+    });
+
+    it("serves the recorded instruction once approved", async () => {
+      const erpApp = createErpApp({ now: () => NOW });
+      const decision = await approveRecommendation(
+        {
+          sql: db,
+          erp: createErpClient("http://erp.test", (input, init) => erpApp.request(input, init)),
+          now: () => NOW,
+        },
+        viId,
+        "alice",
+      );
+      const [row] = await db<{ id: number; candidate_id: string; speed_kn: number; eta: Date }[]>`
+        select id, candidate_id, speed_kn, eta from voyage_instructions
+        where recommendation_id = ${viId}`;
+      if (!row) throw new Error("no instruction recorded");
+      expect(decision.instructionId).toBe(row.id);
+      const rec = RecommendationView.parse((await get(app, `/api/recommendations/${viId}`)).body);
+      expect(rec).toMatchObject({
+        status: "executed",
+        order: null,
+        instruction: {
+          instructionId: row.id,
+          candidateId: row.candidate_id,
+          speedKn: row.speed_kn,
+          eta: new Date(row.eta).toISOString(),
+        },
+      });
+      const { items } = listOf(RecommendationView).parse(
+        (await get(app, "/api/recommendations")).body,
+      );
+      expect(items.find((r) => r.id === viId)?.instruction?.instructionId).toBe(row.id);
+      expect(items.filter((r) => r.type === "purchase_order").map((r) => r.instruction)).toEqual(
+        items.filter((r) => r.type === "purchase_order").map(() => null),
+      );
     });
   });
 });

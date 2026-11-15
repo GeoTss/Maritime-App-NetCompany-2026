@@ -14,12 +14,14 @@ import {
   PlanRouteSpeedInput,
   type PortCongestionList,
   type PortCongestionView,
+  type RoutePlanResponse,
   type SourceStatusList,
   type SourceStatusView,
   type WeatherView,
 } from "@pharos/shared";
 import { Hono } from "hono";
 import { requireContentType } from "../http/require-content-type.js";
+import { routePlanFacts } from "../routing/facts.js";
 import {
   loadHazards,
   planRouteSpeed,
@@ -56,7 +58,8 @@ export function createLiveRoutes(deps: LiveDeps) {
       );
     }
     try {
-      const { response } = await planRouteSpeed(deps, parsed.data);
+      const planned = await planRouteSpeed(deps, parsed.data);
+      const response: RoutePlanResponse = { ...planned.response, facts: routePlanFacts(planned) };
       return c.json(response);
     } catch (e) {
       if (e instanceof RoutePlanError) {

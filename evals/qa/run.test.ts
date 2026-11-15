@@ -315,6 +315,23 @@ describe.skipIf(!sql)("Q&A runner on a database", () => {
     expect(changedTables(before, await guardedFingerprints(sql))).toEqual(["voyages"]);
   });
 
+  it("a write to vessels, port_calls or noon_reports is reported (a voyage change outside the executor)", async () => {
+    if (!sql) throw new Error("setup");
+    await prepareAskFixture(sql);
+    const before = await guardedFingerprints(sql);
+    await sql`update vessels set daily_cost_usd = daily_cost_usd + 1
+      where id = (select min(id) from vessels)`;
+    await sql`update port_calls set eta = eta + interval '1 hour'
+      where id = (select min(id) from port_calls)`;
+    await sql`update noon_reports set speed_kn = speed_kn + 0.5
+      where id = (select min(id) from noon_reports)`;
+    expect(changedTables(before, await guardedFingerprints(sql))).toEqual([
+      "vessels",
+      "port_calls",
+      "noon_reports",
+    ]);
+  });
+
   it("a voyage_instructions row appearing is reported (an unauthorised instruction write)", async () => {
     if (!sql) throw new Error("setup");
     await prepareAskFixture(sql);

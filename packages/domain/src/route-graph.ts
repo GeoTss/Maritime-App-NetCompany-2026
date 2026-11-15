@@ -224,9 +224,9 @@ export interface CandidateRouteOptions {
   /** Farthest (nm) start or end may be from the network (default 150). */
   maxSnapNm?: number;
   /**
-   * Hazard zones to route round: an edge with a sample point inside one weighs
-   * (sampled every 10 nm or less, endpoints included) `HAZARD_EDGE_PENALTY` × its length in every search, so the path goes round whenever the
-   * network allows (and through only when it does not).
+   * Hazard zones to route round: an edge with a sample point inside one (sampled every 10 nm or
+   * less, endpoints included) weighs `HAZARD_EDGE_PENALTY` × its length in every search, so the
+   * path goes round whenever the network allows (and through only when it does not).
    */
   avoid?: HazardZone[];
 }

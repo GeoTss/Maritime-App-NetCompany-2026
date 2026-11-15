@@ -10,6 +10,7 @@
 import type { RoutePlan } from "@pharos/db";
 import type { Fact, Id, RouteSpeedResult } from "@pharos/shared";
 import { calcFact, dbFact, factId } from "../ai/tools/common.js";
+import type { PlannedRoute } from "./plan.js";
 
 /** The tool name in every route fact id. */
 export const ROUTE_TOOL = "plan_route_speed";
@@ -231,4 +232,88 @@ export function routeFactOfRow(
     value,
     unit,
   );
+}
+
+/** Facts for the reported hazards the plan touches or goes round (labels are untrusted text). */
+function hazardFacts(planned: PlannedRoute, S: string): Fact[] {
+  const { plan, response, hazards } = planned;
+  const calculationId = response.calculationId;
+  const best = response.result.options.find(
+    (o) => o.candidateId === response.result.bestCandidateId,
+  );
+  const avoided = [...plan.avoidedHazardIds].sort();
+  const ids = new Set([
+    ...(best?.hazardIds ?? []),
+    ...response.result.baseline.hazardIds,
+    ...avoided,
+  ]);
+  const facts: Fact[] = [];
+  for (const id of [...ids].sort()) {
+    const row = hazards.find((h) => h.id === id);
+    if (!row) continue;
+    facts.push(
+      dbFact(
+        ROUTE_TOOL,
+        { table: "nav_hazards", rowId: id, field: "label" },
+        `Reported hazard ${id}`,
+        row.label,
+        null,
+      ),
+    );
+    // The radius is the stored zone the optimiser used, not the (possibly unset) hazard column.
+    const zone = plan.input.hazards.findIndex((z) => z.id === id);
+    const stored = plan.input.hazards[zone];
+    if (stored) {
+      facts.push(
+        dbFact(
+          ROUTE_TOOL,
+          {
+            table: "calculations",
+            rowId: calculationId,
+            field: `inputs.optimiser.hazards.${zone}.radiusNm`,
+          },
+          `Reported hazard ${id}: keep-out radius`,
+          stored.radiusNm,
+          "nm",
+        ),
+      );
+    }
+  }
+  for (const id of avoided) {
+    facts.push(
+      dbFact(
+        ROUTE_TOOL,
+        { table: "nav_hazards", rowId: id, field: "id" },
+        `${S}: reported hazard avoided by the recommended route`,
+        id,
+        null,
+      ),
+    );
+  }
+  return facts;
+}
+
+/**
+ * Every fact of a stored route plan, as `plan_route_speed` returns them and `POST /api/route-plan`
+ * serves them: the plan's rows, the AIS ship name (untrusted text, a value only), and the hazards.
+ */
+export function routePlanFacts(planned: PlannedRoute): Fact[] {
+  const { response, plan, snapshot, mmsi } = planned;
+  const calculationId = response.calculationId;
+  const S = subjectLabel(plan, mmsi);
+  const rows = routeSpeedFactRows(plan, response.result, snapshot, { mmsi, calculationId });
+  const facts: Fact[] = rows.map((r) => routeFactOfRow(calculationId, r, snapshot));
+  if (mmsi && plan.subject !== S) {
+    facts.push(
+      dbFact(
+        ROUTE_TOOL,
+        { table: "ais_traffic", rowId: mmsi, field: "name" },
+        `${S}: AIS ship name`,
+        plan.subject,
+        null,
+      ),
+    );
+  }
+  facts.push(...hazardFacts(planned, S));
+  return facts;
 }

@@ -131,7 +131,8 @@ export const HAZARD_LIFETIME_HOURS: Record<
 };
 
 /**
- * Route search: an edge whose endpoint or midpoint lies inside a hazard zone weighs this many times
- * its length, so the shortest path goes round the hazard whenever the network allows. Illustrative.
+ * Route search: an edge with a sample point (sampled every ≤ 10 nm, endpoints included) inside a
+ * hazard zone weighs this many times its length, so the shortest path goes round the hazard
+ * whenever the network allows. Illustrative.
  */
 export const HAZARD_EDGE_PENALTY = 1000;
