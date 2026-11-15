@@ -13,7 +13,7 @@
   ],
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
-    "eval": "tsx --env-file-if-exists=.env evals/extraction/run.ts",
+    "eval": "tsx --env-file-if-exists=.env evals/run.ts",
     "eval:smoke": "tsx evals/smoke/run.ts",
     "eval:ledger": "tsx evals/lib/ledger-cli.ts",
     "eval:compare": "tsx --env-file=.env evals/compare/run.ts",

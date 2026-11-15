@@ -1202,7 +1202,7 @@ async function runPlan(
 const fmt = (r: { k: number; n: number; rate: number | null }) =>
   `${r.k}/${r.n}${r.rate === null ? "" : ` (${(r.rate * 100).toFixed(1)} %)`}`;
 
-async function main() {
+export async function main() {
   const args = parseArgs(process.argv.slice(2));
   const paid = args.extractor === "llm" && args.mode !== "replay";
   const apiKey = paid ? requireApiKey(process.env) : undefined;
