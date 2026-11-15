@@ -64,6 +64,27 @@ describe("AIS ingester", () => {
     expect(upd?.destination).toBe("MALTA");
   });
 
+  it("keeps the previous name when a later position has none, one by one and in a batch", async () => {
+    const nameless = (mmsi: number, lat: number) => {
+      const m = position(mmsi, lat, -5.5);
+      const { ShipName: _omit, ...meta } = m.MetaData;
+      return { ...m, MetaData: meta };
+    };
+    const ing = createAisIngester(sql, { now: () => ANCHOR, throttleMs: 0 });
+    await ing.ingest(position(211000030, 36, -5.5));
+    await ing.ingest(nameless(211000030, 36.1));
+    await ing.ingestBatch([
+      { raw: position(211000031, 36, -5.5), at: ANCHOR },
+      { raw: nameless(211000031, 36.2), at: ANCHOR },
+    ]);
+    const rows =
+      await sql`select mmsi, name, lat from ais_traffic where mmsi in ('211000030','211000031') order by mmsi`;
+    expect(rows.map((r) => [r.name, r.lat])).toEqual([
+      ["TEST ONE", 36.1],
+      ["TEST ONE", 36.2],
+    ]);
+  });
+
   it("writes vessel_positions for a fleet MMSI, at most once per fleetIntervalMs", async () => {
     const vessel = world.vessels[0]!;
     let t = ANCHOR.getTime();

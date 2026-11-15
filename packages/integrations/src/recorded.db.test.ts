@@ -38,14 +38,26 @@ const world = await (async () => {
 })();
 const port = world.ports[0]!;
 
+const withoutName = (m: ReturnType<typeof position>) => {
+  const { ShipName: _omit, ...meta } = m.MetaData;
+  return { ...m, MetaData: meta };
+};
+
 function writeFixtures(extraLines = 0): string {
   const dir = mkdtempSync(join(tmpdir(), "pharos-recorded-"));
   const lines = [
-    { offsetMs: 0, message: staticData(211000001) },
+    { offsetMs: 0, message: staticData(211000002, { Name: "SECOND SHIP", Type: 71 }) },
     {
-      offsetMs: 1000,
+      offsetMs: 500,
       message: position(211000001, port.lat + 0.05, port.lon, { NavigationalStatus: 1 }),
     },
+    {
+      offsetMs: 1000,
+      message: withoutName(
+        position(211000001, port.lat + 0.06, port.lon, { NavigationalStatus: 1, Sog: 0.3 }),
+      ),
+    },
+    { offsetMs: 1500, message: staticData(211000001) },
     {
       offsetMs: 2000,
       message: position(211000002, port.lat, port.lon + 0.05, { NavigationalStatus: 0, Sog: 11 }),
@@ -117,8 +129,44 @@ describe("recorded sources", () => {
       { portId: port.id, anchoredCount: 1, waitingHours: 1.5, observedAt: ANCHOR },
     ]);
     expect(live.weather.startAt).toBe("2026-11-14T08:00:00.000Z");
-    const rows = await sql`select mmsi, lat, lon from ais_traffic order by mmsi`;
-    expect(rows.map((r) => r.mmsi)).toEqual(live.traffic.map((t) => t.mmsi));
+    const rows = await sql`select * from ais_traffic order by mmsi`;
+    expect(
+      rows.map((r) => ({
+        mmsi: r.mmsi,
+        name: r.name,
+        shipType: r.ship_type,
+        lat: r.lat,
+        lon: r.lon,
+        sogKn: r.sog_kn,
+        navStatus: r.nav_status,
+        destination: r.destination,
+        updatedAt: new Date(r.updated_at),
+      })),
+    ).toEqual(live.traffic);
+    // a nameless later position keeps the earlier name; static data after a position applies;
+    // static data before a position is applied to it
+    expect(live.traffic[0]).toMatchObject({
+      mmsi: "211000001",
+      name: "STATIC NAME",
+      shipType: "tanker",
+      lat: port.lat + 0.06,
+      sogKn: 0.3,
+    });
+    expect(live.traffic[1]).toMatchObject({
+      mmsi: "211000002",
+      name: "TEST ONE",
+      shipType: "cargo",
+      destination: "PIRAEUS",
+    });
+    const cong = await sql`select * from port_congestion where source = 'ais' order by id`;
+    expect(
+      cong.map((r) => ({
+        portId: r.port_id,
+        anchoredCount: r.anchored_count,
+        waitingHours: r.waiting_hours,
+        observedAt: new Date(r.observed_at),
+      })),
+    ).toEqual(live.congestion);
   });
 
   it("loads a few thousand lines in well under a second", async () => {

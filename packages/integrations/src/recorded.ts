@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import type { Sql } from "@pharos/db";
 import { shiftWeatherGrid } from "@pharos/domain";
 import { type AisTraffic, type Id, type Port, WeatherGrid } from "@pharos/shared";
+import { foldObservation, newFoldState } from "./ais/fold.js";
 import {
   CONGESTION_WINDOW_MS,
   congestionFor,
@@ -56,49 +57,12 @@ export function recordedLiveData(opts: { anchor: Date; ports: Port[]; dir?: stri
   congestion: PortCongestionRow[];
 } {
   const dir = opts.dir ?? RECORDED_DIR;
-  const latest = new Map<string, AisTraffic>();
-  const info = new Map<
-    string,
-    { name: string | null; shipType: string | null; destination: string | null }
-  >();
+  const state = newFoldState();
   for (const { raw, at } of rebasedCapture(dir, opts.anchor)) {
     const obs = normaliseAisMessage(raw, at);
-    if (!obs) continue;
-    if (obs.kind === "static") {
-      const prev = info.get(obs.mmsi);
-      info.set(obs.mmsi, {
-        name: obs.name ?? prev?.name ?? null,
-        shipType: obs.shipType ?? prev?.shipType ?? null,
-        destination: obs.destination ?? prev?.destination ?? null,
-      });
-    } else {
-      const prev = latest.get(obs.mmsi);
-      latest.set(obs.mmsi, {
-        mmsi: obs.mmsi,
-        name: obs.name ?? prev?.name ?? null,
-        shipType: prev?.shipType ?? null,
-        lat: obs.lat,
-        lon: obs.lon,
-        sogKn: obs.sogKn,
-        navStatus: obs.navStatus,
-        destination: prev?.destination ?? null,
-        updatedAt: at,
-      });
-    }
+    if (obs) foldObservation(state, obs, at);
   }
-  const traffic = [...latest.values()]
-    .map((t) => {
-      const s = info.get(t.mmsi);
-      return s
-        ? {
-            ...t,
-            name: t.name ?? s.name,
-            shipType: s.shipType ?? t.shipType,
-            destination: s.destination ?? t.destination,
-          }
-        : t;
-    })
-    .sort((a, b) => a.mmsi.localeCompare(b.mmsi));
+  const traffic = [...state.rows.values()].sort((a, b) => a.mmsi.localeCompare(b.mmsi));
   const recent = traffic.filter(
     (t) => t.updatedAt.getTime() >= opts.anchor.getTime() - CONGESTION_WINDOW_MS,
   );

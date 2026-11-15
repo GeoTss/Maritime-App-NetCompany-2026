@@ -6,6 +6,7 @@ import {
   WAIT_HOURS_PER_ANCHORED_VESSEL,
 } from "@pharos/domain";
 import type { AisTraffic, Id, Port } from "@pharos/shared";
+import { foldObservation, type HeldStatic, newFoldState } from "./fold.js";
 import { normaliseAisMessage } from "./normalise.js";
 
 const CHUNK = 1000;
@@ -51,12 +52,6 @@ export function congestionFor(
   return out;
 }
 
-interface StaticInfo {
-  name: string | null;
-  shipType: string | null;
-  destination: string | null;
-}
-
 export interface AisIngester {
   ingest(raw: unknown): Promise<void>;
   /** Same as `ingest` for many messages, each stamped with its own receipt time, in bulk writes. */
@@ -72,7 +67,7 @@ export function createAisIngester(
   const fleetIntervalMs = opts.fleetIntervalMs ?? 600_000;
   const lastTraffic = new Map<string, number>();
   const lastFleet = new Map<string, number>();
-  const pendingStatic = new Map<string, StaticInfo>();
+  const pendingStatic = new Map<string, HeldStatic>();
   let accepted = 0;
   let dropped = 0;
   let fleet: Promise<Map<string, { id: number; source: string }>> | null = null;
@@ -86,7 +81,7 @@ export function createAisIngester(
   };
 
   async function ingestBatch(items: { raw: unknown; at: Date }[]): Promise<void> {
-    const positions = new Map<string, Record<string, unknown>>();
+    const state = newFoldState(pendingStatic);
     const fleetRows: Record<string, unknown>[] = [];
     const staticTouched = new Set<string>();
     const fleetMap = await loadFleet();
@@ -100,29 +95,14 @@ export function createAisIngester(
       accepted++;
       const atMs = at.getTime();
       if (obs.kind === "static") {
-        const prev = pendingStatic.get(obs.mmsi);
-        pendingStatic.set(obs.mmsi, {
-          name: obs.name ?? prev?.name ?? null,
-          shipType: obs.shipType ?? prev?.shipType ?? null,
-          destination: obs.destination ?? prev?.destination ?? null,
-        });
+        foldObservation(state, obs, at);
         staticTouched.add(obs.mmsi);
         continue;
       }
       const last = lastTraffic.get(obs.mmsi);
       if (last === undefined || atMs - last >= throttleMs) {
         lastTraffic.set(obs.mmsi, atMs);
-        positions.set(obs.mmsi, {
-          mmsi: obs.mmsi,
-          name: obs.name,
-          ship_type: null,
-          lat: obs.lat,
-          lon: obs.lon,
-          sog_kn: obs.sogKn,
-          nav_status: obs.navStatus,
-          destination: null,
-          updated_at: at.toISOString(),
-        });
+        foldObservation(state, obs, at);
       }
       const vessel = fleetMap.get(obs.mmsi);
       if (vessel) {
@@ -143,17 +123,17 @@ export function createAisIngester(
       }
     }
 
-    // Static data that arrived before (or with) a position is applied to that position's row.
-    const rows = [...positions.values()];
-    for (const row of rows) {
-      const s = pendingStatic.get(row.mmsi as string);
-      if (!s) continue;
-      row.name = row.name ?? s.name;
-      row.ship_type = s.shipType;
-      row.destination = s.destination;
-      pendingStatic.delete(row.mmsi as string);
-      staticTouched.delete(row.mmsi as string);
-    }
+    const rows = [...state.rows.values()].map((t) => ({
+      mmsi: t.mmsi,
+      name: t.name,
+      ship_type: t.shipType,
+      lat: t.lat,
+      lon: t.lon,
+      sog_kn: t.sogKn,
+      nav_status: t.navStatus,
+      destination: t.destination,
+      updated_at: t.updatedAt.toISOString(),
+    }));
 
     for (let i = 0; i < rows.length; i += CHUNK) {
       await sql`insert into ais_traffic ${sql(rows.slice(i, i + CHUNK) as never[])}
@@ -169,7 +149,7 @@ export function createAisIngester(
     // Remaining static data goes to rows that already exist; the rest stays held in memory.
     const mmsis = [...staticTouched].filter((m) => pendingStatic.has(m));
     if (mmsis.length > 0) {
-      const infos = mmsis.map((m) => pendingStatic.get(m) as StaticInfo);
+      const infos = mmsis.map((m) => pendingStatic.get(m) as HeldStatic);
       const updated = await sql<{ mmsi: string }[]>`
         update ais_traffic t set
           name = coalesce(v.name, t.name),
