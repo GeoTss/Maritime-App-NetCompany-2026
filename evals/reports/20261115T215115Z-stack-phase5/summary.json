@@ -1,0 +1,230 @@
+{
+  "at": "2026-11-15T21:51:16.028Z",
+  "stack": "LLM_MODE=replay docker compose up -d --build --force-recreate api erp worker (AIS_MODE=replay, WEATHER_MODE=recorded)",
+  "health": {
+    "status": "ok",
+    "llmMode": "replay",
+    "db": "up",
+    "extractModel": "claude-haiku-5-5",
+    "agentModel": "claude-haiku-5-5"
+  },
+  "traffic": {
+    "status": 200,
+    "count": 656
+  },
+  "congestion": [
+    {
+      "port": "EGPSD",
+      "anchored": 24,
+      "waitingHours": 18,
+      "source": "seed"
+    },
+    {
+      "port": "GRPIR",
+      "anchored": 13,
+      "waitingHours": 19.5,
+      "source": "ais"
+    },
+    {
+      "port": "MTMLA",
+      "anchored": 8,
+      "waitingHours": 4,
+      "source": "seed"
+    },
+    {
+      "port": "ITGOA",
+      "anchored": 2,
+      "waitingHours": 3,
+      "source": "seed"
+    },
+    {
+      "port": "ESALG",
+      "anchored": 5,
+      "waitingHours": 7.5,
+      "source": "ais"
+    },
+    {
+      "port": "GIGIB",
+      "anchored": 5,
+      "waitingHours": 7.5,
+      "source": "ais"
+    },
+    {
+      "port": "PTSIE",
+      "anchored": 0,
+      "waitingHours": 0,
+      "source": "ais"
+    },
+    {
+      "port": "FRBES",
+      "anchored": 9,
+      "waitingHours": 19,
+      "source": "seed"
+    },
+    {
+      "port": "FRLEH",
+      "anchored": 15,
+      "waitingHours": 9,
+      "source": "seed"
+    },
+    {
+      "port": "BEANR",
+      "anchored": 23,
+      "waitingHours": 7,
+      "source": "seed"
+    },
+    {
+      "port": "NLRTM",
+      "anchored": 3,
+      "waitingHours": 4.5,
+      "source": "ais"
+    },
+    {
+      "port": "DEHAM",
+      "anchored": 21,
+      "waitingHours": 10,
+      "source": "seed"
+    }
+  ],
+  "hazards": {
+    "status": 200,
+    "items": [
+      {
+        "id": "synthetic:1",
+        "lat": 37.5681,
+        "lon": 7.0841,
+        "zoneRadiusNm": 25
+      }
+    ]
+  },
+  "weather": {
+    "status": 200,
+    "source": "open-meteo-recorded",
+    "forecastStart": "2026-11-15T21:00:00.000Z",
+    "steps": 80,
+    "points": 152
+  },
+  "sources": [
+    {
+      "source": "ais",
+      "mode": "recorded",
+      "detail": "replay; 5 congestion rows",
+      "updatedAt": "2026-11-15T21:47:49.542Z"
+    },
+    {
+      "source": "weather",
+      "mode": "recorded",
+      "detail": "snapshot 1 from open-meteo-recorded",
+      "updatedAt": "2026-11-15T21:37:49.465Z"
+    }
+  ],
+  "routePlans": [
+    {
+      "input": {
+        "vessel": "Aegean Pioneer"
+      },
+      "status": 200,
+      "subject": "MV Aegean Pioneer",
+      "destination": "Rotterdam",
+      "weatherSnapshotId": 1,
+      "computeMs": 98.77708299993537,
+      "factCount": 45,
+      "best": "B",
+      "bestSpeedKn": 11,
+      "bestDistanceNm": 3129,
+      "savingVsBaselineUsd": 49253,
+      "options": [
+        {
+          "id": "A",
+          "feasible": false,
+          "crossesHazard": true,
+          "weatherCoveragePct": 77
+        },
+        {
+          "id": "B",
+          "feasible": true,
+          "crossesHazard": false,
+          "weatherCoveragePct": 80
+        },
+        {
+          "id": "C",
+          "feasible": true,
+          "crossesHazard": false,
+          "weatherCoveragePct": 79
+        }
+      ]
+    },
+    {
+      "input": {
+        "vessel": "Thessaly Star"
+      },
+      "status": 200,
+      "subject": "MV Thessaly Star",
+      "destination": "Algeciras",
+      "weatherSnapshotId": 1,
+      "computeMs": 22.043916999944486,
+      "factCount": 45,
+      "best": "B",
+      "bestSpeedKn": 9,
+      "bestDistanceNm": 1054,
+      "savingVsBaselineUsd": 69724,
+      "options": [
+        {
+          "id": "A",
+          "feasible": true,
+          "crossesHazard": false,
+          "weatherCoveragePct": 100
+        },
+        {
+          "id": "B",
+          "feasible": true,
+          "crossesHazard": false,
+          "weatherCoveragePct": 100
+        },
+        {
+          "id": "C",
+          "feasible": true,
+          "crossesHazard": false,
+          "weatherCoveragePct": 100
+        }
+      ]
+    },
+    {
+      "input": {
+        "vessel": "205795000",
+        "destination": "Rotterdam"
+      },
+      "status": 200,
+      "subject": "A LA MARINE",
+      "destination": "Rotterdam",
+      "weatherSnapshotId": 1,
+      "computeMs": 25.726917000021785,
+      "factCount": 42,
+      "best": "A",
+      "bestSpeedKn": 10,
+      "bestDistanceNm": 1426,
+      "savingVsBaselineUsd": 16240,
+      "options": [
+        {
+          "id": "A",
+          "feasible": true,
+          "crossesHazard": false,
+          "weatherCoveragePct": 100
+        },
+        {
+          "id": "B",
+          "feasible": true,
+          "crossesHazard": false,
+          "weatherCoveragePct": 100
+        },
+        {
+          "id": "C",
+          "feasible": true,
+          "crossesHazard": false,
+          "weatherCoveragePct": 100
+        }
+      ]
+    }
+  ],
+  "routePlanWithoutJsonContentType": 415
+}
