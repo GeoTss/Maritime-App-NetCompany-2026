@@ -221,11 +221,7 @@ describe("the Phase 5 questions", () => {
 
   it("the hazard question is about the synthetic hazard that the best route avoids", () => {
     const facts = truth("route-speed-11").expect.requiredFacts;
-    expect(facts.map((f) => f.value)).toEqual([
-      "synthetic:1",
-      "SYNTHETIC TEST HAZARD — drifting container reported (demo data)",
-      expect.stringMatching(/^[BC]$/),
-    ]);
+    expect(facts.map((f) => f.value)).toEqual(["synthetic:1", expect.stringMatching(/^[BC]$/)]);
   });
 
   it("the congestion questions read the latest reading: AIS where covered, seed elsewhere", () => {

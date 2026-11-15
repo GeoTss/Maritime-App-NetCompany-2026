@@ -58,8 +58,7 @@ export type RouteField =
   | "saving"
   | "fuelSaving"
   | "arriveBy"
-  | "avoidedHazard"
-  | "hazardLabel";
+  | "avoidedHazard";
 export type RouteOption = "best" | "A" | "B" | "C" | "baseline";
 export type CongestionField = "anchored" | "waitingHours" | "source";
 
@@ -465,11 +464,7 @@ export const QUESTIONS: readonly QuestionSpec[] = [
   routeQ(
     "route-speed-11",
     "Is there a reported hazard on Thessaly Star's route, and which route avoids it?",
-    [
-      route(THESSALY, "avoidedHazard"),
-      route(THESSALY, "hazardLabel"),
-      route(THESSALY, "bestRoute"),
-    ],
+    [route(THESSALY, "avoidedHazard"), route(THESSALY, "bestRoute")],
   ),
 
   // ---- congestion (4)

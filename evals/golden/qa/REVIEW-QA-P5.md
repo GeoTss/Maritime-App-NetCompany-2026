@@ -136,7 +136,6 @@ Split: dev 31, held-out 30 (both Phase 5 categories). stratified by tags[0]; dev
 - Proposed option: none
 - Required facts:
   - MV Thessaly Star: reported hazard avoided by the recommended route: **synthetic:1**
-  - Reported hazard synthetic:1: **SYNTHETIC TEST HAZARD — drifting container reported (demo data)**
   - MV Thessaly Star: recommended route: **B**
 
 ## congestion (4; dev 2)

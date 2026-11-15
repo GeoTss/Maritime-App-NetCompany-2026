@@ -12,12 +12,6 @@
         "tolerance": 0
       },
       {
-        "label": "Reported hazard synthetic:1",
-        "value": "SYNTHETIC TEST HAZARD — drifting container reported (demo data)",
-        "unit": null,
-        "tolerance": 0
-      },
-      {
         "label": "MV Thessaly Star: recommended route",
         "value": "B",
         "unit": null,

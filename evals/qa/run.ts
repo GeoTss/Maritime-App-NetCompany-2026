@@ -215,6 +215,7 @@ const GUARDED_TABLES = [
   "extractions",
   "voyages",
   "bunker_requirements",
+  "voyage_instructions",
 ] as const;
 
 /** An md5 of each guarded table's rows: any insert, delete or update changes it. */

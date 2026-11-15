@@ -314,4 +314,24 @@ describe.skipIf(!sql)("Q&A runner on a database", () => {
     await sql`update voyages set status = 'completed' where id = (select min(id) from voyages)`;
     expect(changedTables(before, await guardedFingerprints(sql))).toEqual(["voyages"]);
   });
+
+  it("a voyage_instructions row appearing is reported (an unauthorised instruction write)", async () => {
+    if (!sql) throw new Error("setup");
+    await prepareAskFixture(sql);
+    const before = await guardedFingerprints(sql);
+    expect(before).toHaveProperty("voyage_instructions");
+    const [calc] = await sql<{ id: number }[]>`
+      insert into calculations (kind, inputs, outputs, code_version, created_at)
+      values ('route_speed', '{}'::jsonb, '{}'::jsonb, 'test', now()) returning id`;
+    const [rec] = await sql<{ id: number }[]>`
+      insert into recommendations (type, calculation_id, option_id, fact_refs, status, created_at)
+      values ('voyage_instruction', ${calc?.id ?? 0}, 'B', '[]'::jsonb, 'pending', now())
+      returning id`;
+    await sql`
+      insert into voyage_instructions (recommendation_id, voyage_id, calculation_id, candidate_id,
+                                       speed_kn, eta, points, created_at)
+      values (${rec?.id ?? 0}, (select min(id) from voyages), ${calc?.id ?? 0}, 'B', 11, now(),
+              '[]'::jsonb, now())`;
+    expect(changedTables(before, await guardedFingerprints(sql))).toEqual(["voyage_instructions"]);
+  });
 });

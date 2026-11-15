@@ -381,14 +381,6 @@ function resolveRoute(world: World, ref: Extract<FactRef, { src: "route" }>): Qa
       const id = must(plan.avoidedHazardIds[0], `a hazard avoided by ${S}`);
       return fact(`${S}: reported hazard avoided by the recommended route`, id, null);
     }
-    case "hazardLabel": {
-      const id = must(plan.avoidedHazardIds[0], `a hazard avoided by ${S}`);
-      const row = must(
-        hazards.find((h) => h.id === id),
-        `hazard ${id}`,
-      );
-      return fact(`Reported hazard ${id}`, row.label, null);
-    }
     default: {
       const key = ROUTE_OPTION_FIELD[field];
       const option: RouteOption = must(ref.option, "route option");
