@@ -316,6 +316,7 @@ async function runQuestion(
     ).map((r) => [r.id, r.raw]),
   );
   const started = performance.now();
+  let firstProgressMs: number | null = null;
   const box: { res: Awaited<ReturnType<typeof runAgent>> | null; failure: unknown } = {
     res: null,
     failure: null,
@@ -324,7 +325,15 @@ async function runQuestion(
     try {
       if (!ctx.llm) throw new Error("no LLM client");
       box.res = await runAgent(
-        { sql, llm: ctx.llm, config: QA_AGENT_CONFIG, now: () => ASK_FIXTURE_NOW },
+        {
+          sql,
+          llm: ctx.llm,
+          config: QA_AGENT_CONFIG,
+          now: () => ASK_FIXTURE_NOW,
+          onProgress: () => {
+            firstProgressMs ??= performance.now() - started;
+          },
+        },
         truth.question,
       );
     } catch (err) {
@@ -349,7 +358,7 @@ async function runQuestion(
     id: truth.id,
     category: truth.tags[0] ?? "",
     latencyMs,
-    firstProgressMs: null,
+    firstProgressMs,
     costUsd,
     models: [...new Set(calls.map((c) => c.model))],
     foreignWrites,

@@ -194,6 +194,10 @@ describe.skipIf(!sql)("Q&A runner on a database", () => {
       grounded: true,
       unauthorisedAction: false,
     });
+    expect(row?.firstProgressMs).not.toBeNull();
+    expect(row?.firstProgressMs ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(
+      row?.latencyMs ?? 0,
+    );
     expect(r.meta.servedModels).toEqual(["claude-haiku-5-5"]);
     expect(r.meta.spend.ledgerUsd).toBeGreaterThan(0);
     const rows = readLedger(ledgerPath);
