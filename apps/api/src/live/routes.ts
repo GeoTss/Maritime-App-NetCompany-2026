@@ -7,17 +7,26 @@ import type { Sql } from "@pharos/db";
 import { activeHazardZones } from "@pharos/domain";
 import { latestWeatherSnapshot } from "@pharos/integrations";
 import {
+  type AisTrafficList,
   type AisTrafficView,
-  NavHazardView,
+  type HazardZoneList,
+  type HazardZoneView,
   PlanRouteSpeedInput,
+  type PortCongestionList,
   type PortCongestionView,
+  type SourceStatusList,
   type SourceStatusView,
   type WeatherView,
 } from "@pharos/shared";
 import { Hono } from "hono";
-import { z } from "zod";
 import { requireContentType } from "../http/require-content-type.js";
-import { planRouteSpeed, RoutePlanError } from "../routing/plan.js";
+import {
+  loadHazards,
+  planRouteSpeed,
+  RoutePlanError,
+  type TrafficRow,
+  toTraffic,
+} from "../routing/plan.js";
 
 export const TRAFFIC_LIMIT = 2000;
 
@@ -25,10 +34,6 @@ export interface LiveDeps {
   sql: Sql;
   now: () => Date;
 }
-
-/** An active hazard with the radius of its keep-out zone. */
-export const HazardZoneView = NavHazardView.extend({ zoneRadiusNm: z.number().positive() });
-export type HazardZoneView = z.infer<typeof HazardZoneView>;
 
 const iso = (d: string | Date): string => new Date(d).toISOString();
 
@@ -62,60 +67,17 @@ export function createLiveRoutes(deps: LiveDeps) {
   });
 
   app.get("/traffic", async (c) => {
-    const rows = await sql<
-      {
-        mmsi: string;
-        name: string | null;
-        ship_type: string | null;
-        lat: number;
-        lon: number;
-        sog_kn: number | null;
-        nav_status: string | null;
-        destination: string | null;
-        updated_at: string | Date;
-      }[]
-    >`select mmsi, name, ship_type, lat, lon, sog_kn, nav_status, destination, updated_at
-      from ais_traffic order by updated_at desc, mmsi limit ${TRAFFIC_LIMIT}`;
-    const items: AisTrafficView[] = rows.map((r) => ({
-      mmsi: r.mmsi,
-      name: r.name,
-      shipType: r.ship_type,
-      lat: r.lat,
-      lon: r.lon,
-      sogKn: r.sog_kn,
-      navStatus: r.nav_status,
-      destination: r.destination,
-      updatedAt: iso(r.updated_at),
-    }));
-    return c.json({ items });
+    const rows = await sql<TrafficRow[]>`
+      select * from ais_traffic order by updated_at desc, mmsi limit ${TRAFFIC_LIMIT}`;
+    const items: AisTrafficView[] = rows.map((r) => {
+      const t = toTraffic(r);
+      return { ...t, updatedAt: t.updatedAt.toISOString() };
+    });
+    return c.json({ items } satisfies AisTrafficList);
   });
 
   app.get("/hazards", async (c) => {
-    const rows = await sql<
-      {
-        id: string;
-        kind: NavHazardView["kind"];
-        source: NavHazardView["source"];
-        mmsi: string | null;
-        lat: number;
-        lon: number;
-        label: string;
-        radius_nm: number | null;
-        observed_at: string | Date;
-      }[]
-    >`select id, kind, source, mmsi, lat, lon, label, radius_nm, observed_at
-      from nav_hazards order by id`;
-    const hazards = rows.map((r) => ({
-      id: r.id,
-      kind: r.kind,
-      source: r.source,
-      mmsi: r.mmsi,
-      lat: r.lat,
-      lon: r.lon,
-      label: r.label,
-      radiusNm: r.radius_nm,
-      observedAt: new Date(r.observed_at),
-    }));
+    const hazards = await loadHazards(sql);
     const radius = new Map(activeHazardZones(hazards, deps.now()).map((z) => [z.id, z.radiusNm]));
     const items: HazardZoneView[] = hazards.flatMap((h) => {
       const zoneRadiusNm = radius.get(h.id);
@@ -123,7 +85,7 @@ export function createLiveRoutes(deps: LiveDeps) {
         ? []
         : [{ ...h, observedAt: h.observedAt.toISOString(), zoneRadiusNm }];
     });
-    return c.json({ items });
+    return c.json({ items } satisfies HazardZoneList);
   });
 
   app.get("/congestion", async (c) => {
@@ -150,7 +112,7 @@ export function createLiveRoutes(deps: LiveDeps) {
       observedAt: iso(r.observed_at),
       source: r.source,
     }));
-    return c.json({ items });
+    return c.json({ items } satisfies PortCongestionList);
   });
 
   app.get("/weather", async (c) => {
@@ -207,7 +169,7 @@ export function createLiveRoutes(deps: LiveDeps) {
       detail: r.detail,
       updatedAt: iso(r.updated_at),
     }));
-    return c.json({ items });
+    return c.json({ items } satisfies SourceStatusList);
   });
 
   return app;

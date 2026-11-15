@@ -351,6 +351,10 @@ export const NavHazardView = NavHazard.omit({ observedAt: true }).extend({
 });
 export type NavHazardView = z.infer<typeof NavHazardView>;
 
+/** An active hazard with the radius of its keep-out zone (nm). */
+export const HazardZoneView = NavHazardView.extend({ zoneRadiusNm: z.number().positive() });
+export type HazardZoneView = z.infer<typeof HazardZoneView>;
+
 export const PortCongestionView = z
   .object({
     portId: Id,
@@ -399,3 +403,12 @@ export const SourceStatusView = z
   })
   .strict();
 export type SourceStatusView = z.infer<typeof SourceStatusView>;
+
+export const AisTrafficList = listOf(AisTrafficView);
+export type AisTrafficList = z.infer<typeof AisTrafficList>;
+export const HazardZoneList = listOf(HazardZoneView);
+export type HazardZoneList = z.infer<typeof HazardZoneList>;
+export const PortCongestionList = listOf(PortCongestionView);
+export type PortCongestionList = z.infer<typeof PortCongestionList>;
+export const SourceStatusList = listOf(SourceStatusView);
+export type SourceStatusList = z.infer<typeof SourceStatusList>;

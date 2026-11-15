@@ -207,6 +207,9 @@ describe("evaluateRoute", () => {
     const r = evaluateRoute(makeInput({ arriveBy: at(100) }), DIRECT_20, 12);
     expect(r.feasible).toBe(false);
     expect(r.reasons).toEqual(["misses_arrive_by"]);
+    expect(r.meetsArriveBy).toBe(false);
+    expect(evaluateRoute(makeInput({ arriveBy: at(101) }), DIRECT_20, 12).meetsArriveBy).toBe(true);
+    expect(evaluateRoute(makeInput({ arriveBy: null }), DIRECT_20, 12).meetsArriveBy).toBe(true);
     expect(evaluateRoute(makeInput({ arriveBy: at(101) }), DIRECT_20, 12).feasible).toBe(true);
   });
 
@@ -287,11 +290,13 @@ describe("hazard zones", () => {
     const r = evaluateRoute(makeInput({ hazards: [onTrack] }), DIRECT_20, 12);
     expect(r.feasible).toBe(false);
     expect(r.reasons).toEqual(["crosses_hazard"]);
+    expect(r.crossesHazard).toBe(true);
   });
 
   it("a route that misses the zone stays feasible with no hazard ids", () => {
     const r = evaluateRoute(makeInput({ hazards: [offTrack] }), DIRECT_20, 12);
     expect(r.hazardIds).toEqual([]);
+    expect(r.crossesHazard).toBe(false);
     expect(r.feasible).toBe(true);
     expect(r.reasons).toEqual([]);
   });
@@ -304,7 +309,13 @@ describe("hazard zones", () => {
   it("hazards do not change the numbers, only the verdict", () => {
     const clear = evaluateRoute(makeInput(), DIRECT_20, 12);
     const crossing = evaluateRoute(makeInput({ hazards: [onTrack] }), DIRECT_20, 12);
-    expect({ ...crossing, feasible: true, reasons: [], hazardIds: [] }).toEqual(clear);
+    expect({
+      ...crossing,
+      feasible: true,
+      reasons: [],
+      hazardIds: [],
+      crossesHazard: false,
+    }).toEqual(clear);
   });
 
   it("the best option is a feasible one that avoids the hazard, even when dearer", () => {
@@ -330,7 +341,13 @@ describe("hazard zones", () => {
     const a = clear.options[0] as RouteOptionResult;
     const b = crossing.options[0] as RouteOptionResult;
     expect(a.speedKn).toBeLessThan(BULK.maxSpeedKn);
-    expect({ ...b, feasible: a.feasible, reasons: a.reasons, hazardIds: a.hazardIds }).toEqual(a);
+    expect({
+      ...b,
+      feasible: a.feasible,
+      reasons: a.reasons,
+      hazardIds: a.hazardIds,
+      crossesHazard: a.crossesHazard,
+    }).toEqual(a);
     expect(b.feasible).toBe(false);
     expect(b.reasons).toEqual(["crosses_hazard"]);
     expect(b.hazardIds).toEqual(["h-on"]);

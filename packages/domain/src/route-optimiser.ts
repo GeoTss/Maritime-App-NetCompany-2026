@@ -157,6 +157,8 @@ function evaluateSteps(
     // Both sums add the same sub-steps, so full coverage is exactly 100.
     weatherCoveragePct: walkedNm > 0 ? (sampledNm / walkedNm) * 100 : 0,
     feasible,
+    meetsArriveBy,
+    crossesHazard: hazardIds.length > 0,
     hazardIds,
     reasons,
   };

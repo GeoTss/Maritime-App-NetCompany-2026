@@ -1,17 +1,18 @@
 import type { Sql } from "@pharos/db";
 import { connectTestDb, testDbLabel } from "@pharos/db/testing";
 import {
-  AisTrafficView,
-  PortCongestionView,
+  AisTrafficList,
+  HazardZoneList,
+  PortCongestionList,
   RoutePlanResponse,
-  SourceStatusView,
+  SourceStatusList,
   WeatherView,
 } from "@pharos/shared";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createApp } from "../app.js";
 import { ASK_FIXTURE_NOW, prepareAskFixture } from "../ask/demo-fixture.js";
 import { createFixtureSource } from "../read/fixtures.js";
-import { HazardZoneView, TRAFFIC_LIMIT } from "./routes.js";
+import { TRAFFIC_LIMIT } from "./routes.js";
 
 const sql = await connectTestDb("live_routes");
 
@@ -68,8 +69,7 @@ describe.skipIf(!sql)("live routes (Postgres)", () => {
   it("GET /api/traffic parses and is bounded and newest first", async () => {
     const res = await app.request("/api/traffic");
     expect(res.status).toBe(200);
-    const { items } = (await res.json()) as { items: unknown[] };
-    const views = items.map((i) => AisTrafficView.parse(i));
+    const { items: views } = AisTrafficList.parse(await res.json());
     expect(views.length).toBeGreaterThan(0);
     expect(views.length).toBeLessThanOrEqual(TRAFFIC_LIMIT);
     const times = views.map((v) => Date.parse(v.updatedAt));
@@ -77,8 +77,9 @@ describe.skipIf(!sql)("live routes (Postgres)", () => {
   });
 
   it("GET /api/congestion returns one latest row per port", async () => {
-    const { items } = (await (await app.request("/api/congestion")).json()) as { items: unknown[] };
-    const views = items.map((i) => PortCongestionView.parse(i));
+    const { items: views } = PortCongestionList.parse(
+      await (await app.request("/api/congestion")).json(),
+    );
     expect(views.length).toBeGreaterThan(0);
     expect(new Set(views.map((v) => v.portId)).size).toBe(views.length);
   });
@@ -108,12 +109,12 @@ describe.skipIf(!sql)("live routes (Postgres)", () => {
   });
 
   it("GET /api/sources and GET /api/hazards parse", async () => {
-    const sources = (await (await app.request("/api/sources")).json()) as { items: unknown[] };
-    const parsed = sources.items.map((i) => SourceStatusView.parse(i));
+    const { items: parsed } = SourceStatusList.parse(
+      await (await app.request("/api/sources")).json(),
+    );
     expect(parsed.map((s) => s.source).sort()).toEqual(["ais", "weather"]);
     expect(parsed.every((s) => s.mode === "recorded")).toBe(true);
-    const hazards = (await (await app.request("/api/hazards")).json()) as { items: unknown[] };
-    const views = hazards.items.map((i) => HazardZoneView.parse(i));
+    const { items: views } = HazardZoneList.parse(await (await app.request("/api/hazards")).json());
     const synthetic = views.find((h) => h.id === "synthetic:1");
     expect(synthetic?.zoneRadiusNm).toBeGreaterThan(0);
   });

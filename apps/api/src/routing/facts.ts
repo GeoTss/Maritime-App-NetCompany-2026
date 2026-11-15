@@ -2,8 +2,9 @@
  * The facts a route plan yields, as pure rows: a JSON path, a label, a value and a unit. The tool
  * turns the rows into `Fact`s (calculation provenance for a path into the stored calculation;
  * `weather.modelRun` carries weather provenance; `calculation.id` is the calculation's own row).
- * Paths starting `inputs.` point into the stored calculation's inputs; every other path points
- * into its outputs (the `RouteSpeedResult`). The Q&A reference reuses these rows.
+ * A path starting `inputs.` is a field of the stored calculation's inputs (the tool cites it as
+ * `db` on the calculation row); every other path points into its outputs (the `RouteSpeedResult`)
+ * and resolves to exactly the row's value. The Q&A reference reuses these rows.
  */
 import type { RoutePlan } from "@pharos/db";
 import type { Id, RouteSpeedResult } from "@pharos/shared";
@@ -14,6 +15,13 @@ export interface RouteFactRow {
   value: number | string | boolean;
   unit: string | null;
 }
+
+/**
+ * How a ship is named in labels: a fleet vessel by name, an AIS ship by MMSI (an AIS name is
+ * untrusted text and stays out of labels).
+ */
+export const subjectLabel = (plan: RoutePlan, mmsi: string | null): string =>
+  mmsi ? `MMSI ${mmsi}` : plan.subject;
 
 export const WEATHER_RUN_PATH = "weather.modelRun";
 export const CALCULATION_ID_PATH = "calculation.id";
@@ -49,7 +57,7 @@ export function routeSpeedFactRows(
   snapshot: { id: Id; modelRun: Date } | null,
   extra: { mmsi?: string | null; calculationId?: Id } = {},
 ): RouteFactRow[] {
-  const S = plan.subject;
+  const S = subjectLabel(plan, extra.mmsi ?? null);
   const D = plan.destination.name;
   const rows: RouteFactRow[] = [];
   const labelOf = (id: string) => plan.input.candidates.find((c) => c.id === id)?.label ?? id;
@@ -58,7 +66,7 @@ export function routeSpeedFactRows(
     const X = o.candidateId;
     const p = (field: string) => `options[${i}].${field}`;
     rows.push({
-      path: p("label"),
+      path: `inputs.optimiser.candidates.${plan.input.candidates.findIndex((c) => c.id === X)}.label`,
       label: `${S}, route ${X}: description`,
       value: labelOf(X),
       unit: null,
@@ -73,16 +81,16 @@ export function routeSpeedFactRows(
     }
     if (plan.input.arriveBy !== null) {
       rows.push({
-        path: p("feasible"),
+        path: p("meetsArriveBy"),
         label: `${S}, route ${X}: arrives within the berth window`,
-        value: !o.reasons.includes("misses_arrive_by"),
+        value: o.meetsArriveBy,
         unit: null,
       });
     }
     rows.push({
-      path: p("hazardIds"),
+      path: p("crossesHazard"),
       label: `${S}, route ${X}: passes through a reported hazard`,
-      value: o.hazardIds.length > 0,
+      value: o.crossesHazard,
       unit: null,
     });
   });

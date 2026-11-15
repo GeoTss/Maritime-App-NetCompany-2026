@@ -140,6 +140,10 @@ export const RouteOptionResult = z
     maxWaveHeightM: NonNeg,
     weatherCoveragePct: z.number().min(0).max(100),
     feasible: z.boolean(),
+    /** Whether the ETA is within `arriveBy` (always true when there is none). */
+    meetsArriveBy: z.boolean(),
+    /** Whether the route passes through any hazard zone. */
+    crossesHazard: z.boolean(),
     /** Ids of the hazard zones the route passes through, sorted. */
     hazardIds: z.array(z.string()),
     reasons: z.array(z.enum(["misses_arrive_by", "crosses_hazard"])),

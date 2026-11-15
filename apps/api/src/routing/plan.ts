@@ -58,7 +58,7 @@ const seaGraph = (): RouteGraph => {
   return graph;
 };
 
-type TrafficRow = {
+export type TrafficRow = {
   mmsi: string;
   name: string | null;
   ship_type: string | null;
@@ -70,7 +70,7 @@ type TrafficRow = {
   updated_at: string | Date;
 };
 
-const toTraffic = (r: TrafficRow): AisTraffic => ({
+export const toTraffic = (r: TrafficRow): AisTraffic => ({
   mmsi: r.mmsi,
   name: r.name,
   shipType: r.ship_type,
@@ -107,24 +107,24 @@ async function findShip(sql: Sql, text: string): Promise<AisTraffic> {
   return toTraffic(only);
 }
 
-async function activeHazards(
-  sql: Sql,
-  now: Date,
-): Promise<{ rows: NavHazard[]; zones: ReturnType<typeof activeHazardZones> }> {
-  const raw = await sql<
-    {
-      id: string;
-      kind: NavHazard["kind"];
-      source: NavHazard["source"];
-      mmsi: string | null;
-      lat: number;
-      lon: number;
-      label: string;
-      radius_nm: number | null;
-      observed_at: string | Date;
-    }[]
-  >`select id, kind, source, mmsi, lat, lon, label, radius_nm, observed_at from nav_hazards order by id`;
-  const rows: NavHazard[] = raw.map((h) => ({
+type HazardRow = {
+  id: string;
+  kind: NavHazard["kind"];
+  source: NavHazard["source"];
+  mmsi: string | null;
+  lat: number;
+  lon: number;
+  label: string;
+  radius_nm: number | null;
+  observed_at: string | Date;
+};
+
+/** Every row of `nav_hazards`, ordered by id (active or not: `activeHazardZones` filters). */
+export async function loadHazards(sql: Sql): Promise<NavHazard[]> {
+  const rows = await sql<HazardRow[]>`
+    select id, kind, source, mmsi, lat, lon, label, radius_nm, observed_at
+    from nav_hazards order by id`;
+  return rows.map((h) => ({
     id: h.id,
     kind: h.kind,
     source: h.source,
@@ -135,14 +135,13 @@ async function activeHazards(
     radiusNm: h.radius_nm,
     observedAt: new Date(h.observed_at),
   }));
-  return { rows, zones: activeHazardZones(rows, now) };
 }
 
 function destinationFor(world: World, ship: AisTraffic, written: string | undefined) {
   const text = written ?? ship.destination?.trim();
   if (!text) {
     throw new RoutePlanError(
-      `${ship.name?.trim() || `MMSI ${ship.mmsi}`} is not in the fleet and reports no destination; give a destination port.`,
+      `MMSI ${ship.mmsi} is not in the fleet and reports no destination; give a destination port.`,
     );
   }
   const { port, detail } = resolvePort(world, text);
@@ -151,7 +150,7 @@ function destinationFor(world: World, ship: AisTraffic, written: string | undefi
     throw new RoutePlanError(
       written
         ? (detail ?? `No known port is called "${written}".`)
-        : `The destination reported by ${ship.name?.trim() || `MMSI ${ship.mmsi}`} does not match a known port; give a destination port.`,
+        : `The destination reported by MMSI ${ship.mmsi} does not match a known port; give a destination port.`,
     );
   }
   return port;
@@ -164,7 +163,8 @@ export async function planRouteSpeed(
 ): Promise<PlannedRoute> {
   const world = await loadWorld(deps.sql);
   const snapshotRow = await latestWeatherSnapshot(deps.sql);
-  const { rows: hazards, zones } = await activeHazards(deps.sql, deps.now());
+  const hazards = await loadHazards(deps.sql);
+  const zones = activeHazardZones(hazards, deps.now());
   const weather = snapshotRow?.grid ?? null;
   const g = seaGraph();
 

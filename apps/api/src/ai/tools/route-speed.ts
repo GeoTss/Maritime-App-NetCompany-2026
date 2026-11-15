@@ -5,8 +5,13 @@
  * The result is advice: nothing is ordered or sent.
  */
 import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
-import { type Fact, type NavHazard, PlanRouteSpeedInput, type ToolResult } from "@pharos/shared";
-import { CALCULATION_ID_PATH, routeSpeedFactRows, WEATHER_RUN_PATH } from "../../routing/facts.js";
+import { type Fact, PlanRouteSpeedInput, type ToolResult } from "@pharos/shared";
+import {
+  CALCULATION_ID_PATH,
+  routeSpeedFactRows,
+  subjectLabel,
+  WEATHER_RUN_PATH,
+} from "../../routing/facts.js";
 import { type PlannedRoute, planRouteSpeed } from "../../routing/plan.js";
 import { calcFact, dbFact, factId, runTool, type ToolContext } from "./common.js";
 
@@ -16,57 +21,57 @@ const CALCULATOR = "route_speed";
 export const ROUTE_NOTE =
   "This is advice from a deterministic calculation. Nothing has been ordered or sent; a voyage change needs a human to approve a proposal.";
 
-/** Facts for the reported hazards the plan touches or goes round (labels are untrusted AIS text). */
-function hazardFacts(planned: PlannedRoute): Fact[] {
+/** Facts for the reported hazards the plan touches or goes round (labels are untrusted text). */
+function hazardFacts(planned: PlannedRoute, S: string): Fact[] {
   const { plan, response, hazards } = planned;
+  const calculationId = response.calculationId;
   const best = response.result.options.find(
     (o) => o.candidateId === response.result.bestCandidateId,
   );
+  const avoided = [...plan.avoidedHazardIds].sort();
   const ids = new Set([
     ...(best?.hazardIds ?? []),
     ...response.result.baseline.hazardIds,
-    ...plan.avoidedHazardIds,
+    ...avoided,
   ]);
   const facts: Fact[] = [];
   for (const id of [...ids].sort()) {
-    const row: NavHazard | undefined = hazards.find((h) => h.id === id);
-    const zone = plan.input.hazards.find((z) => z.id === id);
+    const row = hazards.find((h) => h.id === id);
     if (!row) continue;
-    const labelFact: Fact =
-      row.source === "ais" && row.mmsi
-        ? {
-            id: factId(TOOL, id, "nav_hazards.label"),
-            label: `Reported hazard ${id}`,
-            value: row.label,
-            unit: null,
-            provenance: { source: "ais", mmsi: row.mmsi, ts: row.observedAt.toISOString() },
-          }
-        : dbFact(
-            TOOL,
-            { table: "nav_hazards", rowId: id, field: "label" },
-            `Reported hazard ${id}`,
-            row.label,
-            null,
-          );
-    facts.push(labelFact);
-    if (zone) {
+    facts.push(
+      dbFact(
+        TOOL,
+        { table: "nav_hazards", rowId: id, field: "label" },
+        `Reported hazard ${id}`,
+        row.label,
+        null,
+      ),
+    );
+    // The radius is the stored zone the optimiser used, not the (possibly unset) hazard column.
+    const zone = plan.input.hazards.findIndex((z) => z.id === id);
+    const stored = plan.input.hazards[zone];
+    if (stored) {
       facts.push(
         dbFact(
           TOOL,
-          { table: "nav_hazards", rowId: id, field: "radiusNm" },
+          {
+            table: "calculations",
+            rowId: calculationId,
+            field: `inputs.optimiser.hazards.${zone}.radiusNm`,
+          },
           `Reported hazard ${id}: keep-out radius`,
-          zone.radiusNm,
+          stored.radiusNm,
           "nm",
         ),
       );
     }
   }
-  for (const id of plan.avoidedHazardIds) {
+  for (const id of avoided) {
     facts.push(
       dbFact(
         TOOL,
         { table: "nav_hazards", rowId: id, field: "id" },
-        `${plan.subject}: reported hazard avoided by the recommended route`,
+        `${S}: reported hazard avoided by the recommended route`,
         id,
         null,
       ),
@@ -79,12 +84,23 @@ export function planRouteSpeedFacts(ctx: ToolContext, input: PlanRouteSpeedInput
   return runTool(ctx, TOOL, input, async (): Promise<ToolResult> => {
     const planned = await planRouteSpeed({ sql: ctx.sql, now: ctx.now }, input);
     const { response, plan, snapshot } = planned;
+    const calculationId = response.calculationId;
+    const S = subjectLabel(plan, planned.mmsi);
     const calc = { id: response.calculationId, calculator: CALCULATOR };
     const rows = routeSpeedFactRows(plan, response.result, snapshot, {
       mmsi: planned.mmsi,
       calculationId: response.calculationId,
     });
     const facts: Fact[] = rows.map((r) => {
+      if (r.path.startsWith("inputs.")) {
+        return dbFact(
+          TOOL,
+          { table: "calculations", rowId: calculationId, field: r.path },
+          r.label,
+          r.value,
+          r.unit,
+        );
+      }
       if (r.path === WEATHER_RUN_PATH && snapshot) {
         return {
           id: factId(TOOL, response.calculationId, r.path),
@@ -109,7 +125,18 @@ export function planRouteSpeedFacts(ctx: ToolContext, input: PlanRouteSpeedInput
       }
       return calcFact(TOOL, calc, r.path, r.label, r.value, r.unit);
     });
-    facts.push(...hazardFacts(planned));
+    if (planned.mmsi && plan.subject !== S) {
+      facts.push(
+        dbFact(
+          TOOL,
+          { table: "ais_traffic", rowId: planned.mmsi, field: "name" },
+          `${S}: AIS ship name`,
+          plan.subject,
+          null,
+        ),
+      );
+    }
+    facts.push(...hazardFacts(planned, S));
     return {
       facts,
       data: {
