@@ -7,15 +7,15 @@
     "requiredFacts": [
       {
         "label": "Piraeus: vessels at anchor",
-        "value": 13,
+        "value": 28,
         "unit": null,
         "tolerance": 0
       },
       {
         "label": "Piraeus: expected waiting time",
-        "value": 19.5,
+        "value": 42,
         "unit": "h",
-        "tolerance": 0.06
+        "tolerance": 0
       }
     ],
     "proposedOptionId": null,

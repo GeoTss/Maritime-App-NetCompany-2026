@@ -12,8 +12,8 @@
         "tolerance": 0.5
       },
       {
-        "label": "MV Thessaly Star, route A: total voyage cost (fuel, EU ETS, vessel time)",
-        "value": 203135.50106576266,
+        "label": "MV Thessaly Star, route A: total voyage cost (fuel, EU ETS, FuelEU, vessel time)",
+        "value": 203288.8700719321,
         "unit": "USD",
         "tolerance": 0.5
       },
@@ -24,8 +24,8 @@
         "tolerance": 0.5
       },
       {
-        "label": "MV Thessaly Star, route B: total voyage cost (fuel, EU ETS, vessel time)",
-        "value": 158686.69522520417,
+        "label": "MV Thessaly Star, route B: total voyage cost (fuel, EU ETS, FuelEU, vessel time)",
+        "value": 158806.50501035404,
         "unit": "USD",
         "tolerance": 0.5
       }

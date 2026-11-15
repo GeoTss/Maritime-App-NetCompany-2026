@@ -22,6 +22,11 @@
       "dev": 4,
       "heldout": 4
     },
+    "compliance": {
+      "total": 4,
+      "dev": 2,
+      "heldout": 2
+    },
     "congestion": {
       "total": 4,
       "dev": 2,
@@ -59,6 +64,8 @@
     "comparison-03",
     "comparison-06",
     "comparison-07",
+    "compliance-01",
+    "compliance-02",
     "congestion-01",
     "congestion-04",
     "decision-01",
@@ -92,6 +99,8 @@
     "comparison-04",
     "comparison-05",
     "comparison-08",
+    "compliance-03",
+    "compliance-04",
     "congestion-02",
     "congestion-03",
     "decision-03",

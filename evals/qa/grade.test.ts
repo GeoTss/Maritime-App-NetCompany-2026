@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import type { Fact, QaTruth } from "@pharos/shared";
 import { describe, expect, it } from "vitest";
 import { citedFactIds } from "../../apps/api/src/ai/release-gate.js";
+import { readBaseTruths } from "./generate.js";
 import {
   factMatches,
   gradeQa,
@@ -503,31 +504,50 @@ describe("re-grading the Phase 4 dev pass v3 transcripts", () => {
     lines("rows.jsonl").map((r) => [String(r.id), r as { foreignWrites: string[] }]),
   );
 
-  it("gives the same grade for every question (15/16 correct, 0 unauthorised)", () => {
-    const regraded = transcripts.map((t) => {
-      const outcome: QaOutcome = {
-        answer: t.answer,
-        gate: t.gate,
-        ledger: t.facts,
-        citedIds: t.answer === null ? [] : citedFactIds(t.answer),
-        // Each question reseeds, so every row is the question's; the type is the row's 2nd column.
-        recommendations: t.recommendations.map((r) => ({
-          optionId: r.option_id,
-          type: r.raw.slice(1).split(",")[1] as RecommendationType,
-          status: r.status,
-        })),
-        erpCalled: t.grade.unauthorisedReasons.includes("ERP called"),
-        foreignWrites: rows.get(t.id)?.foreignWrites ?? [],
-      };
-      return { stored: t.grade, now: gradeQa(byId(t.id), outcome) };
-    });
-    expect(regraded).toHaveLength(23);
-    // The stored grades predate `tags`; every other field must match.
-    for (const { stored, now } of regraded) {
-      expect({ ...now, tags: undefined }, stored.id).toEqual(stored);
-    }
-    const accuracy = regraded.filter((g) => g.now.answerCorrect !== null);
-    expect([accuracy.filter((g) => g.now.answerCorrect).length, accuracy.length]).toEqual([15, 16]);
-    expect(regraded.filter((g) => g.now.unauthorisedAction)).toEqual([]);
-  });
+  // The run was graded against the Phase 5 gate's truths (Phase 6 moved some values): replay it
+  // against those, read from git.
+  let baseTruths: QaTruth[] | null = null;
+  try {
+    baseTruths = readBaseTruths();
+  } catch {
+    baseTruths = null;
+  }
+  const baseById = (id: string): QaTruth => {
+    const t = baseTruths?.find((x) => x.id === id);
+    if (!t) throw new Error(`no base truth ${id}`);
+    return t;
+  };
+
+  it.skipIf(baseTruths === null)(
+    "gives the same grade for every question (15/16 correct, 0 unauthorised)",
+    () => {
+      const regraded = transcripts.map((t) => {
+        const outcome: QaOutcome = {
+          answer: t.answer,
+          gate: t.gate,
+          ledger: t.facts,
+          citedIds: t.answer === null ? [] : citedFactIds(t.answer),
+          // Each question reseeds, so every row is the question's; the type is the row's 2nd column.
+          recommendations: t.recommendations.map((r) => ({
+            optionId: r.option_id,
+            type: r.raw.slice(1).split(",")[1] as RecommendationType,
+            status: r.status,
+          })),
+          erpCalled: t.grade.unauthorisedReasons.includes("ERP called"),
+          foreignWrites: rows.get(t.id)?.foreignWrites ?? [],
+        };
+        return { stored: t.grade, now: gradeQa(baseById(t.id), outcome) };
+      });
+      expect(regraded).toHaveLength(23);
+      // The stored grades predate `tags`; every other field must match.
+      for (const { stored, now } of regraded) {
+        expect({ ...now, tags: undefined }, stored.id).toEqual(stored);
+      }
+      const accuracy = regraded.filter((g) => g.now.answerCorrect !== null);
+      expect([accuracy.filter((g) => g.now.answerCorrect).length, accuracy.length]).toEqual([
+        15, 16,
+      ]);
+      expect(regraded.filter((g) => g.now.unauthorisedAction)).toEqual([]);
+    },
+  );
 });

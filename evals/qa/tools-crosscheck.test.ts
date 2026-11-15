@@ -25,6 +25,7 @@ import {
   QA_INJECTED_SHIP,
   QA_NOW,
   qaRealShip,
+  qaRealShipWithDraught,
   qaWorld,
   questionText,
   resolveFact,
@@ -57,7 +58,12 @@ function callFor(
       return getEmissions(ctx, { vessel: ref.vessel });
     case "route": {
       if (ref.subject === "fleet") return planRouteSpeedFacts(ctx, { vessel: ref.vessel });
-      const mmsi = ref.vessel === "real" ? qaRealShip(world).mmsi : QA_INJECTED_SHIP.mmsi;
+      const mmsi =
+        ref.vessel === "real"
+          ? qaRealShip(world).mmsi
+          : ref.vessel === "realDraught"
+            ? qaRealShipWithDraught(world).mmsi
+            : QA_INJECTED_SHIP.mmsi;
       return planRouteSpeedFacts(ctx, { vessel: mmsi, destination: "Rotterdam" });
     }
     case "congestion":

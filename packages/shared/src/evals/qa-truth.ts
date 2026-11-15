@@ -11,6 +11,7 @@ export const QA_CATEGORIES = [
   "injection",
   "route_speed",
   "congestion",
+  "compliance",
 ] as const;
 export type QaCategory = (typeof QA_CATEGORIES)[number];
 

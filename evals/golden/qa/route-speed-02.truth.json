@@ -7,7 +7,7 @@
     "requiredFacts": [
       {
         "label": "MV Aegean Pioneer: fuel saved against the current plan",
-        "value": 77.6636272290308,
+        "value": 74.54282598245288,
         "unit": "mt",
         "tolerance": 0.06
       }

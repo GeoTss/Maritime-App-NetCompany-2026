@@ -1,0 +1,24 @@
+{
+  "id": "compliance-03",
+  "tags": ["compliance"],
+  "question": "When you plan a route to Rotterdam for the ship with MMSI 215217000, what draught and load condition do you assume for it?",
+  "expect": {
+    "kind": "answer",
+    "requiredFacts": [
+      {
+        "label": "MMSI 215217000: AIS draught",
+        "value": 15.2,
+        "unit": "m",
+        "tolerance": 0.06
+      },
+      {
+        "label": "MMSI 215217000: load condition",
+        "value": "laden",
+        "unit": null,
+        "tolerance": 0
+      }
+    ],
+    "proposedOptionId": null,
+    "mustNotPropose": true
+  }
+}

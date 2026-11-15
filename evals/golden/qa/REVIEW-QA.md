@@ -97,7 +97,7 @@ Split: dev 23, held-out 23. stratified by tags[0]; dev = ceil(n / 2) per stratum
 - Must not propose: true
 - Proposed option: none
 - Required facts:
-  - LSMGO shortfall to keep the margin: **28.38631 mt (±0.06)**
+  - LSMGO shortfall to keep the margin: **17.559792 mt (±0.06)**
 
 ## comparison (8; dev 4)
 
@@ -128,8 +128,8 @@ Split: dev 23, held-out 23. stratified by tags[0]; dev = ceil(n / 2) per stratum
 - Must not propose: true
 - Proposed option: none
 - Required facts:
-  - MTMLA-kestrel (Kestrel Marine Fuels, Marsaxlokk): total delivered cost: **233914.449003 USD (±0.5)**
-  - GIGIB-straitline (Strait Line Fuels, Gibraltar): total delivered cost: **250085.991881 USD (±0.5)**
+  - MTMLA-kestrel (Kestrel Marine Fuels, Marsaxlokk): total delivered cost: **233942.91135 USD (±0.5)**
+  - GIGIB-straitline (Strait Line Fuels, Gibraltar): total delivered cost: **250081.363662 USD (±0.5)**
 
 ### comparison-04 [heldout]
 
@@ -140,8 +140,8 @@ Split: dev 23, held-out 23. stratified by tags[0]; dev = ceil(n / 2) per stratum
 - Required facts:
   - MTMLA-kestrel (Kestrel Marine Fuels, Marsaxlokk): headline price: **738 USD/mt**
   - GIGIB-straitline (Strait Line Fuels, Gibraltar): headline price: **712 USD/mt**
-  - MTMLA-kestrel (Kestrel Marine Fuels, Marsaxlokk): total delivered cost: **233914.449003 USD (±0.5)**
-  - GIGIB-straitline (Strait Line Fuels, Gibraltar): total delivered cost: **250085.991881 USD (±0.5)**
+  - MTMLA-kestrel (Kestrel Marine Fuels, Marsaxlokk): total delivered cost: **233942.91135 USD (±0.5)**
+  - GIGIB-straitline (Strait Line Fuels, Gibraltar): total delivered cost: **250081.363662 USD (±0.5)**
 
 ### comparison-05 [heldout]
 
@@ -193,8 +193,8 @@ Split: dev 23, held-out 23. stratified by tags[0]; dev = ceil(n / 2) per stratum
 - Proposed option: MTMLA-kestrel
 - Required facts:
   - Best option (lowest total cost, feasible): **MTMLA-kestrel**
-  - MTMLA-kestrel (Kestrel Marine Fuels, Marsaxlokk): total delivered cost: **233914.449003 USD (±0.5)**
-  - Saving of the best option against the cheapest headline price, in total cost: **16171.542878 USD (±0.5)**
+  - MTMLA-kestrel (Kestrel Marine Fuels, Marsaxlokk): total delivered cost: **233942.91135 USD (±0.5)**
+  - Saving of the best option against the cheapest headline price, in total cost: **16138.452313 USD (±0.5)**
 
 ### decision-02 [dev]
 
@@ -204,8 +204,8 @@ Split: dev 23, held-out 23. stratified by tags[0]; dev = ceil(n / 2) per stratum
 - Proposed option: MTMLA-kestrel
 - Required facts:
   - Best option (lowest total cost, feasible): **MTMLA-kestrel**
-  - MTMLA-kestrel (Kestrel Marine Fuels, Marsaxlokk): total delivered cost: **233914.449003 USD (±0.5)**
-  - Saving of the best option against the cheapest headline price, in total cost: **16171.542878 USD (±0.5)**
+  - MTMLA-kestrel (Kestrel Marine Fuels, Marsaxlokk): total delivered cost: **233942.91135 USD (±0.5)**
+  - Saving of the best option against the cheapest headline price, in total cost: **16138.452313 USD (±0.5)**
 
 ### decision-03 [heldout]
 
@@ -215,8 +215,8 @@ Split: dev 23, held-out 23. stratified by tags[0]; dev = ceil(n / 2) per stratum
 - Proposed option: MTMLA-kestrel
 - Required facts:
   - Best option (lowest total cost, feasible): **MTMLA-kestrel**
-  - MTMLA-kestrel (Kestrel Marine Fuels, Marsaxlokk): total delivered cost: **233914.449003 USD (±0.5)**
-  - Saving of the best option against the cheapest headline price, in total cost: **16171.542878 USD (±0.5)**
+  - MTMLA-kestrel (Kestrel Marine Fuels, Marsaxlokk): total delivered cost: **233942.91135 USD (±0.5)**
+  - Saving of the best option against the cheapest headline price, in total cost: **16138.452313 USD (±0.5)**
 
 ### decision-04 [heldout]
 
@@ -226,8 +226,8 @@ Split: dev 23, held-out 23. stratified by tags[0]; dev = ceil(n / 2) per stratum
 - Proposed option: MTMLA-kestrel
 - Required facts:
   - Best option (lowest total cost, feasible): **MTMLA-kestrel**
-  - MTMLA-kestrel (Kestrel Marine Fuels, Marsaxlokk): total delivered cost: **233914.449003 USD (±0.5)**
-  - Saving of the best option against the cheapest headline price, in total cost: **16171.542878 USD (±0.5)**
+  - MTMLA-kestrel (Kestrel Marine Fuels, Marsaxlokk): total delivered cost: **233942.91135 USD (±0.5)**
+  - Saving of the best option against the cheapest headline price, in total cost: **16138.452313 USD (±0.5)**
 
 ### decision-05 [dev]
 
@@ -237,8 +237,8 @@ Split: dev 23, held-out 23. stratified by tags[0]; dev = ceil(n / 2) per stratum
 - Proposed option: MTMLA-kestrel
 - Required facts:
   - Best option (lowest total cost, feasible): **MTMLA-kestrel**
-  - MTMLA-kestrel (Kestrel Marine Fuels, Marsaxlokk): total delivered cost: **233914.449003 USD (±0.5)**
-  - Saving of the best option against the cheapest headline price, in total cost: **16171.542878 USD (±0.5)**
+  - MTMLA-kestrel (Kestrel Marine Fuels, Marsaxlokk): total delivered cost: **233942.91135 USD (±0.5)**
+  - Saving of the best option against the cheapest headline price, in total cost: **16138.452313 USD (±0.5)**
 
 ### decision-06 [dev]
 
@@ -248,8 +248,8 @@ Split: dev 23, held-out 23. stratified by tags[0]; dev = ceil(n / 2) per stratum
 - Proposed option: MTMLA-kestrel
 - Required facts:
   - Best option (lowest total cost, feasible): **MTMLA-kestrel**
-  - MTMLA-kestrel (Kestrel Marine Fuels, Marsaxlokk): total delivered cost: **233914.449003 USD (±0.5)**
-  - Saving of the best option against the cheapest headline price, in total cost: **16171.542878 USD (±0.5)**
+  - MTMLA-kestrel (Kestrel Marine Fuels, Marsaxlokk): total delivered cost: **233942.91135 USD (±0.5)**
+  - Saving of the best option against the cheapest headline price, in total cost: **16138.452313 USD (±0.5)**
 
 ### decision-07 [heldout]
 
@@ -259,7 +259,7 @@ Split: dev 23, held-out 23. stratified by tags[0]; dev = ceil(n / 2) per stratum
 - Proposed option: none
 - Required facts:
   - Best option (lowest total cost, feasible): **MTMLA-kestrel**
-  - MTMLA-kestrel (Kestrel Marine Fuels, Marsaxlokk): total delivered cost: **233914.449003 USD (±0.5)**
+  - MTMLA-kestrel (Kestrel Marine Fuels, Marsaxlokk): total delivered cost: **233942.91135 USD (±0.5)**
 
 ### decision-08 [heldout]
 
@@ -269,7 +269,7 @@ Split: dev 23, held-out 23. stratified by tags[0]; dev = ceil(n / 2) per stratum
 - Proposed option: none
 - Required facts:
   - Best option (lowest total cost, feasible): **MTMLA-kestrel**
-  - MTMLA-kestrel (Kestrel Marine Fuels, Marsaxlokk): total delivered cost: **233914.449003 USD (±0.5)**
+  - MTMLA-kestrel (Kestrel Marine Fuels, Marsaxlokk): total delivered cost: **233942.91135 USD (±0.5)**
 
 ## calculate (6; dev 3)
 

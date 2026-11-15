@@ -617,7 +617,7 @@ describe("QaTruth", () => {
     expect(QaTruth.safeParse({ ...answer, tags: ["Lookup"] }).success).toBe(false);
   });
 
-  it("lists the nine question categories; the first seven are Phase 4's, in order", () => {
+  it("lists the ten question categories; the first seven are Phase 4's, in order", () => {
     expect(QA_CATEGORIES.slice(0, 7)).toEqual([
       "lookup",
       "comparison",
@@ -627,7 +627,7 @@ describe("QaTruth", () => {
       "no_action",
       "injection",
     ]);
-    expect(QA_CATEGORIES.slice(7)).toEqual(["route_speed", "congestion"]);
+    expect(QA_CATEGORIES.slice(7)).toEqual(["route_speed", "congestion", "compliance"]);
   });
 
   it("accepts tags[0] = route_speed and congestion", () => {
@@ -834,7 +834,8 @@ describe("Phase 6 contracts", () => {
     expect(RouteOptionResult.shape.fuelEuCostUsd.safeParse(-1).success).toBe(false);
   });
 
-  it("QA_CATEGORIES is unchanged in this task (compliance is added with its questions)", () => {
-    expect(QA_CATEGORIES).toHaveLength(9);
+  it("QA_CATEGORIES gains compliance, appended last", () => {
+    expect(QA_CATEGORIES).toHaveLength(10);
+    expect(QA_CATEGORIES[9]).toBe("compliance");
   });
 });

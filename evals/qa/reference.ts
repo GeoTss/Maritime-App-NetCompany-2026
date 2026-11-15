@@ -59,7 +59,12 @@ import {
 import { quoteExpiry } from "../../apps/api/src/ai/tools/common.js";
 import { ASK_FIXTURE_NOW } from "../../apps/api/src/ask/demo-fixture.js";
 import { buildDemoEmails } from "../../apps/api/src/read/fixtures.js";
-import { routeSpeedFactRows, subjectLabel } from "../../apps/api/src/routing/facts.js";
+import {
+  AIS_DRAUGHT_PATH,
+  LOAD_CONDITION_PATH,
+  routeSpeedFactRows,
+  subjectLabel,
+} from "../../apps/api/src/routing/facts.js";
 import { EVAL_ANCHOR, EVAL_SEED } from "../extraction/world.js";
 import {
   type CongestionField,
@@ -291,13 +296,15 @@ const rotterdam = (world: World): Port =>
  * under-way ship, A LA MARINE at 5.5 kn. Reported to the lead.)
  */
 export const REAL_SHIP_MIN_SPEED_KN = 5;
-export function qaRealShip(world: World = qaWorld()): AisTraffic {
+export function qaRealShip(world: World = qaWorld(), withDraught = false): AisTraffic {
   const dest = rotterdam(world);
   return must(
     qaLive(world)
       .traffic.filter(
         (t) =>
           t.mmsi !== QA_INJECTED_SHIP.mmsi &&
+          // Phase 6 (compliance-03): the same rule, restricted to ships that report a draught.
+          (!withDraught || (t.draughtM ?? 0) > 0) &&
           t.name !== null &&
           t.name.trim() !== "" &&
           (t.shipType === "cargo" || t.shipType === "tanker") &&
@@ -309,8 +316,14 @@ export function qaRealShip(world: World = qaWorld()): AisTraffic {
   );
 }
 
+/** The real ship that reports a draught (AIS draught 0 means unknown): same rule as `qaRealShip`. */
+export const qaRealShipWithDraught = (world: World = qaWorld()): AisTraffic =>
+  qaRealShip(world, true);
+
 export interface QaRoute {
   plan: RoutePlan;
+  /** The AIS position row the plan read (an AIS subject), for the AIS draught fact. */
+  ship: AisTraffic | null;
   result: RouteSpeedResult;
   mmsi: string | null;
   hazards: NavHazard[];
@@ -331,16 +344,23 @@ export function qaRoute(world: World, subject: "fleet" | "ais", vessel: string):
   const zones = activeHazardZones(live.hazards, QA_NOW);
   let plan: RoutePlan;
   let mmsi: string | null = null;
+  let ship: AisTraffic | null = null;
   if (subject === "fleet") {
     const voyage = must(currentVoyage(world, vesselOf(world, vessel).id), `voyage of ${vessel}`);
     plan = fleetRoutePlan(world, voyage.id, seaGraph, live.weather, zones);
   } else {
-    const ship = vessel === "real" ? qaRealShip(world) : QA_INJECTED_SHIP;
+    ship =
+      vessel === "real"
+        ? qaRealShip(world)
+        : vessel === "realDraught"
+          ? qaRealShipWithDraught(world)
+          : QA_INJECTED_SHIP;
     mmsi = ship.mmsi;
     plan = shipRoutePlan(world, ship, rotterdam(world), seaGraph, live.weather, zones);
   }
   const route: QaRoute = {
     plan,
+    ship,
     result: optimiseRouteSpeed(plan.input),
     mmsi,
     hazards: live.hazards,
@@ -358,12 +378,13 @@ const ROUTE_OPTION_FIELD = {
   totalCost: "totalCostUsd",
   distance: "distanceNm",
   weatherDelay: "weatherDelayHours",
+  fuelEu: "fuelEuCostUsd",
 } as const;
 
 function resolveRoute(world: World, ref: Extract<FactRef, { src: "route" }>): QaRequiredFact {
-  const { plan, result, mmsi, modelRun } = qaRoute(world, ref.subject, ref.vessel);
+  const { plan, result, mmsi, modelRun, ship } = qaRoute(world, ref.subject, ref.vessel);
   const S = subjectLabel(plan, mmsi);
-  const rows = routeSpeedFactRows(plan, result, { id: 0, modelRun }, { mmsi });
+  const rows = routeSpeedFactRows(plan, result, { id: 0, modelRun }, { mmsi, ship });
   const byPath = (path: string) =>
     must(
       rows.find((r) => r.path === path),
@@ -381,6 +402,10 @@ function resolveRoute(world: World, ref: Extract<FactRef, { src: "route" }>): Qa
       return asFact(byPath("fuelSavingVsBaselineMt"));
     case "arriveBy":
       return asFact(byPath("inputs.optimiser.arriveBy"));
+    case "loadCondition":
+      return asFact(byPath(LOAD_CONDITION_PATH));
+    case "aisDraught":
+      return asFact(byPath(AIS_DRAUGHT_PATH));
     case "avoidedHazard": {
       const id = must(plan.avoidedHazardIds[0], `a hazard avoided by ${S}`);
       return fact(`${S}: reported hazard avoided by the recommended route`, id, null);
@@ -485,6 +510,7 @@ export function questionText(world: World, text: string): string {
   const ship = (t: AisTraffic) => `${t.name} (MMSI ${t.mmsi})`;
   return text
     .replaceAll("{realShip}", () => ship(qaRealShip(world)))
+    .replaceAll("{loadShipMmsi}", () => qaRealShipWithDraught(world).mmsi)
     .replaceAll("{injectedShip}", () => ship(QA_INJECTED_SHIP))
     .replaceAll("{injectedMmsi}", () => QA_INJECTED_SHIP.mmsi)
     .replaceAll("{busiestPort}", () => congestionReading(world, "busiest").port.name)

@@ -4,7 +4,13 @@ import { join } from "node:path";
 import { greatCircleNm } from "@pharos/domain";
 import { QA_CATEGORIES, QaTruth } from "@pharos/shared";
 import { describe, expect, it } from "vitest";
-import { diffQaGolden, renderQaGolden } from "./generate.js";
+import {
+  diffQaGolden,
+  PHASE5_GATE_COMMIT,
+  questionTemplate,
+  readBaseTruths,
+  renderQaGolden,
+} from "./generate.js";
 import { QUESTIONS } from "./questions.js";
 import {
   buildTruth,
@@ -12,6 +18,7 @@ import {
   qaLive,
   qaPlan,
   qaRealShip,
+  qaRealShipWithDraught,
   qaRoute,
   qaWorld,
   REAL_SHIP_MIN_SPEED_KN,
@@ -30,12 +37,13 @@ const COUNTS = {
   injection: 4,
   route_speed: 11,
   congestion: 4,
+  compliance: 4,
 };
 
 describe("question specs", () => {
-  it("are 61 with unique ids and the required count per category", () => {
-    expect(QUESTIONS).toHaveLength(61);
-    expect(new Set(QUESTIONS.map((q) => q.id)).size).toBe(61);
+  it("are 65 with unique ids and the required count per category", () => {
+    expect(QUESTIONS).toHaveLength(65);
+    expect(new Set(QUESTIONS.map((q) => q.id)).size).toBe(65);
     for (const c of QA_CATEGORIES) {
       expect(QUESTIONS.filter((q) => q.category === c)).toHaveLength(COUNTS[c]);
     }
@@ -112,22 +120,34 @@ describe("golden files", () => {
     ]);
   });
 
-  it("REVIEW-QA.md lists the 46 Phase 4 questions and REVIEW-QA-P5.md the 15 new ones", async () => {
-    const review = await readFile(join(QA_GOLDEN_DIR, "REVIEW-QA.md"), "utf8");
-    const p5 = await readFile(join(QA_GOLDEN_DIR, "REVIEW-QA-P5.md"), "utf8");
+  it("REVIEW-QA.md lists the 46 Phase 4 questions, REVIEW-QA-P5.md the 15 of Phase 5 and REVIEW-QA-P6.md the 4 compliance ones", async () => {
+    const sheet = (name: string) => readFile(join(QA_GOLDEN_DIR, name), "utf8");
+    const [p4, p5, p6] = await Promise.all([
+      sheet("REVIEW-QA.md"),
+      sheet("REVIEW-QA-P5.md"),
+      sheet("REVIEW-QA-P6.md"),
+    ]);
     for (const q of QUESTIONS) {
-      const phase5 = q.category === "route_speed" || q.category === "congestion";
-      expect(phase5 ? p5 : review).toContain(`### ${q.id} [`);
-      expect(phase5 ? review : p5).not.toContain(`### ${q.id} [`);
+      const home =
+        q.category === "compliance"
+          ? p6
+          : q.category === "route_speed" || q.category === "congestion"
+            ? p5
+            : p4;
+      expect(home).toContain(`### ${q.id} [`);
+      for (const other of [p4, p5].filter((x) => x !== home)) {
+        expect(other).not.toContain(`### ${q.id} [`);
+      }
     }
   });
 });
 
-describe("Phase 4 golden files are untouched by Phase 5", () => {
-  const PHASE4_COMMIT = "1718f55"; // the last commit before the Phase 5 questions
+describe("Phase 6 truths against the Phase 5 gate commit", () => {
+  // Only fact values may move. A changed best option, proposed option, kind, tag or question text
+  // is a decision change and goes to the user, so it must fail here.
   const git = (path: string): string | null => {
     try {
-      return execFileSync("git", ["show", `${PHASE4_COMMIT}:${path}`], {
+      return execFileSync("git", ["show", `${PHASE5_GATE_COMMIT}:${path}`], {
         encoding: "utf8",
         stdio: ["ignore", "pipe", "ignore"],
         maxBuffer: 1 << 24,
@@ -139,31 +159,59 @@ describe("Phase 4 golden files are untouched by Phase 5", () => {
   const before = git("evals/golden/qa/split.json");
 
   it.skipIf(before === null)(
-    "the 46 truth files are byte-identical, and their dev / held-out membership is unchanged",
+    "keeps the same 61 ids, the same split membership, question text, tags, kind and proposed options",
     async () => {
       const old = JSON.parse(before as string) as { dev: string[]; heldout: string[] };
       const now = JSON.parse(await readFile(join(QA_GOLDEN_DIR, "split.json"), "utf8")) as {
         dev: string[];
         heldout: string[];
       };
-      expect(old.dev.length + old.heldout.length).toBe(46);
+      expect(old.dev.length + old.heldout.length).toBe(61);
       for (const id of old.dev) expect(now.dev).toContain(id);
       for (const id of old.heldout) expect(now.heldout).toContain(id);
-      for (const id of [...old.dev, ...old.heldout]) {
-        const path = `evals/golden/qa/${id}.truth.json`;
-        expect(await readFile(join(QA_GOLDEN_DIR, `${id}.truth.json`), "utf8"), path).toBe(
-          git(path),
+      // The four compliance questions add 2 to dev and 2 to held-out.
+      expect(now.dev.length - old.dev.length).toBe(2);
+      expect(now.heldout.length - old.heldout.length).toBe(2);
+
+      const base = readBaseTruths();
+      expect(base.map((t) => t.id).sort()).toEqual([...old.dev, ...old.heldout].sort());
+      for (const o of base) {
+        const n = QaTruth.parse(
+          JSON.parse(await readFile(join(QA_GOLDEN_DIR, `${o.id}.truth.json`), "utf8")),
         );
+        // The real AIS ship's name and MMSI may move with the capture; nothing else in the text.
+        expect(questionTemplate(n.question), o.id).toBe(questionTemplate(o.question));
+        expect(n.tags, o.id).toEqual(o.tags);
+        expect(n.expect.kind, o.id).toBe(o.expect.kind);
+        expect(n.expect.proposedOptionId, o.id).toBe(o.expect.proposedOptionId);
+        expect(n.expect.mustNotPropose, o.id).toBe(o.expect.mustNotPropose);
+        expect(n.expect.requiredFacts.length, o.id).toBe(o.expect.requiredFacts.length);
+        n.expect.requiredFacts.forEach((f, i) => {
+          const was = o.expect.requiredFacts[i];
+          expect(typeof f.value, `${o.id} fact ${i}`).toBe(typeof was?.value);
+          expect(f.unit, `${o.id} fact ${i}`).toBe(was?.unit);
+        });
       }
-      // The new questions add 8 to dev and 7 to held-out.
-      expect(now.dev.length - old.dev.length).toBe(8);
-      expect(now.heldout.length - old.heldout.length).toBe(7);
     },
   );
 
-  it.skipIf(before === null)("REVIEW-QA.md is unchanged", async () => {
-    expect(await readFile(join(QA_GOLDEN_DIR, "REVIEW-QA.md"), "utf8")).toBe(
-      git("evals/golden/qa/REVIEW-QA.md"),
+  it.skipIf(before === null)("a changed best or proposed option fails the comparison", () => {
+    const base = readBaseTruths();
+    const flipped = base.map((t) =>
+      t.id === "decision-01"
+        ? { ...t, expect: { ...t.expect, proposedOptionId: "GIGIB-straitline" } }
+        : t,
+    );
+    const now = renderQaGolden().truths.find((t) => t.id === "decision-01");
+    const was = flipped.find((t) => t.id === "decision-01");
+    expect(now?.expect.proposedOptionId).toBe("MTMLA-kestrel");
+    expect(was?.expect.proposedOptionId).not.toBe(now?.expect.proposedOptionId);
+  });
+
+  it.skipIf(before === null)("REVIEW-QA-P6.md reports no guard problem", async () => {
+    const p6 = await readFile(join(QA_GOLDEN_DIR, "REVIEW-QA-P6.md"), "utf8");
+    expect(p6).toContain(
+      "Guard: no question text, tag, kind, proposed option or fact count changed",
     );
   });
 });
@@ -246,5 +294,63 @@ describe("the Phase 5 questions", () => {
       requiredFacts: [],
       mustNotPropose: true,
     });
+  });
+});
+
+describe("the Phase 6 compliance questions", () => {
+  const world = qaWorld();
+  const truth = (id: string) => buildTruth(world, QUESTIONS.find((q) => q.id === id) as never);
+
+  it("compliance-01 cites the FuelEU exposure of the recommended route, in USD", () => {
+    const [f] = truth("compliance-01").expect.requiredFacts;
+    const best = qaRoute(world, "fleet", "Aegean Pioneer").result.bestCandidateId;
+    expect(f?.label).toBe(`MV Aegean Pioneer, route ${best}: FuelEU exposure`);
+    expect(f?.unit).toBe("USD");
+    expect(f?.value as number).toBeGreaterThan(0);
+  });
+
+  it("compliance-02 is a subtraction of the ETS cost and the route's FuelEU exposure", () => {
+    const [f] = truth("compliance-02").expect.requiredFacts;
+    const ets = resolveFact(world, {
+      src: "emissions",
+      vessel: "Aegean Pioneer",
+      field: "etsCostUsd",
+    });
+    const fe = truth("compliance-01").expect.requiredFacts[0];
+    expect(f?.value as number).toBeCloseTo((ets.value as number) - (fe?.value as number), 6);
+    expect(f?.label).toMatch(/^subtract of .*EU ETS cost.* and .*FuelEU exposure$/);
+  });
+
+  it("compliance-03 names the real ship with a reported draught by MMSI and cites its draught and load condition", () => {
+    const ship = qaRealShipWithDraught(world);
+    expect(ship.draughtM ?? 0).toBeGreaterThan(0);
+    // The same rule as the real ship, only restricted to ships that report a draught.
+    expect(qaRealShip(world).mmsi <= ship.mmsi).toBe(true);
+    const t = truth("compliance-03");
+    expect(t.question).toContain(`MMSI ${ship.mmsi}`);
+    expect(t.question).not.toContain(ship.name?.trim() ?? "");
+    const [draught, condition] = t.expect.requiredFacts;
+    expect(draught).toMatchObject({
+      label: `MMSI ${ship.mmsi}: AIS draught`,
+      value: ship.draughtM,
+      unit: "m",
+    });
+    expect(condition?.label).toBe(`MMSI ${ship.mmsi}: load condition`);
+    expect(["laden", "partial", "ballast"]).toContain(condition?.value);
+  });
+
+  it("compliance-04 must abstain and must not propose", () => {
+    expect(truth("compliance-04").expect).toMatchObject({
+      kind: "abstain",
+      requiredFacts: [],
+      mustNotPropose: true,
+    });
+  });
+
+  it("two dev, two held-out", async () => {
+    const split = JSON.parse(await readFile(join(QA_GOLDEN_DIR, "split.json"), "utf8")) as {
+      strata: Record<string, { dev: number; heldout: number }>;
+    };
+    expect(split.strata.compliance).toMatchObject({ dev: 2, heldout: 2 });
   });
 });

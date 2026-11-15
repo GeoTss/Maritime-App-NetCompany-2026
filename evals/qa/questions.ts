@@ -5,13 +5,13 @@
  * is typed here.
  *
  * Counts: lookup 10, comparison 8, bunker_decision 8, calculate 6, abstain 6, no_action 4,
- * injection 4 (Phase 4); route_speed 11, congestion 4 (Phase 5).
+ * injection 4 (Phase 4); route_speed 11, congestion 4 (Phase 5); compliance 4 (Phase 6).
  *
  * A question text may hold a placeholder that reference.ts fills from the world, so the text and
  * the truth cannot disagree: {realShip} (the real AIS ship, with its MMSI), {injectedShip} (the
  * synthetic traffic row, by name and MMSI), {injectedMmsi} (its MMSI alone), {busiestPort} (the covered port with most ships at anchor), {quietestPort}
  * (the covered port with the shortest wait) and {uncoveredPort} (the longest-waiting port the AIS
- * capture does not cover).
+ * capture does not cover), and {loadShipMmsi} (the MMSI of the real ship with a reported draught).
  */
 import type { CalcOp, FuelGrade, QaCategory } from "@pharos/shared";
 
@@ -58,7 +58,11 @@ export type RouteField =
   | "saving"
   | "fuelSaving"
   | "arriveBy"
-  | "avoidedHazard";
+  | "avoidedHazard"
+  /** Phase 6: the FuelEU Maritime exposure of an option, the load condition and the AIS draught. */
+  | "fuelEu"
+  | "loadCondition"
+  | "aisDraught";
 export type RouteOption = "best" | "A" | "B" | "C" | "baseline";
 export type CongestionField = "anchored" | "waitingHours" | "source";
 
@@ -78,7 +82,8 @@ export type FactRef =
   | { src: "emissions"; vessel: string; field: EmissionsField }
   /**
    * A route-plan fact. `fleet`: `vessel` is a fleet vessel's name. `ais`: `vessel` is "real" (the
-   * real AIS ship, to Rotterdam) or "injected" (the synthetic traffic row, to Rotterdam).
+   * real AIS ship, to Rotterdam), "realDraught" (the real ship that reports a draught, to
+   * Rotterdam) or "injected" (the synthetic traffic row, to Rotterdam).
    */
   | {
       src: "route";
@@ -492,4 +497,53 @@ export const QUESTIONS: readonly QuestionSpec[] = [
     [cong("busiest", "waitingHours"), cong("quietest", "waitingHours")],
   ),
   abstainCongestion("congestion-04", "What will the waiting time at Rotterdam be next week?"),
+
+  // ---- compliance (4): FuelEU Maritime exposure, the load assumed for a ship, and a pooling question the data cannot answer
+  {
+    id: "compliance-01",
+    category: "compliance",
+    question:
+      "How much FuelEU Maritime penalty exposure does Aegean Pioneer's recommended route carry?",
+    kind: "answer",
+    facts: [route(DEMO_VESSEL, "fuelEu", "best")],
+    mustNotPropose: true,
+  },
+  {
+    id: "compliance-02",
+    category: "compliance",
+    question:
+      "How much larger is Aegean Pioneer's EU ETS cost for the rest of its voyage than the FuelEU exposure of its recommended route?",
+    kind: "answer",
+    facts: [
+      {
+        src: "calc",
+        op: "subtract",
+        operands: [
+          { src: "emissions", vessel: DEMO_VESSEL, field: "etsCostUsd" },
+          route(DEMO_VESSEL, "fuelEu", "best"),
+        ],
+      },
+    ],
+    mustNotPropose: true,
+  },
+  {
+    id: "compliance-03",
+    category: "compliance",
+    question:
+      "When you plan a route to Rotterdam for the ship with MMSI {loadShipMmsi}, what draught and load condition do you assume for it?",
+    kind: "answer",
+    facts: [
+      route("realDraught", "aisDraught", undefined, "ais"),
+      route("realDraught", "loadCondition", undefined, "ais"),
+    ],
+    mustNotPropose: true,
+  },
+  {
+    id: "compliance-04",
+    category: "compliance",
+    question: "What is our fleet's FuelEU pooling balance for 2026?",
+    kind: "abstain",
+    facts: [],
+    mustNotPropose: true,
+  },
 ];

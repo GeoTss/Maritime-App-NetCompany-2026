@@ -13,13 +13,13 @@
       },
       {
         "label": "MTMLA-kestrel (Kestrel Marine Fuels, Marsaxlokk): total delivered cost",
-        "value": 233914.44900287892,
+        "value": 233942.91134964247,
         "unit": "USD",
         "tolerance": 0.5
       },
       {
         "label": "Saving of the best option against the cheapest headline price, in total cost",
-        "value": 16171.542878224107,
+        "value": 16138.452312674606,
         "unit": "USD",
         "tolerance": 0.5
       }

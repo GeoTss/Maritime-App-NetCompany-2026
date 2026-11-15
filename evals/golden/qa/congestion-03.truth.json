@@ -7,15 +7,15 @@
     "requiredFacts": [
       {
         "label": "Piraeus: expected waiting time",
-        "value": 19.5,
+        "value": 42,
         "unit": "h",
-        "tolerance": 0.06
+        "tolerance": 0
       },
       {
         "label": "Rotterdam: expected waiting time",
-        "value": 4.5,
+        "value": 12,
         "unit": "h",
-        "tolerance": 0.06
+        "tolerance": 0
       }
     ],
     "proposedOptionId": null,
