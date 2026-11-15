@@ -20,10 +20,11 @@ The demo world must be **deterministic** (same seed → byte-identical data) and
 
 ## Refresh recorded-mode fixtures _(Phase 5+)_
 
-- AIS: `npm run record:ais -- --minutes 10 --bbox med` (needs `AISSTREAM_API_KEY`; if missing, tell the user which variable to set and stop this step).
-- Weather: `npm run record:weather -- --route demo`.
-- Commit the new files under `fixtures/recorded/` and note the capture time in `fixtures/recorded/README.md`.
-- Re-run Q&A evals in replay mode afterwards: expected answers depend on these snapshots.
+- AIS: `npm run record:ais -- --seconds 240 --bbox demo` (at most 600 s / 6 000 messages; needs `AISSTREAM_API_KEY`; if missing, tell the user which variable to set and stop this step). A run with no position keeps the old file.
+- Weather: `npm run record:weather` (Open-Meteo, no key; the 2° demo grid).
+- Live checks: `npm run smoke:ais -- --seconds 20`, `npm run smoke:weather`.
+- Commit the new files under `fixtures/recorded/` and note the capture time in `fixtures/recorded/README.md`. `synthetic-hazards.json` is demo data, labelled synthetic.
+- Afterwards regenerate the Q&A truths (`npm run eval:qa-golden`, user review if values change) and re-record replays: expected route and congestion answers depend on these files.
 
 ## Never
 
