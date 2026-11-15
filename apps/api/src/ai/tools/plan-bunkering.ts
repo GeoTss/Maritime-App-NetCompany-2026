@@ -40,8 +40,11 @@ import {
 
 export const TOOL = "plan_bunkering";
 
-/** Option fields returned as facts, with their units. */
-const OPTION_FACTS: [keyof BunkerOptionResult, string, string | null][] = [
+/**
+ * Option fields returned as facts, with their units. A fact's label is
+ * `<optionId> (<supplier>, <port>): <name>` (see `bunkerOptionLabel`).
+ */
+export const BUNKER_OPTION_FACTS: [keyof BunkerOptionResult, string, string | null][] = [
   ["rank", "rank by total cost", null],
   ["feasible", "feasible", null],
   ["qtyMt", "quantity", "mt"],
@@ -49,7 +52,19 @@ const OPTION_FACTS: [keyof BunkerOptionResult, string, string | null][] = [
   ["totalCostUsd", "total delivered cost", "USD"],
   ["delayHours", "delay", "h"],
   ["etsCostUsd", "EU ETS cost", "USD"],
+  ["fuelEuCostUsd", "FuelEU exposure", "USD"],
 ];
+
+/** An option fact's label: the option id, its supplier and port, then the field's name. */
+export const bunkerOptionLabel = (optionId: string, supplier: string, port: string, name: string) =>
+  `${optionId} (${supplier}, ${port}): ${name}`;
+
+/**
+ * The plan's displacement (the load on the planner's curve, from the voyage's cargo and ballast),
+ * cited on the stored input; with several grades the label starts `<grade> plan: `.
+ */
+export const BUNKER_DISPLACEMENT_LABEL = "Vessel displacement";
+export const BUNKER_DISPLACEMENT_FIELD = "inputs.curve.load.displacementMt";
 
 type PlanOutcome =
   | {
@@ -131,17 +146,29 @@ async function planRequirement(
 
   const facts: Fact[] = plan.options.flatMap((o, i) => {
     const { supplier, port } = describe(o.optionId);
-    return OPTION_FACTS.map(([field, label, unit]) =>
+    return BUNKER_OPTION_FACTS.map(([field, label, unit]) =>
       calcFact(
         TOOL,
         ref,
         `options[${i}].${field}`,
-        `${o.optionId} (${supplier}, ${port}): ${label}`,
+        bunkerOptionLabel(o.optionId, supplier, port, label),
         o[field] as number | boolean,
         unit,
       ),
     );
   });
+  const load = planInput.curve.load;
+  if (load) {
+    facts.push(
+      dbFact(
+        TOOL,
+        { table: "calculations", rowId: calculationId, field: BUNKER_DISPLACEMENT_FIELD },
+        `${scope}${BUNKER_DISPLACEMENT_LABEL}`,
+        load.displacementMt,
+        "mt",
+      ),
+    );
+  }
   if (plan.bestOptionId !== null) {
     facts.push(
       calcFact(
@@ -309,9 +336,11 @@ export function planBunkeringTool(ctx: ToolContext) {
       "Bunker plans for open fuel requirements: one plan per open requirement (per grade) of a " +
       "vessel's current voyage, or of every vessel's when no vessel is given. Each plan ranks every " +
       "received, still-valid supplier quote by total delivered cost (fuel, barge fee, deviation, " +
-      "delay and EU ETS cost) and checks feasibility (quantity, tank space, safety margin, berth " +
-      "window). Each plan is stored as a calculation; the result gives each plan's calculationId, " +
-      "best option and citable facts per option (with several plans, a plans or vessels list).",
+      "delay, EU ETS cost and FuelEU Maritime exposure) and checks feasibility (quantity, tank " +
+      "space, safety margin, berth window), on the vessel's consumption at its current load " +
+      "(displacement). Each plan is stored as a calculation; the result gives each plan's " +
+      "calculationId, best option and citable facts per option (with several plans, a plans or " +
+      "vessels list).",
     inputSchema: PlanBunkeringInput,
     run: async (input) => JSON.stringify(await planBunkering(ctx, input)),
   });

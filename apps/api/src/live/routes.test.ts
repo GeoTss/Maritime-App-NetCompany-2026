@@ -115,6 +115,27 @@ describe.skipIf(!sql)("live routes (Postgres)", () => {
     expect(times).toEqual([...times].sort((a, b) => b - a));
   });
 
+  it("GET /api/traffic carries each ship's reported draught and course (null when unknown)", async () => {
+    const at = new Date(ASK_FIXTURE_NOW.getTime() + 60_000).toISOString();
+    await db`insert into ais_traffic (mmsi, name, ship_type, lat, lon, sog_kn, draught_m, cog_deg, updated_at)
+      values ('900000007', 'Course Test', 'cargo', 36, 5, 11, 9.5, 271.4, ${at}::timestamptz)`;
+    try {
+      const { items: views } = AisTrafficList.parse(
+        await (await app.request("/api/traffic")).json(),
+      );
+      for (const v of views) {
+        expect(v).toHaveProperty("draughtM");
+        expect(v).toHaveProperty("cogDeg");
+      }
+      expect(views.find((v) => v.mmsi === "900000007")).toMatchObject({
+        draughtM: 9.5,
+        cogDeg: 271.4,
+      });
+    } finally {
+      await db`delete from ais_traffic where mmsi = '900000007'`;
+    }
+  });
+
   it("GET /api/congestion returns one latest row per port", async () => {
     const { items: views } = PortCongestionList.parse(
       await (await app.request("/api/congestion")).json(),

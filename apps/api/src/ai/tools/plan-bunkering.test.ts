@@ -134,6 +134,7 @@ describe.skipIf(!sql)("plan_bunkering (Postgres)", () => {
         "totalCostUsd",
         "delayHours",
         "etsCostUsd",
+        "fuelEuCostUsd",
         "rank",
         "feasible",
         "qtyMt",
@@ -152,6 +153,36 @@ describe.skipIf(!sql)("plan_bunkering (Postgres)", () => {
         });
       }
     });
+  });
+
+  it("states each option's FuelEU exposure and the vessel's displacement on this voyage", async () => {
+    const result = await planBunkering(ctx(), { vessel: "Aegean Pioneer" });
+    const calc = await latestCalc();
+    const plan = BunkerPlan.parse(calc.outputs);
+    const input = BunkerPlanInput.parse(calc.inputs);
+    plan.options.forEach((o, i) => {
+      const f = result.facts.find(
+        (x) => x.id === `f_plan_bunkering_${calc.id}_options.${i}.fuelEuCostUsd`,
+      );
+      expect(f?.label.endsWith("FuelEU exposure")).toBe(true);
+      expect(f?.unit).toBe("USD");
+      expect(f?.value).toBe(o.fuelEuCostUsd);
+    });
+    const load = input.curve.load;
+    if (!load) throw new Error("the stored plan input has no load on its curve");
+    const displacement = result.facts.find((f) => f.label === "Vessel displacement");
+    expect(displacement).toMatchObject({
+      value: load.displacementMt,
+      unit: "mt",
+      provenance: {
+        source: "db",
+        table: "calculations",
+        rowId: calc.id,
+        field: "inputs.curve.load.displacementMt",
+      },
+    });
+    // Aegean Pioneer on AP-2611: lightship 11 000 + cargo 54 000 + ballast 0.
+    expect(displacement?.value).toBe(65_000);
   });
 
   it("with no received quotes it returns a fact-free result saying so", async () => {

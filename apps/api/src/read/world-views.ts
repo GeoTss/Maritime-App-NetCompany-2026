@@ -3,49 +3,21 @@
  * `loadWorld`) and the fixture source (`generateWorld`). Every number comes from the world rows or
  * a `packages/domain` calculator.
  */
-import { currentVoyage, DEMO_SCENARIO, type World } from "@pharos/db";
-import {
-  legsForRoute,
-  projectFuelOnBoard,
-  remainingFobLegs,
-  sailedNmAt,
-  type VoyagePath,
-} from "@pharos/domain";
+import { currentVoyage, fobProjectionInput, voyageState, type World } from "@pharos/db";
+import { legsForRoute, projectFuelOnBoard } from "@pharos/domain";
 import type {
-  FobLeg,
   FobProjection,
-  Vessel,
   VesselDetail,
   VesselSummary,
-  Voyage,
   VoyageDetail,
   VoyageSummary,
 } from "@pharos/shared";
 
-const SAFETY_MARGIN_DAYS = DEMO_SCENARIO.safetyMarginDays;
 export const LSMGO_ALERT = "lsmgo_below_margin_for_eca";
 
 export function must<T>(v: T | undefined | null, what: string): T {
   if (v === undefined || v === null) throw new Error(`world has no ${what}`);
   return v;
-}
-
-/** Legs still to sail at the latest noon report (same rule the seed uses to place the vessel). */
-function remainingLegs(world: World, vessel: Vessel, voyage: Voyage, reportTs: Date): FobLeg[] {
-  const port = (id: number) =>
-    must(
-      world.ports.find((p) => p.id === id),
-      `port ${id}`,
-    );
-  const path: VoyagePath = {
-    voyage,
-    legs: legsForRoute(voyage.plannedRoute, world.routeLegs),
-    origin: port(voyage.originPortId),
-    destination: port(voyage.destinationPortId),
-    curve: vessel.consumptionCurve,
-    departAt: voyage.departedAt ?? world.meta.anchor,
-  };
-  return remainingFobLegs(path, sailedNmAt(path, reportTs));
 }
 
 export function buildVessels(world: World) {
@@ -66,14 +38,11 @@ export function buildVessels(world: World) {
     const position = latest(world.vesselPositions, vessel.id, (p) => p.ts);
     const voyage = currentVoyage(world, vessel.id);
 
+    // The projection get_vessel_status computes: the same builder, on the voyage's loaded curve.
     const fob: FobProjection | null = voyage
-      ? projectFuelOnBoard({
-          robMt: report.robMt,
-          legs: remainingLegs(world, vessel, voyage, report.ts),
-          speedKn: voyage.plannedSpeedKn,
-          curve: vessel.consumptionCurve,
-          safetyMarginDays: SAFETY_MARGIN_DAYS,
-        })
+      ? projectFuelOnBoard(
+          fobProjectionInput(world, voyage.id, voyageState(world, voyage.id).remainingLegs),
+        )
       : null;
 
     const alerts = fob?.belowMarginAtLeg.LSMGO != null ? [LSMGO_ALERT] : [];

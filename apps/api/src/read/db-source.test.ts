@@ -5,6 +5,7 @@ import { connectTestDb, testDbLabel } from "@pharos/db/testing";
 import {
   BunkerPlan,
   type Fact,
+  FobProjection,
   InboxItem,
   InboxItemDetail,
   listOf,
@@ -25,6 +26,7 @@ import { createToolContext } from "../ai/tools/common.js";
 import { planBunkering } from "../ai/tools/plan-bunkering.js";
 import { proposeAction } from "../ai/tools/propose-action.js";
 import { planRouteSpeedFacts } from "../ai/tools/route-speed.js";
+import { getVesselStatus } from "../ai/tools/vessel-status.js";
 import { createApp } from "../app.js";
 import { createErpClient } from "../executor/erp-client.js";
 import { approveRecommendation } from "../executor/execute.js";
@@ -126,6 +128,23 @@ describe.skipIf(!sql)("createDbSource (Postgres)", () => {
     expect(pioneer?.alerts).toContain("lsmgo_below_margin_for_eca");
     const detail = VesselDetail.parse((await get(app, `/api/vessels/${pioneer?.id}`)).body);
     expect(detail).toEqual((await get(fixtures, `/api/vessels/${pioneer?.id}`)).body);
+  });
+
+  it("projects fuel on board as get_vessel_status does: on the voyage's loaded curve", async () => {
+    const { items } = listOf(VesselSummary).parse((await get(app, "/api/vessels")).body);
+    const pioneer = items.find((v) => v.name === "MV Aegean Pioneer");
+    const detail = VesselDetail.parse((await get(app, `/api/vessels/${pioneer?.id}`)).body);
+    const status = await getVesselStatus(createToolContext({ sql: db, now: () => NOW }), {
+      vessel: "Aegean Pioneer",
+    });
+    const { fobCalculationId } = status.data as { fobCalculationId: number };
+    const [calc] = await db<{ outputs: unknown }[]>`
+      select outputs from calculations where id = ${fobCalculationId}`;
+    expect(detail.fobProjection).toEqual(FobProjection.parse(calc?.outputs));
+    // The loaded curve's shortfall (17.6 mt), not the unloaded curve's (28.4 mt).
+    expect(detail.fobProjection?.shortfallMt.LSMGO).toBeCloseTo(17.6, 1);
+    const shortfall = status.facts.find((f) => f.label === "LSMGO shortfall to keep the margin");
+    expect(detail.fobProjection?.shortfallMt.LSMGO).toBe(shortfall?.value);
   });
 
   it("returns the seeded voyages with their detail", async () => {
@@ -231,6 +250,11 @@ describe.skipIf(!sql)("createDbSource (Postgres)", () => {
     expect(byPath.get(`options[${index}].headlinePriceUsdPerMt`)?.value).toBe(
       option?.headlinePriceUsdPerMt,
     );
+    expect(byPath.get(`options[${index}].fuelEuCostUsd`)).toMatchObject({
+      label: "FuelEU exposure",
+      value: option?.fuelEuCostUsd,
+      unit: "USD",
+    });
     // The same fact ids the agent cited, so stored factRefs resolve.
     const ids = new Set(rec?.facts.map((f) => f.id));
     for (const ref of rec?.factRefs ?? []) expect(ids.has(ref)).toBe(true);
@@ -388,6 +412,13 @@ describe.skipIf(!sql)("createDbSource (Postgres)", () => {
       expect(byPath.get(`options[${index}].speedKn`)?.value).toBe(option?.speedKn);
       expect(byPath.get(`options[${index}].eta`)?.value).toBe(option?.eta);
       expect(byPath.get(`options[${index}].distanceNm`)?.value).toBe(option?.distanceNm);
+      expect(byPath.get(`options[${index}].fuelEuCostUsd`)).toMatchObject({
+        value: option?.fuelEuCostUsd,
+        unit: "USD",
+      });
+      expect(byPath.get(`options[${index}].fuelEuCostUsd`)?.label.endsWith("FuelEU exposure")).toBe(
+        true,
+      );
       expect(byPath.get("savingVsBaselineUsd")?.value).toBe(result.savingVsBaselineUsd);
       // Only the approved route's facts, each exactly as plan_route_speed returned it.
       for (const f of rec.facts) {

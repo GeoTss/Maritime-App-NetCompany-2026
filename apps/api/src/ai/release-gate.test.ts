@@ -157,6 +157,35 @@ describe("checkNumbers", () => {
     ungrounded?: string[];
   }[] = [
     {
+      name: "an AIS draught in metres and a unitless load factor are grounded by their facts",
+      answer:
+        "MMSI 205795000 reports a draught of 9.5 m [f_d], so its load factor is 0.83 [f_l] and its FuelEU exposure $1,204 [f_e].",
+      facts: [
+        {
+          id: "f_d",
+          label: "MMSI 205795000: AIS draught",
+          value: 9.5,
+          unit: "m",
+          provenance: { source: "ais", mmsi: "205795000", ts: "2026-11-14T08:00:00.000Z" },
+        },
+        {
+          id: "f_l",
+          label: "MMSI 205795000: load factor",
+          value: 0.8312,
+          unit: null,
+          provenance: {
+            source: "db",
+            table: "calculations",
+            rowId: 7,
+            field: "inputs.loadFactor",
+          },
+        },
+        calc("f_e", 1204.4, "USD"),
+        mmsiFact("205795000"),
+      ],
+      passed: true,
+    },
+    {
       name: "$233,851 [f_x] with fact 233851.2 passes at 0 dp",
       answer: "Total $233,851 [f_x].",
       facts: [calc("f_x", 233851.2, "USD")],

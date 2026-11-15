@@ -185,6 +185,7 @@ function bunkerOptionFacts(calculationId: Id, plan: BunkerPlan, optionId: string
       option.effectivePriceUsdPerMt,
       "USD/mt",
     ),
+    fact(at("fuelEuCostUsd"), "FuelEU exposure", option.fuelEuCostUsd, "USD"),
   ];
   if (plan.bestOptionId === optionId) {
     facts.push(fact("bestOptionId", "Best option (lowest total cost, feasible)", optionId, null));

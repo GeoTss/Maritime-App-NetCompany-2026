@@ -27,6 +27,7 @@ import type {
 } from "@pharos/shared";
 import { findVessel, insertCalculation } from "../ai/tools/common.js";
 import { resolvePort } from "../ingest/resolve.js";
+import { routeCalculationLoad } from "./facts.js";
 
 /** A request the planner cannot serve; the message is plain text meant for the operator. */
 export class RoutePlanError extends Error {
@@ -54,6 +55,8 @@ export interface PlannedRoute {
   mmsi: string | null;
   /** The AIS ship's reported speed over ground (kn) when it reports one; null for a fleet vessel. */
   sogKn: number | null;
+  /** The AIS position row the plan read (its draught and report time); null for a fleet vessel. */
+  ship: Pick<AisTraffic, "draughtM" | "updatedAt"> | null;
 }
 
 let graph: RouteGraph | undefined;
@@ -183,6 +186,7 @@ export async function planRouteSpeed(
   let voyageId: Id | null = null;
   let mmsi: string | null = null;
   let sogKn: number | null = null;
+  let ship: AisTraffic | null = null;
   try {
     const vessel = fleetVessel(world, input.vessel);
     if (vessel) {
@@ -191,7 +195,7 @@ export async function planRouteSpeed(
       voyageId = voyage.id;
       plan = fleetRoutePlan(world, voyage.id, g, weather, zones);
     } else {
-      const ship = await findShip(deps.sql, input.vessel);
+      ship = await findShip(deps.sql, input.vessel);
       mmsi = ship.mmsi;
       sogKn = ship.sogKn;
       const destination = destinationFor(world, ship, input.destination);
@@ -220,6 +224,8 @@ export async function planRouteSpeed(
       destination: plan.destination.name,
       profile: plan.profile,
       avoidedHazardIds: plan.avoidedHazardIds,
+      // The load facts resolve here (the displacement is on the optimiser's curve).
+      ...routeCalculationLoad(plan),
       optimiser: plan.input,
     },
     outputs: result,
@@ -242,5 +248,6 @@ export async function planRouteSpeed(
     hazards,
     mmsi,
     sogKn,
+    ship: ship ? { draughtM: ship.draughtM, updatedAt: ship.updatedAt } : null,
   };
 }

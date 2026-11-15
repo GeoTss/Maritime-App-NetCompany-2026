@@ -1,6 +1,6 @@
 import { currentVoyage, fleetRoutePlan, loadWorld, type Sql } from "@pharos/db";
 import { connectTestDb, testDbLabel } from "@pharos/db/testing";
-import { activeHazardZones, buildRouteGraph, optimiseRouteSpeed } from "@pharos/domain";
+import { activeHazardZones, buildRouteGraph, loadFactor, optimiseRouteSpeed } from "@pharos/domain";
 import { latestWeatherSnapshot, loadSeaNetwork, recordedLiveData } from "@pharos/integrations";
 import { Fact, FactId, type NavHazard, RouteSpeedResult } from "@pharos/shared";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -112,7 +112,10 @@ describe.skipIf(!sql)("plan_route_speed (Postgres)", () => {
       best.totalFuelMt,
     );
     expect(
-      byLabel(out.facts, `${S}, current plan: total voyage cost (fuel, EU ETS, vessel time)`).value,
+      byLabel(
+        out.facts,
+        `${S}, current plan: total voyage cost (fuel, EU ETS, FuelEU, vessel time)`,
+      ).value,
     ).toBe(want.result.baseline.totalCostUsd);
     expect(
       byLabel(out.facts, `${S}: saving of the recommended route and speed against the current plan`)
@@ -162,7 +165,7 @@ describe.skipIf(!sql)("plan_route_speed (Postgres)", () => {
     expect(sog).toMatchObject({
       value: ship.sogKn,
       unit: "kn",
-      provenance: { source: "db", table: "ais_traffic", rowId: ship.mmsi, field: "sog_kn" },
+      provenance: { source: "db", table: "ais_traffic", rowId: ship.mmsi, field: "sogKn" },
     });
 
     const planned = await planRouteSpeed(
@@ -282,41 +285,185 @@ describe.skipIf(!sql)("plan_route_speed (Postgres)", () => {
       nav_hazards: "id",
       ais_traffic: "mmsi",
     };
+    /** A db fact's field is the entity's property (`sogKn`); the column is its snake case. */
+    const column = (field: string) => field.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
+    // A ship that reports its draught, so the AIS draught fact is checked too.
+    await insertDraughtShip(ship);
     let checked = 0;
-    for (const input of [
-      { vessel: "Aegean Pioneer" },
-      { vessel: "Thessaly Star" },
-      { vessel: ship.mmsi, destination: "Rotterdam" },
-    ]) {
-      const out = await planRouteSpeedFacts(ctx(), input);
-      const { calculationId } = out.data as { calculationId: number };
-      const [calc] = await db<{ id: number; inputs: unknown; outputs: unknown }[]>`
-        select id, inputs, outputs from calculations where id = ${calculationId}`;
-      for (const f of out.facts) {
-        const prov = f.provenance;
-        if (prov.source === "calculation") {
-          expect(prov.calculationId).toBe(calculationId);
-          expect(pick(calc?.outputs, prov.path), f.label).toEqual(f.value);
-        } else if (prov.source === "db" && prov.table === "calculations") {
-          expect(prov.rowId).toBe(calculationId);
-          expect(pick(calc, prov.field), f.label).toEqual(f.value);
-        } else if (prov.source === "db") {
-          const pk = PK[prov.table];
-          if (!pk) throw new Error(`unexpected table ${prov.table}`);
-          const [row] = await db`select ${db(prov.field)} as v from ${db(prov.table)}
-            where ${db(pk)} = ${prov.rowId}`;
-          expect(row?.v, f.label).toEqual(f.value);
-        } else if (prov.source === "weather") {
-          const snap = await latestWeatherSnapshot(db);
-          expect(prov.snapshotId).toBe(snap?.id);
-          expect(snap?.modelRun.toISOString()).toBe(f.value);
-        } else {
-          throw new Error(`unexpected provenance ${prov.source} for ${f.label}`);
+    const sources = new Set<string>();
+    try {
+      for (const input of [
+        { vessel: "Aegean Pioneer" },
+        { vessel: "Thessaly Star" },
+        { vessel: ship.mmsi, destination: "Rotterdam" },
+        { vessel: DRAUGHT_SHIP.mmsi, destination: "Rotterdam" },
+      ]) {
+        const out = await planRouteSpeedFacts(ctx(), input);
+        const { calculationId } = out.data as { calculationId: number };
+        const [calc] = await db<{ id: number; inputs: unknown; outputs: unknown }[]>`
+          select id, inputs, outputs from calculations where id = ${calculationId}`;
+        for (const f of out.facts) {
+          const prov = f.provenance;
+          sources.add(prov.source === "db" ? `db:${prov.table}:${prov.field}` : prov.source);
+          if (prov.source === "calculation") {
+            expect(prov.calculationId).toBe(calculationId);
+            expect(pick(calc?.outputs, prov.path), f.label).toEqual(f.value);
+          } else if (prov.source === "db" && prov.table === "calculations") {
+            expect(prov.rowId).toBe(calculationId);
+            expect(pick(calc, prov.field), f.label).toEqual(f.value);
+          } else if (prov.source === "db") {
+            const pk = PK[prov.table];
+            if (!pk) throw new Error(`unexpected table ${prov.table}`);
+            const [row] = await db`select ${db(column(prov.field))} as v from ${db(prov.table)}
+              where ${db(pk)} = ${prov.rowId}`;
+            expect(row?.v, f.label).toEqual(f.value);
+          } else if (prov.source === "weather") {
+            const snap = await latestWeatherSnapshot(db);
+            expect(prov.snapshotId).toBe(snap?.id);
+            expect(snap?.modelRun.toISOString()).toBe(f.value);
+          } else if (prov.source === "ais") {
+            // The AIS position row the plan read: its draught at the time it was reported.
+            expect(f.label.endsWith("AIS draught"), f.label).toBe(true);
+            const [row] = await db<{ draught_m: number | null; updated_at: string | Date }[]>`
+              select draught_m, updated_at from ais_traffic where mmsi = ${prov.mmsi}`;
+            expect(row?.draught_m, f.label).toEqual(f.value);
+            expect(new Date(row?.updated_at ?? 0).toISOString()).toBe(prov.ts);
+          } else {
+            throw new Error(`unexpected provenance ${prov.source} for ${f.label}`);
+          }
+          checked++;
         }
-        checked++;
       }
+    } finally {
+      await db`delete from ais_traffic where mmsi = ${DRAUGHT_SHIP.mmsi}`;
     }
     expect(checked).toBeGreaterThan(100);
+    // The new facts are among those checked.
+    for (const s of [
+      "ais",
+      "db:ais_traffic:sogKn",
+      "db:calculations:inputs.loadFactor",
+      "db:calculations:inputs.loadCondition",
+      "db:calculations:inputs.optimiser.curve.load.displacementMt",
+    ]) {
+      expect(sources.has(s), s).toBe(true);
+    }
+  });
+
+  /** A bulk carrier seen on AIS at a recorded ship's position, reporting a part-laden draught. */
+  const DRAUGHT_SHIP = { mmsi: "900000005", draughtM: 9.5, cogDeg: 271 } as const;
+  const insertDraughtShip = async (
+    at: { lat: number; lon: number },
+    draughtM: number | null = DRAUGHT_SHIP.draughtM,
+  ) => {
+    await db`delete from ais_traffic where mmsi = ${DRAUGHT_SHIP.mmsi}`;
+    await db`insert into ais_traffic (mmsi, name, ship_type, lat, lon, sog_kn, destination,
+                                      draught_m, cog_deg, updated_at)
+      values (${DRAUGHT_SHIP.mmsi}, 'Draught Test', 'cargo', ${at.lat}, ${at.lon}, 11, 'ROTTERDAM',
+              ${draughtM}, ${DRAUGHT_SHIP.cogDeg}, ${ASK_FIXTURE_NOW.toISOString()}::timestamptz)`;
+  };
+
+  it("a fleet plan states its displacement, load factor and each route's FuelEU exposure", async () => {
+    const out = await planRouteSpeedFacts(ctx(), { vessel: "Aegean Pioneer" });
+    const want = await expected("Aegean Pioneer");
+    const S = want.plan.subject;
+    const load = want.plan.input.curve.load;
+    if (!load) throw new Error("the fleet plan has no load on its curve");
+    expect(byLabel(out.facts, `${S}: displacement`)).toMatchObject({
+      value: load.displacementMt,
+      unit: "mt",
+    });
+    const factor = byLabel(out.facts, `${S}: load factor`);
+    expect(factor.value).toBe(loadFactor(load));
+    expect(factor.unit).toBeNull();
+    // Aegean Pioneer sails laden (54 000 t of a 58 000 t deadweight): 0.961.
+    expect(factor.value as number).toBeCloseTo(0.961, 3);
+    for (const o of want.result.options) {
+      expect(byLabel(out.facts, `${S}, route ${o.candidateId}: FuelEU exposure`)).toMatchObject({
+        value: o.fuelEuCostUsd,
+        unit: "USD",
+      });
+    }
+    expect(byLabel(out.facts, `${S}, current plan: FuelEU exposure`).value).toBe(
+      want.result.baseline.fuelEuCostUsd,
+    );
+    // The total names every cost it adds up.
+    expect(
+      byLabel(
+        out.facts,
+        `${S}, current plan: total voyage cost (fuel, EU ETS, FuelEU, vessel time)`,
+      ).value,
+    ).toBe(want.result.baseline.totalCostUsd);
+    // A fleet vessel's load comes from its voyage, not from AIS.
+    expect(out.facts.some((f) => /load condition|AIS draught/.test(f.label))).toBe(false);
+    const added = out.facts.filter((f) => /displacement|load factor|FuelEU exposure/.test(f.label));
+    expect(added.length).toBe(want.result.options.length + 3);
+    for (const f of added) expect(f.label).not.toMatch(/\d/);
+  });
+
+  it("an AIS ship without a draught is planned as assumed laden, with no draught fact", async () => {
+    const world = await loadWorld(db);
+    const ship = recordedLiveData({ anchor: FIXTURE_ANCHOR, ports: world.ports })
+      .traffic.filter(
+        (t) =>
+          t.name?.trim() &&
+          (t.shipType === "cargo" || t.shipType === "tanker") &&
+          (t.sogKn ?? 0) >= 8,
+      )
+      .sort((a, b) => a.mmsi.localeCompare(b.mmsi))[0];
+    if (!ship) throw new Error("no suitable ship in the capture");
+    await insertDraughtShip(ship, null);
+    try {
+      const out = await planRouteSpeedFacts(ctx(), {
+        vessel: DRAUGHT_SHIP.mmsi,
+        destination: "Rotterdam",
+      });
+      const S = `MMSI ${DRAUGHT_SHIP.mmsi}`;
+      expect(byLabel(out.facts, `${S}: load condition`)).toMatchObject({
+        value: "assumed laden",
+        unit: null,
+      });
+      // Assumed laden is full load: the curve as published, factor 1.
+      expect(byLabel(out.facts, `${S}: load factor`).value).toBe(1);
+      expect(byLabel(out.facts, `${S}: displacement`).unit).toBe("mt");
+      expect(out.facts.some((f) => f.label.endsWith("AIS draught"))).toBe(false);
+    } finally {
+      await db`delete from ais_traffic where mmsi = ${DRAUGHT_SHIP.mmsi}`;
+    }
+  });
+
+  it("an AIS ship that reports its draught: the draught is an AIS fact and sets the load", async () => {
+    const world = await loadWorld(db);
+    const ship = recordedLiveData({ anchor: FIXTURE_ANCHOR, ports: world.ports })
+      .traffic.filter(
+        (t) =>
+          t.name?.trim() &&
+          (t.shipType === "cargo" || t.shipType === "tanker") &&
+          (t.sogKn ?? 0) >= 8,
+      )
+      .sort((a, b) => a.mmsi.localeCompare(b.mmsi))[0];
+    if (!ship) throw new Error("no suitable ship in the capture");
+    await insertDraughtShip(ship);
+    try {
+      const out = await planRouteSpeedFacts(ctx(), {
+        vessel: DRAUGHT_SHIP.mmsi,
+        destination: "Rotterdam",
+      });
+      const S = `MMSI ${DRAUGHT_SHIP.mmsi}`;
+      const draught = byLabel(out.facts, `${S}: AIS draught`);
+      expect(draught).toMatchObject({
+        value: DRAUGHT_SHIP.draughtM,
+        unit: "m",
+        provenance: { source: "ais", mmsi: DRAUGHT_SHIP.mmsi, ts: ASK_FIXTURE_NOW.toISOString() },
+      });
+      // 9.5 m on the bulk carrier profile (ballast 6.8 m, laden 12.8 m) is part laden.
+      expect(byLabel(out.facts, `${S}: load condition`).value).toBe("partial");
+      const factor = byLabel(out.facts, `${S}: load factor`).value as number;
+      expect(factor).toBeGreaterThan(0);
+      expect(factor).toBeLessThan(1);
+    } finally {
+      await db`delete from ais_traffic where mmsi = ${DRAUGHT_SHIP.mmsi}`;
+    }
   });
 
   it("Thessaly Star goes round the synthetic hazard", async () => {
