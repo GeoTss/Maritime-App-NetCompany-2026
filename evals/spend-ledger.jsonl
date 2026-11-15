@@ -1,2 +1,4 @@
 {"at":"2026-11-14T18:42:59.326Z","run":"record-demo-extractions","label":"prompt-v2","costUsd":0.001216}
 {"at":"2026-11-14T18:51:17.112Z","run":"smoke","label":"phase3-prompt-v2","costUsd":0.0037755600000000003}
+{"at":"2026-11-15T03:29:02.299Z","run":"eval-extraction","label":"dev-haiku-v2-gate","costUsd":0.062190619999999995}
+{"at":"2026-11-15T03:39:24.782Z","run":"eval-extraction","label":"dev-haiku-gate-final","costUsd":0.06128125999999999}

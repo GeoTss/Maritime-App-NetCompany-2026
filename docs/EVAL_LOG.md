@@ -61,3 +61,26 @@ not exist yet, so there is no v1 dev baseline. The first dev pass is Task 11, wh
 
 **Decision:** keep v2 pending the Task 11 dev pass. The demo regression is clean. H1–H3 are not
 yet tested against a golden set.
+
+## 2026-11-15 — First live dev pass (extract-quote/v2) and code-only resolution fixes
+
+**Run 1:** `--mode record`, Claude Haiku 5.5, effort medium, 84 dev cases (64 approved + 20 dev-only trap
+variants). Report `evals/reports/20261115T032117Z-extraction-dev-dev-haiku-v2-gate`. Cost **$0.062191**.
+- Critical-field accuracy 616/651 (94.6 %, CI 92.6–96.1 %); unsafe auto-accepts **0/84**.
+- Every miss was a *missing* value, never a wrong one. 28 were the port; 5 delivery ends; 1 vessel; 1 price.
+- False-review rate 27/55. Needs-review recall 16/16.
+
+**Error analysis** (transcripts read for 10 failing cases). The model transcribed ports exactly as written
+("Antwerp outer anchorage", "Rotterdam (NLRTM)", "Hamburg anchorage"), which the exact-match resolver
+rejected. The delivery misses were a copied label ("Delivery Nov 15-17") and a digit-free remark
+("14-15 Nov (on arrival)"); one price had its unit written "USD/MT".
+
+**Hypothesis H4 (code, not prompt):** these are resolution/normalisation gaps, so fixing them in code
+raises critical-field accuracy on the *same* model outputs with no new unsafe accepts.
+- `resolvePort`: the one known port named (as whole words) inside the span; two ports stay ambiguous.
+- `parseDeliveryWindow`: drop a copied field label and a trailing remark that holds no digits.
+- `normalisePerUnit`: accept a currency written in front of the unit ("USD/MT").
+
+**Result (replay of run 1, free):** 644/651 after the port fix, **649/651 (99.7 %)** after all three,
+unsafe 0/84; oracle baseline still 651/651. Remaining 2 misses are model slips that go to review
+(vessel omitted on a compact line; "19" split from "19-20 Nov"). **Decision:** keep. Prompt unchanged.

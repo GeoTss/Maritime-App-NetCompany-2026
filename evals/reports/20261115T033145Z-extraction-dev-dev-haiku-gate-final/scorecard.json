@@ -1,0 +1,331 @@
+{
+  "meta": {
+    "suite": "extraction",
+    "split": "dev",
+    "label": "dev-haiku-gate-final",
+    "mode": "record",
+    "extractor": "llm",
+    "model": "claude-haiku-5-5",
+    "effort": "medium",
+    "fallbacks": false,
+    "promptVersion": "extract-quote/v2",
+    "seed": 20261114,
+    "anchor": "2026-11-14T08:00:00.000Z",
+    "startedAt": "2026-11-15T03:31:45.957Z",
+    "finishedAt": "2026-11-15T03:39:24.789Z",
+    "selected": 84,
+    "offset": 0,
+    "limit": null,
+    "repeatHard": 1,
+    "notRun": [],
+    "aborted": null,
+    "servedModels": [
+      "claude-haiku-5-5"
+    ],
+    "spend": {
+      "guardUsd": 0.06128125999999999,
+      "dbUsd": 0.06128125999999999,
+      "ledgerUsd": 0.06128125999999999,
+      "parseErrors": []
+    },
+    "runnerErrors": []
+  },
+  "scorecard": {
+    "cases": 84,
+    "graded": 84,
+    "errors": [],
+    "failures": [],
+    "kind": {
+      "quotePrecision": {
+        "k": 70,
+        "n": 70,
+        "rate": 1,
+        "ci95": {
+          "low": 0.947976937589733,
+          "high": 1
+        }
+      },
+      "quoteRecall": {
+        "k": 70,
+        "n": 71,
+        "rate": 0.9859154929577465,
+        "ci95": {
+          "low": 0.92443949479751,
+          "high": 0.9975093967294558
+        }
+      },
+      "notAQuotePrecision": {
+        "k": 13,
+        "n": 14,
+        "rate": 0.9285714285714286,
+        "ci95": {
+          "low": 0.6853129557584889,
+          "high": 0.9872777847521091
+        }
+      },
+      "notAQuoteRecall": {
+        "k": 13,
+        "n": 13,
+        "rate": 1,
+        "ci95": {
+          "low": 0.7719046276458015,
+          "high": 1
+        }
+      }
+    },
+    "fields": {
+      "vessel": {
+        "k": 69,
+        "n": 70,
+        "rate": 0.9857142857142858,
+        "ci95": {
+          "low": 0.9234181286879167,
+          "high": 0.9974737535421097
+        },
+        "wrong": 0,
+        "missing": 1,
+        "critical": true
+      },
+      "port": {
+        "k": 70,
+        "n": 70,
+        "rate": 1,
+        "ci95": {
+          "low": 0.947976937589733,
+          "high": 1
+        },
+        "wrong": 0,
+        "missing": 0,
+        "critical": true
+      },
+      "supplier": {
+        "k": 70,
+        "n": 70,
+        "rate": 1,
+        "ci95": {
+          "low": 0.947976937589733,
+          "high": 1
+        },
+        "wrong": 0,
+        "missing": 0,
+        "critical": false
+      },
+      "currency": {
+        "k": 69,
+        "n": 70,
+        "rate": 0.9857142857142858,
+        "ci95": {
+          "low": 0.9234181286879167,
+          "high": 0.9974737535421097
+        },
+        "wrong": 0,
+        "missing": 1,
+        "critical": true
+      },
+      "validUntil": {
+        "k": 70,
+        "n": 70,
+        "rate": 1,
+        "ci95": {
+          "low": 0.947976937589733,
+          "high": 1
+        },
+        "wrong": 0,
+        "missing": 0,
+        "critical": true
+      },
+      "deliveryFrom": {
+        "k": 68,
+        "n": 70,
+        "rate": 0.9714285714285714,
+        "ci95": {
+          "low": 0.901677438815761,
+          "high": 0.9921293880545589
+        },
+        "wrong": 0,
+        "missing": 2,
+        "critical": true
+      },
+      "deliveryTo": {
+        "k": 69,
+        "n": 70,
+        "rate": 0.9857142857142858,
+        "ci95": {
+          "low": 0.9234181286879167,
+          "high": 0.9974737535421097
+        },
+        "wrong": 0,
+        "missing": 1,
+        "critical": true
+      },
+      "bargeFee": {
+        "k": 70,
+        "n": 70,
+        "rate": 1,
+        "ci95": {
+          "low": 0.947976937589733,
+          "high": 1
+        },
+        "wrong": 0,
+        "missing": 0,
+        "critical": false
+      },
+      "grade": {
+        "k": 77,
+        "n": 77,
+        "rate": 1,
+        "ci95": {
+          "low": 0.9524815747175658,
+          "high": 1
+        },
+        "wrong": 0,
+        "missing": 0,
+        "critical": true
+      },
+      "quantity": {
+        "k": 77,
+        "n": 77,
+        "rate": 1,
+        "ci95": {
+          "low": 0.9524815747175658,
+          "high": 1
+        },
+        "wrong": 0,
+        "missing": 0,
+        "critical": true
+      },
+      "price": {
+        "k": 77,
+        "n": 77,
+        "rate": 1,
+        "ci95": {
+          "low": 0.9524815747175658,
+          "high": 1
+        },
+        "wrong": 0,
+        "missing": 0,
+        "critical": true
+      }
+    },
+    "critical": {
+      "k": 646,
+      "n": 651,
+      "rate": 0.9923195084485407,
+      "ci95": {
+        "low": 0.9821478653857676,
+        "high": 0.9967150202268489
+      },
+      "wrong": 0,
+      "missing": 5,
+      "cases": 70
+    },
+    "fieldErrors": [
+      {
+        "field": "deliveryFrom",
+        "verdict": "missing",
+        "ids": [
+          "multi-grade-003",
+          "plain-021"
+        ]
+      },
+      {
+        "field": "vessel",
+        "verdict": "missing",
+        "ids": [
+          "plain-003"
+        ]
+      },
+      {
+        "field": "currency",
+        "verdict": "missing",
+        "ids": [
+          "hard-eur-quote-in-band-v2"
+        ]
+      },
+      {
+        "field": "deliveryTo",
+        "verdict": "missing",
+        "ids": [
+          "pdf-009"
+        ]
+      }
+    ],
+    "unsafeAutoAccepts": {
+      "k": 0,
+      "n": 84,
+      "rate": 0,
+      "ci95": {
+        "low": 0,
+        "high": 0.04373172841465989
+      },
+      "ids": []
+    },
+    "reviewQueue": {
+      "k": 21,
+      "n": 84,
+      "rate": 0.25,
+      "ci95": {
+        "low": 0.1697231295486102,
+        "high": 0.35214273465871976
+      }
+    },
+    "falseReview": {
+      "k": 5,
+      "n": 55,
+      "rate": 0.09090909090909091,
+      "ci95": {
+        "low": 0.039458155074180344,
+        "high": 0.19577494583979943
+      },
+      "ids": [
+        "hard-eur-quote-in-band-v2",
+        "multi-grade-003",
+        "pdf-009",
+        "plain-003",
+        "plain-021"
+      ]
+    },
+    "needsReviewRecall": {
+      "k": 16,
+      "n": 16,
+      "rate": 1,
+      "ci95": {
+        "low": 0.8063923194655636,
+        "high": 1
+      },
+      "missedIds": []
+    },
+    "reviewCheckMatched": {
+      "k": 16,
+      "n": 16,
+      "rate": 1,
+      "ci95": {
+        "low": 0.8063923194655636,
+        "high": 1
+      },
+      "missedIds": []
+    },
+    "latency": {
+      "endToEnd": {
+        "n": 84,
+        "mean": 5451.927898773811,
+        "p90": 7524.728709000003
+      },
+      "model": {
+        "n": 84,
+        "mean": 5413.4520907857195,
+        "p90": 7495.805458000003
+      },
+      "targetMs": 20000
+    },
+    "cost": {
+      "perEmail": {
+        "n": 84,
+        "mean": 0.0007295388095238094,
+        "p90": 0.00097154
+      },
+      "totalUsd": 0.06128125999999999
+    },
+    "variance": null
+  }
+}
