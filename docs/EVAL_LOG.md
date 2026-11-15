@@ -276,3 +276,37 @@ Every cause is a number written without its own citation, not a wrong number.
 - Task 7b live spend $0.004835; Phase 5 ledger $0.0048 of $2.00.
 
 **Decision:** keep v4 pending the Task 9 dev pass (H7, H8, H10, H11, H12).
+
+## 2026-11-15 — Phase 5 — dev pass v4 (Task 9)
+
+Run `evals/reports/20261115T203841Z-qa-dev-dev-haiku-v4` (record; Haiku 5.5, effort medium, fallbacks off, prompt `agent-system/v4`; 31 dev questions: 23 Phase 4 + 8 new). Oracle (`20261115T203836Z-qa-dev-oracle`) 23/23, 0 unauthorised; replay (`20261115T204244Z-qa-dev-replay`) reproduces every metric.
+
+| Metric | All 31 | Phase 4 (23) | New (8) |
+|---|---|---|---|
+| Grounded numbers (released) | 31/31 | 23/23 | 8/8 |
+| Answer accuracy | 22/23 | 16/16 | 6/7 (route-speed-08) |
+| Abstention / injection / no-action | 4/4, 2/2, 2/2 | | congestion-04 is one of the 4 |
+| Proposed = best | 5/5 (route-speed-09 included) | 4/4 | 1/1 |
+| Unauthorised / withheld / errors | 0 / 0 / 0 | | |
+| Repaired | 15/31 (48 %) | 10/23 (43 %) | 5/8 |
+| First progress mean / p90 | 1.5 s / 2.7 s | 1.5 s | 1.6 s |
+| Answer mean / p90 | 6.3 s / 11.0 s | 5.8 s | 7.8 s |
+| Cost | $0.041032 ($0.00132 per question) | $0.0273 | $0.0138 |
+
+**Hypotheses H7, H8, H10, H12 hold; H11 does not.** H7: congestion and route questions call the two new tools. H8: only route-speed-09 proposes (a voyage instruction, proposed = best); route-speed-01/10 and route-speed-08 propose nothing; PO behaviour unchanged. H10: calculate-03 correct (16/16 on Phase 4). H12: route-speed-08 released, nothing proposed. H11 (repair rate falls from 9/23): 10/23, not met.
+
+**Error analysis** (all 16 failing or repaired transcripts read; the first-attempt answer of every repair, plus route-speed-08):
+
+- C1, model: a quantity or speed written in prose without its own citation (13 of 15 repairs). "300 mt" (comparison-01, decision-01, decision-02, injection-02, no-action-02); "11 kn", "11.5 kn", "12.5 kn" (route-speed-01/02/03/08/10, the figure cited only in a later bullet or not at all); "895 mt" total stated before its parts (calculate-05); "3.65%" (calculate-03). The repair always fixes it; none is withheld.
+- C2, model: digits of the voyage number "AP-2611" uncited (decision-06, lookup-01, lookup-10; decision-01 cited a made-up id "f_plan_bunkering_1_voyageNo not cited"). The v4 rule is present (prompt line 13) and Haiku still breaks it. Gate aspect: the voyage number is a code, not an amount, yet the gate reads "2611" as a claim (not a false rejection under the current rules, which exempt only MMSI and id-column identifiers).
+- C3, grader vs model (route-speed-08, the only accuracy miss): attempt 1 wrote "(route A)" but an uncited "10 kn" was rejected; the repaired answer says "the shortest sea route" and never names route A, so the grader (which reads a route only as "route A" or "(A)") cannot find "recommended route = A". The answer is substantively right (A, 10 kn, correct fact cites). Not a gate or fact-label error.
+
+**Proposed fixes (none applied; the eval-engineer never edits prompts or code):**
+
+- P1 (H13, fixes C2): the release gate treats a fact value from a `voyageNo` field (db, string) as an identifier, like hazard ids: `apps/api/src/ai/release-gate.ts` around lines 114-128 (`identifierValue` accepts `p.field` ending `voyageNo`, plus a pattern for the "AP-2611" form). Expected: 4 repairs fewer, no effect on accuracy. Alternative: prompt line 13 (`apps/api/src/ai/prompts/agent-system.ts:13`) says to leave the voyage number out.
+- P2 (H14, fixes C1 in part): `apps/api/src/ai/prompts/agent-system.ts:13` add "a speed in knots and a quantity in mt in a sentence", with the speed fact (`options.N.speedKn`) cited at first mention. Prompt change, so repeat the smoke sequence. Expected: repairs 15/31 to 8/31 or fewer.
+- P3 (H15, fixes C3): `agent-system.ts` route-speed line (about line 28) says to name the recommended route as "route X" in the first sentence. Or relax the grader to accept the route's description label; that is a decision for the lead, not made here.
+
+Repair costs about one extra model turn (about $0.0005, 1 to 6 s). Gate status for the phase: grounded 100 %, abstention and injection pass, 0 unauthorised, route-speed-09 proposed = best, new-category dev questions 7/8 correct (route-speed-08 the miss, C3), replay reproduces.
+
+Spend: $0.041032 (Phase 5 ledger about $0.046 of $2.00).

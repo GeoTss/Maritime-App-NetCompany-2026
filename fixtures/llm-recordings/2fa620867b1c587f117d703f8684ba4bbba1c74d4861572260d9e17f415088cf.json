@@ -309,22 +309,22 @@
     "status": 200,
     "headers": {
       "content-type": "application/json",
-      "request-id": "req_011Ch5LFy8baCpSthT5er8d5"
+      "request-id": "req_011Ch5Mp4gjKUMYXFnDnZtT2"
     },
     "body": {
       "model": "claude-haiku-5-5",
-      "id": "msg_011Ch5LFyxhivNmbovAVbrjn",
+      "id": "msg_011Ch5Mp51aJ2bXX9nVcpJn8",
       "type": "message",
       "role": "assistant",
       "content": [
         {
           "type": "thinking",
           "thinking": "",
-          "signature": "CAQSnwYKEAgTGAI4AUIIdGhpbmtpbmcSDKtQL3Rz0DWUX2Z7LxoMcagNRPFY3Y9mD8ZQIjAHf4y8rDDi9tFo3stFr6eU3t8KwkEqCUv16NwfTX4SVNIqg3TI2vBBUci9G19eDKkqvAUqaFPizWOzH6HwmDO2wn32tmNsXgCKFdhxRrg6bmvJcJhtYihlrq6LL/ks/mPDipeY1NtgtAUf81WMLmzJhUzfgOjkNODOft2joqY7s5CIrV3dZabfcbL8QhBDR7TsG0cbaoFO5YP7UN1R2tk5B+jcGm8Q7qyhiZmOw9V1wJ44/vbGqVSllwMubdQ3aKvu21555uQE4mmPx2uB5tjEDlNjYiffhGDa6raAMDH3lRyYyzR4RlPni+rUDvqlg8MPtmrGxu68xwGG+eeMvTtajQaxGSKLCngVVDjV4uflhtLn56cw1ooBg89A8KIKUoKc0HWrvXczTx57joYFEaXfTFSx5L54gA0D2jvoW58/HVeP66jYcUK6qOSWXTslggS4pMUw5Qt1Jy1d5TV0MtxmG/rgG0JmdbCURwcquq6Op72rcWz2IyASoAMkV+zU2sFIvQr2I2+YlNfyc8wdI+XaTbCMmDNp9i2TK+edHTkoN8qQnsylXHpIGDinhmZqLCT2lJU4qtcm4bNIJIqsDkcSpa8xhKcD04G1RXHh4Kfh0mKWh/EVlnxm9hwgkiTLniOSCr0Qn2pXb7N03oSSQMC0zHQ0k734BD+tcfcrmuqZTNHX3X1Z7KNy/LXgscw7jJt62hg3KU1/RPkRSpz9DPRZfvMty++Tf3pJv7sL+LaFCGRa2T+gIjL/R6BmythEJ/YsR7gXDAQYpe/s+EB9k8CYRpEJu70muDdliebuBvG3RjTOQbA62knRdHCcjYwQ4bzyoH42rY06JiqaNfYaGd1Za16d/7+LZPj/gKACAj6a7auDDfmUfhEz5V8+DV1hmaP2krK+bknMe892W547wCVyk9ykl7Kc+YaFmCtc3bTmgmf9+UWFy+FsdG5V2B9/iOwD9QkZu5hRTsWHWC71Q2SLdQbGxNZgYELGbaBHtipHGAE="
+          "signature": "CAQSiAYKEAgTGAI4AUIIdGhpbmtpbmcSDBSpt/Ntd+uObQs3OBoMNe690ovY2QYhpKsLIjDZnadDiqb1A/WuyGtN0Jf3p5JHm93FSMPG0d5Gcwqmxn/840arFzw6zREjy8d+bFQqpQXFkjn9o+KkrkPYxnCWCMbGq6tMkoSfwLb8+z/qVjbTIK09bZqfwiuYrIcau0MN+YI93h9znTFZ17N883b+nDq69SU5chCKXCcA/kLu21pAypZYNd6WIz/oBUQnmHxIgPzrzL9BBlaJ5sO0cMYD/OPDm9FV1Bh0l/M+Er5v2zQVkqycusoit+Zgl3vuwuMC18bRi9C3vkQoxP5MDcm3d8dihbI2A6kYC62xHIkc9h1fyz3fpPSmITS08hLFmeQRnetjzsaHK59mdpuTcWsPNSpDMYNEZDQ2GhJRmEn9Ttp1tE20vDkv14ZZR9Mbp4+GrMmQcxsv/DgfzcKMFqllEFq8qYjHrDe8HL86bfLwMC3re226i1xXZ0a3xp/tm1dFYTopCAlRkBI10zvDXgqvYHbj89BchGG5ngQ43OnHMSa1ZSM4Jt9Wd/tV35hzRuZ+1MERZrAx7VEDunqjCArwpADoPaPMXpEnryOpF07D9S9ONJxDAeRRwbEeNn+zbGOz0KeZrLB0lTWaXEuTYUOnvPO+GyKVetqU1LtKH88Fx9Nm2kDs0ghMs95WTWT/LQT0io5RG5zyYsg92f/jhxTNpP8xTNlV4JxW0f1AVh7j6EFoNQoU7lWRRYVECV5rKI2dbN+y8d67k+M9Ybc81UtYGC5sN9zU5sOeahEnsv2xqcPcx7woVpk763O9kv5vbqVI58orJJzmcHB4Yp5JecTONeMunOSxyULI0WU2k3AcJBsoFWPO9TefvAhWTa8R2GyVNnezPy+6kNt2Ec/zlFU5WAZUGwz1fRdGZN6NEUXvnuxudO14jYA2BOCg1o7uBeYFGu/iyNsS39N+aVEiXgXv2cVrODeor9s5TA8iSijgiffRn776ZFdNlHGhxxnynJNN4c8ymLTrwxgB"
         },
         {
           "type": "tool_use",
-          "id": "toolu_01SxPF4G4CG8D3GFWXKiKpEu",
+          "id": "toolu_013WohjipwpjntioTkE21YQ7",
           "name": "plan_bunkering",
           "input": {
             "vessel": "Aegean Pioneer"
@@ -340,15 +340,15 @@
       "stop_details": null,
       "usage": {
         "input_tokens": 100,
-        "cache_creation_input_tokens": 5395,
-        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 5395,
         "cache_creation": {
-          "ephemeral_5m_input_tokens": 5395,
+          "ephemeral_5m_input_tokens": 0,
           "ephemeral_1h_input_tokens": 0
         },
-        "output_tokens": 130,
+        "output_tokens": 124,
         "output_tokens_details": {
-          "thinking_tokens": 68
+          "thinking_tokens": 62
         },
         "service_tier": "standard",
         "inference_geo": "global",
