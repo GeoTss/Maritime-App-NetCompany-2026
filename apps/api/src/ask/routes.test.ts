@@ -3,12 +3,18 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Sql } from "@pharos/db";
 import { connectTestDb, testDbLabel } from "@pharos/db/testing";
-import { AskResponse } from "@pharos/shared";
+import { AskEvent, AskResponse } from "@pharos/shared";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import type { AgentDeps } from "../ai/agent.js";
 import { captureLlmCall } from "../ai/call-capture.js";
 import { createLlm, type LlmFetch } from "../ai/llm.js";
-import { type ScriptStep, scriptedFetch, scriptedMessage, textReply } from "../ai/scripted-llm.js";
+import {
+  type ScriptStep,
+  scriptedFetch,
+  scriptedMessage,
+  textReply,
+  toolCall,
+} from "../ai/scripted-llm.js";
 import { createApp } from "../app.js";
 import { createFixtureSource } from "../read/fixtures.js";
 import { ASK_FIXTURE_NOW, prepareAskFixture } from "./demo-fixture.js";
@@ -89,7 +95,11 @@ describe.skipIf(!sql)("POST /api/ask (Postgres)", () => {
       expect(res.status).toBe(400);
       expect(await res.json()).toMatchObject({ error: "invalid_request" });
     }
-    const notJson = await app.request("/api/ask", { method: "POST", body: "{" });
+    const notJson = await app.request("/api/ask", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{",
+    });
     expect(notJson.status).toBe(400);
     expect(requests).toHaveLength(0);
   });
@@ -152,6 +162,96 @@ describe.skipIf(!sql)("POST /api/ask (Postgres)", () => {
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
+  });
+
+  it.each([
+    ["/api/ask", undefined],
+    ["/api/ask", "text/plain"],
+    ["/api/ask/stream", "application/x-www-form-urlencoded"],
+    ["/api/ask/stream", "multipart/form-data; boundary=x"],
+  ])("415s %s with content-type %s, without calling the model", async (path, type) => {
+    const { app, requests } = appWith([]);
+    const res = await app.request(path, {
+      method: "POST",
+      ...(type === undefined ? {} : { headers: { "content-type": type } }),
+      body: JSON.stringify({ question: "Where?" }),
+    });
+    expect(res.status).toBe(415);
+    expect(await res.json()).toMatchObject({ error: "unsupported_media_type" });
+    expect(requests).toHaveLength(0);
+  });
+
+  /** The stream's events, parsed from the SSE text. */
+  const readEvents = async (res: Response) => {
+    const text = await res.text();
+    const events = text
+      .split("\n\n")
+      .filter((block) => block.trim() !== "")
+      .map((block) => {
+        const data = block
+          .split("\n")
+          .filter((l) => l.startsWith("data:"))
+          .map((l) => l.slice(5).trim())
+          .join("");
+        return AskEvent.parse(JSON.parse(data));
+      });
+    return { text, events };
+  };
+  const stream = (app: ReturnType<typeof appWith>["app"], body: unknown) =>
+    app.request("/api/ask/stream", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+  it("POST /api/ask/stream sends progress for each tool, then exactly one answer", async () => {
+    const { app } = appWith([
+      toolCall(1, "plan_bunkering", { vessel: "Aegean Pioneer" }),
+      textReply(2, "Bunker at Marsaxlokk with Kestrel Marine Fuels."),
+    ]);
+    const res = await stream(app, { question: "Where should we bunker?" });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toMatch(/text\/event-stream/);
+    const { events } = await readEvents(res);
+    const types = events.map((e) => e.type);
+    expect(types.indexOf("progress")).toBeGreaterThanOrEqual(0);
+    expect(types.filter((t) => t === "answer")).toHaveLength(1);
+    expect(types.at(-1)).toBe("answer");
+    const progress = events.filter((e) => e.type === "progress");
+    expect(progress.map((p) => [p.tool, p.phase])).toEqual([
+      ["plan_bunkering", "started"],
+      ["plan_bunkering", "finished"],
+    ]);
+    const answer = events.find((e) => e.type === "answer");
+    expect(answer?.type === "answer" && answer.response.answer).toBe(
+      "Bunker at Marsaxlokk with Kestrel Marine Fuels.",
+    );
+  });
+
+  it("a withheld answer never streams its text", async () => {
+    const withheld = "The delivered price is 9999.5 USD per tonne.";
+    const { app } = appWith([
+      toolCall(1, "plan_bunkering", { vessel: "Aegean Pioneer" }),
+      textReply(2, withheld),
+      textReply(3, withheld),
+    ]);
+    const res = await stream(app, { question: "What is the price?" });
+    const { text, events } = await readEvents(res);
+    expect(text).not.toContain("delivered price");
+    const answer = events.find((e) => e.type === "answer");
+    expect(answer?.type === "answer" && answer.response.answer).toBeNull();
+    expect(answer?.type === "answer" && answer.response.gate.passed).toBe(false);
+    expect(events.filter((e) => e.type === "answer")).toHaveLength(1);
+  });
+
+  it("an invalid request is a 400 before streaming; a failing ask is one error event", async () => {
+    const { app } = appWith([]);
+    expect((await stream(app, { question: "" })).status).toBe(400);
+    const unknown = await readEvents(
+      await stream(app, { question: "Where?", conversationId: 999 }),
+    );
+    expect(unknown.events).toHaveLength(1);
+    expect(unknown.events[0]).toMatchObject({ type: "error" });
   });
 
   it("is not mounted without ask deps", async () => {

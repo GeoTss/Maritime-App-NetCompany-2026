@@ -1,21 +1,24 @@
 /** `POST /api/ask`: one question to the ops agent (`AskRequest` -> `AskResponse`). */
 import Anthropic from "@anthropic-ai/sdk";
 import { AskRequest } from "@pharos/shared";
-import { Hono } from "hono";
+import { type Context, Hono } from "hono";
 import { type AgentDeps, AgentError, ConversationNotFoundError, runAgent } from "../ai/agent.js";
 import { ReplayMissError } from "../ai/llm.js";
+import { requireContentType } from "../http/require-content-type.js";
+import { streamAsk } from "./stream.js";
 
 export function createAskRoutes(deps: AgentDeps) {
   const app = new Hono();
+  app.use(requireContentType("application/json"));
 
-  app.post("/", async (c) => {
+  /** The validated request, or the 400 response. A missing conversationId starts a new one. */
+  const readRequest = async (c: Context): Promise<AskRequest | Response> => {
     let body: unknown;
     try {
       body = await c.req.json();
     } catch {
       return c.json({ error: "invalid_request", message: "Body must be JSON." }, 400);
     }
-    // A missing conversationId starts a new conversation.
     const parsed = AskRequest.safeParse(
       body !== null && typeof body === "object" ? { conversationId: null, ...body } : body,
     );
@@ -25,6 +28,18 @@ export function createAskRoutes(deps: AgentDeps) {
         .join("; ");
       return c.json({ error: "invalid_request", message }, 400);
     }
+    return parsed.data;
+  };
+
+  app.post("/stream", async (c) => {
+    const parsed = await readRequest(c);
+    return parsed instanceof Response ? parsed : streamAsk(c, deps, parsed);
+  });
+
+  app.post("/", async (c) => {
+    const request = await readRequest(c);
+    if (request instanceof Response) return request;
+    const parsed = { data: request };
     try {
       return c.json(await runAgent(deps, parsed.data.question, parsed.data.conversationId));
     } catch (err) {

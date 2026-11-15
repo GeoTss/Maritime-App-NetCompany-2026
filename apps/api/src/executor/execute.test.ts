@@ -19,7 +19,9 @@ import { createErpClient, type ErpFetch } from "./erp-client.js";
 import {
   approveRecommendation,
   DecisionError,
+  draftsOf,
   type ExecutorDeps,
+  executeRecommendation,
   idempotencyKeyFor,
   rejectRecommendation,
 } from "./execute.js";
@@ -187,7 +189,9 @@ describe.skipIf(!sql)("executor (Postgres)", () => {
     expect(await auditKinds(recId)).toEqual([
       "recommendation.approved",
       "order.created",
-      "order.synced",
+      "order.pushed",
+      "drafts.created",
+      "recommendation.executed",
     ]);
   });
 
@@ -232,7 +236,9 @@ describe.skipIf(!sql)("executor (Postgres)", () => {
     expect(await auditKinds(recId)).toEqual([
       "recommendation.approved",
       "order.created",
-      "order.synced",
+      "order.pushed",
+      "drafts.created",
+      "recommendation.executed",
     ]);
   });
 
@@ -244,37 +250,42 @@ describe.skipIf(!sql)("executor (Postgres)", () => {
     const orders = await ordersOf(recId);
     expect(orders).toHaveLength(1);
     expect(results.map((r) => r.orderId)).toEqual([orders[0]?.id, orders[0]?.id]);
-    expect(new Set(results.map((r) => r.erpPoNumber))).toEqual(new Set(["PO-000001"]));
+    // The loser sees the winner's execution under way (or done) and only reports it.
+    expect(results.map((r) => r.status).sort()).toContain("executed");
+    expect(new Set(results.map((r) => r.erpPoNumber).filter((n) => n !== null))).toEqual(
+      new Set(["PO-000001"]),
+    );
     expect(new Set(erp.requests.map((r) => r.key))).toEqual(new Set([`rec-${recId}-${ANCHOR_S}`]));
     const kinds = await auditKinds(recId);
     expect(kinds.filter((k) => k === "recommendation.approved")).toHaveLength(1);
     expect(kinds.filter((k) => k === "order.created")).toHaveLength(1);
-    expect(kinds.filter((k) => k === "order.synced")).toHaveLength(1);
+    expect(kinds.filter((k) => k === "order.pushed")).toHaveLength(1);
   });
 
-  it("ERP down leaves order failed and recommendation approved; approve again syncs with the same key", async () => {
+  it("ERP down leaves order and recommendation failed; approve again retries and syncs with the same key", async () => {
     erp.mode = "down";
     const down = DecisionResult.parse(await approveRecommendation(deps, recId, "alice"));
     expect(down).toMatchObject({
       recommendationId: recId,
-      status: "approved",
+      status: "failed",
       erpPoNumber: null,
       erpSyncStatus: "failed",
     });
     expect(await ordersOf(recId)).toMatchObject([
       { erp_sync_status: "failed", erp_po_number: null, status: "approved" },
     ]);
-    expect((await recommendation(recId))?.status).toBe("approved");
+    expect((await recommendation(recId))?.status).toBe("failed");
     expect(await quoteStatus(kestrelQuoteId)).toBe("received");
     expect(await auditKinds(recId)).toEqual([
       "recommendation.approved",
       "order.created",
       "order.sync_failed",
+      "recommendation.failed",
     ]);
 
     erp.mode = "5xx";
     const stillDown = await approveRecommendation(deps, recId, "alice");
-    expect(stillDown).toMatchObject({ status: "approved", erpSyncStatus: "failed" });
+    expect(stillDown).toMatchObject({ status: "failed", erpSyncStatus: "failed" });
 
     erp.mode = "up";
     const retried = DecisionResult.parse(await approveRecommendation(deps, recId, "bob"));
@@ -297,8 +308,14 @@ describe.skipIf(!sql)("executor (Postgres)", () => {
       "recommendation.approved",
       "order.created",
       "order.sync_failed",
+      "recommendation.failed",
+      "recommendation.retried",
       "order.sync_failed",
-      "order.synced",
+      "recommendation.failed",
+      "recommendation.retried",
+      "order.pushed",
+      "drafts.created",
+      "recommendation.executed",
     ]);
   });
 
@@ -310,7 +327,7 @@ describe.skipIf(!sql)("executor (Postgres)", () => {
 
     const failed = DecisionResult.parse(await approveRecommendation(deps, recId, "alice"));
     expect(failed).toMatchObject({
-      status: "approved",
+      status: "failed",
       erpSyncStatus: "failed",
       erpPoNumber: null,
     });
@@ -341,11 +358,70 @@ describe.skipIf(!sql)("executor (Postgres)", () => {
       },
     };
     const result = await approveRecommendation(broken, recId, "alice");
-    expect(result).toMatchObject({ status: "approved", erpSyncStatus: "failed" });
+    expect(result).toMatchObject({ status: "failed", erpSyncStatus: "failed" });
     const [audit] = await db<{ detail: { error: string } }[]>`
       select detail from audit_events
       where recommendation_id = ${recId} and kind = 'order.sync_failed'`;
     expect(audit?.detail.error).toBe("proxy closed the socket");
+  });
+
+  it("stores one supplier and one master draft with numbers from the order, never sent", async () => {
+    await approveRecommendation(deps, recId, "alice");
+    const drafts = await draftsOf(db, recId);
+    expect(drafts.map((d) => [d.kind, d.status])).toEqual([
+      ["supplier_confirmation", "draft"],
+      ["master_instruction", "draft"],
+    ]);
+    const [line] = await db<{ qty_mt: number; price_per_mt: number }[]>`
+      select l.qty_mt, l.price_per_mt from order_lines l join purchase_orders o on o.id = l.order_id
+      where o.recommendation_id = ${recId}`;
+    const qty = (line?.qty_mt ?? 0).toLocaleString("en-US", { maximumFractionDigits: 2 });
+    expect(drafts[0]?.to).toMatch(/^bunkers@/);
+    expect(drafts[0]?.body).toContain(`${qty} MT`);
+    expect(drafts[0]?.body).toContain("PO-000001");
+    expect(drafts[1]?.to).toBe("master.mv-aegean-pioneer@fleet.pharos.example");
+    expect(drafts[1]?.body).toContain("Pharos has not sent it");
+    // A second approve (or a retry) never adds more.
+    await approveRecommendation(deps, recId, "bob");
+    expect(await draftsOf(db, recId)).toHaveLength(2);
+  });
+
+  it("concurrent double approve gives one PO and one set of drafts", async () => {
+    await Promise.all([
+      approveRecommendation(deps, recId, "alice"),
+      approveRecommendation(deps, recId, "bob"),
+    ]);
+    expect(await ordersOf(recId)).toHaveLength(1);
+    expect(await draftsOf(db, recId)).toHaveLength(2);
+    expect(erp.requests).toHaveLength(1);
+  });
+
+  it("an ERP outage stores no drafts; the retry executes with the same key and one PO", async () => {
+    erp.mode = "down";
+    expect((await approveRecommendation(deps, recId, "alice")).status).toBe("failed");
+    expect(await draftsOf(db, recId)).toHaveLength(0);
+    erp.mode = "up";
+    expect((await approveRecommendation(deps, recId, "alice")).status).toBe("executed");
+    expect(await ordersOf(recId)).toHaveLength(1);
+    expect(new Set(erp.requests.map((r) => r.key))).toEqual(new Set([`rec-${recId}-${ANCHOR_S}`]));
+    expect(await draftsOf(db, recId)).toHaveLength(2);
+  });
+
+  it("executor runs only from an approval: executing a pending recommendation throws", async () => {
+    const err = await executeRecommendation(deps, recId).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(DecisionError);
+    expect((err as DecisionError).code).toBe("not_approved");
+    expect(await ordersOf(recId)).toHaveLength(0);
+    expect(erp.requests).toHaveLength(0);
+    expect((await recommendation(recId))?.status).toBe("pending");
+  });
+
+  it("executeRecommendation runs an approved recommendation and refuses an executed one", async () => {
+    await db`update recommendations set status = 'approved' where id = ${recId}`;
+    expect((await executeRecommendation(deps, recId)).status).toBe("executed");
+    const again = await executeRecommendation(deps, recId).catch((e: unknown) => e);
+    expect((again as DecisionError).code).toBe("not_approved");
+    expect(await ordersOf(recId)).toHaveLength(1);
   });
 
   it("reject is final", async () => {

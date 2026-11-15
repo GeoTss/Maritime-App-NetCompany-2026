@@ -8,6 +8,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { DeliverResult, UploadResult } from "@pharos/shared";
 import { Hono } from "hono";
+import { requireContentType } from "../http/require-content-type.js";
 import { EmailParseError } from "../ingest/parse-email.js";
 import { type IngestDeps, ingestRaw, processDocument } from "../ingest/workflow.js";
 
@@ -19,7 +20,11 @@ export const DEMO_INBOX_DIR = fileURLToPath(
 /** Largest accepted upload. */
 export const MAX_EMAIL_BYTES = 10 * 1024 * 1024;
 
-const ACCEPTED_TYPES = new Set(["message/rfc822", "application/octet-stream"]);
+/**
+ * Raw .eml bodies only: neither type can be sent by a cross-site form (multipart/form-data can,
+ * and this handler does not parse it), so the CSRF guard needs no more than this.
+ */
+const UPLOAD_TYPES = ["message/rfc822", "application/octet-stream"];
 
 export interface InboxDeps extends IngestDeps {
   /** Directory of demo `.eml` files, delivered in file-name order. */
@@ -42,9 +47,7 @@ export function createInboxRoutes(deps: InboxDeps) {
     return result;
   };
 
-  app.post("/upload", async (c) => {
-    const type = (c.req.header("content-type") ?? "").split(";")[0]?.trim().toLowerCase() ?? "";
-    if (!ACCEPTED_TYPES.has(type)) return c.json({ error: "unsupported_media_type" }, 415);
+  app.post("/upload", requireContentType(...UPLOAD_TYPES), async (c) => {
     const raw = new Uint8Array(await c.req.arrayBuffer());
     if (raw.byteLength > MAX_EMAIL_BYTES) return c.json({ error: "payload_too_large" }, 413);
     try {
@@ -59,7 +62,7 @@ export function createInboxRoutes(deps: InboxDeps) {
     }
   });
 
-  app.post("/deliver-next", async (c) => {
+  app.post("/deliver-next", requireContentType("application/json"), async (c) => {
     const names = (await readdir(deps.inboxDir)).filter((f) => f.endsWith(".eml")).sort();
     const files = await Promise.all(
       names.map(async (name) => {

@@ -78,6 +78,8 @@ describe.skipIf(!sql)("inbox routes (Postgres)", () => {
     await db.end();
   });
 
+  const JSON_HEADERS = { "content-type": "application/json" };
+
   const upload = (body: Uint8Array | string, type = "message/rfc822") =>
     app().request("/api/inbox/upload", {
       method: "POST",
@@ -109,25 +111,37 @@ describe.skipIf(!sql)("inbox routes (Postgres)", () => {
   it("rejects other content types and an empty body", async () => {
     const wrongType = await upload("From: a@b.example\r\n\r\nhi", "application/json");
     expect(wrongType.status).toBe(415);
-    expect(await wrongType.json()).toEqual({ error: "unsupported_media_type" });
+    expect(await wrongType.json()).toMatchObject({ error: "unsupported_media_type" });
     const empty = await upload(new Uint8Array());
     expect(empty.status).toBe(400);
     expect(await empty.json()).toMatchObject({ error: "invalid_email" });
   });
 
   it("POST /api/inbox/deliver-next delivers the demo emails in name order, then 409 inbox_empty", async () => {
-    const r1 = await app().request("/api/inbox/deliver-next", { method: "POST" });
+    const r1 = await app().request("/api/inbox/deliver-next", {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: "{}",
+    });
     expect(r1.status).toBe(202);
     const d1 = DeliverResult.parse(await r1.json());
     expect(d1).toMatchObject({ duplicate: false, remaining: 1 });
 
-    const r2 = await app().request("/api/inbox/deliver-next", { method: "POST" });
+    const r2 = await app().request("/api/inbox/deliver-next", {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: "{}",
+    });
     expect(r2.status).toBe(202);
     const d2 = DeliverResult.parse(await r2.json());
     expect(d2).toMatchObject({ duplicate: false, remaining: 0 });
     expect(d2.documentId).not.toBe(d1.documentId);
 
-    const r3 = await app().request("/api/inbox/deliver-next", { method: "POST" });
+    const r3 = await app().request("/api/inbox/deliver-next", {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: "{}",
+    });
     expect(r3.status).toBe(409);
     expect(await r3.json()).toEqual({ error: "inbox_empty" });
 
@@ -142,7 +156,11 @@ describe.skipIf(!sql)("inbox routes (Postgres)", () => {
 
   it("deliver-next skips a demo email that was already uploaded", async () => {
     await upload(new Uint8Array(await readFile(join(inboxDir, FILES[0] ?? ""))));
-    const res = await app().request("/api/inbox/deliver-next", { method: "POST" });
+    const res = await app().request("/api/inbox/deliver-next", {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: "{}",
+    });
     expect(res.status).toBe(202);
     expect(DeliverResult.parse(await res.json())).toMatchObject({ duplicate: false, remaining: 0 });
     await Promise.all(background);

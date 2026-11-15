@@ -254,9 +254,13 @@ export async function runSmoke(opts: SmokeOptions): Promise<SmokeResult> {
     try {
       return await opts.fetch(`${base}${path}`, {
         method,
-        ...(body === undefined
+        // Mutating routes accept only JSON (CSRF guard), so a POST without a body sends `{}`.
+        ...(body === undefined && method === "GET"
           ? {}
-          : { headers: { "content-type": "application/json" }, body: JSON.stringify(body) }),
+          : {
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify(body ?? {}),
+            }),
       });
     } catch (err) {
       throw new Stop(`${method} ${path} failed: ${(err as Error).message}`);

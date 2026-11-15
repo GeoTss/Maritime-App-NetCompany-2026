@@ -3,7 +3,7 @@
  * executor does the rest. The JSON body (`{}` or `{decidedBy}`, default "operator") names who
  * decided and nothing else: an order's values always come from the stored calculation and quote.
  *
- * Only `application/json` is accepted (415 otherwise): a cross-site HTML form can send only
+ * Illegal moves (`TransitionError`) are 409. Only `application/json` is accepted (415 otherwise): a cross-site HTML form can send only
  * form-encoded, multipart or text/plain bodies, so it can never approve or reject.
  */
 import { Hono } from "hono";
@@ -11,10 +11,13 @@ import { z } from "zod";
 import {
   approveRecommendation,
   DecisionError,
+  draftsOf,
   type ExecutorDeps,
   rejectRecommendation,
 } from "../executor/execute.js";
+import { requireContentType } from "../http/require-content-type.js";
 import { parseId } from "../read/routes.js";
+import { TransitionError } from "./state.js";
 
 export type ApprovalDeps = ExecutorDeps;
 
@@ -26,14 +29,7 @@ export function createApprovalRoutes(deps: ApprovalDeps) {
   const app = new Hono();
 
   const decide = (path: "approve" | "reject", action: typeof approveRecommendation) =>
-    app.post(`/:id/${path}`, async (c) => {
-      const type = (c.req.header("content-type") ?? "").split(";")[0]?.trim().toLowerCase();
-      if (type !== "application/json") {
-        return c.json(
-          { error: "unsupported_media_type", message: "Send the decision as application/json." },
-          415,
-        );
-      }
+    app.post(`/:id/${path}`, requireContentType("application/json"), async (c) => {
       const id = parseId(c.req.param("id"));
       if (id === null) return c.json({ error: "not_found" }, 404);
 
@@ -60,9 +56,19 @@ export function createApprovalRoutes(deps: ApprovalDeps) {
             err.code === "not_found" ? 404 : 409,
           );
         }
+        if (err instanceof TransitionError) {
+          return c.json({ error: "illegal_transition", message: err.message }, 409);
+        }
         throw err;
       }
     });
+
+  /** The drafted messages (read-only; Pharos never sends them). */
+  app.get("/:id/drafts", async (c) => {
+    const id = parseId(c.req.param("id"));
+    if (id === null) return c.json({ error: "not_found" }, 404);
+    return c.json({ items: await draftsOf(deps.sql, id) });
+  });
 
   decide("approve", approveRecommendation);
   decide("reject", rejectRecommendation);

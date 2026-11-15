@@ -13,10 +13,14 @@ import {
   BunkerPlan,
   BunkerPlanInput,
   DecisionResult,
+  DraftedMessage,
   type ErpOrderRequest,
   type FuelGrade,
   type Id,
+  type RecommendationStatus,
 } from "@pharos/shared";
+import { transition } from "../approvals/state.js";
+import { draftMessages } from "./drafts.js";
 import type { ErpClient } from "./erp-client.js";
 
 export interface ExecutorDeps {
@@ -27,7 +31,12 @@ export interface ExecutorDeps {
   log?: (message: string) => void;
 }
 
-export type DecisionErrorCode = "not_found" | "already_rejected" | "not_pending" | "not_executable";
+export type DecisionErrorCode =
+  | "not_found"
+  | "already_rejected"
+  | "not_pending"
+  | "not_approved"
+  | "not_executable";
 
 /** A decision that cannot be taken in the recommendation's current state. Nothing was written. */
 export class DecisionError extends Error {
@@ -76,7 +85,7 @@ async function audit(
 interface RecommendationRow {
   id: number;
   type: string;
-  status: string;
+  status: RecommendationStatus;
   calculation_id: number;
   option_id: string;
 }
@@ -90,10 +99,11 @@ async function lockRecommendation(tx: Tx, id: Id): Promise<RecommendationRow> {
 }
 
 /**
- * Approves a pending recommendation, writes its purchase order once, and pushes the order to the
- * ERP. Calling it again on an approved or executed recommendation re-uses the order and only
- * retries a push that has not synced. A failed push is not an error: the order is left `failed`
- * (audited) and the recommendation stays `approved` until a later call syncs it.
+ * Approves a pending recommendation, writes its purchase order once, pushes it to the ERP and
+ * stores the drafted messages. The decision and the start of execution happen under one row lock,
+ * so two concurrent approvals produce one order: the second sees `executing` or `executed` and
+ * only reports the state. Approving a `failed` recommendation retries it (same order, same key).
+ * A failed push is not an error: the order and the recommendation are left `failed` (audited).
  */
 export async function approveRecommendation(
   deps: ExecutorDeps,
@@ -101,23 +111,45 @@ export async function approveRecommendation(
   decidedBy: string,
 ): Promise<DecisionResult> {
   const now = clock(deps);
-  const orderId = await deps.sql.begin(async (tx) => {
+  const run = await deps.sql.begin(async (tx) => {
     const rec = await lockRecommendation(tx, id);
     if (rec.status === "rejected") {
       throw new DecisionError("already_rejected", `Recommendation ${id} was rejected.`);
     }
-    if (rec.status === "pending") {
+    let status: RecommendationStatus = rec.status;
+    if (status === "pending") {
+      status = transition(status, "approve");
       await tx`
-        update recommendations set status = 'approved', decided_by = ${decidedBy},
+        update recommendations set status = ${status}, decided_by = ${decidedBy},
           decided_at = ${iso(now)}::timestamptz
         where id = ${id}`;
       await audit(tx, id, "recommendation.approved", decidedBy, {}, now);
     }
-    const [existing] = await tx<{ id: number }[]>`
-      select id from purchase_orders where recommendation_id = ${id} order by id limit 1`;
-    return existing ? existing.id : createOrder(tx, rec, now);
+    if (status !== "approved" && status !== "failed") return false; // executing or executed
+    await beginExecution(tx, { ...rec, status }, now);
+    return true;
   });
-  await pushOrder(deps, id, orderId);
+  if (run) await pushAndFinish(deps, id);
+  return decisionOf(deps.sql, id);
+}
+
+/**
+ * The executor entry point: runs an approved (or failed, as a retry) recommendation. It refuses
+ * anything else, so a pending recommendation can never be executed without a human approval.
+ */
+export async function executeRecommendation(deps: ExecutorDeps, id: Id): Promise<DecisionResult> {
+  const now = clock(deps);
+  await deps.sql.begin(async (tx) => {
+    const rec = await lockRecommendation(tx, id);
+    if (rec.status !== "approved" && rec.status !== "failed") {
+      throw new DecisionError(
+        "not_approved",
+        `Recommendation ${id} is ${rec.status}; only an approved recommendation can be executed.`,
+      );
+    }
+    await beginExecution(tx, rec, now);
+  });
+  await pushAndFinish(deps, id);
   return decisionOf(deps.sql, id);
 }
 
@@ -137,12 +169,23 @@ export async function rejectRecommendation(
       );
     }
     await tx`
-      update recommendations set status = 'rejected', decided_by = ${decidedBy},
-        decided_at = ${iso(now)}::timestamptz
+      update recommendations set status = ${transition(rec.status, "reject")},
+        decided_by = ${decidedBy}, decided_at = ${iso(now)}::timestamptz
       where id = ${id}`;
     await audit(tx, id, "recommendation.rejected", decidedBy, {}, now);
   });
   return decisionOf(deps.sql, id);
+}
+
+/** approved -start-> executing, or failed -retry-> executing; writes the order if none exists. */
+async function beginExecution(tx: Tx, rec: RecommendationRow, now: Date): Promise<void> {
+  const retry = rec.status === "failed";
+  const next = transition(rec.status, retry ? "retry" : "start");
+  await tx`update recommendations set status = ${next} where id = ${rec.id}`;
+  if (retry) await audit(tx, rec.id, "recommendation.retried", EXECUTOR, {}, now);
+  const [existing] = await tx<{ id: number }[]>`
+    select id from purchase_orders where recommendation_id = ${rec.id} order by id limit 1`;
+  if (!existing) await createOrder(tx, rec, now);
 }
 
 /** Writes the purchase order and its line from the stored plan option and its quote. */
@@ -250,52 +293,61 @@ async function erpRequestFor(sql: Sql, orderId: Id): Promise<ErpOrderRequest> {
 }
 
 /**
- * Pushes an unsynced order to the ERP and records the outcome. Any failure of the push (ERP
- * down, ERP refusal, or a stored order the ERP contract rejects) leaves the order `failed` with an
- * `order.sync_failed` audit carrying the error; it is never thrown, so a later approve retries.
+ * Pushes the executing recommendation's order to the ERP and records the outcome. Any failure of
+ * the push (ERP down, ERP refusal, or a stored order the ERP contract rejects) leaves the order
+ * and the recommendation `failed` with `order.sync_failed` and `recommendation.failed` audits; it
+ * is never thrown, so a later approve retries with the same idempotency key. On success the
+ * drafted messages are stored once (never sent).
  */
-async function pushOrder(deps: ExecutorDeps, recId: Id, orderId: Id): Promise<void> {
+async function pushAndFinish(deps: ExecutorDeps, recId: Id): Promise<void> {
   const { sql } = deps;
   const [order] = await sql<
-    { quote_id: number; erp_sync_status: string; idempotency_key: string }[]
+    { id: number; quote_id: number; erp_sync_status: string; idempotency_key: string }[]
   >`
-    select quote_id, erp_sync_status, idempotency_key from purchase_orders where id = ${orderId}`;
-  if (!order) throw new Error(`purchase order ${orderId} does not exist`);
-  if (order.erp_sync_status === "synced") return;
+    select id, quote_id, erp_sync_status, idempotency_key from purchase_orders
+    where recommendation_id = ${recId} order by id limit 1`;
+  if (!order) throw new Error(`recommendation ${recId} has no purchase order`);
+  const orderId = order.id;
   const key = order.idempotency_key;
 
-  let confirmed: Awaited<ReturnType<ErpClient["placeOrder"]>>;
-  try {
-    confirmed = await deps.erp.placeOrder(await erpRequestFor(sql, orderId), key);
-  } catch (err) {
-    const error = err instanceof Error ? err.message : String(err);
-    deps.log?.(`[executor] order ${orderId} (${key}): ERP push failed: ${error}`);
-    await sql.begin(async (tx) => {
-      // A concurrent push may have synced it meanwhile; never downgrade that.
-      const marked = await tx`
-        update purchase_orders set erp_sync_status = 'failed'
-        where id = ${orderId} and erp_sync_status <> 'synced' returning id`;
-      if (marked.length > 0) {
+  let confirmed: { poNumber: string; duplicate: boolean } | null = null;
+  if (order.erp_sync_status === "synced") {
+    const [po] = await sql<{ erp_po_number: string | null }[]>`
+      select erp_po_number from purchase_orders where id = ${orderId}`;
+    confirmed = { poNumber: po?.erp_po_number ?? "", duplicate: true };
+  } else {
+    try {
+      confirmed = await deps.erp.placeOrder(await erpRequestFor(sql, orderId), key);
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      deps.log?.(`[executor] order ${orderId} (${key}): ERP push failed: ${error}`);
+      await sql.begin(async (tx) => {
+        const rec = await lockRecommendation(tx, recId);
+        const at = clock(deps);
+        await tx`update purchase_orders set erp_sync_status = 'failed' where id = ${orderId}`;
         await audit(
           tx,
           recId,
           "order.sync_failed",
           EXECUTOR,
           { orderId, idempotencyKey: key, error },
-          clock(deps),
+          at,
         );
-      }
-    });
-    return;
+        await tx`update recommendations set status = ${transition(rec.status, "fail")} where id = ${recId}`;
+        await audit(tx, recId, "recommendation.failed", EXECUTOR, { orderId, error }, at);
+      });
+      return;
+    }
   }
 
+  const done = confirmed;
   await sql.begin(async (tx) => {
-    const synced = await tx`
-      update purchase_orders set erp_sync_status = 'synced', erp_po_number = ${confirmed.poNumber},
+    const rec = await lockRecommendation(tx, recId);
+    const at = clock(deps);
+    await tx`
+      update purchase_orders set erp_sync_status = 'synced', erp_po_number = ${done.poNumber},
         status = 'confirmed'
-      where id = ${orderId} and erp_sync_status <> 'synced' returning id`;
-    if (synced.length === 0) return; // a concurrent push recorded the same PO first
-    await tx`update recommendations set status = 'executed' where id = ${recId} and status = 'approved'`;
+      where id = ${orderId}`;
     await tx`update quotes set status = 'ordered' where id = ${order.quote_id}`;
     await tx`
       update bunker_requirements set status = 'ordered'
@@ -303,12 +355,112 @@ async function pushOrder(deps: ExecutorDeps, recId: Id, orderId: Id): Promise<vo
     await audit(
       tx,
       recId,
-      "order.synced",
+      "order.pushed",
       EXECUTOR,
-      { orderId, erpPoNumber: confirmed.poNumber, duplicate: confirmed.duplicate },
-      clock(deps),
+      { orderId, erpPoNumber: done.poNumber, duplicate: done.duplicate },
+      at,
     );
+    const kinds = await storeDrafts(tx, rec, orderId, done.poNumber, at);
+    if (kinds.length > 0) await audit(tx, recId, "drafts.created", EXECUTOR, { kinds }, at);
+    await tx`update recommendations set status = ${transition(rec.status, "succeed")} where id = ${recId}`;
+    await audit(tx, recId, "recommendation.executed", EXECUTOR, { orderId }, at);
   });
+}
+
+/** Drafts both messages from the stored calculation and order; the unique index keeps it to once. */
+async function storeDrafts(
+  tx: Tx,
+  rec: RecommendationRow,
+  orderId: Id,
+  poNumber: string,
+  at: Date,
+): Promise<string[]> {
+  const [row] = await tx<
+    {
+      idempotency_key: string;
+      currency: "USD" | "EUR";
+      barge_fee: number;
+      supplier_name: string;
+      email_domain: string;
+      vessel_name: string;
+      imo: string;
+      port_name: string;
+      unlocode: string;
+      outputs: unknown;
+    }[]
+  >`
+    select po.idempotency_key, q.currency, q.barge_fee, s.name as supplier_name, s.email_domain,
+           v.name as vessel_name, v.imo, p.name as port_name, p.unlocode, c.outputs
+    from purchase_orders po
+      join quotes q on q.id = po.quote_id
+      join suppliers s on s.id = q.supplier_id
+      join ports p on p.id = q.port_id
+      join recommendations r on r.id = po.recommendation_id
+      join calculations c on c.id = r.calculation_id
+      join voyages vo on vo.id = c.voyage_id
+      join vessels v on v.id = vo.vessel_id
+    where po.id = ${orderId}`;
+  const [line] = await tx<{ grade: FuelGrade; qty_mt: number; price_per_mt: number }[]>`
+    select grade, qty_mt, price_per_mt from order_lines where order_id = ${orderId} order by id limit 1`;
+  const plan = BunkerPlan.safeParse(row?.outputs);
+  const option = plan.success ? plan.data.options.find((o) => o.optionId === rec.option_id) : null;
+  if (!row || !line || !option) {
+    throw new Error(`recommendation ${rec.id}: stored order or plan option is unreadable`);
+  }
+  const drafts = draftMessages({
+    recommendation: { id: rec.id },
+    order: {
+      reference: row.idempotency_key,
+      poNumber,
+      grade: line.grade,
+      qtyMt: line.qty_mt,
+      pricePerMt: line.price_per_mt,
+      currency: row.currency,
+      bargeFee: row.barge_fee,
+    },
+    supplier: { name: row.supplier_name, emailDomain: row.email_domain },
+    vessel: { name: row.vessel_name, imo: row.imo },
+    port: { name: row.port_name, unlocode: row.unlocode },
+    option,
+  });
+  const kinds: string[] = [];
+  for (const d of drafts) {
+    const inserted = await tx`
+      insert into drafted_messages (recommendation_id, kind, to_address, subject, body, status, created_at)
+      values (${d.recommendationId}, ${d.kind}, ${d.to}, ${d.subject}, ${d.body}, 'draft', ${iso(at)}::timestamptz)
+      on conflict (recommendation_id, kind) do nothing returning id`;
+    if (inserted.length > 0) kinds.push(d.kind);
+  }
+  return kinds;
+}
+
+/** The drafted messages of a recommendation (empty until it executed), oldest first. */
+export async function draftsOf(sql: Sql, id: Id): Promise<DraftedMessage[]> {
+  const rows = await sql<
+    {
+      id: number;
+      recommendation_id: number;
+      kind: DraftedMessage["kind"];
+      to_address: string;
+      subject: string;
+      body: string;
+      created_at: Date | string;
+    }[]
+  >`
+    select id, recommendation_id, kind, to_address, subject, body, created_at
+    from drafted_messages where recommendation_id = ${id} order by id`;
+  return rows.map((r) =>
+    DraftedMessage.parse({
+      id: r.id,
+      recommendationId: r.recommendation_id,
+      kind: r.kind,
+      to: r.to_address,
+      subject: r.subject,
+      body: r.body,
+      status: "draft",
+      createdAt: new Date(r.created_at),
+    }),
+  );
 }
 
 /** The recommendation's state and its order's, as the decision routes return it. */

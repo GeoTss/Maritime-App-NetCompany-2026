@@ -57,7 +57,7 @@ describe("GET /", () => {
       "/api/inbox/deliver-next",
       "/api/inbox",
       "/api/quotes",
-      "/api/ask",
+      "/api/ask/stream",
       "/api/recommendations",
       "/approve",
       "/reject",

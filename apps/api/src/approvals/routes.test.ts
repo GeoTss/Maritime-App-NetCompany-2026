@@ -155,6 +155,25 @@ describe.skipIf(!sql)("approval routes (Postgres)", () => {
     expect(orders?.n).toBe(0);
   });
 
+  it("approve after reject is 409 and a failed ERP push can be retried through approve", async () => {
+    await post(`/api/recommendations/${recId}/reject`);
+    const res = await post(`/api/recommendations/${recId}/approve`);
+    expect(res.status).toBe(409);
+    expect(await status()).toBe("rejected");
+  });
+
+  it("GET /api/recommendations/:id/drafts lists the drafts after approval, none before", async () => {
+    const before = await app.request(`/api/recommendations/${recId}/drafts`);
+    expect(await before.json()).toEqual({ items: [] });
+    await post(`/api/recommendations/${recId}/approve`);
+    const res = await app.request(`/api/recommendations/${recId}/drafts`);
+    const body = (await res.json()) as { items: { kind: string; status: string }[] };
+    expect(body.items.map((d) => [d.kind, d.status])).toEqual([
+      ["supplier_confirmation", "draft"],
+      ["master_instruction", "draft"],
+    ]);
+  });
+
   it("accepts application/json with a charset", async () => {
     const res = await app.request(`/api/recommendations/${recId}/reject`, {
       method: "POST",

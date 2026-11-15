@@ -188,7 +188,7 @@ const fmtValue = (v) => (typeof v === "number" ? fmtNumber(v) : typeof v === "bo
 const fmtTime = (iso) => (iso ? new Date(iso).toLocaleString() : "—");
 
 const GOOD = new Set(["extracted", "accepted", "received", "ordered", "executed", "synced", "approved", "passed"]);
-const WAIT = new Set(["pending"]);
+const WAIT = new Set(["pending", "executing"]);
 const BAD = new Set(["needs_review", "failed", "rejected", "expired", "not_a_quote", "withheld"]);
 function badge(status) {
   const tone = GOOD.has(status) ? "ok" : WAIT.has(status) ? "warn" : BAD.has(status) ? "bad" : "";
@@ -309,7 +309,7 @@ async function loadQuotes() {
 $("deliver").addEventListener("click", async () => {
   const button = $("deliver");
   button.disabled = true;
-  const r = await api("/api/inbox/deliver-next", { method: "POST" });
+  const r = await postJson("/api/inbox/deliver-next", {});
   button.disabled = false;
   if (r.ok) {
     const left = r.body.remaining;
@@ -338,20 +338,36 @@ function gateLine(gate) {
   );
 }
 
-$("ask").addEventListener("click", async () => {
-  const question = $("question").value.trim();
-  if (!question) return say("ask-note", "Type a question first.");
-  const button = $("ask");
-  button.disabled = true;
-  $("ask-note").textContent = "Asking the agent… this can take up to a minute.";
-  const r = await postJson("/api/ask", { question, conversationId: state.conversationId });
-  button.disabled = false;
-  if (!r.ok) {
-    $("ask-note").textContent = "";
-    $("answer").replaceChildren(el("p", { class: "error" }, `Ask failed: ${errorText(r)}`));
-    return;
+/** Reads POST /api/ask/stream; calls onEvent for each parsed SSE event. Rejects on a non-200. */
+async function streamAsk(body, onEvent) {
+  const res = await fetch("/api/ask/stream", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    throw new Error((err && (err.message || err.error)) || `HTTP ${res.status}`);
   }
-  const res = r.body;
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  const flush = (block) => {
+    const data = block.split("\n").filter((l) => l.startsWith("data:")).map((l) => l.slice(5).trim()).join("");
+    if (data) onEvent(JSON.parse(data));
+  };
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const blocks = buffer.split("\n\n");
+    buffer = blocks.pop();
+    blocks.forEach(flush);
+  }
+  if (buffer.trim()) flush(buffer);
+}
+
+function showAnswer(res) {
   state.conversationId = res.conversationId;
   $("ask-note").textContent = `Conversation #${res.conversationId}.`;
   $("answer").replaceChildren(
@@ -363,6 +379,37 @@ $("ask").addEventListener("click", async () => {
       ? el("p", { class: "note" }, `Proposed recommendation #${res.recommendationIds.join(", #")} below; nothing is ordered until you approve.`)
       : "",
   );
+}
+
+$("ask").addEventListener("click", async () => {
+  const question = $("question").value.trim();
+  if (!question) return say("ask-note", "Type a question first.");
+  const button = $("ask");
+  button.disabled = true;
+  $("ask-note").textContent = "Asking the agent… this can take up to a minute.";
+  const lines = el("ul", { class: "note" });
+  $("answer").replaceChildren(lines);
+  let answered = false;
+  try {
+    await streamAsk({ question, conversationId: state.conversationId }, (event) => {
+      if (event.type === "progress") {
+        const text = event.phase === "started" ? `${event.tool}: running…` : `${event.tool}: done in ${event.ms} ms`;
+        lines.append(el("li", {}, text));
+      } else if (event.type === "answer") {
+        answered = true;
+        showAnswer(event.response);
+      } else if (event.type === "error") {
+        answered = true;
+        $("ask-note").textContent = "";
+        $("answer").replaceChildren(el("p", { class: "error" }, `Ask failed: ${event.message}`));
+      }
+    });
+    if (!answered) throw new Error("the stream ended without an answer");
+  } catch (err) {
+    $("ask-note").textContent = "";
+    $("answer").replaceChildren(el("p", { class: "error" }, `Ask failed: ${err.message}`));
+  }
+  button.disabled = false;
   refresh();
 });
 
@@ -403,10 +450,28 @@ async function decide(rec, action, button) {
   refresh();
 }
 
+/** The drafted messages, read-only; filled in after the card renders. Pharos never sends them. */
+function draftsBox(rec) {
+  const box = el("div", {}, el("p", { class: "note" }, "Drafts for you to review and send yourself (Pharos sends nothing):"));
+  api(`/api/recommendations/${rec.id}/drafts`).then((r) => {
+    if (!r.ok) return box.append(el("p", { class: "error" }, `Could not load drafts: ${errorText(r)}`));
+    for (const d of r.body.items) {
+      box.append(
+        el("div", { class: "card" },
+          el("div", { class: "row" }, el("b", {}, d.kind.replace(/_/g, " ")), badge(d.status), el("span", { class: "muted" }, `to ${d.to}`)),
+          el("div", {}, el("b", {}, d.subject)),
+          el("pre", {}, d.body),
+        ),
+      );
+    }
+  });
+  return box;
+}
+
 function recommendationCard(rec) {
   const actions = [];
-  if (rec.status === "pending" || rec.status === "approved") {
-    const label = rec.status === "approved" ? "Retry ERP push" : rec.gatePassed === false ? "Approve anyway" : "Approve";
+  if (rec.status === "pending" || rec.status === "failed") {
+    const label = rec.status === "failed" ? "Retry ERP push" : rec.gatePassed === false ? "Approve anyway" : "Approve";
     const approve = el("button", { class: "primary", type: "button" }, label);
     approve.addEventListener("click", () => decide(rec, "approve", approve));
     actions.push(approve);
@@ -424,6 +489,7 @@ function recommendationCard(rec) {
     gateOrigin(rec),
     factChips(rec.facts),
     orderLine(rec),
+    rec.status === "executed" ? draftsBox(rec) : null,
     state.decisionErrors.has(rec.id) ? el("p", { class: "error" }, state.decisionErrors.get(rec.id)) : null,
     actions.length > 0 ? el("div", { class: "row" }, actions) : null,
   );

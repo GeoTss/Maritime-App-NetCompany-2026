@@ -34,6 +34,14 @@ export interface AgentDeps {
   /** Clock for the tools ("now") and row timestamps. Never reaches the prompt. */
   now?: () => Date;
   log?: (message: string) => void;
+  /** Called when each tool call starts (ms 0) and finishes (elapsed ms); names no input or output. */
+  onProgress?: (event: ToolProgress) => void;
+}
+
+export interface ToolProgress {
+  tool: string;
+  phase: "started" | "finished";
+  ms: number;
 }
 
 type MessageParam = Anthropic.Beta.BetaMessageParam;
@@ -92,6 +100,26 @@ function agentTools(ctx: ToolContext): AgentTools {
     calculateTool(ctx),
     proposeActionTool(ctx),
   ];
+}
+
+/** Reports each tool call's start and end; the tool objects (so the request body) are unchanged. */
+function withProgress(tools: AgentTools, onProgress?: (event: ToolProgress) => void): AgentTools {
+  if (!onProgress) return tools;
+  return tools.map((tool) => {
+    const inner = tool as { name: string; run: (...args: unknown[]) => unknown };
+    return {
+      ...tool,
+      run: async (...args: unknown[]) => {
+        const started = Date.now();
+        onProgress({ tool: inner.name, phase: "started", ms: 0 });
+        try {
+          return await inner.run(...args);
+        } finally {
+          onProgress({ tool: inner.name, phase: "finished", ms: Date.now() - started });
+        }
+      },
+    };
+  }) as AgentTools;
 }
 
 /** Runs the tool loop to its final message; returns it with the full history (ending with it). */
@@ -225,7 +253,7 @@ export async function runAgent(
   await insertMessage(sql, convId, "user", { text: question }, now());
 
   const ctx = createToolContext({ sql, now, priorFacts });
-  const tools = agentTools(ctx);
+  const tools = withProgress(agentTools(ctx), deps.onProgress);
   /** Every gate pass so far, kept outside the run so a failed repair turn still stores attempt 1. */
   const attempts: GateAttempt[] = [];
   const run = await withCallCapture(async () => {
