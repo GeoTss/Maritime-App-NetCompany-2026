@@ -98,19 +98,35 @@ const NOT_CLAIMS: {
     exempt: (m, facts) => facts.some((f) => String(f.value) === m[1]),
   },
   {
-    what: "a 9-digit MMSI that a fact's value or label carries",
+    what: "a 9-digit MMSI an identifier fact holds, or a label names",
     pattern: /(?<![A-Za-z])MMSI[ \t]*(?:no\.?[ \t]*)?:?[ \t]*(\d{9})(?!\d)/gi,
     exempt: (m, facts) => {
-      const mmsi = new RegExp(`(?<!\\d)${m[1]}(?!\\d)`);
-      return facts.some((f) => mmsi.test(String(f.value)) || mmsi.test(f.label));
+      const mmsi = m[1] ?? "";
+      // Labels are built by code and name an AIS ship only as "MMSI <n>". An identifier value
+      // backs it whole ("205795000") or as a segment ("ais:distress_beacon:970123456").
+      const named = new RegExp(`MMSI ${mmsi}(?!\\d)`);
+      return facts.some(
+        (f) => identifierValue(f)?.split(":").includes(mmsi) === true || named.test(f.label),
+      );
     },
   },
   {
-    what: "an identifier such as a hazard id (synthetic:1, ais:distress_beacon:970123456) equal to a fact",
+    what: "an identifier such as a hazard id (synthetic:1, ais:distress_beacon:970123456) an identifier fact holds",
     pattern: /(?<![A-Za-z0-9_:])[A-Za-z][A-Za-z0-9_]*(?::[A-Za-z0-9_]+)+/g,
-    exempt: (m, facts) => facts.some((f) => f.value === m[0]),
+    exempt: (m, facts) => facts.some((f) => identifierValue(f) === m[0]),
   },
 ];
+
+/**
+ * The value of a fact read from an identifier column (a row's `id`, such as a hazard id, or an
+ * `mmsi` field), else null. Only such a value can make an MMSI or an identifier a non-claim: free
+ * text (an AIS ship name, a hazard label) is untrusted and a number fact is an amount.
+ */
+function identifierValue(fact: Fact): string | null {
+  const p = fact.provenance;
+  if (typeof fact.value !== "string" || p.source !== "db") return null;
+  return p.field === "id" || /(?:^|\.)mmsi$/.test(p.field) ? fact.value : null;
+}
 
 /** A negative number may state a positive saving or difference said to be less. */
 const SIGNED_DELTA = { label: /saving|difference/i, words: /\b(?:less|lower|cheaper)\b/i };

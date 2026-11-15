@@ -1,13 +1,25 @@
 /**
- * The facts a route plan yields, as pure rows: a JSON path, a label, a value and a unit. The tool
- * turns the rows into `Fact`s (calculation provenance for a path into the stored calculation;
- * `weather.modelRun` carries weather provenance; `calculation.id` is the calculation's own row).
- * A path starting `inputs.` is a field of the stored calculation's inputs (the tool cites it as
- * `db` on the calculation row); every other path points into its outputs (the `RouteSpeedResult`)
- * and resolves to exactly the row's value. The Q&A reference reuses these rows.
+ * The facts a route plan yields, as pure rows: a JSON path, a label, a value and a unit.
+ * `routeFactOfRow` turns a row into the `Fact` the route tool returns (calculation provenance for a
+ * path into the stored calculation; `weather.modelRun` carries weather provenance; `calculation.id`
+ * is the calculation's own row); the approval view re-derives the same facts with it, so the ids
+ * the agent cited resolve there. A path starting `inputs.` is a field of the stored calculation's
+ * inputs (cited as `db` on the calculation row); every other path points into its outputs (the
+ * `RouteSpeedResult`) and resolves to exactly the row's value. The Q&A reference reuses these rows.
  */
 import type { RoutePlan } from "@pharos/db";
-import type { Id, RouteSpeedResult } from "@pharos/shared";
+import type { Fact, Id, RouteSpeedResult } from "@pharos/shared";
+import { calcFact, dbFact, factId } from "../ai/tools/common.js";
+
+/** The tool name in every route fact id. */
+export const ROUTE_TOOL = "plan_route_speed";
+const CALCULATOR = "route_speed";
+
+/** What the fact rows read of a plan: rebuilt from a stored calculation's inputs by the view. */
+export type RouteFactPlan = Pick<RoutePlan, "subject" | "profile"> & {
+  destination: Pick<RoutePlan["destination"], "name">;
+  input: Pick<RoutePlan["input"], "candidates" | "arriveBy">;
+};
 
 export interface RouteFactRow {
   path: string;
@@ -20,7 +32,7 @@ export interface RouteFactRow {
  * How a ship is named in labels: a fleet vessel by name, an AIS ship by MMSI (an AIS name is
  * untrusted text and stays out of labels).
  */
-export const subjectLabel = (plan: RoutePlan, mmsi: string | null): string =>
+export const subjectLabel = (plan: Pick<RoutePlan, "subject">, mmsi: string | null): string =>
   mmsi ? `MMSI ${mmsi}` : plan.subject;
 
 export const WEATHER_RUN_PATH = "weather.modelRun";
@@ -52,7 +64,7 @@ const OPTION_FIELDS: {
 ];
 
 export function routeSpeedFactRows(
-  plan: RoutePlan,
+  plan: RouteFactPlan,
   result: RouteSpeedResult,
   snapshot: { id: Id; modelRun: Date } | null,
   extra: { mmsi?: string | null; calculationId?: Id } = {},
@@ -171,4 +183,52 @@ export function routeSpeedFactRows(
     });
   }
   return rows;
+}
+
+/** One row as the `Fact` `plan_route_speed` returns for calculation `calculationId`. */
+export function routeFactOfRow(
+  calculationId: Id,
+  row: RouteFactRow,
+  snapshot: { id: Id; modelRun: Date } | null = null,
+): Fact {
+  const { path, label, value, unit } = row;
+  if (path.startsWith("inputs.")) {
+    return dbFact(
+      ROUTE_TOOL,
+      { table: "calculations", rowId: calculationId, field: path },
+      label,
+      value,
+      unit,
+    );
+  }
+  if (path === WEATHER_RUN_PATH && snapshot) {
+    return {
+      id: factId(ROUTE_TOOL, calculationId, path),
+      label,
+      value,
+      unit,
+      provenance: {
+        source: "weather",
+        snapshotId: snapshot.id,
+        modelRun: snapshot.modelRun.toISOString(),
+      },
+    };
+  }
+  if (path === CALCULATION_ID_PATH) {
+    return dbFact(
+      ROUTE_TOOL,
+      { table: "calculations", rowId: calculationId, field: "id" },
+      label,
+      value,
+      unit,
+    );
+  }
+  return calcFact(
+    ROUTE_TOOL,
+    { id: calculationId, calculator: CALCULATOR },
+    path,
+    label,
+    value,
+    unit,
+  );
 }

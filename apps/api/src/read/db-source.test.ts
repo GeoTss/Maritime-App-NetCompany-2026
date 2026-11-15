@@ -4,22 +4,27 @@ import { generateWorld, type Sql, seedDatabase } from "@pharos/db";
 import { connectTestDb, testDbLabel } from "@pharos/db/testing";
 import {
   BunkerPlan,
+  type Fact,
   InboxItem,
   InboxItemDetail,
   listOf,
   QuoteView,
   RecommendationView,
+  RouteCandidate,
+  RouteSpeedResult,
   VesselDetail,
   VesselSummary,
   VoyageDetail,
   VoyageSummary,
 } from "@pharos/shared";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { z } from "zod";
 import { createErpApp } from "../../../../services/erp-sim/src/app.js";
 import type { Extractor } from "../ai/extract.js";
 import { createToolContext } from "../ai/tools/common.js";
 import { planBunkering } from "../ai/tools/plan-bunkering.js";
 import { proposeAction } from "../ai/tools/propose-action.js";
+import { planRouteSpeedFacts } from "../ai/tools/route-speed.js";
 import { createApp } from "../app.js";
 import { createErpClient } from "../executor/erp-client.js";
 import { approveRecommendation } from "../executor/execute.js";
@@ -313,6 +318,80 @@ describe.skipIf(!sql)("createDbSource (Postgres)", () => {
         gatePassed: true,
         order: { orderId: order?.id, erpPoNumber: "PO-000001", erpSyncStatus: "synced" },
       });
+    });
+  });
+
+  // Runs after the purchase-order blocks: adds a voyage instruction.
+  describe("voyage instruction view", () => {
+    let viId: number;
+    let routeCalcId: number;
+    let toolFacts: Map<string, Fact>;
+
+    beforeAll(async () => {
+      const ctx = createToolContext({ sql: db, now: () => NOW });
+      const out = await planRouteSpeedFacts(ctx, { vessel: "Aegean Pioneer" });
+      routeCalcId = (out.data as { calculationId: number }).calculationId;
+      toolFacts = new Map(out.facts.map((f) => [f.id, f]));
+      const best = (out.data as { bestCandidateId: string }).bestCandidateId;
+      const cite = (suffix: string) => out.facts.find((f) => f.label.endsWith(suffix))?.id ?? "";
+      const proposed = await proposeAction(ctx, {
+        type: "voyage_instruction",
+        calculationId: routeCalcId,
+        optionId: best,
+        factRefs: [
+          cite(": recommended route"),
+          cite(`route ${best}: description`),
+          cite(`route ${best}: recommended speed`),
+          cite(`route ${best}: distance`),
+        ],
+        rationale: "Lowest total voyage cost within the berth window.",
+      });
+      viId = (proposed.data as { recommendationId: number }).recommendationId;
+    });
+
+    it("shows the approved route with its speed, ETA and distance facts, under the ids the agent cited", async () => {
+      const rec = RecommendationView.parse((await get(app, `/api/recommendations/${viId}`)).body);
+      const [calc] = await db<{ inputs: unknown; outputs: unknown }[]>`
+        select inputs, outputs from calculations where id = ${routeCalcId}`;
+      const result = RouteSpeedResult.parse(calc?.outputs);
+      const inputs = z
+        .object({
+          subject: z.string(),
+          destination: z.string(),
+          optimiser: z.object({ candidates: z.array(RouteCandidate) }),
+        })
+        .parse(calc?.inputs);
+      const index = result.options.findIndex((o) => o.candidateId === result.bestCandidateId);
+      const option = result.options[index];
+      const label = inputs.optimiser.candidates.find((c) => c.id === result.bestCandidateId)?.label;
+      expect(rec).toMatchObject({
+        type: "voyage_instruction",
+        status: "pending",
+        calculationId: routeCalcId,
+        optionId: result.bestCandidateId,
+        expectedSavingUsd: result.savingVsBaselineUsd,
+        order: null,
+      });
+      expect(rec.summary).toBe(
+        `Instruct ${inputs.subject} to ${inputs.destination}: ${label} (route ${result.bestCandidateId}).`,
+      );
+      const byPath = new Map(
+        rec.facts.map((f) => [f.provenance.source === "calculation" ? f.provenance.path : "", f]),
+      );
+      expect(byPath.get(`options[${index}].speedKn`)?.value).toBe(option?.speedKn);
+      expect(byPath.get(`options[${index}].eta`)?.value).toBe(option?.eta);
+      expect(byPath.get(`options[${index}].distanceNm`)?.value).toBe(option?.distanceNm);
+      expect(byPath.get("savingVsBaselineUsd")?.value).toBe(result.savingVsBaselineUsd);
+      // Only the approved route's facts, each exactly as plan_route_speed returned it.
+      for (const f of rec.facts) {
+        expect(toolFacts.get(f.id)).toEqual(f);
+        if (f.provenance.source === "calculation" && f.provenance.path.startsWith("options[")) {
+          expect(f.provenance.path.startsWith(`options[${index}].`)).toBe(true);
+        }
+      }
+      const ids = new Set(rec.facts.map((f) => f.id));
+      expect(rec.factRefs.length).toBe(4);
+      for (const ref of rec.factRefs) expect(ids.has(ref)).toBe(true);
     });
   });
 });

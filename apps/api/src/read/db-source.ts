@@ -2,9 +2,10 @@
  * Database-backed ReadSource (what `server.ts` serves; responses are tagged `x-pharos-data: db`).
  * Vessels and voyages come from the stored world through the same builders as the fixture source.
  * Inbox items, quotes and recommendations are read from their tables. A recommendation's facts
- * are re-derived from the calculation it references, never from stored model text. Its gate
- * origin is the stored gate result of the answer that proposed it; its order state comes from
- * purchase_orders.
+ * are re-derived from the calculation it references, never from stored model text: a bunker
+ * plan's option facts, or a route plan's approved-route facts as `plan_route_speed` returned them.
+ * Its gate origin is the stored gate result of the answer that proposed it; its order state comes
+ * from purchase_orders.
  */
 import { loadWorld, type Sql } from "@pharos/db";
 import {
@@ -17,12 +18,17 @@ import {
   type Id,
   type InboxItem,
   type InboxItemDetail,
+  IsoDateTime,
   type QuoteView,
   type RecommendationView,
+  RouteCandidate,
+  RouteSpeedResult,
+  ShipType,
 } from "@pharos/shared";
 import { z } from "zod";
 import { calcFact } from "../ai/tools/common.js";
 import { TOOL as PLAN_TOOL } from "../ai/tools/plan-bunkering.js";
+import { routeFactOfRow, routeSpeedFactRows, subjectLabel } from "../routing/facts.js";
 import type { ReadSource } from "./source.js";
 import { buildVessels, buildVoyages } from "./world-views.js";
 
@@ -192,6 +198,52 @@ function bunkerOptionFacts(calculationId: Id, plan: BunkerPlan, optionId: string
   return facts;
 }
 
+/** What the view reads of a stored route calculation's inputs (see routing/plan.ts). */
+const RouteCalculationInputs = z.object({
+  subject: z.string().min(1),
+  mmsi: z.string().nullable(),
+  destination: z.string().min(1),
+  profile: z.union([z.literal("own"), ShipType]),
+  optimiser: z.object({
+    candidates: z.array(RouteCandidate),
+    arriveBy: IsoDateTime.nullable(),
+  }),
+});
+
+/**
+ * A route plan's proposed route: a summary without numbers, and that route's facts (its option,
+ * description and the berth window; the recommendation and saving when it is the best route) with
+ * the ids `plan_route_speed` gave them. Null when the calculation or the route is unreadable.
+ */
+function routeOptionView(
+  calculationId: Id,
+  inputs: unknown,
+  outputs: unknown,
+  optionId: string,
+): { summary: string; facts: Fact[] } | null {
+  const stored = RouteCalculationInputs.safeParse(inputs);
+  const result = RouteSpeedResult.safeParse(outputs);
+  if (!stored.success || !result.success) return null;
+  const { subject, mmsi, destination, profile, optimiser } = stored.data;
+  const index = result.data.options.findIndex((o) => o.candidateId === optionId);
+  const at = optimiser.candidates.findIndex((c) => c.id === optionId);
+  const candidate = optimiser.candidates[at];
+  if (index < 0 || !candidate) return null;
+  const plan = { subject, profile, destination: { name: destination }, input: optimiser };
+  const keep = new Set([
+    `inputs.optimiser.candidates.${at}.label`,
+    "inputs.optimiser.arriveBy",
+    ...(optionId === result.data.bestCandidateId ? ["bestCandidateId", "savingVsBaselineUsd"] : []),
+  ]);
+  const facts = routeSpeedFactRows(plan, result.data, null, { mmsi })
+    .filter((row) => row.path.startsWith(`options[${index}].`) || keep.has(row.path))
+    .map((row) => routeFactOfRow(calculationId, row));
+  return {
+    summary: `Instruct ${subjectLabel(plan, mmsi)} to ${destination}: ${candidate.label} (route ${optionId}).`,
+    facts,
+  };
+}
+
 async function recommendations(sql: Sql, id?: Id): Promise<RecommendationView[]> {
   const rows = await sql<RecommendationRow[]>`
     select r.id, r.type, r.status, r.calculation_id, r.option_id, r.fact_refs,
@@ -234,6 +286,16 @@ async function recommendations(sql: Sql, id?: Id): Promise<RecommendationView[]>
           ? null
           : { orderId: r.order_id, erpPoNumber: r.erp_po_number, erpSyncStatus: r.erp_sync_status },
     };
+    if (r.kind === "route_speed") {
+      const view = routeOptionView(r.calculation_id, r.inputs, r.outputs, r.option_id);
+      return {
+        ...base,
+        ...(view ?? {
+          summary: `Option ${r.option_id} of calculation ${r.calculation_id} (not a readable route plan).`,
+          facts: [],
+        }),
+      };
+    }
     const input = BunkerPlanInput.safeParse(r.inputs);
     const plan = BunkerPlan.safeParse(r.outputs);
     const offer = input.success

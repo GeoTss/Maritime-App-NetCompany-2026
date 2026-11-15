@@ -262,7 +262,7 @@ Every cause is a number written without its own citation, not a wrong number.
 **Checks for this change** (demo regression and the live smoke; accuracy is the Task 9 dev pass):
 
 - Demo ask re-recorded with v4 (Haiku 5.5, effort medium, `LLM_FALLBACKS=off`, ledgered phase 5):
-  **$0.002095**, 3 calls (`plan_bunkering` → `propose_action` + `calculate` → answer). One pending
+  **$0.002095**, 3 calls (`plan_bunkering` → `propose_action` → answer; no `calculate`). One pending
   `MTMLA-kestrel` purchase-order recommendation; the gate passed on attempt 1 (v3: one repair), the
   answer names no recommendation id and cites the quantity and the voyage number it writes
   (**H9 holds on the demo ask**). Recordings: 3 v4 demo-ask recordings added

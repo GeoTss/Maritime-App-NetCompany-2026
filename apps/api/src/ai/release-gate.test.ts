@@ -18,6 +18,27 @@ const str = (id: string, value: string): Fact => ({
   provenance: { source: "db", table: "vessels", rowId: 1, field: "imo" },
 });
 
+/** A db fact read from `table.field` of row `rowId`, with a label. */
+const dbText = (
+  id: string,
+  value: string,
+  label: string,
+  row: { table: string; rowId: number | string; field: string },
+): Fact => ({ id, label, value, unit: null, provenance: { source: "db", ...row } });
+/** The route tool's MMSI fact (a stored input of the calculation) and its avoided-hazard id fact. */
+const mmsiFact = (mmsi: string) =>
+  dbText("f_mmsi", mmsi, `MMSI ${mmsi}: MMSI`, {
+    table: "calculations",
+    rowId: 7,
+    field: "inputs.mmsi",
+  });
+const hazardIdFact = (id: string, hazard: string) =>
+  dbText(id, hazard, "MMSI 205795000: reported hazard avoided by the recommended route", {
+    table: "nav_hazards",
+    rowId: hazard,
+    field: "id",
+  });
+
 describe("numericTokens", () => {
   it("reads thousands commas, decimals, a leading currency sign and a trailing percent", () => {
     const none = { currency: null, unit: null };
@@ -777,10 +798,54 @@ describe("checkNumbers v2", () => {
       passed: true,
     },
     {
-      name: "an MMSI equal to a fact value passes uncited, also written MMSI:",
+      name: "an MMSI equal to an MMSI fact's value passes uncited, also written MMSI:",
       answer: "The ship (MMSI: 205795000) is not in the fleet.",
-      facts: [str("f_mmsi", "205795000")],
+      facts: [mmsiFact("205795000")],
       passed: true,
+    },
+    {
+      name: "an MMSI that is a segment of a hazard id fact passes uncited",
+      answer: "The beacon MMSI 970123456 is south of Sardinia.",
+      facts: [hazardIdFact("f_h", "ais:distress_beacon:970123456")],
+      passed: true,
+    },
+    {
+      name: "a number fact with the MMSI's digits does not back an MMSI",
+      answer: "MMSI 205795000 is in the area.",
+      facts: [labelled("f_usd", 205795000, "USD")],
+      passed: false,
+      ungrounded: ["205795000"],
+    },
+    {
+      name: "an MMSI inside AIS ship-name text does not back it (untrusted text)",
+      answer: "MMSI 205795000 is in the area.",
+      facts: [
+        dbText("f_n1", "OCEAN 205795000", "MMSI 111111111: AIS ship name", {
+          table: "ais_traffic",
+          rowId: "111111111",
+          field: "name",
+        }),
+        dbText("f_n2", "x:205795000", "MMSI 222222222: AIS ship name", {
+          table: "ais_traffic",
+          rowId: "222222222",
+          field: "name",
+        }),
+      ],
+      passed: false,
+      ungrounded: ["205795000"],
+    },
+    {
+      name: "an MMSI inside hazard free text does not back it",
+      answer: "MMSI 205795000 is in the area.",
+      facts: [
+        dbText("f_l", "Beacon 205795000 adrift", "Reported hazard synthetic:1", {
+          table: "nav_hazards",
+          rowId: "synthetic:1",
+          field: "label",
+        }),
+      ],
+      passed: false,
+      ungrounded: ["205795000"],
     },
     {
       name: "an MMSI no fact carries is ungrounded",
@@ -790,16 +855,32 @@ describe("checkNumbers v2", () => {
       ungrounded: ["205795001"],
     },
     {
-      name: "a hazard id equal to a fact value passes uncited",
+      name: "a hazard id equal to an id fact's value passes uncited",
       answer: "Route B avoids synthetic:1 and ais:distress_beacon:970123456.",
-      facts: [str("f_h1", "synthetic:1"), str("f_h2", "ais:distress_beacon:970123456")],
+      facts: [
+        hazardIdFact("f_h1", "synthetic:1"),
+        hazardIdFact("f_h2", "ais:distress_beacon:970123456"),
+      ],
       passed: true,
+    },
+    {
+      name: "an identifier equal to an AIS ship name (untrusted text) is checked as numbers",
+      answer: "Route B suits X:500.",
+      facts: [
+        dbText("f_n", "X:500", "MMSI 205795000: AIS ship name", {
+          table: "ais_traffic",
+          rowId: "205795000",
+          field: "name",
+        }),
+      ],
+      passed: false,
+      ungrounded: ["500"],
     },
     {
       name: "a hazard id no fact value equals is ungrounded (a longer id or a label does not count)",
       answer: "Route B avoids synthetic:1 and synthetic:2.",
       facts: [
-        str("f_h1", "synthetic:12"),
+        hazardIdFact("f_h1", "synthetic:12"),
         labelled("f_l", "Keep clear", null, "Reported hazard synthetic:2"),
       ],
       passed: false,
@@ -808,7 +889,7 @@ describe("checkNumbers v2", () => {
     {
       name: "a quantity space-grouped onto a held hazard id is checked",
       answer: "Avoids synthetic:1 950 t.",
-      facts: [str("f_h1", "synthetic:1")],
+      facts: [hazardIdFact("f_h1", "synthetic:1")],
       passed: false,
       ungrounded: ["1 950"],
     },

@@ -7,16 +7,15 @@
 import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { type Fact, PlanRouteSpeedInput, type ToolResult } from "@pharos/shared";
 import {
-  CALCULATION_ID_PATH,
+  ROUTE_TOOL,
+  routeFactOfRow,
   routeSpeedFactRows,
   subjectLabel,
-  WEATHER_RUN_PATH,
 } from "../../routing/facts.js";
 import { type PlannedRoute, planRouteSpeed } from "../../routing/plan.js";
-import { calcFact, dbFact, factId, runTool, type ToolContext } from "./common.js";
+import { dbFact, runTool, type ToolContext } from "./common.js";
 
-export const TOOL = "plan_route_speed";
-const CALCULATOR = "route_speed";
+export const TOOL = ROUTE_TOOL;
 
 export const ROUTE_NOTE =
   "This is advice from a deterministic calculation. Nothing has been ordered or sent; a voyage change needs a human to approve a proposal.";
@@ -86,45 +85,11 @@ export function planRouteSpeedFacts(ctx: ToolContext, input: PlanRouteSpeedInput
     const { response, plan, snapshot } = planned;
     const calculationId = response.calculationId;
     const S = subjectLabel(plan, planned.mmsi);
-    const calc = { id: response.calculationId, calculator: CALCULATOR };
     const rows = routeSpeedFactRows(plan, response.result, snapshot, {
       mmsi: planned.mmsi,
-      calculationId: response.calculationId,
+      calculationId,
     });
-    const facts: Fact[] = rows.map((r) => {
-      if (r.path.startsWith("inputs.")) {
-        return dbFact(
-          TOOL,
-          { table: "calculations", rowId: calculationId, field: r.path },
-          r.label,
-          r.value,
-          r.unit,
-        );
-      }
-      if (r.path === WEATHER_RUN_PATH && snapshot) {
-        return {
-          id: factId(TOOL, response.calculationId, r.path),
-          label: r.label,
-          value: r.value,
-          unit: r.unit,
-          provenance: {
-            source: "weather",
-            snapshotId: snapshot.id,
-            modelRun: snapshot.modelRun.toISOString(),
-          },
-        };
-      }
-      if (r.path === CALCULATION_ID_PATH) {
-        return dbFact(
-          TOOL,
-          { table: "calculations", rowId: response.calculationId, field: "id" },
-          r.label,
-          r.value,
-          r.unit,
-        );
-      }
-      return calcFact(TOOL, calc, r.path, r.label, r.value, r.unit);
-    });
+    const facts: Fact[] = rows.map((r) => routeFactOfRow(calculationId, r, snapshot));
     if (planned.mmsi && plan.subject !== S) {
       facts.push(
         dbFact(
