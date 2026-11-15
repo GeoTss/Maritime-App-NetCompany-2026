@@ -1,34 +1,43 @@
 {
-  "phase": 5,
-  "phaseName": "Live data & route optimisation",
+  "phase": 6,
+  "phaseName": "Ops console",
   "lastGate": {
-    "phase": 4,
+    "phase": 5,
     "result": "PASS",
     "at": "2026-11-15",
-    "note": "verify green (83 files / 2392 tests, DB tests ran, purity OK); Q&A grounding benchmark: 46 questions (dev 23 / held-out 23), truth from reference code, user-reviewed; live Claude Haiku 5.5 dev pass (prompt agent-system/v3): grounded 23/23 (100 % of released answers), abstention 3/3, injection 2/2, no-action 2/2, unauthorised 0/23, answer accuracy 15/16, proposed=best 4/4, withheld 0/23, repaired 9/23, first progress 1.37 s / answer 5.33 s mean, $0.00103 per question; replay reproduces it; oracle 16/16; live smoke deliver -> ask stream -> approve -> PO + 2 drafts PASS; ERP push idempotent (executor tests); Phase 4 spend $0.0598 of $1.00; verifier PASS",
+    "note": "verify green (107 files / 2666 tests, DB tests ran, lint 0 errors, purity OK); recorded AIS fills traffic, AIS congestion and hazards (recorded.db parity tests; stack evidence on the rebuilt replay stack: 656 ships, 5 AIS congestion ports, synthetic hazard, weather 152 points x 80 steps); live AIS smoke 67 positions in 20 s; live and stored weather parse; optimiser synthetic-storm, determinism and never-worse tests pass; real-ship plan (A LA MARINE to Rotterdam) 25.7 ms compute; hazard routes infeasible and avoided; voyage instructions recorded once with a drafted master instruction, no ERP call; Q&A dev on live Claude Haiku 5.5 (prompt agent-system/v5, 31 questions: 23 Phase 4 + 8 new): grounded 31/31, accuracy 23/23, abstention 4/4, injection 3/3, no-action 2/2, proposed=best 5/5, unauthorised 0/31, withheld 0/31, repaired 3/31, first progress 1.2 s / answer 4.6 s mean, $0.00102 per question; replay reproduces it; oracle 23/23; Phase 5 spend $0.0822 of $2.00; verifier PASS 14/14",
     "evidence": {
-      "liveDev": "evals/reports/20261115T183408Z-qa-dev-dev-haiku-v3",
-      "replayDev": "evals/reports/20261115T183617Z-qa-dev-dev-haiku-v3-replay",
-      "firstLiveDev": "evals/reports/20261115T174910Z-qa-dev-dev-haiku-v1",
-      "oracle": "evals/reports/20261115T183404Z-qa-dev-dev-oracle-v3",
-      "smoke": "evals/reports/20261115T182833Z-smoke-phase4-agent-v3",
+      "liveDev": "evals/reports/20261115T213342Z-qa-dev-dev-haiku-v5",
+      "replayDev": "evals/reports/20261115T213626Z-qa-dev-replay",
+      "firstLiveDev": "evals/reports/20261115T203841Z-qa-dev-dev-haiku-v4",
+      "oracle": "evals/reports/20261115T213336Z-qa-dev-oracle",
+      "smokeAis": "evals/reports/20261115T192456Z-smoke-ais",
+      "smokeWeather": "evals/reports/20261115T211921Z-smoke-weather",
+      "stack": "evals/reports/20261115T215115Z-stack-phase5",
+      "fixtures": "fixtures/recorded/README.md",
       "evalLog": "docs/EVAL_LOG.md",
-      "userReview": "Phase 4 budget $1.00 and REVIEW-QA.md approved 2026-11-15 (calculate-04 reworded)",
+      "userReview": "Phase 5 budget $2.00; scope added: voyage-instruction proposals, AIS hazards, MARPOL boundaries; REVIEW-QA-P5.md approved, then route-speed-08 rewording approved (2026-11-15)",
       "spendUsd": {
-        "phase4Total": 0.0598,
-        "cap": 1,
-        "perQuestionHaiku": 0.00103
+        "phase5Total": 0.0822,
+        "cap": 2,
+        "perQuestionHaiku": 0.00102
       },
       "latencySeconds": {
-        "firstProgressMean": 1.37,
-        "answerMean": 5.33,
-        "answerP90": 8.98,
+        "firstProgressMean": 1.2,
+        "answerMean": 4.6,
+        "answerP90": 7.9,
         "targetFirstProgress": 3,
         "targetAnswer": 45
+      },
+      "routeComputeMs": {
+        "aegeanPioneer": 98.8,
+        "thessalyStar": 22,
+        "realAisShip": 25.7,
+        "target": 5000
       }
     }
   },
-  "modelDecision": "Claude Haiku 5.5 only for extraction and agent evals (user decision 2026-11-14); extraction passes on Haiku with extract-quote/v2, the Q&A grounding gate passes on Haiku with agent-system/v3.",
+  "modelDecision": "Claude Haiku 5.5 only for extraction and agent evals (user decision 2026-11-14); extraction passes on Haiku with extract-quote/v2, the Q&A grounding gate passes on Haiku with agent-system/v5.",
   "keyCheckpoints": {
     "2": ["ANTHROPIC_API_KEY"],
     "5": ["AISSTREAM_API_KEY"]
