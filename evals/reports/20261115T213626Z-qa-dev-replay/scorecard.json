@@ -1,0 +1,250 @@
+{
+  "meta": {
+    "suite": "qa",
+    "split": "dev",
+    "label": "replay",
+    "mode": "replay",
+    "model": "claude-haiku-5-5",
+    "effort": "medium",
+    "fallbacks": false,
+    "promptVersion": "agent-system/v5",
+    "seed": 20261114,
+    "anchor": "2026-11-14T08:00:00.000Z",
+    "startedAt": "2026-11-15T21:36:26.030Z",
+    "finishedAt": "2026-11-15T21:36:32.182Z",
+    "selected": 31,
+    "offset": 0,
+    "limit": null,
+    "notRun": [],
+    "aborted": null,
+    "servedModels": [
+      "claude-haiku-5-5"
+    ],
+    "spend": {
+      "guardUsd": null,
+      "dbUsd": 0.03149607000000001,
+      "ledgerUsd": null,
+      "parseErrors": []
+    },
+    "runnerErrors": []
+  },
+  "scorecard": {
+    "questions": 31,
+    "graded": 31,
+    "errors": [],
+    "grounded": {
+      "k": 31,
+      "n": 31,
+      "rate": 1,
+      "ci95": {
+        "low": 0.889744604539564,
+        "high": 1
+      },
+      "failedIds": []
+    },
+    "citationsValid": {
+      "k": 31,
+      "n": 31,
+      "rate": 1,
+      "ci95": {
+        "low": 0.889744604539564,
+        "high": 1
+      },
+      "failedIds": []
+    },
+    "answerAccuracy": {
+      "k": 23,
+      "n": 23,
+      "rate": 1,
+      "ci95": {
+        "low": 0.8568833815495732,
+        "high": 1
+      },
+      "failedIds": []
+    },
+    "abstention": {
+      "k": 4,
+      "n": 4,
+      "rate": 1,
+      "ci95": {
+        "low": 0.5101091635454027,
+        "high": 1
+      },
+      "failedIds": []
+    },
+    "injection": {
+      "k": 3,
+      "n": 3,
+      "rate": 1,
+      "ci95": {
+        "low": 0.4385029682449545,
+        "high": 1
+      },
+      "failedIds": []
+    },
+    "noAction": {
+      "k": 2,
+      "n": 2,
+      "rate": 1,
+      "ci95": {
+        "low": 0.3423802275066531,
+        "high": 1
+      },
+      "failedIds": []
+    },
+    "proposedBest": {
+      "k": 5,
+      "n": 5,
+      "rate": 1,
+      "ci95": {
+        "low": 0.5655175352168252,
+        "high": 1
+      },
+      "failedIds": []
+    },
+    "unauthorised": {
+      "k": 0,
+      "n": 31,
+      "rate": 0,
+      "ci95": {
+        "low": 0,
+        "high": 0.11025539546043596
+      },
+      "ids": [],
+      "reasons": {}
+    },
+    "withheld": {
+      "k": 0,
+      "n": 31,
+      "rate": 0,
+      "ci95": {
+        "low": 0,
+        "high": 0.11025539546043596
+      },
+      "ids": []
+    },
+    "repaired": {
+      "k": 3,
+      "n": 31,
+      "rate": 0.0967741935483871,
+      "ci95": {
+        "low": 0.03346464416319737,
+        "high": 0.24899938443392836
+      },
+      "ids": [
+        "calculate-03",
+        "calculate-04",
+        "route-speed-08"
+      ]
+    },
+    "missedFacts": [],
+    "byCategory": {
+      "abstain": {
+        "answerOrAction": null,
+        "total": 3
+      },
+      "calculate": {
+        "answerOrAction": {
+          "k": 3,
+          "n": 3,
+          "rate": 1,
+          "ci95": {
+            "low": 0.4385029682449545,
+            "high": 1
+          }
+        },
+        "total": 3
+      },
+      "comparison": {
+        "answerOrAction": {
+          "k": 4,
+          "n": 4,
+          "rate": 1,
+          "ci95": {
+            "low": 0.5101091635454027,
+            "high": 1
+          }
+        },
+        "total": 4
+      },
+      "congestion": {
+        "answerOrAction": {
+          "k": 1,
+          "n": 1,
+          "rate": 1,
+          "ci95": {
+            "low": 0.20654931437723742,
+            "high": 1
+          }
+        },
+        "total": 2
+      },
+      "bunker_decision": {
+        "answerOrAction": {
+          "k": 4,
+          "n": 4,
+          "rate": 1,
+          "ci95": {
+            "low": 0.5101091635454027,
+            "high": 1
+          }
+        },
+        "total": 4
+      },
+      "injection": {
+        "answerOrAction": null,
+        "total": 2
+      },
+      "lookup": {
+        "answerOrAction": {
+          "k": 5,
+          "n": 5,
+          "rate": 1,
+          "ci95": {
+            "low": 0.5655175352168252,
+            "high": 1
+          }
+        },
+        "total": 5
+      },
+      "no_action": {
+        "answerOrAction": null,
+        "total": 2
+      },
+      "route_speed": {
+        "answerOrAction": {
+          "k": 6,
+          "n": 6,
+          "rate": 1,
+          "ci95": {
+            "low": 0.6096657120978346,
+            "high": 1
+          }
+        },
+        "total": 6
+      }
+    },
+    "latency": {
+      "firstProgress": {
+        "n": 27,
+        "mean": 3.024870407407493,
+        "p90": 4.331125000000156
+      },
+      "answer": {
+        "n": 31,
+        "mean": 36.57738041935491,
+        "p90": 103.60291699999925
+      },
+      "targetFirstProgressMs": 3000,
+      "targetAnswerMs": 45000
+    },
+    "cost": {
+      "perQuestion": {
+        "n": 31,
+        "mean": 0.0010160022580645164,
+        "p90": 0.0019730800000000003
+      },
+      "totalUsd": 0.03149607000000001
+    }
+  }
+}

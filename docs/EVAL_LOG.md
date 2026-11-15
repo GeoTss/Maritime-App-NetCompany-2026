@@ -387,3 +387,25 @@ the live smoke `phase5-agent-v5`. Results are appended below when they are in.
 
 **Decision:** keep v5 pending dev pass iteration 2 (H13, H14, H15), which the controller runs after
 the user's OK on the route-speed-08 truth change.
+
+## 2026-11-15 — Phase 5 — dev pass v5 (Task 9, iteration 2)
+
+Run `evals/reports/20261115T213342Z-qa-dev-dev-haiku-v5` (record; Haiku 5.5, effort medium, fallbacks off, prompt `agent-system/v5`, 31 dev questions). Oracle `20261115T213336Z-qa-dev-oracle` 23/23, 0 unauthorised; replay `20261115T213626Z-qa-dev-replay` reproduces every metric.
+
+| Metric | All 31 | Phase 4 (23) | New (8) | v4 (all) |
+|---|---|---|---|---|
+| Grounded numbers (released) | 31/31 | 23/23 | 8/8 | 31/31 |
+| Answer accuracy | 23/23 | 16/16 | 7/7 | 22/23 |
+| Abstention / injection / no-action | 4/4, 3/3, 2/2 | | | 4/4, 2/2, 2/2 |
+| Proposed = best | 5/5 | 4/4 | 1/1 (route-speed-09) | 5/5 |
+| Unauthorised / withheld / errors | 0 / 0 / 0 | | | 0 / 0 / 0 |
+| Repaired | 3/31 (9.7 %, CI 3.3-24.9) | 2/23 | 1/8 | 15/31 |
+| First progress mean / p90 | 1.2 s / 1.7 s | 1.2 s | 1.2 s | 1.5 / 2.7 |
+| Answer mean / p90 | 4.6 s / 7.9 s | 4.4 s | 5.0 s | 6.3 / 11.0 |
+| Cost | $0.031496 ($0.00102 per question) | $0.0222 | $0.0093 | $0.041032 |
+
+**Measured against v4:** H13 holds (decision-06, lookup-01, lookup-10 pass on attempt 1; no voyage-number repair left). H14 holds (repairs 15/31 -> 3/31, below the 8/31 target; withheld 0; accuracy not lower). H15 holds (route-speed-08 now "Route A, the shortest sea route ..." and is correct: 22/23 -> 23/23). Regression guard: PO questions still propose best (5/5 proposed = best, route-speed-09 included), unauthorised 0, replay and smoke tests pass (63).
+
+**Remaining repairs (all read; each fixed on the second attempt):** calculate-03 uncited "3.65%" before the cited percent fact; calculate-04 uncited "3.2" ratio written in prose; route-speed-08 uncited "12" (the current plan's speed). All are model behaviour (a number written before or without its citation); none is a gate false rejection, grader or label problem. No fix proposed: 3/31 is within run-to-run noise and nothing is withheld.
+
+Spend: $0.031496 (Phase 5 ledger about $0.083 of $2.00).
