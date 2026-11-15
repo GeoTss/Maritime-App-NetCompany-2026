@@ -17,6 +17,8 @@ export * from "./geo.js";
 export * from "./identity.js";
 export * from "./normalise.js";
 export * from "./price-band.js";
+export * from "./route-graph.js";
+export * from "./route-optimiser.js";
 export * from "./units.js";
 export * from "./voyage.js";
 export * from "./weather-effect.js";

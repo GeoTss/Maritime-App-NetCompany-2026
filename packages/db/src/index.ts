@@ -1,6 +1,7 @@
 export { createDb, type Db } from "./client.js";
 export { loadWorld } from "./load-world.js";
 export { runMigrations } from "./migrate.js";
+export { fleetRoutePlan, type RoutePlan, shipRoutePlan } from "./route-plan.js";
 export * as schema from "./schema.js";
 export {
   type BunkerOffer,
