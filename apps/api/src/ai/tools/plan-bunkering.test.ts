@@ -163,6 +163,82 @@ describe.skipIf(!sql)("plan_bunkering (Postgres)", () => {
     expect(after[0]?.n).toBe(before[0]?.n);
   });
 
+  it("leaves out a quote whose validity has passed (context clock, UTC day)", async () => {
+    const [, straitId] = quoteIds;
+    await db`update quotes set valid_until = '2026-11-13T00:00:00Z' where id = ${straitId ?? 0}`;
+    await planBunkering(ctx(), { vessel: "Aegean Pioneer" });
+    const input = BunkerPlanInput.parse((await latestCalc()).inputs);
+    expect(input.options.map((o) => o.optionId)).toEqual(["MTMLA-kestrel"]);
+    // Valid through its last day.
+    await db`update quotes set valid_until = '2026-11-14T00:00:00Z' where id = ${straitId ?? 0}`;
+    await planBunkering(ctx(), { vessel: "Aegean Pioneer" });
+    const again = BunkerPlanInput.parse((await latestCalc()).inputs);
+    expect(again.options.map((o) => o.optionId)).toEqual(["MTMLA-kestrel", "GIGIB-straitline"]);
+  });
+
+  it("plans each open requirement: LSMGO + VLSFO give two plans with grade-prefixed options", async () => {
+    const [kestrelId] = quoteIds;
+    // A VLSFO requirement on the demo voyage, and Kestrel's quote (linked to the LSMGO
+    // requirement) also offering VLSFO: a multi-grade quote serves both plans.
+    await db`
+      insert into bunker_requirements (voyage_id, grade, qty_mt, status, created_at)
+      values ((select id from voyages where voyage_no = 'AP-2611'), 'VLSFO', 200, 'open',
+              ${ASK_FIXTURE_NOW.toISOString()}::timestamptz)`;
+    await db`
+      insert into quote_lines (quote_id, grade, qty_mt, price_per_mt)
+      values (${kestrelId ?? 0}, 'VLSFO', 200, 590)`;
+
+    const result = await planBunkering(ctx(), { vessel: "Aegean Pioneer" });
+    const data = result.data as {
+      voyageNo: string;
+      plans: { calculationId: number; grade: string; bestOptionId: string | null }[];
+    };
+    expect(data.voyageNo).toBe("AP-2611");
+    expect(data.plans.map((p) => p.grade)).toEqual(["LSMGO", "VLSFO"]);
+
+    const calcs = await db<{ id: number; kind: string; inputs: unknown; outputs: unknown }[]>`
+      select id, kind, inputs, outputs from calculations order by id`;
+    expect(calcs.map((c) => c.kind)).toEqual(["bunker_plan", "bunker_plan"]);
+    expect(data.plans.map((p) => p.calculationId)).toEqual(calcs.map((c) => c.id));
+    const [lsmgo, vlsfo] = calcs.map((c) => ({
+      input: BunkerPlanInput.parse(c.inputs),
+      plan: BunkerPlan.parse(c.outputs),
+    }));
+    expect(lsmgo?.input.grade).toBe("LSMGO");
+    expect(lsmgo?.input.options.map((o) => o.optionId)).toEqual([
+      "LSMGO-MTMLA-kestrel",
+      "LSMGO-GIGIB-straitline",
+    ]);
+    expect(vlsfo?.input.grade).toBe("VLSFO");
+    expect(vlsfo?.input.requiredQtyMt).toBe(200);
+    expect(vlsfo?.input.options.map((o) => [o.optionId, o.pricePerMt])).toEqual([
+      ["VLSFO-MTMLA-kestrel", 590],
+    ]);
+    expect(data.plans.map((p) => p.bestOptionId)).toEqual([
+      lsmgo?.plan.bestOptionId,
+      vlsfo?.plan.bestOptionId,
+    ]);
+
+    // Each plan's facts point at its own calculation, and labels say which grade they are for.
+    const best = result.facts.filter((f) => f.id.endsWith("_bestOptionId"));
+    expect(best.map((f) => f.label)).toEqual([
+      "LSMGO plan: Best option (lowest total cost, feasible)",
+      "VLSFO plan: Best option (lowest total cost, feasible)",
+    ]);
+    expect(best.map((f) => f.provenance)).toEqual(
+      calcs.map((c) =>
+        expect.objectContaining({
+          source: "calculation",
+          calculationId: c.id,
+          path: "bestOptionId",
+        }),
+      ),
+    );
+    expect(result.facts.filter((f) => f.id.endsWith("_voyages.voyageNo"))).toHaveLength(1);
+    expect(new Set(result.facts.map((f) => f.id)).size).toBe(result.facts.length);
+    for (const f of result.facts) expect(f.label).not.toMatch(/\d/);
+  });
+
   it("a vessel with no open requirement gets a fact-free result", async () => {
     const result = await planBunkering(ctx(), { vessel: "Thessaly Star" });
     expect(result.facts).toEqual([]);

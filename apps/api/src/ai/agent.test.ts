@@ -67,7 +67,7 @@ describe("agent request", () => {
     expect("temperature" in params).toBe(false);
     expect("betas" in params).toBe(false);
     expect("fallbacks" in params).toBe(false);
-    expect(PROMPT_VERSION).toBe("agent-system/v1");
+    expect(PROMPT_VERSION).toBe("agent-system/v2");
   });
 
   it("sends server-side fallbacks only when enabled with an Opus model", () => {
@@ -177,6 +177,21 @@ describe.skipIf(!sql)("runAgent (Postgres)", () => {
   const messagesOf = (conversationId: number) =>
     db<{ id: number; role: string; content: Record<string, unknown> }[]>`
       select id, role, content from messages where conversation_id = ${conversationId} order by id`;
+
+  it("offers the model every agent tool, in a fixed order", async () => {
+    const { deps, requests } = scriptedDeps([textReply(1, "Hello, how can I help?")]);
+    await runAgent(deps, "Hi");
+    const tools = (requests[0]?.tools ?? []) as { name: string }[];
+    expect(tools.map((t) => t.name)).toEqual([
+      "list_fleet",
+      "get_vessel_status",
+      "list_quotes",
+      "plan_bunkering",
+      "get_emissions",
+      "calculate",
+      "propose_action",
+    ]);
+  });
 
   it("withholds after a failed repair", async () => {
     const { deps, requests } = scriptedDeps([

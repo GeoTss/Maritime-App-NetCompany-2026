@@ -7,7 +7,8 @@
  * because tool results are part of the next model request and so of its replay key.
  */
 import type { Sql, World } from "@pharos/db";
-import type { Fact, FactId, Id, ToolResult, Vessel } from "@pharos/shared";
+import { DOMAIN_CODE_VERSION, isoDayAfter } from "@pharos/domain";
+import type { Calculation, Fact, FactId, Id, Quote, ToolResult, Vessel } from "@pharos/shared";
 import { resolveVessel } from "../../ingest/resolve.js";
 
 export interface ToolCallLog {
@@ -125,6 +126,48 @@ export function runTool(
 
 /** jsonb parameter, sent as JSON text and cast with `::jsonb` at the call site. */
 export const json = (value: unknown): string => JSON.stringify(value);
+
+/**
+ * Stores one calculation (domain inputs and outputs, at the current domain code version) and
+ * returns its id, the id every calculation fact and any proposal points at.
+ */
+export async function insertCalculation(
+  ctx: ToolContext,
+  calc: {
+    kind: Calculation["kind"];
+    inputs: unknown;
+    outputs: unknown;
+    voyageId: Id | null;
+    operandFactIds?: FactId[];
+  },
+): Promise<Id> {
+  const operands = calc.operandFactIds ? json(calc.operandFactIds) : null;
+  const [row] = await ctx.sql<{ id: number }[]>`
+    insert into calculations (kind, inputs, outputs, code_version, voyage_id, weather_snapshot_id,
+                              operand_fact_ids, created_at)
+    values (${calc.kind}, ${json(calc.inputs)}::jsonb, ${json(calc.outputs)}::jsonb,
+            ${DOMAIN_CODE_VERSION}, ${calc.voyageId}, null, ${operands}::jsonb,
+            ${ctx.now().toISOString()}::timestamptz)
+    returning id`;
+  if (!row) throw new Error("calculations insert returned no row");
+  return row.id;
+}
+
+/**
+ * Why a quote is expired, or null while it is valid: its status says so, or its validity day
+ * (stored as the day's start, UTC) is before the clock's UTC day. A quote is valid through its
+ * last day, the rule ingestion applies to a quote's validity on receipt.
+ */
+export function quoteExpiry(
+  quote: Pick<Quote, "status" | "validUntil">,
+  now: Date,
+): "status" | "validUntil" | null {
+  if (quote.status === "expired") return "status";
+  if (quote.validUntil && isoDayAfter(quote.validUntil, 0) < isoDayAfter(now, 0)) {
+    return "validUntil";
+  }
+  return null;
+}
 
 /** A fleet vessel from free text: a standalone 7-digit IMO in it, otherwise the name. */
 export function findVessel(world: World, text: string): Vessel {

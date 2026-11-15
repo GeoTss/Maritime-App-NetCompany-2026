@@ -84,3 +84,30 @@ raises critical-field accuracy on the *same* model outputs with no new unsafe ac
 **Result (replay of run 1, free):** 644/651 after the port fix, **649/651 (99.7 %)** after all three,
 unsafe 0/84; oracle baseline still 651/651. Remaining 2 misses are model slips that go to review
 (vessel omitted on a compact line; "19" split from "19-20 Nov"). **Decision:** keep. Prompt unchanged.
+
+## 2026-11-15 — `agent-system/v2` (Phase 4 Task 4)
+
+**Change:** the agent gains `list_fleet`, `list_quotes`, `get_emissions` and `calculate` (seven
+tools); `plan_bunkering` plans each open requirement (one plan per grade, still-valid quotes only).
+The prompt gets a one-line-per-tool list, the rule "use calculate for any arithmetic and cite the
+fact it returns" in place of "say you do not have it", and `propose_action` per plan whose best
+option is feasible, citing only that plan's facts.
+
+**Hypothesis H1 (agent):** with `calculate` available and named in the rules, a question that needs
+a difference, sum, ratio or percentage gets a cited derived fact (`f_calc:<id>:value`) instead of an
+abstention or a model-computed number, without changing the demo bunker answer (Kestrel at
+Marsaxlokk proposed, every number cited, gate passing on the first attempt). Measured by the
+Phase 4 Q&A benchmark (`calculate` category, Tasks 7–9); here only the demo regression is checked.
+
+**Checks for this change** (demo regression only, not accuracy):
+
+- Demo ask re-recorded with v2 (Haiku 5.5, effort medium, `LLM_FALLBACKS=off`): **$0.001713**,
+  3 calls (`plan_bunkering` → `propose_action` → answer, `end_turn`). Gate passed on attempt 1;
+  one pending `MTMLA-kestrel` recommendation; every number cited (total $233,914, headline
+  $712/mt vs $738/mt, saving $16,172). The three v1 agent recordings were removed (unreachable).
+- Live smoke `phase4-agent-v2` (Haiku 5.5, report
+  `evals/reports/20261115T170125Z-smoke-phase4-agent-v2`): **PASS, $0.003443**, 5 calls
+  (2 extract $0.001534, 3 agent $0.001909). email-1 5.1 s, email-2 5.0 s, ask 7.3 s, approve OK.
+- Phase 4 ledger after this change: $0.0052 of $1.00.
+
+**Decision:** keep v2 pending the Q&A dev pass (Task 9). H1 is not yet tested against a golden set.

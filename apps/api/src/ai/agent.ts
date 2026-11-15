@@ -1,19 +1,25 @@
 /**
- * LLM 2: the ops agent. One tool-runner loop over three typed tools; deterministic code computes
- * every number as a cited fact, and the release gate withholds any answer whose numbers are not
- * facts (after one repair turn). Conversations, messages and model calls are persisted.
+ * LLM 2: the ops agent. One tool-runner loop over typed tools; deterministic code computes every
+ * number as a cited fact, and the release gate withholds any answer whose numbers are not facts
+ * (after one repair turn). Each ask's fact ledger starts with the conversation's earlier facts.
+ * Conversations, messages and model calls are persisted.
  */
 import type Anthropic from "@anthropic-ai/sdk";
 import type { BetaToolRunnerParams } from "@anthropic-ai/sdk/lib/tools/BetaToolRunner";
 import type { Sql } from "@pharos/db";
-import { type AskResponse, Fact, type GateResult, type Id } from "@pharos/shared";
+import type { AskResponse, Fact, GateResult, Id } from "@pharos/shared";
 import type { AppConfig } from "../config.js";
 import { withCallCapture } from "./call-capture.js";
+import { loadConversationFacts } from "./fact-ledger.js";
 import { FALLBACK_BETA, usesFallbacks } from "./fallbacks.js";
 import { recordLlmCall } from "./llm.js";
 import { AGENT_SYSTEM, PROMPT_VERSION } from "./prompts/agent-system.js";
 import { checkNumbers, citedFactIds } from "./release-gate.js";
+import { calculateTool } from "./tools/calculate.js";
 import { createToolContext, json, type ToolContext } from "./tools/common.js";
+import { emissionsTool } from "./tools/emissions.js";
+import { listFleetTool } from "./tools/list-fleet.js";
+import { listQuotesTool } from "./tools/list-quotes.js";
 import { planBunkeringTool } from "./tools/plan-bunkering.js";
 import { proposeActionTool } from "./tools/propose-action.js";
 import { vesselStatusTool } from "./tools/vessel-status.js";
@@ -74,8 +80,17 @@ export function agentRunnerParams(
   return { ...params, betas: [FALLBACK_BETA], fallbacks: "default" };
 }
 
+/** The tool registry, in a fixed order (it is part of every request, so of its replay key). */
 function agentTools(ctx: ToolContext): AgentTools {
-  return [vesselStatusTool(ctx), planBunkeringTool(ctx), proposeActionTool(ctx)];
+  return [
+    listFleetTool(ctx),
+    vesselStatusTool(ctx),
+    listQuotesTool(ctx),
+    planBunkeringTool(ctx),
+    emissionsTool(ctx),
+    calculateTool(ctx),
+    proposeActionTool(ctx),
+  ];
 }
 
 /** Runs the tool loop to its final message; returns it with the full history (ending with it). */
@@ -135,30 +150,23 @@ export function repairMessage(ungrounded: string[]): string {
 
 interface StoredMessage {
   role: "user" | "assistant" | "tool";
-  content: { text?: string; answer?: string | null; isError?: boolean; result?: unknown };
+  content: { text?: string; answer?: string | null };
 }
 
-/** Earlier turns of a conversation: the history the model sees and the facts it may cite. */
-async function loadConversation(sql: Sql, conversationId: Id) {
+/** Earlier turns of a conversation as the model sees them: questions and released answers. */
+async function loadHistory(sql: Sql, conversationId: Id): Promise<MessageParam[]> {
   const rows = await sql<StoredMessage[]>`
     select role, content from messages where conversation_id = ${conversationId} order by id`;
   const history: MessageParam[] = [];
-  const priorFacts: Fact[] = [];
   for (const row of rows) {
     const c = row.content ?? {};
     if (row.role === "user" && typeof c.text === "string") {
       history.push({ role: "user", content: c.text });
     } else if (row.role === "assistant" && typeof c.answer === "string") {
       history.push({ role: "assistant", content: c.answer });
-    } else if (row.role === "tool" && c.isError === false) {
-      const facts = (c.result as { facts?: unknown[] } | undefined)?.facts ?? [];
-      for (const f of facts) {
-        const parsed = Fact.safeParse(f);
-        if (parsed.success) priorFacts.push(parsed.data);
-      }
     }
   }
-  return { history, priorFacts };
+  return history;
 }
 
 async function insertMessage(
@@ -199,7 +207,8 @@ export async function runAgent(
       select id from conversations where id = ${conversationId}`;
     if (!conv) throw new ConversationNotFoundError(conversationId);
     convId = conv.id;
-    ({ history, priorFacts } = await loadConversation(sql, convId));
+    history = await loadHistory(sql, convId);
+    priorFacts = await loadConversationFacts(sql, convId);
   } else {
     const [conv] = await sql<{ id: number }[]>`
       insert into conversations (title, created_at)

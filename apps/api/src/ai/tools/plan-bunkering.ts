@@ -1,7 +1,9 @@
 /**
- * `plan_bunkering`: ranks the received quotes for a vessel's open bunker requirement by total
- * delivered cost. The planner input is built from the world and the quotes, `planBunkers` computes
- * the plan, and the plan is stored as a calculation that every fact (and any proposal) points at.
+ * `plan_bunkering`: ranks the received quotes for each open bunker requirement of a vessel's
+ * current voyage (one plan per grade) by total delivered cost. A quote is offered for a grade when
+ * it is still valid and has a line of that grade, so a multi-grade quote serves every plan. The
+ * planner input is built from the world and the quotes, `planBunkers` computes each plan, and each
+ * plan is stored as a calculation that its facts (and any proposal) point at.
  */
 import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
 import {
@@ -11,16 +13,28 @@ import {
   loadWorld,
   openRequirements,
   optionIdFor,
+  type World,
 } from "@pharos/db";
-import { DOMAIN_CODE_VERSION, planBunkers } from "@pharos/domain";
+import { planBunkers } from "@pharos/domain";
 import {
   type BunkerOptionResult,
+  type BunkerRequirement,
   type Fact,
   PlanBunkeringInput,
   type Quote,
+  type QuoteLine,
   type ToolResult,
+  type Voyage,
 } from "@pharos/shared";
-import { calcFact, dbFact, findVessel, json, runTool, type ToolContext } from "./common.js";
+import {
+  calcFact,
+  dbFact,
+  findVessel,
+  insertCalculation,
+  quoteExpiry,
+  runTool,
+  type ToolContext,
+} from "./common.js";
 
 export const TOOL = "plan_bunkering";
 
@@ -35,150 +49,224 @@ const OPTION_FACTS: [keyof BunkerOptionResult, string, string | null][] = [
   ["etsCostUsd", "EU ETS cost", "USD"],
 ];
 
+type PlanOutcome =
+  | {
+      facts: Fact[];
+      plan: {
+        calculationId: number;
+        grade: BunkerRequirement["grade"];
+        bestOptionId: string | null;
+        cheapestHeadlineOptionId: string | null;
+        options: unknown[];
+      };
+    }
+  | { facts: []; plan: { grade: BunkerRequirement["grade"]; message: string } };
+
+/**
+ * Plans one requirement against the valid quotes that offer its grade: the latest quote per
+ * supplier and port, as one option each. With several grades on the voyage (`multi`), option ids
+ * and plan-level labels carry the grade.
+ */
+async function planRequirement(
+  ctx: ToolContext,
+  world: World,
+  vesselName: string,
+  voyage: Voyage,
+  requirement: BunkerRequirement,
+  quotes: Quote[],
+  multi: boolean,
+): Promise<PlanOutcome> {
+  const grade = requirement.grade;
+  const latest = new Map<string, { quote: Quote; line: QuoteLine }>();
+  for (const quote of quotes) {
+    const line = world.quoteLines.find((l) => l.quoteId === quote.id && l.grade === grade);
+    if (line) latest.set(`${quote.supplierId}:${quote.portId}`, { quote, line });
+  }
+  const offers: BunkerOffer[] = [];
+  for (const { quote: q, line } of [...latest.values()].sort((a, b) => a.quote.id - b.quote.id)) {
+    const port = world.ports.find((p) => p.id === q.portId);
+    const supplier = world.suppliers.find((s) => s.id === q.supplierId);
+    if (!port || !supplier) continue;
+    const optionId = optionIdFor(port, supplier);
+    offers.push({
+      optionId: multi ? `${grade}-${optionId}` : optionId,
+      quoteId: q.id,
+      supplierId: supplier.id,
+      portId: port.id,
+      currency: q.currency,
+      pricePerMt: line.pricePerMt,
+      bargeFee: q.bargeFee,
+      qtyMt: line.qtyMt,
+    });
+  }
+  if (offers.length === 0) {
+    return {
+      facts: [],
+      plan: {
+        grade,
+        message: `No received quotes for ${vesselName}'s open ${grade} requirement yet.`,
+      },
+    };
+  }
+
+  const planInput = buildBunkerPlanInput(world, voyage.id, offers, grade);
+  const plan = planBunkers(planInput);
+  const calculationId = await insertCalculation(ctx, {
+    kind: "bunker_plan",
+    inputs: planInput,
+    outputs: plan,
+    voyageId: voyage.id,
+  });
+  const ref = { id: calculationId, calculator: "planBunkers" };
+  const scope = multi ? `${grade} plan: ` : "";
+
+  const describe = (optionId: string) => {
+    const offer = offers.find((o) => o.optionId === optionId);
+    const supplier = world.suppliers.find((s) => s.id === offer?.supplierId)?.name ?? "?";
+    const port = world.ports.find((p) => p.id === offer?.portId)?.name ?? "?";
+    return { supplier, port };
+  };
+
+  const facts: Fact[] = plan.options.flatMap((o, i) => {
+    const { supplier, port } = describe(o.optionId);
+    return OPTION_FACTS.map(([field, label, unit]) =>
+      calcFact(
+        TOOL,
+        ref,
+        `options[${i}].${field}`,
+        `${o.optionId} (${supplier}, ${port}): ${label}`,
+        o[field] as number | boolean,
+        unit,
+      ),
+    );
+  });
+  if (plan.bestOptionId !== null) {
+    facts.push(
+      calcFact(
+        TOOL,
+        ref,
+        "bestOptionId",
+        `${scope}Best option (lowest total cost, feasible)`,
+        plan.bestOptionId,
+        null,
+      ),
+    );
+  }
+  if (plan.cheapestHeadlineOptionId !== null) {
+    facts.push(
+      calcFact(
+        TOOL,
+        ref,
+        "cheapestHeadlineOptionId",
+        `${scope}Option with the cheapest headline price`,
+        plan.cheapestHeadlineOptionId,
+        null,
+      ),
+    );
+  }
+  if (plan.savingVsCheapestHeadlineUsd !== null) {
+    facts.push(
+      calcFact(
+        TOOL,
+        ref,
+        "savingVsCheapestHeadlineUsd",
+        `${scope}Saving of the best option against the cheapest headline price, in total cost`,
+        plan.savingVsCheapestHeadlineUsd,
+        "USD",
+      ),
+    );
+  }
+  // The id an answer may mention ("plan 3"), citable like any other number.
+  facts.push(
+    calcFact(TOOL, ref, "calculationId", `${scope}Bunker plan calculation id`, calculationId, null),
+  );
+
+  return {
+    facts,
+    plan: {
+      calculationId,
+      grade,
+      bestOptionId: plan.bestOptionId,
+      cheapestHeadlineOptionId: plan.cheapestHeadlineOptionId,
+      options: plan.options.map((o) => ({
+        optionId: o.optionId,
+        ...describe(o.optionId),
+        feasible: o.feasible,
+        infeasibleReasons: o.reasons,
+      })),
+    },
+  };
+}
+
 export function planBunkering(ctx: ToolContext, input: PlanBunkeringInput): Promise<ToolResult> {
   return runTool(ctx, TOOL, input, async () => {
     const world = await loadWorld(ctx.sql);
     const vessel = findVessel(world, input.vessel);
     const voyage = currentVoyage(world, vessel.id);
-    const requirement = voyage ? openRequirements(world, voyage.id)[0] : undefined;
-    if (!voyage || !requirement) {
+    // One plan per grade: the lowest-id open requirement of each (the planner's own rule).
+    const requirements = voyage
+      ? openRequirements(world, voyage.id).filter(
+          (r, i, all) => all.findIndex((x) => x.grade === r.grade) === i,
+        )
+      : [];
+    if (!voyage || requirements.length === 0) {
       return {
         facts: [],
         data: { vessel: vessel.name, message: `${vessel.name} has no open bunker requirement.` },
       };
     }
 
-    // The latest received quote per supplier and port (one option each), oldest first.
-    const latest = new Map<string, Quote>();
-    for (const q of world.quotes
-      .filter((q) => q.requirementId === requirement.id && q.status === "received")
-      .sort((a, b) => a.receivedAt.getTime() - b.receivedAt.getTime() || a.id - b.id)) {
-      latest.set(`${q.supplierId}:${q.portId}`, q);
+    // Received, still-valid quotes for the voyage's open requirements, oldest first. A quote
+    // links one requirement but may offer other grades too, so every plan sees every quote.
+    const now = ctx.now();
+    const open = new Set(openRequirements(world, voyage.id).map((r) => r.id));
+    const quotes = world.quotes
+      .filter(
+        (q) =>
+          q.requirementId !== null &&
+          open.has(q.requirementId) &&
+          q.status === "received" &&
+          quoteExpiry(q, now) === null,
+      )
+      .sort((a, b) => a.receivedAt.getTime() - b.receivedAt.getTime() || a.id - b.id);
+
+    const multi = requirements.length > 1;
+    const outcomes: PlanOutcome[] = [];
+    for (const r of requirements) {
+      outcomes.push(await planRequirement(ctx, world, vessel.name, voyage, r, quotes, multi));
     }
-    const offers: BunkerOffer[] = [];
-    for (const q of [...latest.values()].sort((a, b) => a.id - b.id)) {
-      const line = world.quoteLines.find(
-        (l) => l.quoteId === q.id && l.grade === requirement.grade,
+    const facts = outcomes.flatMap((o) => o.facts);
+    // The voyage an answer may mention ("voyage AP-2611"), once for every plan.
+    if (facts.length > 0) {
+      facts.push(
+        dbFact(
+          TOOL,
+          { table: "voyages", rowId: voyage.id, field: "voyageNo" },
+          "Voyage number",
+          voyage.voyageNo,
+          null,
+        ),
       );
-      const port = world.ports.find((p) => p.id === q.portId);
-      const supplier = world.suppliers.find((s) => s.id === q.supplierId);
-      if (!line || !port || !supplier) continue;
-      offers.push({
-        optionId: optionIdFor(port, supplier),
-        quoteId: q.id,
-        supplierId: supplier.id,
-        portId: port.id,
-        currency: q.currency,
-        pricePerMt: line.pricePerMt,
-        bargeFee: q.bargeFee,
-        qtyMt: line.qtyMt,
-      });
     }
-    if (offers.length === 0) {
+
+    if (multi) {
       return {
-        facts: [],
+        facts,
         data: {
           vessel: vessel.name,
-          grade: requirement.grade,
-          message: `No received quotes for ${vessel.name}'s open ${requirement.grade} requirement yet.`,
+          voyageNo: voyage.voyageNo,
+          plans: outcomes.map((o) => o.plan),
         },
       };
     }
-
-    const planInput = buildBunkerPlanInput(world, voyage.id, offers, requirement.grade);
-    const plan = planBunkers(planInput);
-    const [calc] = await ctx.sql<{ id: number }[]>`
-      insert into calculations (kind, inputs, outputs, code_version, voyage_id, weather_snapshot_id, created_at)
-      values ('bunker_plan', ${json(planInput)}::jsonb, ${json(plan)}::jsonb, ${DOMAIN_CODE_VERSION},
-              ${voyage.id}, null, ${ctx.now().toISOString()}::timestamptz)
-      returning id`;
-    if (!calc) throw new Error("calculations insert returned no row");
-    const ref = { id: calc.id, calculator: "planBunkers" };
-
-    const describe = (optionId: string) => {
-      const offer = offers.find((o) => o.optionId === optionId);
-      const supplier = world.suppliers.find((s) => s.id === offer?.supplierId)?.name ?? "?";
-      const port = world.ports.find((p) => p.id === offer?.portId)?.name ?? "?";
-      return { supplier, port };
-    };
-
-    const facts: Fact[] = plan.options.flatMap((o, i) => {
-      const { supplier, port } = describe(o.optionId);
-      return OPTION_FACTS.map(([field, label, unit]) =>
-        calcFact(
-          TOOL,
-          ref,
-          `options[${i}].${field}`,
-          `${o.optionId} (${supplier}, ${port}): ${label}`,
-          o[field] as number | boolean,
-          unit,
-        ),
-      );
-    });
-    if (plan.bestOptionId !== null) {
-      facts.push(
-        calcFact(
-          TOOL,
-          ref,
-          "bestOptionId",
-          "Best option (lowest total cost, feasible)",
-          plan.bestOptionId,
-          null,
-        ),
-      );
+    const only = outcomes[0] as PlanOutcome;
+    if (!("calculationId" in only.plan)) {
+      return { facts: [], data: { vessel: vessel.name, ...only.plan } };
     }
-    if (plan.cheapestHeadlineOptionId !== null) {
-      facts.push(
-        calcFact(
-          TOOL,
-          ref,
-          "cheapestHeadlineOptionId",
-          "Option with the cheapest headline price",
-          plan.cheapestHeadlineOptionId,
-          null,
-        ),
-      );
-    }
-    if (plan.savingVsCheapestHeadlineUsd !== null) {
-      facts.push(
-        calcFact(
-          TOOL,
-          ref,
-          "savingVsCheapestHeadlineUsd",
-          "Saving of the best option against the cheapest headline price, in total cost",
-          plan.savingVsCheapestHeadlineUsd,
-          "USD",
-        ),
-      );
-    }
-    // The ids an answer may mention ("plan 3", "voyage AP-2611"), citable like any other number.
-    facts.push(
-      calcFact(TOOL, ref, "calculationId", "Bunker plan calculation id", calc.id, null),
-      dbFact(
-        TOOL,
-        { table: "voyages", rowId: voyage.id, field: "voyageNo" },
-        "Voyage number",
-        voyage.voyageNo,
-        null,
-      ),
-    );
-
+    const { calculationId, ...plan } = only.plan;
     return {
       facts,
-      data: {
-        calculationId: calc.id,
-        vessel: vessel.name,
-        voyageNo: voyage.voyageNo,
-        grade: requirement.grade,
-        bestOptionId: plan.bestOptionId,
-        cheapestHeadlineOptionId: plan.cheapestHeadlineOptionId,
-        options: plan.options.map((o) => ({
-          optionId: o.optionId,
-          ...describe(o.optionId),
-          feasible: o.feasible,
-          infeasibleReasons: o.reasons,
-        })),
-      },
+      data: { calculationId, vessel: vessel.name, voyageNo: voyage.voyageNo, ...plan },
     };
   });
 }

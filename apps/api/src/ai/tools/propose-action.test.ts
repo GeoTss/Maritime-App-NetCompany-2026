@@ -107,6 +107,22 @@ describe.skipIf(!sql)("propose_action (Postgres)", () => {
     expect(await recommendations()).toHaveLength(0);
   });
 
+  it("rejects a factRef from another calculation, and creates no recommendation", async () => {
+    // A second plan in the same conversation: its facts are known, but they do not back this one.
+    const second = await planBunkering(ctx, { vessel: "Aegean Pioneer" });
+    const otherBest = second.facts.find((f) => f.id.endsWith("_bestOptionId"));
+    if (!otherBest) throw new Error("no best option in the second plan");
+    expect(otherBest.provenance).toMatchObject({ calculationId: calculationId + 1 });
+    await expect(
+      proposeAction(ctx, { ...valid(), factRefs: [factFor("_bestOptionId"), otherBest.id] }),
+    ).rejects.toThrow(new RegExp(`${otherBest.id}.*not facts of calculation ${calculationId}`));
+    // A db fact returned beside the plan (the voyage number) is not one of its calculation's facts.
+    await expect(
+      proposeAction(ctx, { ...valid(), factRefs: [factFor("_voyages.voyageNo")] }),
+    ).rejects.toThrow(/not facts of calculation/);
+    expect(await recommendations()).toHaveLength(0);
+  });
+
   it("rejects a model-typed quantity, price or speed (strict input)", () => {
     const tool = proposeActionTool(ctx);
     for (const extra of [{ qtyMt: 300 }, { pricePerMt: 700 }, { speedKn: 11 }]) {
@@ -134,8 +150,14 @@ describe.skipIf(!sql)("propose_action (Postgres)", () => {
       select outputs from calculations where id = ${calcId}`;
     const infeasible = BunkerPlan.parse(row?.outputs).options.find((o) => !o.feasible);
     expect(infeasible?.optionId).toBe("ESALG-nordwind");
+    const replanBest = replan.facts.find((f) => f.id.endsWith("_bestOptionId"));
     await expect(
-      proposeAction(ctx, { ...valid(), calculationId: calcId, optionId: "ESALG-nordwind" }),
+      proposeAction(ctx, {
+        ...valid(),
+        calculationId: calcId,
+        optionId: "ESALG-nordwind",
+        factRefs: [replanBest?.id ?? ""],
+      }),
     ).rejects.toThrow(/not feasible \(insufficient_quantity/);
     expect(await recommendations()).toHaveLength(0);
   });

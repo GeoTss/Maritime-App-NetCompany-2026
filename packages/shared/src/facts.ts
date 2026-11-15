@@ -5,11 +5,13 @@ import { Id, IsoDateTime } from "./primitives.js";
 export const FactId = z.string().regex(/^f_[A-Za-z0-9_.:-]+$/, "fact ids look like f_<name>");
 export type FactId = z.infer<typeof FactId>;
 
+/** The operations a derived fact can come from: every `calculate` op (`CalcOp`). */
 export const DerivedOperation = z.enum([
   "add",
   "subtract",
   "multiply",
   "divide",
+  "difference",
   "percent_change",
   "sum",
   "min",

@@ -1,8 +1,9 @@
 /**
  * `propose_action`: the agent's only write. It inserts a *pending* recommendation that points at a
  * stored calculation and one of its options; nothing is ordered or sent. The input carries no
- * quantity, price or speed (`ProposedAction` is strict), and the expected saving is read from the
- * calculation, never taken from the model. Only the executor acts, after a human approves.
+ * quantity, price or speed (`ProposedAction` is strict), every cited fact must be one of that
+ * calculation's, and the expected saving is read from the calculation, never taken from the model.
+ * Only the executor acts, after a human approves.
  */
 import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { BunkerPlan, ProposeActionInput, ProposedAction, type ToolResult } from "@pharos/shared";
@@ -31,14 +32,21 @@ export async function proposeAction(ctx: ToolContext, input: unknown): Promise<T
     if (calc.kind !== "bunker_plan") {
       throw new Error(`Calculation ${action.calculationId} is a ${calc.kind}, not a bunker plan.`);
     }
-    const computedHere = [...ctx.ledger.values()].some(
-      (f) =>
-        f.provenance.source === "calculation" &&
-        f.provenance.calculationId === action.calculationId,
-    );
-    if (!computedHere) {
+    const ofCalculation = (id: string) => {
+      const p = ctx.ledger.get(id)?.provenance;
+      return p?.source === "calculation" && p.calculationId === action.calculationId;
+    };
+    if (![...ctx.ledger.keys()].some(ofCalculation)) {
       throw new Error(
         `Calculation ${action.calculationId} was not computed in this conversation; call plan_bunkering first.`,
+      );
+    }
+    // The proposal cites the plan it proposes from, not another plan's (or a db) fact.
+    const foreign = action.factRefs.filter((id) => !ofCalculation(id));
+    if (foreign.length > 0) {
+      throw new Error(
+        `factRefs ${foreign.join(", ")} are not facts of calculation ${action.calculationId}; ` +
+          "cite only facts of the plan you propose from.",
       );
     }
     const plan = BunkerPlan.parse(calc.outputs);
@@ -100,7 +108,8 @@ export function proposeActionTool(ctx: ToolContext) {
     description:
       "Propose a purchase order for one feasible option of a stored bunker plan, for a human to " +
       "approve. Creates a pending recommendation only: nothing is ordered or sent. Takes the plan's " +
-      "calculationId and optionId; quantities and prices come from the stored plan, never from you.",
+      "calculationId and optionId, and factRefs that are facts of that same plan; quantities and " +
+      "prices come from the stored plan, never from you.",
     inputSchema: ProposeActionInput,
     run: async (input) => JSON.stringify(await proposeAction(ctx, input)),
   });
