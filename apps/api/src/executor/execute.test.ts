@@ -407,6 +407,48 @@ describe.skipIf(!sql)("executor (Postgres)", () => {
     expect(await draftsOf(db, recId)).toHaveLength(2);
   });
 
+  it("an unreadable plan fails before any ERP call and the recommendation is failed, not stuck", async () => {
+    erp.mode = "down";
+    await approveRecommendation(deps, recId, "alice"); // order written, push failed
+    erp.mode = "up";
+    erp.requests.length = 0;
+    await db`update calculations set outputs = '{}'::jsonb where id = ${calculationId}`;
+    const result = await approveRecommendation(deps, recId, "alice");
+    expect(result.status).toBe("failed");
+    expect(erp.requests).toHaveLength(0);
+    expect(await draftsOf(db, recId)).toHaveLength(0);
+    const [audit] = await db<{ detail: { error: string } }[]>`
+      select detail from audit_events
+      where recommendation_id = ${recId} and kind = 'recommendation.failed' order by id desc limit 1`;
+    expect(audit?.detail.error).toMatch(/unreadable/);
+  });
+
+  it("an error recording the success after a successful push fails the recommendation; retry executes once", async () => {
+    await db.unsafe(`
+      create function pharos_test_block_drafts() returns trigger language plpgsql as
+        $$ begin raise exception 'forced draft failure'; end $$;
+      create trigger pharos_test_block_drafts before insert on drafted_messages
+        for each row execute function pharos_test_block_drafts();`);
+    try {
+      const failed = await approveRecommendation(deps, recId, "alice");
+      expect(failed.status).toBe("failed");
+      expect(erp.requests).toHaveLength(1); // the PO exists in the ERP
+      const [audit] = await db<{ detail: { error: string } }[]>`
+        select detail from audit_events
+        where recommendation_id = ${recId} and kind = 'recommendation.failed'`;
+      expect(audit?.detail.error).toMatch(/forced draft failure/);
+    } finally {
+      await db.unsafe(
+        "drop trigger pharos_test_block_drafts on drafted_messages; drop function pharos_test_block_drafts();",
+      );
+    }
+    const retried = await approveRecommendation(deps, recId, "alice");
+    expect(retried).toMatchObject({ status: "executed", erpPoNumber: "PO-000001" });
+    expect(await ordersOf(recId)).toHaveLength(1);
+    expect(new Set(erp.requests.map((r) => r.key))).toEqual(new Set([`rec-${recId}-${ANCHOR_S}`]));
+    expect(await draftsOf(db, recId)).toHaveLength(2);
+  });
+
   it("executor runs only from an approval: executing a pending recommendation throws", async () => {
     const err = await executeRecommendation(deps, recId).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(DecisionError);

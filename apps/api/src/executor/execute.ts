@@ -20,7 +20,7 @@ import {
   type RecommendationStatus,
 } from "@pharos/shared";
 import { transition } from "../approvals/state.js";
-import { draftMessages } from "./drafts.js";
+import { type DraftedMessageInput, draftMessages } from "./drafts.js";
 import type { ErpClient } from "./erp-client.js";
 
 export interface ExecutorDeps {
@@ -301,6 +301,9 @@ async function erpRequestFor(sql: Sql, orderId: Id): Promise<ErpOrderRequest> {
  */
 async function pushAndFinish(deps: ExecutorDeps, recId: Id): Promise<void> {
   const { sql } = deps;
+  const [rec] = await sql<RecommendationRow[]>`
+    select id, type, status, calculation_id, option_id from recommendations where id = ${recId}`;
+  if (!rec) throw new DecisionError("not_found", `Recommendation ${recId} does not exist.`);
   const [order] = await sql<
     { id: number; quote_id: number; erp_sync_status: string; idempotency_key: string }[]
   >`
@@ -309,6 +312,17 @@ async function pushAndFinish(deps: ExecutorDeps, recId: Id): Promise<void> {
   if (!order) throw new Error(`recommendation ${recId} has no purchase order`);
   const orderId = order.id;
   const key = order.idempotency_key;
+
+  // Render inputs first: an unreadable plan or order fails here, before any external call.
+  let render: (poNumber: string) => DraftedMessageInput[];
+  try {
+    render = await prepareDrafts(sql, rec, orderId);
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err);
+    deps.log?.(`[executor] order ${orderId} (${key}): drafts cannot be prepared: ${error}`);
+    await failRecommendation(deps, recId, { orderId, error });
+    return;
+  }
 
   let confirmed: { poNumber: string; duplicate: boolean } | null = null;
   if (order.erp_sync_status === "synced") {
@@ -322,8 +336,6 @@ async function pushAndFinish(deps: ExecutorDeps, recId: Id): Promise<void> {
       const error = err instanceof Error ? err.message : String(err);
       deps.log?.(`[executor] order ${orderId} (${key}): ERP push failed: ${error}`);
       await sql.begin(async (tx) => {
-        const rec = await lockRecommendation(tx, recId);
-        const at = clock(deps);
         await tx`update purchase_orders set erp_sync_status = 'failed' where id = ${orderId}`;
         await audit(
           tx,
@@ -331,51 +343,72 @@ async function pushAndFinish(deps: ExecutorDeps, recId: Id): Promise<void> {
           "order.sync_failed",
           EXECUTOR,
           { orderId, idempotencyKey: key, error },
-          at,
+          clock(deps),
         );
-        await tx`update recommendations set status = ${transition(rec.status, "fail")} where id = ${recId}`;
-        await audit(tx, recId, "recommendation.failed", EXECUTOR, { orderId, error }, at);
       });
+      await failRecommendation(deps, recId, { orderId, error });
       return;
     }
   }
 
   const done = confirmed;
-  await sql.begin(async (tx) => {
+  try {
+    await sql.begin(async (tx) => {
+      const rec = await lockRecommendation(tx, recId);
+      const at = clock(deps);
+      await tx`
+        update purchase_orders set erp_sync_status = 'synced', erp_po_number = ${done.poNumber},
+          status = 'confirmed'
+        where id = ${orderId}`;
+      await tx`update quotes set status = 'ordered' where id = ${order.quote_id}`;
+      await tx`
+        update bunker_requirements set status = 'ordered'
+        where id = (select requirement_id from quotes where id = ${order.quote_id}) and status = 'open'`;
+      await audit(
+        tx,
+        recId,
+        "order.pushed",
+        EXECUTOR,
+        { orderId, erpPoNumber: done.poNumber, duplicate: done.duplicate },
+        at,
+      );
+      const kinds = await insertDrafts(tx, render(done.poNumber), at);
+      if (kinds.length > 0) await audit(tx, recId, "drafts.created", EXECUTOR, { kinds }, at);
+      await tx`update recommendations set status = ${transition(rec.status, "succeed")} where id = ${recId}`;
+      await audit(tx, recId, "recommendation.executed", EXECUTOR, { orderId }, at);
+    });
+  } catch (err) {
+    // The PO may exist in the ERP; a retry is safe (the key dedupes the PO, the unique index the drafts).
+    const error = err instanceof Error ? err.message : String(err);
+    deps.log?.(`[executor] order ${orderId} (${key}): recording the success failed: ${error}`);
+    await failRecommendation(deps, recId, { orderId, error: `after the ERP push: ${error}` });
+  }
+}
+
+/** executing -fail-> failed, audited with the reason; leaves any other status alone. */
+async function failRecommendation(
+  deps: ExecutorDeps,
+  recId: Id,
+  detail: { orderId: Id; error: string },
+): Promise<void> {
+  await deps.sql.begin(async (tx) => {
     const rec = await lockRecommendation(tx, recId);
-    const at = clock(deps);
-    await tx`
-      update purchase_orders set erp_sync_status = 'synced', erp_po_number = ${done.poNumber},
-        status = 'confirmed'
-      where id = ${orderId}`;
-    await tx`update quotes set status = 'ordered' where id = ${order.quote_id}`;
-    await tx`
-      update bunker_requirements set status = 'ordered'
-      where id = (select requirement_id from quotes where id = ${order.quote_id}) and status = 'open'`;
-    await audit(
-      tx,
-      recId,
-      "order.pushed",
-      EXECUTOR,
-      { orderId, erpPoNumber: done.poNumber, duplicate: done.duplicate },
-      at,
-    );
-    const kinds = await storeDrafts(tx, rec, orderId, done.poNumber, at);
-    if (kinds.length > 0) await audit(tx, recId, "drafts.created", EXECUTOR, { kinds }, at);
-    await tx`update recommendations set status = ${transition(rec.status, "succeed")} where id = ${recId}`;
-    await audit(tx, recId, "recommendation.executed", EXECUTOR, { orderId }, at);
+    if (rec.status !== "executing") return;
+    await tx`update recommendations set status = ${transition(rec.status, "fail")} where id = ${recId}`;
+    await audit(tx, recId, "recommendation.failed", EXECUTOR, detail, clock(deps));
   });
 }
 
-/** Drafts both messages from the stored calculation and order; the unique index keeps it to once. */
-async function storeDrafts(
-  tx: Tx,
+/**
+ * Reads the stored calculation and order and returns the template renderer for the PO number
+ * (known only after the push). Throws if the plan, option or order is unreadable.
+ */
+async function prepareDrafts(
+  sql: Sql,
   rec: RecommendationRow,
   orderId: Id,
-  poNumber: string,
-  at: Date,
-): Promise<string[]> {
-  const [row] = await tx<
+): Promise<(poNumber: string) => DraftedMessageInput[]> {
+  const [row] = await sql<
     {
       idempotency_key: string;
       currency: "USD" | "EUR";
@@ -400,29 +433,34 @@ async function storeDrafts(
       join voyages vo on vo.id = c.voyage_id
       join vessels v on v.id = vo.vessel_id
     where po.id = ${orderId}`;
-  const [line] = await tx<{ grade: FuelGrade; qty_mt: number; price_per_mt: number }[]>`
+  const [line] = await sql<{ grade: FuelGrade; qty_mt: number; price_per_mt: number }[]>`
     select grade, qty_mt, price_per_mt from order_lines where order_id = ${orderId} order by id limit 1`;
   const plan = BunkerPlan.safeParse(row?.outputs);
   const option = plan.success ? plan.data.options.find((o) => o.optionId === rec.option_id) : null;
   if (!row || !line || !option) {
     throw new Error(`recommendation ${rec.id}: stored order or plan option is unreadable`);
   }
-  const drafts = draftMessages({
-    recommendation: { id: rec.id },
-    order: {
-      reference: row.idempotency_key,
-      poNumber,
-      grade: line.grade,
-      qtyMt: line.qty_mt,
-      pricePerMt: line.price_per_mt,
-      currency: row.currency,
-      bargeFee: row.barge_fee,
-    },
-    supplier: { name: row.supplier_name, emailDomain: row.email_domain },
-    vessel: { name: row.vessel_name, imo: row.imo },
-    port: { name: row.port_name, unlocode: row.unlocode },
-    option,
-  });
+  return (poNumber) =>
+    draftMessages({
+      recommendation: { id: rec.id },
+      order: {
+        reference: row.idempotency_key,
+        poNumber,
+        grade: line.grade,
+        qtyMt: line.qty_mt,
+        pricePerMt: line.price_per_mt,
+        currency: row.currency,
+        bargeFee: row.barge_fee,
+      },
+      supplier: { name: row.supplier_name, emailDomain: row.email_domain },
+      vessel: { name: row.vessel_name, imo: row.imo },
+      port: { name: row.port_name, unlocode: row.unlocode },
+      option,
+    });
+}
+
+/** Stores the drafts; the unique index keeps it to once per kind. Returns the kinds inserted. */
+async function insertDrafts(tx: Tx, drafts: DraftedMessageInput[], at: Date): Promise<string[]> {
   const kinds: string[] = [];
   for (const d of drafts) {
     const inserted = await tx`
