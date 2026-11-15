@@ -307,6 +307,8 @@ export const Calculation = z.object({
   codeVersion: z.string().min(1),
   voyageId: Id.nullable(),
   weatherSnapshotId: Id.nullable(),
+  /** Lineage for kind `calculate`: the fact IDs used as operands. */
+  operandFactIds: z.array(FactId).nullable(),
   createdAt: Ts,
 });
 export type Calculation = z.infer<typeof Calculation>;
@@ -356,11 +358,20 @@ export const Conversation = z.object({
 });
 export type Conversation = z.infer<typeof Conversation>;
 
+/** Outcome of one release-gate attempt: every number in an answer must match a tool fact. */
+export const GateAttempt = z.object({
+  attempt: z.union([z.literal(1), z.literal(2)]),
+  passed: z.boolean(),
+  ungroundedNumbers: z.array(z.string()),
+});
+export type GateAttempt = z.infer<typeof GateAttempt>;
+
 export const Message = z.object({
   id: Id,
   conversationId: Id,
   role: z.enum(["user", "assistant", "tool"]),
   content: Json,
+  gateAttempts: z.array(GateAttempt),
   createdAt: Ts,
 });
 export type Message = z.infer<typeof Message>;

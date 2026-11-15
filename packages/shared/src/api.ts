@@ -4,6 +4,7 @@ import { ConsumptionCurve, FobProjection } from "./calculators.js";
 import {
   CheckResult,
   ExtractionStatus,
+  GateAttempt,
   LlmCall,
   PortCallPurpose,
   QuoteStatus,
@@ -189,13 +190,8 @@ export const AskRequest = z.object({
 });
 export type AskRequest = z.infer<typeof AskRequest>;
 
-/** Outcome of the release gate: every number in an answer must match a tool fact. */
-export const GateAttempt = z.object({
-  attempt: z.union([z.literal(1), z.literal(2)]),
-  passed: z.boolean(),
-  ungroundedNumbers: z.array(z.string()),
-});
-export type GateAttempt = z.infer<typeof GateAttempt>;
+/** Outcome of the release gate: every number in an answer must match a tool fact (see GateAttempt). */
+export { GateAttempt } from "./entities.js";
 
 export const GateResult = z.object({
   passed: z.boolean(),

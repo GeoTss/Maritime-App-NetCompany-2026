@@ -1,3 +1,4 @@
+import { readdirSync, readFileSync } from "node:fs";
 import * as shared from "@pharos/shared";
 import { getTableColumns, getTableName } from "drizzle-orm";
 import { getTableConfig, type PgTable } from "drizzle-orm/pg-core";
@@ -28,6 +29,7 @@ const pairs: Pair[] = [
   ["WeatherSnapshot", shared.WeatherSnapshot, schema.weatherSnapshots],
   ["Calculation", shared.Calculation, schema.calculations],
   ["Recommendation", shared.Recommendation, schema.recommendations],
+  ["DraftedMessage", shared.DraftedMessage, schema.draftedMessages],
   ["Conversation", shared.Conversation, schema.conversations],
   ["Message", shared.Message, schema.messages],
   ["AuditEvent", shared.AuditEvent, schema.auditEvents],
@@ -40,9 +42,9 @@ describe("drizzle schema mirrors the shared entities", () => {
     expect(Object.keys(getTableColumns(table)).sort()).toEqual(Object.keys(entity.shape).sort());
   });
 
-  it("has 26 entity tables plus world_meta (27 in all)", () => {
+  it("has 27 entity tables plus world_meta (28 in all)", () => {
     const names = [...pairs.map(([, , t]) => getTableName(t)), getTableName(schema.worldMeta)];
-    expect(new Set(names).size).toBe(27);
+    expect(new Set(names).size).toBe(28);
     expect(names).toContain("world_meta");
   });
 
@@ -65,6 +67,40 @@ describe("drizzle schema mirrors the shared entities", () => {
     expect(idx?.config.columns).toHaveLength(1);
     const col = idx?.config.columns[0];
     expect(col && "name" in col ? col.name : null).toBe(schema.purchaseOrders.idempotencyKey.name);
+  });
+
+  it("carries the Phase 4 lineage, gate-attempt and draft columns", () => {
+    const calc = getTableColumns(schema.calculations).operandFactIds;
+    expect(calc.notNull).toBe(false);
+    const gate = getTableColumns(schema.messages).gateAttempts;
+    expect(gate.notNull).toBe(true);
+    expect(gate.default).toEqual([]);
+    const draft = getTableColumns(schema.draftedMessages);
+    expect(draft.to.name).toBe("to_address");
+    expect(draft.status.default).toBe("draft");
+    expect(draft.status.notNull).toBe(true);
+  });
+
+  it("drafted_messages has a unique index on (recommendation_id, kind)", () => {
+    const idx = getTableConfig(schema.draftedMessages).indexes.find(
+      (i) => i.config.name === "drafted_messages_recommendation_kind_uq",
+    );
+    expect(idx?.config.unique).toBe(true);
+    expect(idx?.config.columns.map((c) => ("name" in c ? c.name : null))).toEqual([
+      schema.draftedMessages.recommendationId.name,
+      schema.draftedMessages.kind.name,
+    ]);
+  });
+
+  it("the Phase 4 migration is additive (no drops, renames or type changes)", () => {
+    const dir = new URL("../drizzle/", import.meta.url);
+    const file = readdirSync(dir).find((f) => f.startsWith("0004_") && f.endsWith(".sql"));
+    expect(file).toBeDefined();
+    const sqlText = readFileSync(new URL(file ?? "", dir), "utf8");
+    expect(sqlText).not.toMatch(/DROP |RENAME |ALTER COLUMN|TRUNCATE|DELETE FROM/i);
+    expect(sqlText).toMatch(/CREATE TABLE "drafted_messages"/);
+    expect(sqlText).toMatch(/ADD COLUMN "operand_fact_ids"/);
+    expect(sqlText).toMatch(/ADD COLUMN "gate_attempts"/);
   });
 
   it("world_meta carries the seed bookkeeping columns", () => {

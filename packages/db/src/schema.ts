@@ -8,6 +8,7 @@ import type {
   EtsCoverageFactor,
   FactId,
   FuelGrade,
+  GateAttempt,
   GradeAmounts,
   Id,
   LatLon,
@@ -278,6 +279,8 @@ export const calculations = pgTable("calculations", {
   codeVersion: text().notNull(),
   voyageId: integer().references(() => voyages.id, { onDelete: "restrict" }),
   weatherSnapshotId: integer().references(() => weatherSnapshots.id, { onDelete: "restrict" }),
+  /** Lineage for kind `calculate`: the fact IDs used as operands. */
+  operandFactIds: jsonb().$type<FactId[]>(),
   createdAt: ts().notNull(),
 });
 
@@ -294,6 +297,7 @@ export const messages = pgTable("messages", {
     .references(() => conversations.id, { onDelete: "restrict" }),
   role: text().$type<"user" | "assistant" | "tool">().notNull(),
   content: jsonb().$type<unknown>(),
+  gateAttempts: jsonb().$type<GateAttempt[]>().notNull().default([]),
   createdAt: ts().notNull(),
 });
 
@@ -312,6 +316,25 @@ export const recommendations = pgTable("recommendations", {
   decidedAt: ts(),
   createdAt: ts().notNull(),
 });
+
+/** Messages the executor drafted for a human to send; Pharos never sends them. One per kind. */
+export const draftedMessages = pgTable(
+  "drafted_messages",
+  {
+    id: id(),
+    recommendationId: integer()
+      .notNull()
+      .references(() => recommendations.id, { onDelete: "restrict" }),
+    kind: text().$type<"supplier_confirmation" | "master_instruction">().notNull(),
+    // `to` is a reserved word in SQL, so the column is named explicitly.
+    to: text("to_address").notNull(),
+    subject: text().notNull(),
+    body: text().notNull(),
+    status: text().$type<"draft">().notNull().default("draft"),
+    createdAt: ts().notNull(),
+  },
+  (t) => [uniqueIndex("drafted_messages_recommendation_kind_uq").on(t.recommendationId, t.kind)],
+);
 
 export const purchaseOrders = pgTable(
   "purchase_orders",
