@@ -13,10 +13,13 @@ COPY packages/integrations/package.json packages/integrations/
 COPY apps/api/package.json apps/api/
 COPY apps/worker/package.json apps/worker/
 COPY services/erp-sim/package.json services/erp-sim/
+COPY apps/web/package.json apps/web/
 # tsx runs TypeScript directly, so dev dependencies are part of the runtime image.
 RUN npm ci --include=dev --no-audit --no-fund
 
 COPY . .
+# The ops console is a static bundle, built once into apps/web/dist and served by `vite preview`.
+RUN npm run build -w @pharos/web
 
 USER node
 CMD ["npm", "run", "start", "-w", "@pharos/api"]

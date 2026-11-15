@@ -14,3 +14,6 @@ evals/reports/*
 .claude/settings.local.json
 .claude/state/*.local.json
 .claude/state/markers/
+
+# Impeccable engine binary (re-downloaded by its launcher; 19 MB)
+.claude/skills/impeccable/scripts/bin/

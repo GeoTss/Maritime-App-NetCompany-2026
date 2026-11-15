@@ -81,5 +81,23 @@ services:
       DEMO_HAZARDS: ${DEMO_HAZARDS:-off}
       AISSTREAM_API_KEY: ${AISSTREAM_API_KEY:-}
 
+  web:
+    <<: *node
+    command:
+      ["npm", "run", "preview", "-w", "@pharos/web", "--", "--host", "0.0.0.0", "--port", "5173"]
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      # The console's only backend: /api is proxied here, so the browser stays on one origin.
+      API_PROXY_TARGET: http://api:4000
+    ports:
+      - "5173:5173"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:5173/"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
 volumes:
   pgdata:

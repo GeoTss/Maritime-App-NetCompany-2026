@@ -17,7 +17,9 @@
       "!**/*.pdf",
       "!fixtures/recorded",
       "!**/*.generated.json",
-      "!**/*.md"
+      "!**/*.md",
+      "!apps/web/src/app/beautifui",
+      "!.claude/skills/impeccable"
     ]
   },
   "formatter": {
@@ -44,5 +46,32 @@
       "semicolons": "always",
       "trailingCommas": "all"
     }
-  }
+  },
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["apps/web/src/**"],
+      "linter": {
+        "rules": {
+          "security": {
+            "noDangerouslySetInnerHtml": "error"
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "apps/web/src/components/ui/**",
+        "apps/web/src/components/primitives/**",
+        "apps/web/src/components/atoms/**"
+      ],
+      "linter": {
+        "enabled": false
+      }
+    }
+  ]
 }
