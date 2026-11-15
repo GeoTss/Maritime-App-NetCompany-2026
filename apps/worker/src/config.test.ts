@@ -8,6 +8,16 @@ describe("loadWorkerConfig", () => {
     expect(loadWorkerConfig(base)).toMatchObject({ aisMode: "replay", weatherMode: "recorded" });
   });
 
+  it("loads the synthetic hazard in replay mode, and in live mode only with DEMO_HAZARDS=on", () => {
+    const live = { ...base, AIS_MODE: "live", AISSTREAM_API_KEY: "k" };
+    expect(loadWorkerConfig(base).loadSyntheticHazards).toBe(true);
+    expect(loadWorkerConfig(live, () => {}).loadSyntheticHazards).toBe(false);
+    expect(loadWorkerConfig({ ...live, DEMO_HAZARDS: "on" }, () => {}).loadSyntheticHazards).toBe(
+      true,
+    );
+    expect(loadWorkerConfig({ ...base, AIS_MODE: "off" }).loadSyntheticHazards).toBe(false);
+  });
+
   it("live without a key runs the replay and says which variable is missing", () => {
     const logs: string[] = [];
     const cfg = loadWorkerConfig({ ...base, AIS_MODE: "live", AISSTREAM_API_KEY: "" }, (l) =>

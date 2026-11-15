@@ -1,0 +1,129 @@
+import type { Sql } from "@pharos/db";
+import { connectTestDb, testDbLabel } from "@pharos/db/testing";
+import {
+  AisTrafficView,
+  PortCongestionView,
+  RoutePlanResponse,
+  SourceStatusView,
+  WeatherView,
+} from "@pharos/shared";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { createApp } from "../app.js";
+import { ASK_FIXTURE_NOW, prepareAskFixture } from "../ask/demo-fixture.js";
+import { createFixtureSource } from "../read/fixtures.js";
+import { HazardZoneView, TRAFFIC_LIMIT } from "./routes.js";
+
+const sql = await connectTestDb("live_routes");
+
+if (!sql) {
+  describe("live routes (Postgres)", () => {
+    it.skip(`skipped: Postgres unreachable for ${testDbLabel("live_routes")}`, () => {});
+  });
+}
+
+describe.skipIf(!sql)("live routes (Postgres)", () => {
+  if (!sql) return;
+  const db: Sql = sql;
+  const app = createApp({
+    llmMode: "replay",
+    pingDb: async () => true,
+    read: createFixtureSource(),
+    live: { sql: db, now: () => ASK_FIXTURE_NOW },
+  });
+
+  beforeAll(async () => {
+    await prepareAskFixture(db);
+  });
+  afterAll(async () => {
+    await db.end();
+  });
+
+  const post = (body: unknown, contentType: string | null = "application/json") =>
+    app.request("/api/route-plan", {
+      method: "POST",
+      headers: contentType ? { "content-type": contentType } : {},
+      body: JSON.stringify(body),
+    });
+
+  it("POST /api/route-plan answers 200 with candidates and a result", async () => {
+    const res = await post({ vessel: "Aegean Pioneer" });
+    expect(res.status).toBe(200);
+    const body = RoutePlanResponse.parse(await res.json());
+    expect(body.candidates.length).toBeGreaterThan(0);
+    expect(body.result.options).toHaveLength(body.candidates.length);
+    const [row] = await db<{ kind: string }[]>`
+      select kind from calculations where id = ${body.calculationId}`;
+    expect(row?.kind).toBe("route_speed");
+  });
+
+  it("POST /api/route-plan is 415 without a JSON content type and 422 for an unknown ship", async () => {
+    expect((await post({ vessel: "Aegean Pioneer" }, "text/plain")).status).toBe(415);
+    expect((await post({ vessel: "Aegean Pioneer" }, null)).status).toBe(415);
+    const res = await post({ vessel: "No Such Ship" });
+    expect(res.status).toBe(422);
+    expect(((await res.json()) as { message: string }).message).toMatch(/No Such Ship/);
+    expect((await post({ nope: 1 })).status).toBe(400);
+  });
+
+  it("GET /api/traffic parses and is bounded and newest first", async () => {
+    const res = await app.request("/api/traffic");
+    expect(res.status).toBe(200);
+    const { items } = (await res.json()) as { items: unknown[] };
+    const views = items.map((i) => AisTrafficView.parse(i));
+    expect(views.length).toBeGreaterThan(0);
+    expect(views.length).toBeLessThanOrEqual(TRAFFIC_LIMIT);
+    const times = views.map((v) => Date.parse(v.updatedAt));
+    expect(times).toEqual([...times].sort((a, b) => b - a));
+  });
+
+  it("GET /api/congestion returns one latest row per port", async () => {
+    const { items } = (await (await app.request("/api/congestion")).json()) as { items: unknown[] };
+    const views = items.map((i) => PortCongestionView.parse(i));
+    expect(views.length).toBeGreaterThan(0);
+    expect(new Set(views.map((v) => v.portId)).size).toBe(views.length);
+  });
+
+  it("GET /api/weather?step=n parses; a bad step is 400; no snapshot is 404", async () => {
+    const view = WeatherView.parse(await (await app.request("/api/weather")).json());
+    expect(view.step).toBe(0);
+    expect(view.points.length).toBeGreaterThan(0);
+    const later = WeatherView.parse(await (await app.request("/api/weather?step=3")).json());
+    expect(later.step).toBe(3);
+    expect((await app.request(`/api/weather?step=${view.steps}`)).status).toBe(400);
+    expect((await app.request("/api/weather?step=x")).status).toBe(400);
+    const empty = await connectTestDb("live_routes_empty");
+    if (!empty) return;
+    try {
+      await empty`truncate weather_snapshots restart identity cascade`;
+      const bare = createApp({
+        llmMode: "replay",
+        pingDb: async () => true,
+        read: createFixtureSource(),
+        live: { sql: empty, now: () => ASK_FIXTURE_NOW },
+      });
+      expect((await bare.request("/api/weather")).status).toBe(404);
+    } finally {
+      await empty.end();
+    }
+  });
+
+  it("GET /api/sources and GET /api/hazards parse", async () => {
+    const sources = (await (await app.request("/api/sources")).json()) as { items: unknown[] };
+    const parsed = sources.items.map((i) => SourceStatusView.parse(i));
+    expect(parsed.map((s) => s.source).sort()).toEqual(["ais", "weather"]);
+    expect(parsed.every((s) => s.mode === "recorded")).toBe(true);
+    const hazards = (await (await app.request("/api/hazards")).json()) as { items: unknown[] };
+    const views = hazards.items.map((i) => HazardZoneView.parse(i));
+    const synthetic = views.find((h) => h.id === "synthetic:1");
+    expect(synthetic?.zoneRadiusNm).toBeGreaterThan(0);
+  });
+
+  it("is not mounted without deps.live", async () => {
+    const bare = createApp({
+      llmMode: "replay",
+      pingDb: async () => true,
+      read: createFixtureSource(),
+    });
+    expect((await bare.request("/api/traffic")).status).not.toBe(200);
+  });
+});

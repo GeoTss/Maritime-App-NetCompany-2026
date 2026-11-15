@@ -12,6 +12,8 @@ import {
   insertWeatherSnapshot,
   RECORDED_DIR,
   refreshCongestion,
+  syntheticHazards,
+  upsertHazards,
   upsertSourceStatus,
 } from "@pharos/integrations";
 import { loadWorkerConfig } from "./config.js";
@@ -59,6 +61,13 @@ async function main() {
   const ctrl = new AbortController();
   for (const sig of ["SIGINT", "SIGTERM"] as const) process.on(sig, () => ctrl.abort());
   const { signal } = ctrl;
+
+  if (cfg.loadSyntheticHazards) {
+    // The labelled synthetic hazard the demo routes around; real AIS hazards need no such help.
+    const hazards = syntheticHazards(RECORDED_DIR, new Date());
+    await upsertHazards(sql, hazards);
+    log(`worker: loaded ${hazards.length} synthetic demo hazard(s)`);
+  }
 
   const ingester = createAisIngester(sql, { now: () => new Date() });
   // A provider error must never reach the process: log and keep going.

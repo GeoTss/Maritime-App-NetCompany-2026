@@ -7,6 +7,7 @@
  * ids). Building the database the same way every time keeps those ids, and so the keys, stable.
  */
 import { DEMO_SCENARIO, generateWorld, type Sql, seedDatabase } from "@pharos/db";
+import { loadRecordedSources } from "@pharos/integrations";
 import type { Id } from "@pharos/shared";
 import { buildDemoEmails, FIXTURE_ANCHOR, FIXTURE_SEED } from "../read/fixtures.js";
 
@@ -52,8 +53,12 @@ export async function insertDemoQuotes(sql: Sql): Promise<Id[]> {
   return ids;
 }
 
-/** Resets the database to the seeded world and inserts the two demo quotes. */
+/**
+ * Resets the database to the seeded world, loads the recorded AIS capture, weather snapshot and
+ * synthetic hazard as observed at the anchor, and inserts the two demo quotes.
+ */
 export async function prepareAskFixture(sql: Sql): Promise<Id[]> {
   await seedDatabase(sql, { seed: FIXTURE_SEED, anchor: FIXTURE_ANCHOR, mode: "reset" });
+  await loadRecordedSources(sql, { anchor: FIXTURE_ANCHOR });
   return insertDemoQuotes(sql);
 }

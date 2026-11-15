@@ -61,6 +61,7 @@ async function main() {
     ask: { sql, llm, config, log },
     approvals: { sql, erp: createErpClient(config.erpBaseUrl), log },
     llmCalls: { sql },
+    live: { sql, now: () => new Date() },
   });
 
   // An extraction claimed but still pending was cut off mid-way by a crash or restart: mark it

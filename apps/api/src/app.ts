@@ -4,6 +4,7 @@ import type { AgentDeps } from "./ai/agent.js";
 import { type ApprovalDeps, createApprovalRoutes } from "./approvals/routes.js";
 import { createAskRoutes } from "./ask/routes.js";
 import { createInboxRoutes, type InboxDeps } from "./inbox/routes.js";
+import { createLiveRoutes, type LiveDeps } from "./live/routes.js";
 import { createLlmCallRoutes, type LlmCallDeps } from "./llm-calls/routes.js";
 import { createReadRoutes } from "./read/routes.js";
 import type { ReadSource } from "./read/source.js";
@@ -26,6 +27,8 @@ export interface AppDeps {
   approvals?: ApprovalDeps;
   /** The database behind GET /api/llm-calls; omitted, that route is not mounted. */
   llmCalls?: LlmCallDeps;
+  /** Live map data and route planning; omitted, those routes are not mounted. */
+  live?: LiveDeps;
 }
 
 export function createApp(deps: AppDeps) {
@@ -51,6 +54,7 @@ export function createApp(deps: AppDeps) {
   if (deps.ask) app.route("/api/ask", createAskRoutes(deps.ask));
   if (deps.approvals) app.route("/api/recommendations", createApprovalRoutes(deps.approvals));
   if (deps.llmCalls) app.route("/api/llm-calls", createLlmCallRoutes(deps.llmCalls));
+  if (deps.live) app.route("/api", createLiveRoutes(deps.live));
   app.route("/api", createReadRoutes(deps.read));
 
   return app;

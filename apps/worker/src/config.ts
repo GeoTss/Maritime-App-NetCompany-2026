@@ -5,6 +5,7 @@ const Env = z.object({
   AIS_MODE: z.enum(["live", "replay", "off"]).default("replay"),
   WEATHER_MODE: z.enum(["live", "recorded"]).default("recorded"),
   AISSTREAM_API_KEY: z.string().optional(),
+  DEMO_HAZARDS: z.enum(["on", "off"]).default("off"),
 });
 
 export interface WorkerConfig {
@@ -12,6 +13,8 @@ export interface WorkerConfig {
   aisMode: "live" | "replay" | "off";
   weatherMode: "live" | "recorded";
   aisApiKey: string | undefined;
+  /** Load the labelled synthetic demo hazard at start: always in replay mode, in live mode only when DEMO_HAZARDS=on. */
+  loadSyntheticHazards: boolean;
 }
 
 /** Validate the worker's environment. Errors name the variable, never its value. */
@@ -39,5 +42,6 @@ export function loadWorkerConfig(
     aisMode,
     weatherMode: e.WEATHER_MODE,
     aisApiKey: e.AISSTREAM_API_KEY,
+    loadSyntheticHazards: aisMode === "replay" || e.DEMO_HAZARDS === "on",
   };
 }

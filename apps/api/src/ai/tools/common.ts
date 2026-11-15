@@ -86,7 +86,7 @@ export function calcFact(
 
 export function dbFact(
   tool: string,
-  row: { table: string; rowId: Id; field: string },
+  row: { table: string; rowId: Id | string; field: string },
   label: string,
   value: number | string | boolean,
   unit: string | null,
@@ -132,13 +132,15 @@ export const json = (value: unknown): string => JSON.stringify(value);
  * returns its id, the id every calculation fact and any proposal points at.
  */
 export async function insertCalculation(
-  ctx: ToolContext,
+  ctx: Pick<ToolContext, "sql" | "now">,
   calc: {
     kind: Calculation["kind"];
     inputs: unknown;
     outputs: unknown;
     voyageId: Id | null;
     operandFactIds?: FactId[];
+    /** The weather snapshot the calculation read, when it used one. */
+    weatherSnapshotId?: Id | null;
   },
 ): Promise<Id> {
   const operands = calc.operandFactIds ? json(calc.operandFactIds) : null;
@@ -146,7 +148,7 @@ export async function insertCalculation(
     insert into calculations (kind, inputs, outputs, code_version, voyage_id, weather_snapshot_id,
                               operand_fact_ids, created_at)
     values (${calc.kind}, ${json(calc.inputs)}::jsonb, ${json(calc.outputs)}::jsonb,
-            ${DOMAIN_CODE_VERSION}, ${calc.voyageId}, null, ${operands}::jsonb,
+            ${DOMAIN_CODE_VERSION}, ${calc.voyageId}, ${calc.weatherSnapshotId ?? null}, ${operands}::jsonb,
             ${ctx.now().toISOString()}::timestamptz)
     returning id`;
   if (!row) throw new Error("calculations insert returned no row");
