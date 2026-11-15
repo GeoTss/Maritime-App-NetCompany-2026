@@ -1,0 +1,36 @@
+{
+  "id": "route-speed-06",
+  "tags": ["route_speed"],
+  "question": "For Thessaly Star, what are the distance and the total cost of route A and of route B?",
+  "expect": {
+    "kind": "answer",
+    "requiredFacts": [
+      {
+        "label": "MV Thessaly Star, route A: distance",
+        "value": 1410.7612094213123,
+        "unit": "nm",
+        "tolerance": 0.5
+      },
+      {
+        "label": "MV Thessaly Star, route A: total voyage cost (fuel, EU ETS, vessel time)",
+        "value": 203135.50106576266,
+        "unit": "USD",
+        "tolerance": 0.5
+      },
+      {
+        "label": "MV Thessaly Star, route B: distance",
+        "value": 1053.5362777655205,
+        "unit": "nm",
+        "tolerance": 0.5
+      },
+      {
+        "label": "MV Thessaly Star, route B: total voyage cost (fuel, EU ETS, vessel time)",
+        "value": 158686.69522520417,
+        "unit": "USD",
+        "tolerance": 0.5
+      }
+    ],
+    "proposedOptionId": null,
+    "mustNotPropose": true
+  }
+}

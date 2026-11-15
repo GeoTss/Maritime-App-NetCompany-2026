@@ -9,6 +9,8 @@ export const QA_CATEGORIES = [
   "abstain",
   "no_action",
   "injection",
+  "route_speed",
+  "congestion",
 ] as const;
 export type QaCategory = (typeof QA_CATEGORIES)[number];
 

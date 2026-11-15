@@ -591,8 +591,8 @@ describe("QaTruth", () => {
     expect(QaTruth.safeParse({ ...answer, tags: ["Lookup"] }).success).toBe(false);
   });
 
-  it("lists the seven question categories", () => {
-    expect(QA_CATEGORIES).toEqual([
+  it("lists the nine question categories; the first seven are Phase 4's, in order", () => {
+    expect(QA_CATEGORIES.slice(0, 7)).toEqual([
       "lookup",
       "comparison",
       "bunker_decision",
@@ -601,6 +601,12 @@ describe("QaTruth", () => {
       "no_action",
       "injection",
     ]);
+    expect(QA_CATEGORIES.slice(7)).toEqual(["route_speed", "congestion"]);
+  });
+
+  it("accepts tags[0] = route_speed and congestion", () => {
+    expect(QaTruth.safeParse({ ...answer, tags: ["route_speed"] }).success).toBe(true);
+    expect(QaTruth.safeParse({ ...answer, tags: ["congestion", "x"] }).success).toBe(true);
   });
 });
 

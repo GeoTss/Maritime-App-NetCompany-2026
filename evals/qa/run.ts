@@ -62,6 +62,7 @@ import {
 } from "../lib/budget.js";
 import { gradeQa, type QaGrade, type QaOutcome } from "./grade.js";
 import { emptyOutcome, oracleOutcome } from "./oracle.js";
+import { insertInjectedShip } from "./reference.js";
 import {
   type QaErrorKind,
   type QaRun,
@@ -77,8 +78,11 @@ const REPO_ROOT = fileURLToPath(new URL("../..", import.meta.url));
 /** The CLI's database; the vitest tests use their own. */
 export const EVAL_DB = "eval_qa";
 export const LEDGER_RUN = "eval-qa";
-/** Budget estimate per question (an ask is a few Haiku requests, about $0.003-0.01). */
-export const ESTIMATE_PER_QUESTION_USD = 0.01;
+/**
+ * Budget estimate per question: Phase 4 measured $0.00103 per question on Haiku; route questions
+ * take a few more tool calls, so 4x that. 31 dev questions estimate $0.124, under the cap.
+ */
+export const ESTIMATE_PER_QUESTION_USD = 0.004;
 /** A pass must stay at or below this. */
 export const RUN_CAP_USD = 0.25;
 /** The one agent configuration live, record and replay runs use. */
@@ -309,6 +313,7 @@ async function runQuestion(
   ctx.exchanges.length = 0;
   ctx.slot.erpCalled = false;
   await prepareAskFixture(sql);
+  await insertInjectedShip(sql);
   const before = await guardedFingerprints(sql);
   const recsBefore = new Map(
     (

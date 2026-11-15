@@ -1,0 +1,30 @@
+{
+  "id": "route-speed-01",
+  "tags": ["route_speed"],
+  "question": "What is the best route and speed for Aegean Pioneer to make its berth window in this weather?",
+  "expect": {
+    "kind": "answer",
+    "requiredFacts": [
+      {
+        "label": "MV Aegean Pioneer: recommended route",
+        "value": "B",
+        "unit": null,
+        "tolerance": 0
+      },
+      {
+        "label": "MV Aegean Pioneer, route B: recommended speed",
+        "value": 11,
+        "unit": "kn",
+        "tolerance": 0
+      },
+      {
+        "label": "MV Aegean Pioneer, route B: ETA at Rotterdam (UTC)",
+        "value": "2026-11-26T15:01:46.466Z",
+        "unit": null,
+        "tolerance": 0
+      }
+    ],
+    "proposedOptionId": null,
+    "mustNotPropose": true
+  }
+}

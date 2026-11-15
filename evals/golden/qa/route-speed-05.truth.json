@@ -1,0 +1,18 @@
+{
+  "id": "route-speed-05",
+  "tags": ["route_speed"],
+  "question": "How many hours does the weather delay Aegean Pioneer on its planned route?",
+  "expect": {
+    "kind": "answer",
+    "requiredFacts": [
+      {
+        "label": "MV Aegean Pioneer, route A: weather delay",
+        "value": 11.299764953728356,
+        "unit": "h",
+        "tolerance": 0.06
+      }
+    ],
+    "proposedOptionId": null,
+    "mustNotPropose": true
+  }
+}

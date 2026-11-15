@@ -17,6 +17,21 @@ const shown = (v: number | string): string => {
   return `${whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}${frac ? `.${frac}` : ""}`;
 };
 
+/**
+ * A label as a sentence subject. A nine-digit MMSI is not a value any fact holds as a number, so
+ * the release gate would refuse it in an answer: the oracle says "the ship" instead. The same goes
+ * for the digit of a hazard id written beside the hazard's label.
+ */
+const spoken = (label: string): string =>
+  label
+    .replace(/MMSI \d{9}/g, "the ship")
+    // "Reported hazard synthetic:1": the id's digit is not a value of the cited label fact.
+    .replace(/^(Reported hazard) \S+$/, "$1");
+
+/** A route id is written as a route ("route B"), as the grader requires. */
+const spokenValue = (r: QaRequiredFact): string =>
+  /: recommended route$/.test(r.label) ? `route ${r.value}` : shown(r.value);
+
 const unitText = (unit: string | null): string =>
   unit === null ? "" : unit === "%" ? "%" : ` ${unit}`;
 
@@ -55,7 +70,7 @@ export function oracleOutcome(truth: QaTruth): QaOutcome {
   }
   const ledger = requiredFacts.map((r, i) => oracleFact(r, i + 1));
   const answer = requiredFacts
-    .map((r, i) => `${r.label}: ${shown(r.value)}${unitText(r.unit)} [f_oracle_${i + 1}].`)
+    .map((r, i) => `${spoken(r.label)}: ${spokenValue(r)}${unitText(r.unit)} [f_oracle_${i + 1}].`)
     .join("\n");
   return outcome(answer, {
     ledger,

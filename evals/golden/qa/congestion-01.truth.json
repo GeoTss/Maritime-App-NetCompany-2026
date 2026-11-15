@@ -1,0 +1,24 @@
+{
+  "id": "congestion-01",
+  "tags": ["congestion"],
+  "question": "How many vessels are at anchor at Piraeus and what is the expected waiting time there?",
+  "expect": {
+    "kind": "answer",
+    "requiredFacts": [
+      {
+        "label": "Piraeus: vessels at anchor",
+        "value": 13,
+        "unit": null,
+        "tolerance": 0
+      },
+      {
+        "label": "Piraeus: expected waiting time",
+        "value": 19.5,
+        "unit": "h",
+        "tolerance": 0.06
+      }
+    ],
+    "proposedOptionId": null,
+    "mustNotPropose": true
+  }
+}

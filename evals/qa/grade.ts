@@ -16,6 +16,12 @@
  *                         equal values; derived `f_calc:` facts count like any other
  *                       - a string: a ledger fact with that value, and the value written in the
  *                         answer as a whole word (case-insensitive; citations do not count)
+ *                       - a route id (the fact "recommended route"): a ledger fact with that
+ *                         value, and the answer writes "route B" or "(B)", never just the letter
+ *                         (a lone "A" is the article)
+ *                       - an instant (an ISO timestamp, an ETA or a berth window): a ledger fact
+ *                         with that value, and the answer writes it whole or writes its UTC date
+ *                         and its time to the minute, in any common date form
  *                       - the best option (an option id): the recommendation proposes it, or,
  *                         where no proposal is allowed, the answer names the option's supplier and
  *                         cites one of that option's facts
@@ -107,6 +113,48 @@ export function statesPhrase(answer: string, phrase: string): boolean {
   return word.test(answer.replace(CITATION, " "));
 }
 
+const ISO_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?Z$/;
+const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+
+/** The answer writes the instant `iso`: whole, or its UTC date and its time to the minute. */
+export function statesInstant(answer: string, iso: string): boolean {
+  const text = answer.replace(CITATION, " ");
+  if (text.includes(iso)) return true;
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return false;
+  // A time to the minute may be cut or rounded.
+  const floor = new Date(Math.floor(at.getTime() / 60_000) * 60_000);
+  for (const t of [
+    floor,
+    new Date(floor.getTime() + (at.getTime() - floor.getTime() >= 30_000 ? 60_000 : 0)),
+  ]) {
+    const y = t.getUTCFullYear();
+    const m = t.getUTCMonth();
+    const d = t.getUTCDate();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const month = MONTHS[m] as string;
+    const date = new RegExp(
+      `${y}-${pad(m + 1)}-${pad(d)}|(?<!\\d)0?${d}(?:st|nd|rd|th)?\\s+${month}[a-z]*\\.?|${month}[a-z]*\\.?\\s+0?${d}(?!\\d)`,
+      "i",
+    );
+    const time = new RegExp(`(?<![\\d:])0?${t.getUTCHours()}:${pad(t.getUTCMinutes())}(?!\\d)`);
+    if (date.test(text) && time.test(text)) return true;
+  }
+  return false;
+}
+
+/** The answer names route `id` as a route ("route B", "Route B", "(B)"), not as a bare letter. */
+export function statesRoute(answer: string, id: string): boolean {
+  const text = answer.replace(CITATION, " ");
+  const e = escapeRegExp(id);
+  return new RegExp(`\\b[Rr]oute\\s+[*_"“'(]*${e}(?![\\p{L}\\p{N}])|\\(\\s*${e}\\s*\\)`, "u").test(
+    text,
+  );
+}
+
+/** A required fact whose value is a route id ("<ship>: recommended route"). */
+const ROUTE_ID = /: recommended route$/;
+
 /** A required fact whose value is the plan's best option id. */
 const BEST_OPTION = /\bbest option\b/i;
 
@@ -144,9 +192,10 @@ function satisfiesString(
       ({ fact, supplier }) => outcome.citedIds.includes(fact.id) && statesPhrase(answer, supplier),
     );
   }
-  return (
-    outcome.ledger.some((f) => factMatches(required, f)) && statesPhrase(answer, required.value)
-  );
+  const held = outcome.ledger.some((f) => factMatches(required, f));
+  if (ROUTE_ID.test(required.label)) return held && statesRoute(answer, required.value);
+  if (ISO_INSTANT.test(required.value)) return held && statesInstant(answer, required.value);
+  return held && statesPhrase(answer, required.value);
 }
 
 /**

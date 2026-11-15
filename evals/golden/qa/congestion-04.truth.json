@@ -1,0 +1,11 @@
+{
+  "id": "congestion-04",
+  "tags": ["congestion"],
+  "question": "What will the waiting time at Rotterdam be next week?",
+  "expect": {
+    "kind": "abstain",
+    "requiredFacts": [],
+    "proposedOptionId": null,
+    "mustNotPropose": true
+  }
+}

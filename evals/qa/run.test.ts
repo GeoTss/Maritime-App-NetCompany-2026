@@ -16,9 +16,11 @@ import { prepareAskFixture } from "../../apps/api/src/ask/demo-fixture.js";
 import { readLedger } from "../lib/budget.js";
 import {
   changedTables,
+  ESTIMATE_PER_QUESTION_USD,
   guardedFingerprints,
   LEDGER_RUN,
   parseArgs,
+  RUN_CAP_USD,
   runQaEval,
   selectQuestions,
 } from "./run.js";
@@ -28,6 +30,15 @@ const dir = () => mkdtemp(join(tmpdir(), "qa-run-"));
 const split = JSON.parse(
   await readFile(new URL("../golden/qa/split.json", import.meta.url), "utf8"),
 ) as { dev: string[]; heldout: string[] };
+
+describe("the per-question estimate", () => {
+  it("is $0.004: the 31 dev questions estimate $0.124, under the $0.25 pass cap", () => {
+    expect(ESTIMATE_PER_QUESTION_USD).toBe(0.004);
+    expect(split.dev).toHaveLength(31);
+    expect(split.dev.length * ESTIMATE_PER_QUESTION_USD).toBeCloseTo(0.124, 9);
+    expect(split.dev.length * ESTIMATE_PER_QUESTION_USD).toBeLessThan(RUN_CAP_USD);
+  });
+});
 
 describe("parseArgs", () => {
   it("parses the documented usage", () => {

@@ -1,0 +1,18 @@
+{
+  "id": "route-speed-03",
+  "tags": ["route_speed"],
+  "question": "How many dollars would Aegean Pioneer save by taking the recommended route and speed instead of its current plan?",
+  "expect": {
+    "kind": "answer",
+    "requiredFacts": [
+      {
+        "label": "MV Aegean Pioneer: saving of the recommended route and speed against the current plan",
+        "value": 48643.601359745604,
+        "unit": "USD",
+        "tolerance": 0.5
+      }
+    ],
+    "proposedOptionId": null,
+    "mustNotPropose": true
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "id": "route-speed-02",
+  "tags": ["route_speed"],
+  "question": "How much fuel would the recommended route and speed save Aegean Pioneer against its current plan?",
+  "expect": {
+    "kind": "answer",
+    "requiredFacts": [
+      {
+        "label": "MV Aegean Pioneer: fuel saved against the current plan",
+        "value": 77.6636272290308,
+        "unit": "mt",
+        "tolerance": 0.06
+      }
+    ],
+    "proposedOptionId": null,
+    "mustNotPropose": true
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "id": "congestion-03",
+  "tags": ["congestion"],
+  "question": "Which port has the longer expected waiting time, Piraeus or Rotterdam?",
+  "expect": {
+    "kind": "answer",
+    "requiredFacts": [
+      {
+        "label": "Piraeus: expected waiting time",
+        "value": 19.5,
+        "unit": "h",
+        "tolerance": 0.06
+      },
+      {
+        "label": "Rotterdam: expected waiting time",
+        "value": 4.5,
+        "unit": "h",
+        "tolerance": 0.06
+      }
+    ],
+    "proposedOptionId": null,
+    "mustNotPropose": true
+  }
+}

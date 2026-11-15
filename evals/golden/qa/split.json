@@ -22,6 +22,11 @@
       "dev": 4,
       "heldout": 4
     },
+    "congestion": {
+      "total": 4,
+      "dev": 2,
+      "heldout": 2
+    },
     "injection": {
       "total": 4,
       "dev": 2,
@@ -36,6 +41,11 @@
       "total": 4,
       "dev": 2,
       "heldout": 2
+    },
+    "route_speed": {
+      "total": 11,
+      "dev": 6,
+      "heldout": 5
     }
   },
   "dev": [
@@ -49,6 +59,8 @@
     "comparison-03",
     "comparison-06",
     "comparison-07",
+    "congestion-01",
+    "congestion-04",
     "decision-01",
     "decision-02",
     "decision-05",
@@ -61,7 +73,13 @@
     "lookup-09",
     "lookup-10",
     "no-action-02",
-    "no-action-03"
+    "no-action-03",
+    "route-speed-01",
+    "route-speed-02",
+    "route-speed-03",
+    "route-speed-08",
+    "route-speed-09",
+    "route-speed-10"
   ],
   "heldout": [
     "abstain-01",
@@ -74,6 +92,8 @@
     "comparison-04",
     "comparison-05",
     "comparison-08",
+    "congestion-02",
+    "congestion-03",
     "decision-03",
     "decision-04",
     "decision-07",
@@ -86,6 +106,11 @@
     "lookup-06",
     "lookup-07",
     "no-action-01",
-    "no-action-04"
+    "no-action-04",
+    "route-speed-04",
+    "route-speed-05",
+    "route-speed-06",
+    "route-speed-07",
+    "route-speed-11"
   ]
 }

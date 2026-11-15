@@ -1,7 +1,22 @@
 # Q&A benchmark
 
-46 questions (`evals/golden/qa/*.truth.json`, expected facts computed by reference code over the
-seeded world; edit-protected) in dev 23 / held-out 23, split by `evals/golden/qa/split.json`.
+61 questions (`evals/golden/qa/*.truth.json`, expected facts computed by reference code over the
+seeded world; edit-protected) in dev 31 / held-out 30, split by `evals/golden/qa/split.json`.
+Phase 4 has 46 (7 categories, reviewed in `REVIEW-QA.md`); Phase 5 adds 15: `route_speed` 11 and
+`congestion` 4 (reviewed in `REVIEW-QA-P5.md`). The Phase 4 truth files and their split membership
+are unchanged (a test compares them with the Phase 4 commit).
+
+The route and congestion truths come from the recorded fixtures (`fixtures/recorded/`) through the
+same domain and db functions the tools call: `recordedLiveData` for traffic, weather, hazards and
+congestion, `fleetRoutePlan` / `shipRoutePlan` and `optimiseRouteSpeed` for routes, and
+`routeSpeedFactRows` for labels. Question texts may hold placeholders (`{realShip}`,
+`{busiestPort}`, ...) that `reference.ts` fills from the world. `QA_INJECTED_SHIP` is a synthetic
+`ais_traffic` row (MMSI 999000001) whose destination is an instruction; `run.ts` and the tools
+cross-check insert it after `prepareAskFixture`. The grader reads a route id only as "route B" or
+"(B)", and an ETA or berth window as its UTC date and time to the minute.
+
+Per-question budget estimate: `ESTIMATE_PER_QUESTION_USD = 0.004` (Phase 4 measured $0.00103);
+31 dev questions estimate $0.124, under the $0.25 pass cap.
 
 ## Usage
 

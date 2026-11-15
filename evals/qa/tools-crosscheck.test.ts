@@ -4,7 +4,7 @@
  * a fact with the same label, value and unit. This is what proves the labels in the golden truth
  * are ones the tools emit.
  */
-import type { Sql } from "@pharos/db";
+import type { Sql, World } from "@pharos/db";
 import { connectTestDb, testDbLabel } from "@pharos/db/testing";
 import type { Fact, ToolResult } from "@pharos/shared";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -14,10 +14,21 @@ import { getEmissions } from "../../apps/api/src/ai/tools/emissions.js";
 import { listFleet } from "../../apps/api/src/ai/tools/list-fleet.js";
 import { listQuotes } from "../../apps/api/src/ai/tools/list-quotes.js";
 import { planBunkering } from "../../apps/api/src/ai/tools/plan-bunkering.js";
+import { getPortCongestion } from "../../apps/api/src/ai/tools/port-congestion.js";
+import { planRouteSpeedFacts } from "../../apps/api/src/ai/tools/route-speed.js";
 import { getVesselStatus } from "../../apps/api/src/ai/tools/vessel-status.js";
 import { prepareAskFixture } from "../../apps/api/src/ask/demo-fixture.js";
 import { DEMO_VESSEL, type FactRef, QUESTIONS } from "./questions.js";
-import { QA_NOW, qaWorld, resolveFact } from "./reference.js";
+import {
+  congestionReading,
+  insertInjectedShip,
+  QA_INJECTED_SHIP,
+  QA_NOW,
+  qaRealShip,
+  qaWorld,
+  questionText,
+  resolveFact,
+} from "./reference.js";
 
 const sql = await connectTestDb("qa_golden");
 
@@ -28,7 +39,11 @@ if (!sql) {
 }
 
 /** The tool call that returns the fact a (non-calc) reference points at. */
-function callFor(ctx: ToolContext, ref: Exclude<FactRef, { src: "calc" }>): Promise<ToolResult> {
+function callFor(
+  ctx: ToolContext,
+  ref: Exclude<FactRef, { src: "calc" }>,
+  world: World,
+): Promise<ToolResult> {
   switch (ref.src) {
     case "status":
       return getVesselStatus(ctx, { vessel: ref.vessel });
@@ -40,6 +55,13 @@ function callFor(ctx: ToolContext, ref: Exclude<FactRef, { src: "calc" }>): Prom
       return planBunkering(ctx, { vessel: DEMO_VESSEL });
     case "emissions":
       return getEmissions(ctx, { vessel: ref.vessel });
+    case "route": {
+      if (ref.subject === "fleet") return planRouteSpeedFacts(ctx, { vessel: ref.vessel });
+      const mmsi = ref.vessel === "real" ? qaRealShip(world).mmsi : QA_INJECTED_SHIP.mmsi;
+      return planRouteSpeedFacts(ctx, { vessel: mmsi, destination: "Rotterdam" });
+    }
+    case "congestion":
+      return getPortCongestion(ctx, { port: congestionReading(world, ref.port).port.unlocode });
   }
 }
 
@@ -50,6 +72,7 @@ describe.skipIf(!sql)("Q&A reference vs the real tools (Postgres)", () => {
 
   beforeAll(async () => {
     await prepareAskFixture(db);
+    await insertInjectedShip(db);
   });
   afterAll(async () => {
     await db.end();
@@ -72,7 +95,7 @@ describe.skipIf(!sql)("Q&A reference vs the real tools (Postgres)", () => {
       return result.facts[0] as Fact;
     }
     const want = resolveFact(world, ref);
-    const result = await callFor(ctx, ref);
+    const result = await callFor(ctx, ref, world);
     const hit = result.facts.find((f) => matches(f, want));
     expect(
       hit,
@@ -97,6 +120,13 @@ describe.skipIf(!sql)("Q&A reference vs the real tools (Postgres)", () => {
       }
     });
   }
+
+  it("a route question names the real ship by the MMSI its facts use", () => {
+    const real = qaRealShip(world);
+    const text = questionText(world, "{realShip} {injectedShip}");
+    expect(text).toContain(`(MMSI ${real.mmsi})`);
+    expect(text).toContain(`(MMSI ${QA_INJECTED_SHIP.mmsi})`);
+  });
 
   it("the plan's best option is the demo answer, and the tool agrees", async () => {
     const ctx = createToolContext({ sql: db, now: () => QA_NOW });
