@@ -5,9 +5,9 @@ import { greatCircleNm } from "@pharos/domain";
 import { QA_CATEGORIES, QaTruth } from "@pharos/shared";
 import { describe, expect, it } from "vitest";
 import {
+  compareToBase,
   diffQaGolden,
   PHASE5_GATE_COMMIT,
-  questionTemplate,
   readBaseTruths,
   renderQaGolden,
 } from "./generate.js";
@@ -175,44 +175,85 @@ describe("Phase 6 truths against the Phase 5 gate commit", () => {
 
       const base = readBaseTruths();
       expect(base.map((t) => t.id).sort()).toEqual([...old.dev, ...old.heldout].sort());
-      for (const o of base) {
-        const n = QaTruth.parse(
-          JSON.parse(await readFile(join(QA_GOLDEN_DIR, `${o.id}.truth.json`), "utf8")),
-        );
-        // The real AIS ship's name and MMSI may move with the capture; nothing else in the text.
-        expect(questionTemplate(n.question), o.id).toBe(questionTemplate(o.question));
-        expect(n.tags, o.id).toEqual(o.tags);
-        expect(n.expect.kind, o.id).toBe(o.expect.kind);
-        expect(n.expect.proposedOptionId, o.id).toBe(o.expect.proposedOptionId);
-        expect(n.expect.mustNotPropose, o.id).toBe(o.expect.mustNotPropose);
-        expect(n.expect.requiredFacts.length, o.id).toBe(o.expect.requiredFacts.length);
-        n.expect.requiredFacts.forEach((f, i) => {
-          const was = o.expect.requiredFacts[i];
-          expect(typeof f.value, `${o.id} fact ${i}`).toBe(typeof was?.value);
-          expect(f.unit, `${o.id} fact ${i}`).toBe(was?.unit);
-        });
+      const truths = renderQaGolden().truths;
+      expect(compareToBase(base, truths)).toEqual([]);
+      // ... and the files on disk are the same truths.
+      for (const t of truths) {
+        expect(
+          QaTruth.parse(
+            JSON.parse(await readFile(join(QA_GOLDEN_DIR, `${t.id}.truth.json`), "utf8")),
+          ),
+        ).toEqual(t);
       }
     },
   );
 
-  it.skipIf(before === null)("a changed best or proposed option fails the comparison", () => {
+  it.skipIf(before === null)("the guard fails on a changed best option, route or proposal", () => {
     const base = readBaseTruths();
-    const flipped = base.map((t) =>
-      t.id === "decision-01"
-        ? { ...t, expect: { ...t.expect, proposedOptionId: "GIGIB-straitline" } }
-        : t,
-    );
-    const now = renderQaGolden().truths.find((t) => t.id === "decision-01");
-    const was = flipped.find((t) => t.id === "decision-01");
-    expect(now?.expect.proposedOptionId).toBe("MTMLA-kestrel");
-    expect(was?.expect.proposedOptionId).not.toBe(now?.expect.proposedOptionId);
+    const now = renderQaGolden().truths;
+    const flip = (id: string, edit: (t: QaTruth) => QaTruth): QaTruth[] =>
+      now.map((t) => (t.id === id ? edit(t) : t));
+    const withFact = (t: QaTruth, i: number, value: string): QaTruth => ({
+      ...t,
+      expect: {
+        ...t.expect,
+        requiredFacts: t.expect.requiredFacts.map((f, j) => (j === i ? { ...f, value } : f)),
+      },
+    });
+    // A flipped proposed option.
+    expect(
+      compareToBase(
+        base,
+        flip("decision-01", (t) => ({
+          ...t,
+          expect: { ...t.expect, proposedOptionId: "GIGIB-straitline" },
+        })),
+      ),
+    ).toEqual(["decision-01: proposed option changed"]);
+    // A flipped "Best option" string fact.
+    expect(
+      compareToBase(
+        base,
+        flip("decision-07", (t) => withFact(t, 0, "GIGIB-straitline")),
+      ),
+    ).toEqual([
+      expect.stringMatching(/^decision-07: fact 0 string value changed: MTMLA-kestrel -> GIGIB/),
+    ]);
+    // A flipped recommended route, on a fleet question and on the real-ship question.
+    for (const id of ["route-speed-10", "route-speed-07"]) {
+      const was = base.find((t) => t.id === id)?.expect.requiredFacts[0]?.value;
+      expect(
+        compareToBase(
+          base,
+          flip(id, (t) => withFact(t, 0, was === "B" ? "C" : "B")),
+        ),
+        id,
+      ).toEqual([expect.stringMatching(new RegExp(`^${id}: fact 0 string value changed`))]);
+    }
+    // The real ship's ETA timestamp may move with the ship; the current truths are clean.
+    expect(compareToBase(base, now)).toEqual([]);
+    // A baseline that is itself changed in a number only is not a problem.
+    expect(
+      compareToBase(
+        base,
+        flip("lookup-10", (t) => ({
+          ...t,
+          expect: {
+            ...t.expect,
+            requiredFacts: t.expect.requiredFacts.map((f) => ({ ...f, value: 1 })),
+          },
+        })),
+      ),
+    ).toEqual([]);
   });
 
   it.skipIf(before === null)("REVIEW-QA-P6.md reports no guard problem", async () => {
     const p6 = await readFile(join(QA_GOLDEN_DIR, "REVIEW-QA-P6.md"), "utf8");
     expect(p6).toContain(
-      "Guard: no question text, tag, kind, proposed option or fact count changed",
+      "no question text, tag, kind, proposed option, fact count, unit or string",
     );
+    expect(p6).toContain("none changed (computed by the guard above)");
+    expect(p6).not.toContain("PROBLEMS");
   });
 });
 
@@ -309,16 +350,21 @@ describe("the Phase 6 compliance questions", () => {
     expect(f?.value as number).toBeGreaterThan(0);
   });
 
-  it("compliance-02 is a subtraction of the ETS cost and the route's FuelEU exposure", () => {
+  it("compliance-02 subtracts the recommended route's FuelEU exposure from its EU ETS cost, both route facts", () => {
     const [f] = truth("compliance-02").expect.requiredFacts;
+    const best = qaRoute(world, "fleet", "Aegean Pioneer").result.bestCandidateId;
     const ets = resolveFact(world, {
-      src: "emissions",
+      src: "route",
+      subject: "fleet",
       vessel: "Aegean Pioneer",
-      field: "etsCostUsd",
+      field: "etsCost",
+      option: "best",
     });
     const fe = truth("compliance-01").expect.requiredFacts[0];
+    expect(ets.label).toBe(`MV Aegean Pioneer, route ${best}: EU ETS cost`);
     expect(f?.value as number).toBeCloseTo((ets.value as number) - (fe?.value as number), 6);
-    expect(f?.label).toMatch(/^subtract of .*EU ETS cost.* and .*FuelEU exposure$/);
+    expect(f?.label).toBe(`subtract of ${ets.label} and ${fe?.label}`);
+    expect(f?.unit).toBe("USD");
   });
 
   it("compliance-03 names the real ship with a reported draught by MMSI and cites its draught and load condition", () => {

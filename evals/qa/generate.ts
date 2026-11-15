@@ -159,6 +159,50 @@ const pct = (from: number, to: number): string =>
       : "n/a (old value 0)"
     : `${fmtNum(Math.round(((to - from) / Math.abs(from)) * 1e4) / 100)}%`;
 
+const ISO_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/;
+
+/**
+ * The invariant of a Phase 6 regeneration against the Phase 5 gate: only numeric fact values may
+ * move. Returns one message per violation (empty when the truths hold). A string fact value (a best
+ * option id, a recommended route, a rank, a source) must stay equal: a change there is a decision
+ * change and goes to the user. The one exception is the real-AIS-ship question, recognised by its
+ * templated subject (see `questionTemplate`): its ETA timestamp moves with the ship the capture
+ * yields, so a timestamp string there may move; its route id and every other string may not.
+ */
+export function compareToBase(base: readonly QaTruth[], truths: readonly QaTruth[]): string[] {
+  const byId = new Map(truths.map((t) => [t.id, t]));
+  const problems: string[] = [];
+  for (const o of base) {
+    const dim = (what: string) => problems.push(`${o.id}: ${what}`);
+    const n = byId.get(o.id);
+    if (!n) {
+      dim("question missing");
+      continue;
+    }
+    const templated = questionTemplate(o.question) !== o.question;
+    if (questionTemplate(o.question) !== questionTemplate(n.question)) dim("question text changed");
+    if (o.expect.kind !== n.expect.kind) dim("expect.kind changed");
+    if (o.tags.join() !== n.tags.join()) dim("tags changed");
+    if (o.expect.proposedOptionId !== n.expect.proposedOptionId) dim("proposed option changed");
+    if (o.expect.mustNotPropose !== n.expect.mustNotPropose) dim("mustNotPropose changed");
+    if (o.expect.requiredFacts.length !== n.expect.requiredFacts.length) {
+      dim("fact count changed");
+      continue;
+    }
+    o.expect.requiredFacts.forEach((of, i) => {
+      const nf = n.expect.requiredFacts[i];
+      if (!nf) return;
+      if (typeof of.value !== typeof nf.value) dim(`fact ${i} value type changed`);
+      if (of.unit !== nf.unit) dim(`fact ${i} unit changed`);
+      if (typeof of.value === "string" && typeof nf.value === "string" && of.value !== nf.value) {
+        const movesWithShip = templated && ISO_TIME.test(of.value) && ISO_TIME.test(nf.value);
+        if (!movesWithShip) dim(`fact ${i} string value changed: ${of.value} -> ${nf.value}`);
+      }
+    });
+  }
+  return problems;
+}
+
 /** REVIEW-QA-P6.md: what moved against the Phase 5 gate, the real-ship change, the new questions. */
 export function renderQaReviewP6(
   base: QaTruth[],
@@ -176,17 +220,11 @@ export function renderQaReviewP6(
   const compliance = truths.filter((t) => PHASE6_CATEGORIES.includes(t.tags[0] ?? ""));
   const moved: string[] = [];
   const unchanged: string[] = [];
-  const problems: string[] = [];
+  const problems = compareToBase(base, truths);
   let valueMoves = 0;
   let factTotal = 0;
   for (const o of old) {
     const n = byId.get(o.id) as QaTruth;
-    const dim = (what: string) => problems.push(`${o.id}: ${what}`);
-    if (questionTemplate(o.question) !== questionTemplate(n.question)) dim("question text changed");
-    if (o.expect.kind !== n.expect.kind) dim("expect.kind changed");
-    if (o.tags.join() !== n.tags.join()) dim("tags changed");
-    if (o.expect.proposedOptionId !== n.expect.proposedOptionId) dim("proposed option changed");
-    if (o.expect.requiredFacts.length !== n.expect.requiredFacts.length) dim("fact count changed");
     const rows: string[] = [];
     o.expect.requiredFacts.forEach((of, i) => {
       const nf = n.expect.requiredFacts[i];
@@ -231,8 +269,8 @@ export function renderQaReviewP6(
     "## What you are approving",
     "",
     `- ${valueMoves} of ${factTotal} required facts moved value; ${unchanged.length} of ${old.length} existing questions are unchanged.`,
-    `- Guard: ${problems.length === 0 ? "no question text, tag, kind, proposed option or fact count changed (the test generate.test.ts enforces this against the base commit)." : `PROBLEMS: ${problems.join("; ")}`}`,
-    "- A changed best option or proposed option would be a decision change, not a value change; none appears above.",
+    `- Guard (\`compareToBase\`, also run by generate.test.ts): ${problems.length === 0 ? "no question text, tag, kind, proposed option, fact count, unit or string fact value (best option, recommended route, rank, source) changed." : `PROBLEMS: ${problems.join("; ")}`}`,
+    `- Best option, proposed option and recommended route: ${problems.some((p) => /proposed option|string value/.test(p)) ? "CHANGED, see the problems above" : "none changed (computed by the guard above)"}.`,
     `- Split unchanged for existing questions; new stratum \`compliance\`: dev ${split.strata.compliance?.dev ?? 0}, held-out ${split.strata.compliance?.heldout ?? 0}. ${split.rule}.`,
     "",
     "## Real AIS ship (route-speed-07)",
@@ -258,7 +296,7 @@ export function renderQaReviewP6(
     "",
     "Notes on the new questions:",
     "",
-    "- compliance-02 needs the `calculate` tool: the EU ETS cost for the rest of the voyage comes from the emissions tool and the FuelEU exposure from the route tool (the route result carries no ETS figure of its own).",
+    "- compliance-02 needs the `calculate` tool: the EU ETS cost and the FuelEU exposure are both facts of the recommended route from `plan_route_speed`, and the difference is computed by `calculate`.",
     "- compliance-04 must abstain: the data holds no pooling, banking or borrowing positions.",
   ];
   return `${lines.join("\n").trimEnd()}\n`;

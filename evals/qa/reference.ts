@@ -379,6 +379,7 @@ const ROUTE_OPTION_FIELD = {
   distance: "distanceNm",
   weatherDelay: "weatherDelayHours",
   fuelEu: "fuelEuCostUsd",
+  etsCost: "etsCostUsd",
 } as const;
 
 function resolveRoute(world: World, ref: Extract<FactRef, { src: "route" }>): QaRequiredFact {

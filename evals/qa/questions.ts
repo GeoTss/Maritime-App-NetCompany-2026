@@ -61,6 +61,7 @@ export type RouteField =
   | "avoidedHazard"
   /** Phase 6: the FuelEU Maritime exposure of an option, the load condition and the AIS draught. */
   | "fuelEu"
+  | "etsCost"
   | "loadCondition"
   | "aisDraught";
 export type RouteOption = "best" | "A" | "B" | "C" | "baseline";
@@ -512,16 +513,13 @@ export const QUESTIONS: readonly QuestionSpec[] = [
     id: "compliance-02",
     category: "compliance",
     question:
-      "How much larger is Aegean Pioneer's EU ETS cost for the rest of its voyage than the FuelEU exposure of its recommended route?",
+      "How much larger is the EU ETS cost than the FuelEU exposure on Aegean Pioneer's recommended route?",
     kind: "answer",
     facts: [
       {
         src: "calc",
         op: "subtract",
-        operands: [
-          { src: "emissions", vessel: DEMO_VESSEL, field: "etsCostUsd" },
-          route(DEMO_VESSEL, "fuelEu", "best"),
-        ],
+        operands: [route(DEMO_VESSEL, "etsCost", "best"), route(DEMO_VESSEL, "fuelEu", "best")],
       },
     ],
     mustNotPropose: true,

@@ -7,8 +7,8 @@ Base for the comparison: git commit b49da3f (the Phase 5 gate), whose truth file
 ## What you are approving
 
 - 28 of 84 required facts moved value; 44 of 61 existing questions are unchanged.
-- Guard: no question text, tag, kind, proposed option or fact count changed (the test generate.test.ts enforces this against the base commit).
-- A changed best option or proposed option would be a decision change, not a value change; none appears above.
+- Guard (`compareToBase`, also run by generate.test.ts): no question text, tag, kind, proposed option, fact count, unit or string fact value (best option, recommended route, rank, source) changed.
+- Best option, proposed option and recommended route: none changed (computed by the guard above).
 - Split unchanged for existing questions; new stratum `compliance`: dev 2, held-out 2. stratified by tags[0]; dev = ceil(n / 2) per stratum, lowest sha256(seed + id) first.
 
 ## Real AIS ship (route-speed-07)
@@ -153,12 +153,12 @@ abstain-01, abstain-02, abstain-03, abstain-04, abstain-05, abstain-06, calculat
 
 ### compliance-02 [dev]
 
-- Question: How much larger is Aegean Pioneer's EU ETS cost for the rest of its voyage than the FuelEU exposure of its recommended route?
+- Question: How much larger is the EU ETS cost than the FuelEU exposure on Aegean Pioneer's recommended route?
 - Expected kind: `answer`
 - Must not propose: true
 - Proposed option: none
 - Required facts:
-  - subtract of MV Aegean Pioneer: EU ETS cost for the rest of the voyage, in USD and MV Aegean Pioneer, route B: FuelEU exposure: **33457.255735 USD (±0.5)**
+  - subtract of MV Aegean Pioneer, route B: EU ETS cost and MV Aegean Pioneer, route B: FuelEU exposure: **25450.800767 USD (±0.5)**
 
 ### compliance-03 [heldout]
 
@@ -181,5 +181,5 @@ abstain-01, abstain-02, abstain-03, abstain-04, abstain-05, abstain-06, calculat
 
 Notes on the new questions:
 
-- compliance-02 needs the `calculate` tool: the EU ETS cost for the rest of the voyage comes from the emissions tool and the FuelEU exposure from the route tool (the route result carries no ETS figure of its own).
+- compliance-02 needs the `calculate` tool: the EU ETS cost and the FuelEU exposure are both facts of the recommended route from `plan_route_speed`, and the difference is computed by `calculate`.
 - compliance-04 must abstain: the data holds no pooling, banking or borrowing positions.
