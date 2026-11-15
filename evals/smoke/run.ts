@@ -68,8 +68,8 @@ export interface SmokeOptions {
   /** Per-email wait for extraction to leave pending. Default 90 s. */
   extractionTimeoutMs?: number;
   log?: (line: string) => void;
-  /** Phase 3 spend ledger: budget check before the run, cost appended after. Omit in dry tests. */
-  ledger?: { path?: string };
+  /** Spend ledger: budget check before the run, cost appended after. Omit in dry tests. */
+  ledger?: { path?: string; budgetPath?: string };
 }
 
 export interface StepTiming {
@@ -235,7 +235,8 @@ export async function runSmoke(opts: SmokeOptions): Promise<SmokeResult> {
   const log = opts.log ?? ((line: string) => console.log(line));
   const base = opts.baseUrl.replace(/\/+$/, "");
   const startedAt = now();
-  if (opts.ledger) assertBudget(SMOKE_ESTIMATE_USD, opts.ledger.path);
+  if (opts.ledger)
+    assertBudget(SMOKE_ESTIMATE_USD, opts.ledger.path, undefined, opts.ledger.budgetPath);
 
   const failures: string[] = [];
   const steps: StepTiming[] = [];
@@ -538,6 +539,7 @@ export async function runSmoke(opts: SmokeOptions): Promise<SmokeResult> {
         costUsd: sum(calls.map((c) => c.costUsd)),
       },
       opts.ledger.path,
+      opts.ledger.budgetPath,
     );
   }
 

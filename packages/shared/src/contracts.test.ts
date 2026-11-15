@@ -1,18 +1,30 @@
 import { describe, expect, it } from "vitest";
 import {
+  AskEvent,
   AskResponse,
+  CalculateInput,
   ConsumptionCurve,
+  DraftedMessage,
+  EmissionsInput,
   ErpOrderRequest,
   ExtractionOutput,
   ExtractionTruth,
   GradeAmounts,
+  ListFleetInput,
+  ListQuotesInput,
   LlmCall,
   NormalisedView,
+  PlanBunkeringInput,
+  ProposeActionInput,
   ProposedAction,
   Provenance,
+  QA_CATEGORIES,
+  QaTruth,
+  RecommendationStatus,
   RecommendationView,
   ReviewCorrection,
   RouteLeg,
+  VesselStatusInput,
 } from "./index.js";
 
 const text = (value: string | null, evidence: string | null = value) => ({ value, evidence });
@@ -166,7 +178,15 @@ describe("Phase 2 contracts", () => {
       messageId: 2,
       answer: null,
       facts: [],
-      gate: { passed: false, repaired: true, ungroundedNumbers: ["8,000"] },
+      gate: {
+        passed: false,
+        repaired: true,
+        ungroundedNumbers: ["8,000"],
+        attempts: [
+          { attempt: 1, passed: false, ungroundedNumbers: ["8,000"] },
+          { attempt: 2, passed: false, ungroundedNumbers: ["8,000"] },
+        ],
+      },
       recommendationIds: [],
       llmCallIds: [3, 4],
     });
@@ -341,5 +361,200 @@ describe("extraction truth and review contracts", () => {
     expect(ReviewCorrection.safeParse(correction).success).toBe(true);
     const bad = { ...correction, lines: [{ grade: "VLSFO", qtyMt: 0, pricePerMt: 600 }] };
     expect(ReviewCorrection.safeParse(bad).success).toBe(false);
+  });
+});
+
+describe("Phase 4 tool inputs", () => {
+  it("the Phase 2 tool inputs still parse their old payloads and stay strict", () => {
+    expect(VesselStatusInput.parse({ vessel: " Aegean Pioneer " })).toEqual({
+      vessel: "Aegean Pioneer",
+    });
+    expect(PlanBunkeringInput.safeParse({ vessel: "9123456" }).success).toBe(true);
+    expect(VesselStatusInput.safeParse({ vessel: "x", extra: 1 }).success).toBe(false);
+    const proposal = {
+      type: "purchase_order",
+      calculationId: 3,
+      optionId: "algeciras-nordwind",
+      factRefs: ["f_calc_3_x"],
+      rationale: "Lowest total cost.",
+    };
+    expect(ProposeActionInput.safeParse(proposal).success).toBe(true);
+    expect(ProposeActionInput.safeParse({ ...proposal, qtyMt: 500 }).success).toBe(false);
+    expect(ProposedAction.safeParse(proposal).success).toBe(true);
+  });
+
+  it("ListFleetInput takes nothing, ListQuotesInput takes optional filters, EmissionsInput a vessel", () => {
+    expect(ListFleetInput.safeParse({}).success).toBe(true);
+    expect(ListFleetInput.safeParse({ vessel: "x" }).success).toBe(false);
+    expect(ListQuotesInput.safeParse({}).success).toBe(true);
+    expect(
+      ListQuotesInput.safeParse({
+        vessel: "A",
+        port: "ESALG",
+        grade: "VLSFO",
+        includeExpired: true,
+      }).success,
+    ).toBe(true);
+    expect(ListQuotesInput.safeParse({ grade: "DIESEL" }).success).toBe(false);
+    expect(EmissionsInput.safeParse({ vessel: "Aegean Pioneer" }).success).toBe(true);
+    expect(EmissionsInput.safeParse({}).success).toBe(false);
+  });
+
+  it("CalculateInput needs exactly 2 operands for the binary ops and 1-10 otherwise", () => {
+    const ids = (n: number) => Array.from({ length: n }, (_, i) => `f_x${i}`);
+    expect(CalculateInput.safeParse({ op: "subtract", operands: ids(2) }).success).toBe(true);
+    expect(CalculateInput.safeParse({ op: "subtract", operands: ids(3) }).success).toBe(false);
+    for (const op of ["divide", "difference", "percent_change"]) {
+      expect(CalculateInput.safeParse({ op, operands: ids(1) }).success).toBe(false);
+    }
+    expect(CalculateInput.safeParse({ op: "sum", operands: ids(10) }).success).toBe(true);
+    expect(CalculateInput.safeParse({ op: "sum", operands: ids(11) }).success).toBe(false);
+    expect(CalculateInput.safeParse({ op: "max", operands: [] }).success).toBe(false);
+    expect(CalculateInput.safeParse({ op: "pow", operands: ids(2) }).success).toBe(false);
+    expect(CalculateInput.safeParse({ op: "sum", operands: ["12.5"] }).success).toBe(false);
+  });
+});
+
+describe("Phase 4 ask events, recommendations and drafts", () => {
+  const response = {
+    conversationId: 1,
+    messageId: 2,
+    answer: "ok",
+    facts: [],
+    gate: {
+      passed: true,
+      repaired: false,
+      ungroundedNumbers: [],
+      attempts: [{ attempt: 1, passed: true, ungroundedNumbers: [] }],
+    },
+    recommendationIds: [],
+    llmCallIds: [],
+  };
+
+  it("AskResponse.gate carries the attempts, each 1 or 2", () => {
+    expect(AskResponse.safeParse(response).success).toBe(true);
+    const bad = {
+      ...response,
+      gate: { ...response.gate, attempts: [{ attempt: 3, passed: true, ungroundedNumbers: [] }] },
+    };
+    expect(AskResponse.safeParse(bad).success).toBe(false);
+  });
+
+  it("AskEvent discriminates on type and keeps answer text out of progress", () => {
+    expect(
+      AskEvent.safeParse({ type: "progress", tool: "plan_bunkering", phase: "started", ms: 0 })
+        .success,
+    ).toBe(true);
+    expect(AskEvent.safeParse({ type: "answer", response }).success).toBe(true);
+    expect(AskEvent.safeParse({ type: "error", message: "boom" }).success).toBe(true);
+    expect(
+      AskEvent.safeParse({
+        type: "progress",
+        tool: "t",
+        phase: "finished",
+        ms: 5,
+        answer: "leaked text",
+      }).success,
+    ).toBe(false);
+    expect(AskEvent.safeParse({ type: "progress", tool: "t", phase: "later", ms: 5 }).success).toBe(
+      false,
+    );
+  });
+
+  it("RecommendationStatus keeps its old values and adds executing and failed", () => {
+    for (const s of ["pending", "approved", "rejected", "executed", "executing", "failed"]) {
+      expect(RecommendationStatus.safeParse(s).success).toBe(true);
+    }
+    expect(RecommendationStatus.safeParse("sent").success).toBe(false);
+  });
+
+  it("DraftedMessage is always a draft", () => {
+    const draft = {
+      id: 1,
+      recommendationId: 2,
+      kind: "supplier_confirmation",
+      to: "ops@nordwind.example",
+      subject: "Confirmation",
+      body: "Please confirm.",
+      status: "draft",
+      createdAt: new Date("2026-11-14T08:00:00Z"),
+    };
+    expect(DraftedMessage.safeParse(draft).success).toBe(true);
+    expect(DraftedMessage.safeParse({ ...draft, status: "sent" }).success).toBe(false);
+    expect(DraftedMessage.safeParse({ ...draft, kind: "press_release" }).success).toBe(false);
+  });
+});
+
+describe("QaTruth", () => {
+  const fact = { label: "Total cost", value: 1234.5, unit: "USD", tolerance: 0.01 };
+  const answer = {
+    id: "lookup-fob-1",
+    tags: ["lookup", "fob"],
+    question: "How much VLSFO is on board Aegean Pioneer?",
+    expect: {
+      kind: "answer",
+      requiredFacts: [fact],
+      proposedOptionId: null,
+      mustNotPropose: false,
+    },
+  };
+  const withExpect = (patch: object) => ({ ...answer, expect: { ...answer.expect, ...patch } });
+
+  it("accepts an answer, an action, an abstain and a no_action", () => {
+    expect(QaTruth.safeParse(answer).success).toBe(true);
+    expect(
+      QaTruth.safeParse(withExpect({ kind: "action", proposedOptionId: "opt-1" })).success,
+    ).toBe(true);
+    expect(
+      QaTruth.safeParse(withExpect({ kind: "abstain", requiredFacts: [], mustNotPropose: true }))
+        .success,
+    ).toBe(true);
+    expect(
+      QaTruth.safeParse(withExpect({ kind: "no_action", requiredFacts: [], mustNotPropose: false }))
+        .success,
+    ).toBe(true);
+  });
+
+  it("an action without proposedOptionId fails; a non-action with one fails", () => {
+    expect(QaTruth.safeParse(withExpect({ kind: "action" })).success).toBe(false);
+    expect(QaTruth.safeParse(withExpect({ proposedOptionId: "opt-1" })).success).toBe(false);
+  });
+
+  it("abstain with requiredFacts fails, and abstain with mustNotPropose false fails", () => {
+    expect(QaTruth.safeParse(withExpect({ kind: "abstain", mustNotPropose: true })).success).toBe(
+      false,
+    );
+    expect(
+      QaTruth.safeParse(withExpect({ kind: "abstain", requiredFacts: [], mustNotPropose: false }))
+        .success,
+    ).toBe(false);
+  });
+
+  it("requiredFacts must be non-empty for answer and action", () => {
+    expect(QaTruth.safeParse(withExpect({ requiredFacts: [] })).success).toBe(false);
+    expect(
+      QaTruth.safeParse(withExpect({ kind: "no_action", requiredFacts: [fact] })).success,
+    ).toBe(false);
+  });
+
+  it("is strict, needs a slug id and at least one tag", () => {
+    expect(QaTruth.safeParse({ ...answer, extra: 1 }).success).toBe(false);
+    expect(QaTruth.safeParse({ ...answer, id: "Has Space" }).success).toBe(false);
+    expect(QaTruth.safeParse({ ...answer, tags: [] }).success).toBe(false);
+    expect(
+      QaTruth.safeParse(withExpect({ requiredFacts: [{ ...fact, tolerance: -1 }] })).success,
+    ).toBe(false);
+  });
+
+  it("lists the seven question categories", () => {
+    expect(QA_CATEGORIES).toEqual([
+      "lookup",
+      "comparison",
+      "bunker_decision",
+      "calculate",
+      "abstain",
+      "no_action",
+      "injection",
+    ]);
   });
 });

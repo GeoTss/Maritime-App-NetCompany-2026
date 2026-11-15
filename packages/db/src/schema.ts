@@ -11,6 +11,7 @@ import type {
   GradeAmounts,
   Id,
   LatLon,
+  RecommendationStatus,
 } from "@pharos/shared";
 import {
   type AnyPgColumn,
@@ -306,7 +307,7 @@ export const recommendations = pgTable("recommendations", {
   messageId: integer().references(() => messages.id, { onDelete: "restrict" }),
   factRefs: jsonb().$type<FactId[]>().notNull(),
   expectedSavingUsd: doublePrecision(),
-  status: text().$type<"pending" | "approved" | "rejected" | "executed">().notNull(),
+  status: text().$type<RecommendationStatus>().notNull(),
   decidedBy: text(),
   decidedAt: ts(),
   createdAt: ts().notNull(),

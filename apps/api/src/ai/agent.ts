@@ -222,9 +222,14 @@ export async function runAgent(
       { role: "user", content: repairMessage(gate.ungroundedNumbers) },
     ]);
     const repaired = answerOf(repair.final);
+    const second = checkNumbers(repaired, [...ctx.ledger.values()]);
     const again: GateResult = {
-      ...checkNumbers(repaired, [...ctx.ledger.values()]),
+      ...second,
       repaired: true,
+      attempts: [
+        ...gate.attempts,
+        { attempt: 2, passed: second.passed, ungroundedNumbers: second.ungroundedNumbers },
+      ],
     };
     return { text: repaired, gate: again };
   });

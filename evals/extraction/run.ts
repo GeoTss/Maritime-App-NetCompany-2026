@@ -17,8 +17,8 @@
  * response served by another model and the run stops there; every served model is checked after
  * the run, and a non-Haiku model fails it.
  * Spend (live and record): the estimate (case runs x $0.002) must fit the $0.25 per-pass cap and
- * `assertBudget` before the first call, a per-request guard capped at min($0.25, what the $3
- * ledger has left), and the guard's summed cost appended to the ledger afterwards, also when the
+ * `assertBudget` before the first call, a per-request guard capped at min($0.25, what the
+ * current phase's budget has left), and the guard's summed cost appended to the ledger afterwards, also when the
  * run fails or stops early.
  * Stored quotes: after each case, an `extracted` case must have exactly one stored quote equal to
  * the graded view, any other status none; a disagreement is a runner error that fails the run.
@@ -71,10 +71,9 @@ import {
   assertBudget,
   assertHaikuOnly,
   BudgetError,
+  budgetRemaining,
   createSpendGuard,
   HAIKU,
-  ledgerTotal,
-  SPEND_CAP_USD,
   type SpendGuard,
 } from "../lib/budget.js";
 import {
@@ -852,6 +851,8 @@ export interface EvalOptions {
   fetch?: LlmFetch;
   /** Spend ledger path (tests use a temp file). */
   ledgerPath?: string;
+  /** Budget config path (tests use a temp file); default evals/budget.json. */
+  budgetPath?: string;
   now?: () => Date;
   log?: (line: string) => void;
   /** Interrupt signals; default `process`. */
@@ -941,8 +942,12 @@ export async function runExtractionEval(opts: EvalOptions): Promise<EvalResult> 
       );
     }
     if (!opts.apiKey) throw new Error("ANTHROPIC_API_KEY is not set (add it to .env).");
-    assertBudget(estimate, opts.ledgerPath);
-    const remaining = SPEND_CAP_USD - ledgerTotal(opts.ledgerPath);
+    assertBudget(estimate, opts.ledgerPath, undefined, opts.budgetPath);
+    const { remainingUsd: remaining } = budgetRemaining(
+      opts.ledgerPath,
+      undefined,
+      opts.budgetPath,
+    );
     guard = createSpendGuard({
       capUsd: Math.min(RUN_CAP_USD, remaining),
       label: "run",
@@ -961,6 +966,7 @@ export async function runExtractionEval(opts: EvalOptions): Promise<EvalResult> 
     appendSpend(
       { at: now().toISOString(), run: LEDGER_RUN, label: opts.label, costUsd },
       opts.ledgerPath,
+      opts.budgetPath,
     );
     appended = costUsd;
   };

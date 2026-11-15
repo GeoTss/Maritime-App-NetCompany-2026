@@ -1,11 +1,11 @@
 import { buildBunkerPlanInput, loadWorld, type Sql } from "@pharos/db";
 import { connectTestDb, testDbLabel } from "@pharos/db/testing";
 import { DOMAIN_CODE_VERSION, planBunkers } from "@pharos/domain";
-import { BunkerPlan, BunkerPlanInput, Fact, FactId } from "@pharos/shared";
+import { BunkerPlan, BunkerPlanInput, Fact, FactId, PlanBunkeringInput } from "@pharos/shared";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { ASK_FIXTURE_NOW, prepareAskFixture } from "../../ask/demo-fixture.js";
 import { createToolContext } from "./common.js";
-import { PlanBunkeringInput, planBunkering } from "./plan-bunkering.js";
+import { planBunkering } from "./plan-bunkering.js";
 
 const sql = await connectTestDb("ask_plan_bunkering");
 

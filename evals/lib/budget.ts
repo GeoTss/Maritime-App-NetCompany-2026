@@ -1,10 +1,12 @@
 /**
- * Phase 3 eval spend controls: the ledger of live LLM spend, the $3 budget check, the Haiku-only
+ * Eval spend controls: the ledger of live LLM spend, the per-phase budget check, the Haiku-only
  * model guard and the per-request spend guard that wraps an LLM transport (and, given an allowed
  * model, refuses every request after a response served by another).
  *
- * The ledger is `evals/spend-ledger.jsonl`, one JSON row per live run, committed empty. Every
- * function takes an optional path so tests use temp files and never touch the real ledger.
+ * The ledger is `evals/spend-ledger.jsonl`, one JSON row per live run, each stamped with the phase
+ * it was spent in (a row without one is Phase 3's). The current phase and its cap live in
+ * `evals/budget.json`; a cap of 0 means the user has not set the budget yet, and nothing paid may
+ * run. Every function takes optional paths so tests use temp files and never touch the real ones.
  */
 import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -14,14 +16,24 @@ import type { LlmFetch } from "../../apps/api/src/ai/llm.js";
 import { costUsd, type LlmUsage, promptTokensOf } from "../../apps/api/src/ai/pricing.js";
 import { readBodyOnce } from "../../apps/api/src/ai/read-body.js";
 
-/** Hard cap for all live LLM spend in Phase 3 (evals, smokes, recordings). */
-export const SPEND_CAP_USD = 3;
-/** The only model any Phase 3 live run may use or be served by. */
+/** The only model any live run may use or be served by. */
 export const HAIKU = "claude-haiku-5-5";
 
 export const DEFAULT_LEDGER_PATH = fileURLToPath(new URL("../spend-ledger.jsonl", import.meta.url));
+export const DEFAULT_BUDGET_PATH = fileURLToPath(new URL("../budget.json", import.meta.url));
+
+/** Rows written before phases were recorded belong to Phase 3. */
+export const LEGACY_LEDGER_PHASE = 3;
+
+/** The current phase and its spend cap in USD; a cap of 0 means "not set yet". */
+export const BudgetConfig = z
+  .object({ phase: z.number().int().positive(), capUsd: z.number().finite().nonnegative() })
+  .strict();
+export type BudgetConfig = z.infer<typeof BudgetConfig>;
 
 export const LedgerRow = z.object({
+  /** The phase the spend belongs to; a missing value means Phase 3. */
+  phase: z.number().int().positive().optional(),
   at: IsoDateTime,
   run: z.string().min(1),
   label: z.string().min(1),
@@ -55,27 +67,91 @@ export function readLedger(path: string = DEFAULT_LEDGER_PATH): LedgerRow[] {
   return rows;
 }
 
-export function ledgerTotal(path?: string): number {
-  return readLedger(path).reduce((a, r) => a + r.costUsd, 0);
+export function readBudgetConfig(path: string = DEFAULT_BUDGET_PATH): BudgetConfig {
+  let json: unknown;
+  try {
+    json = JSON.parse(readFileSync(path, "utf8"));
+  } catch (err) {
+    throw new Error(`${path}: cannot read the budget config (${(err as Error).message})`);
+  }
+  const parsed = BudgetConfig.safeParse(json);
+  if (!parsed.success) throw new Error(`${path}: ${parsed.error.message}`);
+  return parsed.data;
 }
 
-/** Throws BudgetError when the ledger total plus this run's estimate would exceed the cap. */
-export function assertBudget(estimateUsd: number, path?: string): void {
+/** The phase the budget file says is current. */
+export function currentPhase(configPath?: string): number {
+  return readBudgetConfig(configPath).phase;
+}
+
+/** The sum of the ledger's rows for `phase`; with no phase, of every row. */
+export function ledgerTotal(path?: string, phase?: number): number {
+  return readLedger(path)
+    .filter((r) => phase === undefined || (r.phase ?? LEGACY_LEDGER_PHASE) === phase)
+    .reduce((a, r) => a + r.costUsd, 0);
+}
+
+/**
+ * The phase's cap, its ledger spend and what is left (never negative). Throws BudgetError when
+ * `phase` is not the phase the budget file covers.
+ */
+export function budgetRemaining(
+  path?: string,
+  phase?: number,
+  configPath?: string,
+): { phase: number; capUsd: number; spentUsd: number; remainingUsd: number } {
+  const config = readBudgetConfig(configPath);
+  const p = phase ?? config.phase;
+  if (p !== config.phase) {
+    throw new BudgetError(`budget: evals/budget.json covers Phase ${config.phase}, not Phase ${p}`);
+  }
+  const spentUsd = ledgerTotal(path, p);
+  return {
+    phase: p,
+    capUsd: config.capUsd,
+    spentUsd,
+    remainingUsd: Math.max(0, config.capUsd - spentUsd),
+  };
+}
+
+/**
+ * Throws BudgetError when this phase's ledger total plus the estimate would exceed its cap. A cap
+ * of 0 refuses any positive estimate: the user has not set the phase's budget yet.
+ */
+export function assertBudget(
+  estimateUsd: number,
+  path?: string,
+  phase?: number,
+  configPath?: string,
+): void {
   if (!Number.isFinite(estimateUsd) || estimateUsd < 0) {
     throw new BudgetError(`estimate must be a non-negative number, got ${estimateUsd}`);
   }
-  const total = ledgerTotal(path);
-  if (total + estimateUsd > SPEND_CAP_USD) {
+  const { phase: p, capUsd, spentUsd } = budgetRemaining(path, phase, configPath);
+  if (capUsd === 0 && estimateUsd > 0) {
     throw new BudgetError(
-      `budget: ledger total $${total.toFixed(4)} + estimate $${estimateUsd.toFixed(4)} exceeds the $${SPEND_CAP_USD.toFixed(2)} cap`,
+      `budget: the Phase ${p} budget is not set (capUsd is 0 in evals/budget.json); the user must set it before any paid run`,
+    );
+  }
+  if (spentUsd + estimateUsd > capUsd) {
+    throw new BudgetError(
+      `budget: Phase ${p} ledger total $${spentUsd.toFixed(4)} + estimate $${estimateUsd.toFixed(4)} exceeds the $${capUsd.toFixed(2)} cap`,
     );
   }
 }
 
-/** Appends one validated row. */
-export function appendSpend(row: LedgerRow, path: string = DEFAULT_LEDGER_PATH): void {
-  const valid = LedgerRow.parse(row);
-  appendFileSync(path, `${JSON.stringify(valid)}\n`);
+/** Appends one validated row, stamped with the current phase unless the row names one. */
+export function appendSpend(
+  row: LedgerRow,
+  path: string = DEFAULT_LEDGER_PATH,
+  configPath?: string,
+): void {
+  const valid = LedgerRow.parse({ ...row, phase: row.phase ?? currentPhase(configPath) });
+  appendFileSync(
+    path,
+    `${JSON.stringify(valid)}
+`,
+  );
 }
 
 /** Throws unless every model is exactly the Haiku model (a dated snapshot of another model fails). */
@@ -83,7 +159,7 @@ export function assertHaikuOnly(models: string[]): void {
   const bad = [...new Set(models.filter((m) => m !== HAIKU))];
   if (bad.length > 0) {
     throw new ModelNotAllowedError(
-      `only ${HAIKU} is allowed for live runs in Phase 3; refused: ${bad.join(", ")}`,
+      `only ${HAIKU} is allowed for live runs; refused: ${bad.join(", ")}`,
     );
   }
 }

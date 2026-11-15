@@ -195,6 +195,11 @@ describe.skipIf(!sql)("comparison runner (scripted, database)", () => {
     await db.end();
     await Promise.all(tmp.map((d) => rm(d, { recursive: true, force: true })));
   });
+  const budgetFile = async () => {
+    const path = join(await dir(), "budget.json");
+    await writeFile(path, JSON.stringify({ phase: 4, capUsd: 3 }));
+    return path;
+  };
   const dir = async () => {
     const d = await mkdtemp(join(tmpdir(), "pharos-compare-"));
     tmp.push(d);
@@ -270,6 +275,7 @@ describe.skipIf(!sql)("comparison runner (scripted, database)", () => {
 
   it("with a ledger: refuses a non-Haiku model, checks the budget, and ledgers the cost", async () => {
     const ledger = join(await dir(), "ledger.jsonl");
+    const budgetPath = await budgetFile();
     const base = {
       sql: db,
       apiKey: "test-key",
@@ -277,14 +283,14 @@ describe.skipIf(!sql)("comparison runner (scripted, database)", () => {
       label: "ledgered",
       fetch: fakeTransport(),
       log,
-      ledger: { path: ledger },
+      ledger: { path: ledger, budgetPath },
     };
     await expect(
       runCompare({ ...base, models: ["claude-sonnet-5-5"], reportsDir: await dir() }),
     ).rejects.toThrow(/claude-sonnet-5-5/);
     await writeFile(
       ledger,
-      `${JSON.stringify({ at: "2026-11-14T10:00:00Z", run: "x", label: "x", costUsd: 3 })}\n`,
+      `${JSON.stringify({ at: "2026-11-14T10:00:00Z", run: "x", label: "x", costUsd: 3, phase: 4 })}\n`,
     );
     await expect(
       runCompare({ ...base, models: ["claude-haiku-5-5"], reportsDir: await dir() }),
@@ -321,6 +327,7 @@ describe.skipIf(!sql)("comparison runner (scripted, database)", () => {
   it("fails the run when a response is served by a non-Haiku model, after writing the report", async () => {
     const reportsDir = await dir();
     const ledger = join(await dir(), "ledger.jsonl");
+    const budgetPath = await budgetFile();
     await writeFile(ledger, "");
     await expect(
       runCompare({
@@ -331,7 +338,7 @@ describe.skipIf(!sql)("comparison runner (scripted, database)", () => {
         label: "served",
         reportsDir,
         fetch: fakeTransport({ servedModel: () => "claude-sonnet-5-5" }),
-        ledger: { path: ledger },
+        ledger: { path: ledger, budgetPath },
         log,
       }),
     ).rejects.toThrow(/claude-sonnet-5-5/);

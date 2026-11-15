@@ -6,22 +6,10 @@
 import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { currentVoyage, fobProjectionInput, loadWorld, voyageState } from "@pharos/db";
 import { DOMAIN_CODE_VERSION, projectFuelOnBoard } from "@pharos/domain";
-import { type Fact, FUEL_GRADES, type ToolResult } from "@pharos/shared";
-import { z } from "zod";
+import { type Fact, FUEL_GRADES, type ToolResult, VesselStatusInput } from "@pharos/shared";
 import { calcFact, dbFact, findVessel, json, runTool, type ToolContext } from "./common.js";
 
 export const TOOL = "get_vessel_status";
-
-export const VesselStatusInput = z
-  .object({
-    vessel: z
-      .string()
-      .trim()
-      .min(1)
-      .describe('Vessel name (e.g. "Aegean Pioneer") or 7-digit IMO.'),
-  })
-  .strict();
-export type VesselStatusInput = z.infer<typeof VesselStatusInput>;
 
 export function getVesselStatus(ctx: ToolContext, input: VesselStatusInput): Promise<ToolResult> {
   return runTool(ctx, TOOL, input, async () => {

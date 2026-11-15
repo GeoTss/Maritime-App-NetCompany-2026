@@ -10,6 +10,7 @@
  */
 import { pathToFileURL } from "node:url";
 import { connectTestDb } from "@pharos/db/testing";
+import { appendSpend, assertBudget } from "../../../../evals/lib/budget.js";
 import { type AgentConfig, runAgent } from "../ai/agent.js";
 import { captureLlmCall } from "../ai/call-capture.js";
 import { createLlm } from "../ai/llm.js";
@@ -34,6 +35,9 @@ async function main() {
   }
   const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY is not set (add it to .env).");
+
+  // Ledgered like every live run: refuse before the first call if the phase budget is not set.
+  assertBudget(MAX_RUN_USD);
 
   const sql = await connectTestDb("ask_record");
   if (!sql) throw new Error("Postgres is unreachable (start it with docker compose up -d db).");
@@ -91,6 +95,14 @@ async function main() {
       );
     }
     console.log(`total costUsd=${total.toFixed(6)} for ${calls.length} calls`);
+    if (total > 0) {
+      appendSpend({
+        at: new Date().toISOString(),
+        run: "record-demo-ask",
+        label: "ask-recording",
+        costUsd: total,
+      });
+    }
     if (!res) throw failure;
     console.log(
       `gate=${JSON.stringify(res.gate)} recommendations=${res.recommendationIds.join(",")}`,

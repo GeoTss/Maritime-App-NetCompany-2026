@@ -309,8 +309,8 @@ export interface CompareOptions {
   fetch?: LlmFetch;
   modelCapUsd?: number;
   totalCapUsd?: number;
-  /** Phase 3 spend ledger: budget check before the run, cost appended after. Omit in dry tests. */
-  ledger?: { path?: string };
+  /** Spend ledger: budget check before the run, cost appended after. Omit in dry tests. */
+  ledger?: { path?: string; budgetPath?: string };
   now?: () => Date;
   log?: (line: string) => void;
 }
@@ -476,6 +476,8 @@ export async function runCompare(
     assertBudget(
       sum(opts.models.map((m) => estimateModelUsd(m, opts.questions.length))),
       opts.ledger.path,
+      undefined,
+      opts.ledger.budgetPath,
     );
   }
   try {
@@ -490,6 +492,7 @@ export async function runCompare(
           costUsd: tally.usd,
         },
         opts.ledger.path,
+        opts.ledger.budgetPath,
       );
     }
   }

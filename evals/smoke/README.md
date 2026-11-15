@@ -30,8 +30,8 @@ Model comparisons are `evals/compare/`, under their own budget.
 `/api/llm-calls` returns only the newest 200 rows, so run the smoke against a freshly restarted API.
 A run costing more than $0.25 (`RUN_CAP_USD`, per run) fails and writes no marker.
 
-Phase 3 budget: before the first request it checks `evals/spend-ledger.jsonl` (`assertBudget(0.01)`;
-the whole phase is capped at $3.00, see `evals/lib/`), and afterwards appends the run's cost from
+Per-phase budget: before the first request it checks `evals/spend-ledger.jsonl` (`assertBudget(0.01)`;
+the current phase's cap is in `evals/budget.json`, see `evals/lib/`), and afterwards appends the run's cost from
 `/api/llm-calls`, also when the run stopped early after making calls. Any call whose model is not
 `claude-haiku-5-5` fails the run.
 

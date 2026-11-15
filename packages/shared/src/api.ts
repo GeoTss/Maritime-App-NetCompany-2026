@@ -190,10 +190,19 @@ export const AskRequest = z.object({
 export type AskRequest = z.infer<typeof AskRequest>;
 
 /** Outcome of the release gate: every number in an answer must match a tool fact. */
+export const GateAttempt = z.object({
+  attempt: z.union([z.literal(1), z.literal(2)]),
+  passed: z.boolean(),
+  ungroundedNumbers: z.array(z.string()),
+});
+export type GateAttempt = z.infer<typeof GateAttempt>;
+
 export const GateResult = z.object({
   passed: z.boolean(),
   repaired: z.boolean(),
   ungroundedNumbers: z.array(z.string()),
+  /** Each pass of the gate over an answer: the first, and the repair retry if there was one. */
+  attempts: z.array(GateAttempt),
 });
 export type GateResult = z.infer<typeof GateResult>;
 
@@ -208,6 +217,24 @@ export const AskResponse = z.object({
   llmCallIds: z.array(Id),
 });
 export type AskResponse = z.infer<typeof AskResponse>;
+
+/**
+ * One event of the streamed ask (SSE). Progress names the tool and its timing only: no answer text
+ * is streamed before the release gate has passed it.
+ */
+export const AskEvent = z.discriminatedUnion("type", [
+  z
+    .object({
+      type: z.literal("progress"),
+      tool: z.string().min(1),
+      phase: z.enum(["started", "finished"]),
+      ms: z.number().nonnegative(),
+    })
+    .strict(),
+  z.object({ type: z.literal("answer"), response: AskResponse }).strict(),
+  z.object({ type: z.literal("error"), message: z.string().min(1) }).strict(),
+]);
+export type AskEvent = z.infer<typeof AskEvent>;
 
 export const DecisionResult = z.object({
   recommendationId: Id,

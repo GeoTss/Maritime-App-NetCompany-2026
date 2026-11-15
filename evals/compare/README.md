@@ -29,7 +29,7 @@ Opus for the dry tests, but no live run may use them.
 ## Cost and caps
 
 Budget: before the first call the run checks `evals/spend-ledger.jsonl` against its estimate
-(`assertBudget`: ledger total + estimate must stay within the $3.00 Phase 3 cap) and afterwards
+(`assertBudget`: ledger total + estimate must stay within the current phase's cap in `evals/budget.json`) and afterwards
 appends the cost the guard saw, also when the run throws part way. The per-request guard is
 `createSpendGuard` in `evals/lib/budget.ts`.
 

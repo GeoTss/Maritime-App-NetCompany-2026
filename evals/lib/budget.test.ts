@@ -10,13 +10,16 @@ import {
   assertBudget,
   assertHaikuOnly,
   BudgetError,
+  budgetRemaining,
   createSpendGuard,
+  currentPhase,
+  DEFAULT_BUDGET_PATH,
   DEFAULT_LEDGER_PATH,
   HAIKU,
   ledgerTotal,
   ModelNotAllowedError,
+  readBudgetConfig,
   readLedger,
-  SPEND_CAP_USD,
 } from "./budget.js";
 import { runLedgerCli } from "./ledger-cli.js";
 
@@ -25,21 +28,28 @@ const tempLedger = (content?: string) => {
   if (content !== undefined) writeFileSync(path, content);
   return path;
 };
-const row = (costUsd: number) => ({
+const row = (costUsd: number, phase?: number) => ({
   at: "2026-11-14T10:00:00Z",
   run: "r",
   label: "l",
   costUsd,
+  ...(phase === undefined ? {} : { phase }),
 });
+const tempBudget = (phase: number, capUsd: number) => {
+  const path = join(mkdtempSync(join(tmpdir(), "budget-")), "budget.json");
+  writeFileSync(path, JSON.stringify({ phase, capUsd }));
+  return path;
+};
 
 describe("ledger", () => {
   it("totals an empty or missing ledger as 0", () => {
     expect(ledgerTotal(tempLedger(""))).toBe(0);
     expect(ledgerTotal(tempLedger())).toBe(0);
   });
-  it("the real ledger parses and stays within the cap", () => {
+  it("the real ledger and the real budget file parse; Phase 3 stays within its $3 cap", () => {
     expect(() => readLedger(DEFAULT_LEDGER_PATH)).not.toThrow();
-    expect(ledgerTotal(DEFAULT_LEDGER_PATH)).toBeLessThanOrEqual(SPEND_CAP_USD);
+    expect(() => readBudgetConfig(DEFAULT_BUDGET_PATH)).not.toThrow();
+    expect(ledgerTotal(DEFAULT_LEDGER_PATH, 3)).toBeLessThanOrEqual(3);
   });
   it("appends rows and sums them", () => {
     const p = tempLedger("");
@@ -66,17 +76,68 @@ describe("ledger", () => {
 
 describe("assertBudget", () => {
   it("blocks an estimate that would pass the cap, naming total, estimate and cap", () => {
-    const p = tempLedger(`${JSON.stringify(row(2.5))}\n`);
-    expect(() => assertBudget(0.6, p)).toThrow(BudgetError);
-    expect(() => assertBudget(0.6, p)).toThrow(/2\.5000.*0\.6000.*3\.00/);
-    expect(() => assertBudget(0.5, p)).not.toThrow();
+    const p = tempLedger(`${JSON.stringify(row(2.5, 4))}\n`);
+    const cfg = tempBudget(4, 3);
+    expect(() => assertBudget(0.6, p, undefined, cfg)).toThrow(BudgetError);
+    expect(() => assertBudget(0.6, p, undefined, cfg)).toThrow(/2\.5000.*0\.6000.*3\.00/);
+    expect(() => assertBudget(0.5, p, undefined, cfg)).not.toThrow();
   });
   it("rejects a NaN or negative estimate", () => {
     const p = tempLedger("");
-    expect(() => assertBudget(Number.NaN, p)).toThrow(BudgetError);
-    expect(() => assertBudget(-1, p)).toThrow(BudgetError);
+    const cfg = tempBudget(4, 3);
+    expect(() => assertBudget(Number.NaN, p, undefined, cfg)).toThrow(BudgetError);
+    expect(() => assertBudget(-1, p, undefined, cfg)).toThrow(BudgetError);
   });
-  it("cap is $3", () => expect(SPEND_CAP_USD).toBe(3));
+});
+
+describe("per-phase budget", () => {
+  it("Phase 3 rows ($2.99, one unstamped) do not block a Phase 4 estimate under a Phase 4 cap", () => {
+    const p = tempLedger(`${JSON.stringify(row(1.5))}\n${JSON.stringify(row(1.49, 3))}\n`);
+    const cfg = tempBudget(4, 1);
+    expect(ledgerTotal(p, 3)).toBeCloseTo(2.99, 9);
+    expect(ledgerTotal(p, 4)).toBe(0);
+    expect(ledgerTotal(p)).toBeCloseTo(2.99, 9);
+    expect(() => assertBudget(0.9, p, undefined, cfg)).not.toThrow();
+    expect(() => assertBudget(1.1, p, undefined, cfg)).toThrow(BudgetError);
+  });
+  it("Phase 4 rows over the Phase 4 cap block", () => {
+    const p = tempLedger(`${JSON.stringify(row(0.9, 4))}\n${JSON.stringify(row(2.9, 3))}\n`);
+    const cfg = tempBudget(4, 1);
+    expect(() => assertBudget(0.2, p, undefined, cfg)).toThrow(/Phase 4.*0\.9000.*0\.2000.*1\.00/);
+    expect(() => assertBudget(0.1, p, undefined, cfg)).not.toThrow();
+    const left = budgetRemaining(p, undefined, cfg);
+    expect(left.phase).toBe(4);
+    expect(left.remainingUsd).toBeCloseTo(0.1, 9);
+  });
+  it("a cap of 0 refuses any positive estimate and says the user must set the budget", () => {
+    const p = tempLedger("");
+    const cfg = tempBudget(4, 0);
+    expect(() => assertBudget(0.001, p, undefined, cfg)).toThrow(/Phase 4 budget is not set/);
+    expect(() => assertBudget(0.001, p, undefined, cfg)).toThrow(/user must set/);
+    expect(() => assertBudget(0, p, undefined, cfg)).not.toThrow();
+  });
+  it("checks only the phase the budget file covers", () => {
+    const cfg = tempBudget(4, 1);
+    expect(() => assertBudget(0.1, tempLedger(""), 3, cfg)).toThrow(/covers Phase 4, not Phase 3/);
+  });
+  it("the real budget file is Phase 4 with the cap not set yet", () => {
+    expect(readBudgetConfig(DEFAULT_BUDGET_PATH).phase).toBe(4);
+    expect(currentPhase()).toBe(4);
+  });
+  it("rejects a malformed budget file naming it", () => {
+    const path = join(mkdtempSync(join(tmpdir(), "budget-")), "budget.json");
+    writeFileSync(path, JSON.stringify({ phase: 4, capUsd: -1 }));
+    expect(() => readBudgetConfig(path)).toThrow(path);
+    expect(() => readBudgetConfig(`${path}.missing`)).toThrow(/cannot read/);
+  });
+  it("appendSpend stamps the current phase, and keeps a phase the row names", () => {
+    const p = tempLedger("");
+    const cfg = tempBudget(4, 1);
+    appendSpend(row(0.1), p, cfg);
+    appendSpend(row(0.2, 3), p, cfg);
+    expect(readLedger(p).map((r) => r.phase)).toEqual([4, 3]);
+    expect(ledgerTotal(p, 4)).toBeCloseTo(0.1, 9);
+  });
 });
 
 describe("assertHaikuOnly", () => {
@@ -231,13 +292,18 @@ describe("eval:ledger CLI", () => {
   });
   it("add appends, total reports the sum and what remains", () => {
     const p = tempLedger("");
+    const cfg = tempBudget(4, 3);
     const out = runLedgerCli(
       ["add", "--run", "t1", "--label", "manual", "--cost", "0.0042"],
       p,
       () => new Date("2026-11-14T10:00:00Z"),
+      cfg,
     );
-    expect(out).toContain("total $0.0042");
-    expect(runLedgerCli(["total"], p)).toBe("total $0.0042; remaining $2.9958 of $3.00");
+    expect(out).toContain("Phase 4 total $0.0042");
+    expect(runLedgerCli(["total"], p, undefined, cfg)).toBe(
+      "Phase 4 total $0.0042; remaining $2.9958 of $3.00",
+    );
+    expect(readLedger(p)[0]?.phase).toBe(4);
     expect(() => runLedgerCli(["bogus"], p)).toThrow(/usage/);
   });
 });

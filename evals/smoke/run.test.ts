@@ -19,6 +19,13 @@ import { createErpApp } from "../../services/erp-sim/src/app.js";
 import { BudgetError, ledgerTotal, readLedger } from "../lib/budget.js";
 import { RUN_CAP_USD, runSmoke, type SmokeResult } from "./run.js";
 
+/** A phase-4 budget file with a $3 cap in `dir`, so no test touches the real evals/budget.json. */
+const budgetFile = async (dir: string) => {
+  const path = join(dir, "budget.json");
+  await writeFile(path, JSON.stringify({ phase: 4, capUsd: 3 }));
+  return path;
+};
+
 const sql = await connectTestDb("smoke");
 
 if (!sql) {
@@ -304,13 +311,17 @@ describe.skipIf(!sql)("live smoke runner (in-process, replay)", () => {
       const ledger = join(dir, "ledger.jsonl");
       await writeFile(
         ledger,
-        `${JSON.stringify({ at: "2026-11-14T10:00:00Z", run: "x", label: "x", costUsd: 2.995 })}\n`,
+        `${JSON.stringify({ at: "2026-11-14T10:00:00Z", run: "x", label: "x", costUsd: 2.995, phase: 4 })}\n`,
       );
       const seen: string[] = [];
       const spy = rewriting(options.fetch, () => undefined, seen);
-      await expect(runSmoke({ ...options, fetch: spy, ledger: { path: ledger } })).rejects.toThrow(
-        BudgetError,
-      );
+      await expect(
+        runSmoke({
+          ...options,
+          fetch: spy,
+          ledger: { path: ledger, budgetPath: await budgetFile(dir) },
+        }),
+      ).rejects.toThrow(BudgetError);
       expect(seen).toEqual([]);
     });
 
@@ -318,7 +329,10 @@ describe.skipIf(!sql)("live smoke runner (in-process, replay)", () => {
       const { dir, options } = await build();
       const ledger = join(dir, "ledger.jsonl");
       await writeFile(ledger, "");
-      const result = await runSmoke({ ...options, ledger: { path: ledger } });
+      const result = await runSmoke({
+        ...options,
+        ledger: { path: ledger, budgetPath: await budgetFile(dir) },
+      });
       expect(result.failures).toEqual([]);
       const rows = readLedger(ledger);
       expect(rows).toHaveLength(1);
@@ -336,7 +350,11 @@ describe.skipIf(!sql)("live smoke runner (in-process, replay)", () => {
         for (const c of b.items) c.model = "claude-sonnet-5-5";
         return b;
       });
-      const result = await runSmoke({ ...options, fetch: other, ledger: { path: ledger } });
+      const result = await runSmoke({
+        ...options,
+        fetch: other,
+        ledger: { path: ledger, budgetPath: await budgetFile(dir) },
+      });
       expect(result.ok).toBe(false);
       expect(result.failures.join("\n")).toMatch(
         /only claude-haiku-5-5 is allowed.*claude-sonnet-5-5/,
@@ -355,7 +373,11 @@ describe.skipIf(!sql)("live smoke runner (in-process, replay)", () => {
           ? { ...(body as object), extractionStatus: "needs_review", checkResults: [] }
           : undefined,
       );
-      const result = await runSmoke({ ...options, fetch: reviewing, ledger: { path: ledger } });
+      const result = await runSmoke({
+        ...options,
+        fetch: reviewing,
+        ledger: { path: ledger, budgetPath: await budgetFile(dir) },
+      });
       expect(result.exitCode).toBe(1);
       expect(result.report.calls.length).toBeGreaterThan(0);
       expect(readLedger(ledger)).toHaveLength(1);
@@ -372,7 +394,11 @@ describe.skipIf(!sql)("live smoke runner (in-process, replay)", () => {
         const res = await real(url, init);
         return new URL(url).pathname === "/api/ask" ? new Response("boom", { status: 500 }) : res;
       }) as typeof fetch;
-      const result = await runSmoke({ ...options, fetch: failing, ledger: { path: ledger } });
+      const result = await runSmoke({
+        ...options,
+        fetch: failing,
+        ledger: { path: ledger, budgetPath: await budgetFile(dir) },
+      });
       expect(result.exitCode).toBe(1);
       expect(result.report.calls.some((c) => c.purpose === "agent")).toBe(true);
       expect(result.report.calls.some((c) => c.purpose === "extract")).toBe(true);
@@ -394,7 +420,11 @@ describe.skipIf(!sql)("live smoke runner (in-process, replay)", () => {
           ? { ...(body as object), extractionStatus: "needs_review", checkResults: [] }
           : undefined;
       });
-      const result = await runSmoke({ ...options, fetch: other, ledger: { path: ledger } });
+      const result = await runSmoke({
+        ...options,
+        fetch: other,
+        ledger: { path: ledger, budgetPath: await budgetFile(dir) },
+      });
       expect(result.report.calls.length).toBeGreaterThan(0);
       expect(result.failures.join("\n")).toMatch(
         /only claude-haiku-5-5 is allowed.*claude-sonnet-5-5/,

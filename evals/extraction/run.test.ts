@@ -1,6 +1,6 @@
 /** The extraction runner: argument refusals, spend refusals and dry runs on a real database. */
 import { EventEmitter } from "node:events";
-import { readdirSync, readFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { mkdir, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -96,12 +96,17 @@ const NO_DB = new Proxy(
   },
 ) as unknown as Sql;
 
+/** The phase-4 budget file every paid test runs under (cap $3), never the real evals/budget.json. */
+const BUDGET = join(mkdtempSync(join(tmpdir(), "eval-extraction-budget-")), "budget.json");
+writeFileSync(BUDGET, JSON.stringify({ phase: 4, capUsd: 3 }));
+const runEval = (opts: EvalOptions) => runExtractionEval({ budgetPath: BUDGET, ...opts });
+
 const temp = (prefix: string) => mkdtemp(join(tmpdir(), `eval-extraction-${prefix}-`));
 const tempLedger = async (totalUsd: number) => {
   const path = join(await temp("ledger"), "ledger.jsonl");
   await writeFile(
     path,
-    `${JSON.stringify({ at: "2026-11-14T10:00:00Z", run: "earlier", label: "x", costUsd: totalUsd })}\n`,
+    `${JSON.stringify({ at: "2026-11-14T10:00:00Z", run: "earlier", label: "x", costUsd: totalUsd, phase: 4 })}\n`,
   );
   return path;
 };
@@ -304,16 +309,16 @@ describe("runExtractionEval refusals (before any database, network or spend)", (
   });
 
   it("refuses the held-out split without final", async () => {
-    await expect(
-      runExtractionEval(await base({ split: "heldout", mode: "replay" })),
-    ).rejects.toThrow(/--final/);
+    await expect(runEval(await base({ split: "heldout", mode: "replay" }))).rejects.toThrow(
+      /--final/,
+    );
   });
 
   it("refuses a paid run when the ledger is near the $3 cap, without a call or a ledger row", async () => {
     const ledgerPath = await tempLedger(2.995);
     const fetch = networkForbidden();
     await expect(
-      runExtractionEval(await base({ apiKey: "test-key", fetch, ledgerPath })),
+      runEval(await base({ apiKey: "test-key", fetch, ledgerPath })),
     ).rejects.toBeInstanceOf(BudgetError);
     expect(fetch).not.toHaveBeenCalled();
     expect(readLedger(ledgerPath)).toHaveLength(1);
@@ -323,7 +328,7 @@ describe("runExtractionEval refusals (before any database, network or spend)", (
     // 64 dev cases plus 6 hard cases x 29 repeats: 238 case runs x $0.002 > $0.25.
     const ledgerPath = await tempLedger(0);
     const fetch = networkForbidden();
-    const run = runExtractionEval(
+    const run = runEval(
       await base({ ids: undefined, repeatHard: 30, apiKey: "test-key", fetch, ledgerPath }),
     );
     await expect(run).rejects.toBeInstanceOf(BudgetError);
@@ -334,26 +339,24 @@ describe("runExtractionEval refusals (before any database, network or spend)", (
 
   it("allows a paid pass whose estimate is at the cap (the refusal is the estimate, not the key)", async () => {
     // TEN_DEV is $0.02: it passes the per-pass check and stops at the missing key instead.
-    await expect(
-      runExtractionEval(await base({ ledgerPath: await tempLedger(0) })),
-    ).rejects.toThrow(/ANTHROPIC_API_KEY/);
+    await expect(runEval(await base({ ledgerPath: await tempLedger(0) }))).rejects.toThrow(
+      /ANTHROPIC_API_KEY/,
+    );
   });
 
   it("the 84-case dev variance pass: --repeat-hard 2 fits one pass, --repeat-hard 3 is refused", async () => {
     const all = { ids: undefined, apiKey: undefined, ledgerPath: await tempLedger(0) };
     // 2: under the cap, so it reaches the key check; 3: over the cap, refused first.
-    await expect(runExtractionEval(await base({ ...all, repeatHard: 2 }))).rejects.toThrow(
+    await expect(runEval(await base({ ...all, repeatHard: 2 }))).rejects.toThrow(
       /ANTHROPIC_API_KEY/,
     );
-    await expect(runExtractionEval(await base({ ...all, repeatHard: 3 }))).rejects.toThrow(
-      /per-pass cap/,
-    );
+    await expect(runEval(await base({ ...all, repeatHard: 3 }))).rejects.toThrow(/per-pass cap/);
   });
 
   it("refuses a paid run without a key, naming the variable", async () => {
-    await expect(
-      runExtractionEval(await base({ ledgerPath: await tempLedger(0) })),
-    ).rejects.toThrow(/ANTHROPIC_API_KEY/);
+    await expect(runEval(await base({ ledgerPath: await tempLedger(0) }))).rejects.toThrow(
+      /ANTHROPIC_API_KEY/,
+    );
   });
 });
 
@@ -428,7 +431,7 @@ describe.skipIf(!sql)("extraction runner (database)", () => {
     await db.end();
   });
   const dry = async (over: Partial<EvalOptions>) =>
-    runExtractionEval({
+    runEval({
       sql: db,
       split: "dev",
       mode: "replay",

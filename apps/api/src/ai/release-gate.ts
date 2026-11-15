@@ -225,7 +225,8 @@ function grounded(token: NumericToken, facts: Fact[]): boolean {
  *   citation shows;
  * - a cited fact id that is not in `facts` (listed as `[f_…]`);
  * - non-ASCII digits, and spelled-out amounts ("eight thousand", "five percent").
- * `repaired` is always false here; the agent sets it after the repair turn.
+ * `repaired` is always false here; the agent sets it after the repair turn. `attempts` holds this
+ * pass as attempt 1; the agent appends the repair pass as attempt 2.
  */
 export function checkNumbers(answer: string, facts: Fact[]): GateResult {
   const byId = new Map(facts.map((f) => [f.id, f]));
@@ -247,5 +248,11 @@ export function checkNumbers(answer: string, facts: Fact[]): GateResult {
 
   problems.sort((a, b) => a.start - b.start);
   const ungrounded = [...new Set(problems.map((p) => p.text))];
-  return { passed: ungrounded.length === 0, repaired: false, ungroundedNumbers: ungrounded };
+  const passed = ungrounded.length === 0;
+  return {
+    passed,
+    repaired: false,
+    ungroundedNumbers: ungrounded,
+    attempts: [{ attempt: 1, passed, ungroundedNumbers: ungrounded }],
+  };
 }

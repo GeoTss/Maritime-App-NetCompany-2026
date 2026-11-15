@@ -1,11 +1,11 @@
 import type { Sql } from "@pharos/db";
 import { connectTestDb, testDbLabel } from "@pharos/db/testing";
-import { BunkerPlan, type Fact } from "@pharos/shared";
+import { BunkerPlan, type Fact, ProposeActionInput } from "@pharos/shared";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { ASK_FIXTURE_NOW, prepareAskFixture } from "../../ask/demo-fixture.js";
 import { createToolContext, type ToolContext } from "./common.js";
 import { planBunkering } from "./plan-bunkering.js";
-import { ProposeActionInput, proposeAction, proposeActionTool } from "./propose-action.js";
+import { proposeAction, proposeActionTool } from "./propose-action.js";
 import { getVesselStatus } from "./vessel-status.js";
 
 const sql = await connectTestDb("ask_propose_action");

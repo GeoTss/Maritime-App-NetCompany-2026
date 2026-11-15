@@ -5,32 +5,10 @@
  * calculation, never taken from the model. Only the executor acts, after a human approves.
  */
 import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
-import { BunkerPlan, FactId, Id, ProposedAction, type ToolResult } from "@pharos/shared";
-import { z } from "zod";
+import { BunkerPlan, ProposeActionInput, ProposedAction, type ToolResult } from "@pharos/shared";
 import { dbFact, json, runTool, type ToolContext } from "./common.js";
 
 export const TOOL = "propose_action";
-
-/**
- * The tool's input schema: `ProposedAction` as one strict object (a tool schema must be an object,
- * and the union compiles to `oneOf`). Parsed again with `ProposedAction` before use.
- */
-export const ProposeActionInput = z
-  .object({
-    type: z
-      .enum(["purchase_order", "voyage_instruction"])
-      .describe("purchase_order for a bunker plan option."),
-    calculationId: Id.describe("The calculationId a plan_bunkering result returned."),
-    optionId: z.string().min(1).describe("The optionId of the plan option, e.g. its bestOptionId."),
-    factRefs: z
-      .array(FactId)
-      .min(1)
-      .describe(
-        "Ids of the facts, returned earlier in this conversation, that support the proposal.",
-      ),
-    rationale: z.string().min(1).describe("One sentence on why, without numbers."),
-  })
-  .strict();
 
 export async function proposeAction(ctx: ToolContext, input: unknown): Promise<ToolResult> {
   return runTool(ctx, TOOL, input, async () => {

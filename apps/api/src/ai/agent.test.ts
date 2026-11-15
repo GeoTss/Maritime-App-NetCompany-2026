@@ -185,7 +185,15 @@ describe.skipIf(!sql)("runAgent (Postgres)", () => {
     ]);
     const res = AskResponse.parse(await runAgent(deps, "Who is cheaper?"));
     expect(res.answer).toBeNull();
-    expect(res.gate).toEqual({ passed: false, repaired: true, ungroundedNumbers: ["8,000"] });
+    expect(res.gate).toEqual({
+      passed: false,
+      repaired: true,
+      ungroundedNumbers: ["8,000"],
+      attempts: [
+        { attempt: 1, passed: false, ungroundedNumbers: ["8,000"] },
+        { attempt: 2, passed: false, ungroundedNumbers: ["8,000"] },
+      ],
+    });
     expect(requests).toHaveLength(2);
 
     // The repair turn is one user message naming the ungrounded numbers; the gate never edits text.
@@ -213,7 +221,11 @@ describe.skipIf(!sql)("runAgent (Postgres)", () => {
     ]);
     const res = await runAgent(deps, "Where?");
     expect(res.answer).toBe("Bunker at Marsaxlokk with Kestrel Marine Fuels.");
-    expect(res.gate).toEqual({ passed: true, repaired: true, ungroundedNumbers: [] });
+    expect(res.gate).toMatchObject({ passed: true, repaired: true, ungroundedNumbers: [] });
+    expect(res.gate.attempts.map((a) => [a.attempt, a.passed])).toEqual([
+      [1, false],
+      [2, true],
+    ]);
   });
 
   it("collects tool facts, grounds cited numbers, proposes, and links the recommendation", async () => {
@@ -238,7 +250,12 @@ describe.skipIf(!sql)("runAgent (Postgres)", () => {
       },
     ]);
     const res = await runAgent(deps, DEMO_QUESTION);
-    expect(res.gate).toEqual({ passed: true, repaired: false, ungroundedNumbers: [] });
+    expect(res.gate).toEqual({
+      passed: true,
+      repaired: false,
+      ungroundedNumbers: [],
+      attempts: [{ attempt: 1, passed: true, ungroundedNumbers: [] }],
+    });
     expect(res.answer).toMatch(/^Buy from Kestrel/);
     expect(requests).toHaveLength(3);
     expect(res.facts.some((f) => f.id.endsWith("_options.0.totalCostUsd"))).toBe(true);

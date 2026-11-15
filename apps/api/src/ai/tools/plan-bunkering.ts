@@ -13,22 +13,16 @@ import {
   optionIdFor,
 } from "@pharos/db";
 import { DOMAIN_CODE_VERSION, planBunkers } from "@pharos/domain";
-import type { BunkerOptionResult, Fact, Quote, ToolResult } from "@pharos/shared";
-import { z } from "zod";
+import {
+  type BunkerOptionResult,
+  type Fact,
+  PlanBunkeringInput,
+  type Quote,
+  type ToolResult,
+} from "@pharos/shared";
 import { calcFact, dbFact, findVessel, json, runTool, type ToolContext } from "./common.js";
 
 export const TOOL = "plan_bunkering";
-
-export const PlanBunkeringInput = z
-  .object({
-    vessel: z
-      .string()
-      .trim()
-      .min(1)
-      .describe('Vessel name (e.g. "Aegean Pioneer") or 7-digit IMO.'),
-  })
-  .strict();
-export type PlanBunkeringInput = z.infer<typeof PlanBunkeringInput>;
 
 /** Option fields returned as facts, with their units. */
 const OPTION_FACTS: [keyof BunkerOptionResult, string, string | null][] = [

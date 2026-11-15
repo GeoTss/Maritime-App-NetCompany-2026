@@ -312,7 +312,15 @@ export const Calculation = z.object({
 export type Calculation = z.infer<typeof Calculation>;
 
 export const RecommendationType = z.enum(["purchase_order", "voyage_instruction"]);
-export const RecommendationStatus = z.enum(["pending", "approved", "rejected", "executed"]);
+export const RecommendationStatus = z.enum([
+  "pending",
+  "approved",
+  "executing",
+  "executed",
+  "rejected",
+  "failed",
+]);
+export type RecommendationStatus = z.infer<typeof RecommendationStatus>;
 export const Recommendation = z.object({
   id: Id,
   type: RecommendationType,
@@ -327,6 +335,19 @@ export const Recommendation = z.object({
   createdAt: Ts,
 });
 export type Recommendation = z.infer<typeof Recommendation>;
+
+/** A message the executor drafted for a human to send. Nothing is ever sent by Pharos. */
+export const DraftedMessage = z.object({
+  id: Id,
+  recommendationId: Id,
+  kind: z.enum(["supplier_confirmation", "master_instruction"]),
+  to: z.string().min(1),
+  subject: z.string().min(1),
+  body: z.string().min(1),
+  status: z.literal("draft"),
+  createdAt: Ts,
+});
+export type DraftedMessage = z.infer<typeof DraftedMessage>;
 
 export const Conversation = z.object({
   id: Id,

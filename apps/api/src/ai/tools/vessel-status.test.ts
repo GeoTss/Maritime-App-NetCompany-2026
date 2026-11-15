@@ -1,11 +1,11 @@
 import { DEMO_SCENARIO, type Sql } from "@pharos/db";
 import { connectTestDb, testDbLabel } from "@pharos/db/testing";
 import { DOMAIN_CODE_VERSION } from "@pharos/domain";
-import { Fact, FactId, FobProjection } from "@pharos/shared";
+import { Fact, FactId, FobProjection, VesselStatusInput } from "@pharos/shared";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ASK_FIXTURE_NOW, prepareAskFixture } from "../../ask/demo-fixture.js";
 import { createToolContext } from "./common.js";
-import { getVesselStatus, VesselStatusInput, vesselStatusTool } from "./vessel-status.js";
+import { getVesselStatus, vesselStatusTool } from "./vessel-status.js";
 
 const sql = await connectTestDb("ask_vessel_status");
 
