@@ -1,30 +1,25 @@
 {
-  "phase": 3,
-  "phaseName": "Extraction, benchmark first",
+  "phase": 4,
+  "phaseName": "Agent, approvals, ERP hand-off",
   "lastGate": {
-    "phase": 2,
+    "phase": 3,
     "result": "PASS",
-    "at": "2026-11-14",
-    "note": "verify green (48 files / 729 tests, DB tests ran, 0 skipped); purity OK; live smoke PASS on Compose with LLM_MODE=live: default Haiku 5.5 both prompts — email 4.1 s / 4.0 s (target ~20 s), answer 9.9 s (target ~45 s), 6 calls $0.0036; agent Sonnet 5.5 — answer 7.8 s, $0.0374; agent Opus 5.5 — answer 21.5 s, $0.0553 (extraction Haiku in all); browser check deliver → quote → ask (fact chips) → approve → PO-000001 synced, survives reload; 3-model complex-question comparison (7 questions) $0.297 total, 0 withheld, all proposals = best option; verifier PASS",
+    "at": "2026-11-15",
+    "note": "verify green (68 files / 2135 tests, DB tests ran, purity OK); extraction benchmark: 220 golden emails (200 generated + 20 hard) + 20 dev-only trap variants, truth from code, user-reviewed; live Claude Haiku 5.5 dev pass (84 cases): critical-field accuracy 646/651 (99.2 %, 95 % CI 98.2-99.7 %), unsafe auto-accepts 0/84 (CI 0-4.4 %), review-queue 21/84, false review 5/55, needs-review recall 16/16, 5.5 s mean / 7.5 s p90 per email (target 20 s), $0.00073 per email; replay reproduces it; oracle 651/651, empty 7/651; Phase 3 spend $0.1285 of $3.00; verifier PASS",
     "evidence": {
-      "smoke": [
-        "evals/reports/20261114T041445Z-smoke-haiku",
-        "evals/reports/20261114T042135Z-smoke-agent-sonnet",
-        "evals/reports/20261114T042223Z-smoke-agent-opus"
-      ],
-      "agentComparison": "evals/reports/20261114T042306Z-agent-compare-phase2",
-      "latency": {
-        "emailSeconds": { "haiku": [4.1, 4.0], "targetSeconds": 20 },
-        "answerSeconds": { "haiku": 9.9, "sonnet": 7.8, "opus": 21.5, "targetSeconds": 45 }
-      },
-      "costUsd": {
-        "smokeRun": { "haiku": 0.00364, "agentSonnet": 0.037425, "agentOpus": 0.055295 },
-        "perExtractionHaiku": "0.0005-0.0009",
-        "agentComparison": 0.297
-      }
+      "liveDev": "evals/reports/20261115T033145Z-extraction-dev-dev-haiku-gate-final",
+      "replayDev": "evals/reports/20261115T033954Z-extraction-dev-dev-haiku-gate-final-replay",
+      "firstLiveDev": "evals/reports/20261115T032117Z-extraction-dev-dev-haiku-v2-gate",
+      "oracle": "evals/reports/20261115T033132Z-extraction-dev-oracle-final",
+      "empty": "evals/reports/20261115T034016Z-extraction-dev-empty-final",
+      "smoke": "evals/reports/20261114T185117Z-smoke-phase3-prompt-v2",
+      "evalLog": "docs/EVAL_LOG.md",
+      "userReview": "REVIEW.md approved 2026-11-14 (no corrections); dev variants + unsafe incl. barge fee/supplier chosen 2026-11-14; residual heuristics parked 2026-11-15",
+      "spendUsd": { "phase3Total": 0.1285, "cap": 3, "perEmailHaiku": 0.00073 },
+      "latencySeconds": { "mean": 5.5, "p90": 7.5, "targetSeconds": 20 }
     }
   },
-  "modelDecision": "Haiku 5.5 for extraction and agent by default (cheapest; passes the gate live, occasionally after one repair turn); Sonnet 5.5 is the agent upgrade if repair turns or answer quality matter (~10x Haiku, faster than Opus); Opus 5.5 ~2x Sonnet cost and ~2-3x latency with no measured gain on these questions. Switch via AGENT_MODEL / EXTRACT_MODEL.",
+  "modelDecision": "Claude Haiku 5.5 only for extraction and agent evals (user decision 2026-11-14); extraction passes the dev gate on Haiku with prompt extract-quote/v2.",
   "keyCheckpoints": {
     "2": ["ANTHROPIC_API_KEY"],
     "5": ["AISSTREAM_API_KEY"]
