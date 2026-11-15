@@ -358,6 +358,32 @@ export const draftedMessages = pgTable(
   (t) => [uniqueIndex("drafted_messages_recommendation_kind_uq").on(t.recommendationId, t.kind)],
 );
 
+/**
+ * Route and speed instructions the executor recorded on approval, one per recommendation. Values
+ * come from the stored route calculation; the voyage's planned speed and route are not changed.
+ */
+export const voyageInstructions = pgTable(
+  "voyage_instructions",
+  {
+    id: id(),
+    recommendationId: integer()
+      .notNull()
+      .references(() => recommendations.id, { onDelete: "restrict" }),
+    voyageId: integer()
+      .notNull()
+      .references(() => voyages.id, { onDelete: "restrict" }),
+    calculationId: integer()
+      .notNull()
+      .references(() => calculations.id, { onDelete: "restrict" }),
+    candidateId: text().notNull(),
+    speedKn: doublePrecision().notNull(),
+    eta: ts().notNull(),
+    points: jsonb().$type<LatLon[]>().notNull(),
+    createdAt: ts().notNull(),
+  },
+  (t) => [uniqueIndex("voyage_instructions_recommendation_id_uq").on(t.recommendationId)],
+);
+
 export const purchaseOrders = pgTable(
   "purchase_orders",
   {

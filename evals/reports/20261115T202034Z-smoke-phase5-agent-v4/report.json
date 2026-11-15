@@ -1,0 +1,141 @@
+{
+  "label": "phase5-agent-v4",
+  "startedAt": "2026-11-15T20:20:34.750Z",
+  "apiUrl": "http://localhost:4000",
+  "llmMode": "live",
+  "ok": true,
+  "failures": [],
+  "steps": [
+    {
+      "name": "email-1",
+      "latencyMs": 3082,
+      "targetMs": 20000
+    },
+    {
+      "name": "email-2",
+      "latencyMs": 4055,
+      "targetMs": 20000
+    },
+    {
+      "name": "ask",
+      "latencyMs": 6399,
+      "targetMs": 45000
+    },
+    {
+      "name": "approve",
+      "latencyMs": 45,
+      "targetMs": null
+    }
+  ],
+  "askEvents": {
+    "progress": 6,
+    "answer": 1,
+    "error": 0
+  },
+  "drafts": [
+    "master_instruction",
+    "supplier_confirmation"
+  ],
+  "calls": [
+    {
+      "id": 1,
+      "purpose": "extract",
+      "model": "claude-haiku-5-5",
+      "mode": "live",
+      "inputTokens": 207,
+      "outputTokens": 511,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 3064,
+      "latencyMs": 2329.403918,
+      "costUsd": 0.0006592000000000001,
+      "stopReason": "end_turn"
+    },
+    {
+      "id": 2,
+      "purpose": "extract",
+      "model": "claude-haiku-5-5",
+      "mode": "live",
+      "inputTokens": 175,
+      "outputTokens": 988,
+      "cacheReadTokens": 3064,
+      "cacheWriteTokens": 0,
+      "latencyMs": 3663.6516269999993,
+      "costUsd": 0.00054214,
+      "stopReason": "end_turn"
+    },
+    {
+      "id": 3,
+      "purpose": "agent",
+      "model": "claude-haiku-5-5",
+      "mode": "live",
+      "inputTokens": 100,
+      "outputTokens": 124,
+      "cacheReadTokens": 5395,
+      "cacheWriteTokens": 0,
+      "latencyMs": 1031.117542,
+      "costUsd": 0.00012595,
+      "stopReason": "tool_use"
+    },
+    {
+      "id": 4,
+      "purpose": "agent",
+      "model": "claude-haiku-5-5",
+      "mode": "live",
+      "inputTokens": 2793,
+      "outputTokens": 799,
+      "cacheReadTokens": 5395,
+      "cacheWriteTokens": 0,
+      "latencyMs": 3287.1923349999997,
+      "costUsd": 0.00073275,
+      "stopReason": "tool_use"
+    },
+    {
+      "id": 5,
+      "purpose": "agent",
+      "model": "claude-haiku-5-5",
+      "mode": "live",
+      "inputTokens": 4077,
+      "outputTokens": 437,
+      "cacheReadTokens": 5395,
+      "cacheWriteTokens": 0,
+      "latencyMs": 1985.7592509999995,
+      "costUsd": 0.0006801500000000001,
+      "stopReason": "end_turn"
+    }
+  ],
+  "byPurpose": [
+    {
+      "purpose": "extract",
+      "models": [
+        "claude-haiku-5-5"
+      ],
+      "calls": 2,
+      "inputTokens": 382,
+      "outputTokens": 1499,
+      "cacheReadTokens": 3064,
+      "cacheWriteTokens": 3064,
+      "latencyMs": 5993.055544999999,
+      "costUsd": 0.00120134
+    },
+    {
+      "purpose": "agent",
+      "models": [
+        "claude-haiku-5-5"
+      ],
+      "calls": 3,
+      "inputTokens": 6970,
+      "outputTokens": 1360,
+      "cacheReadTokens": 16185,
+      "cacheWriteTokens": 0,
+      "latencyMs": 6304.069127999999,
+      "costUsd": 0.00153885
+    }
+  ],
+  "totals": {
+    "calls": 5,
+    "inputTokens": 7352,
+    "outputTokens": 2859,
+    "latencyMs": 12297.124672999998,
+    "costUsd": 0.00274019
+  }
+}

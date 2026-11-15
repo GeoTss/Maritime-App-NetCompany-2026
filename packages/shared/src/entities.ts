@@ -383,6 +383,24 @@ export const DraftedMessage = z.object({
 });
 export type DraftedMessage = z.infer<typeof DraftedMessage>;
 
+/**
+ * A route and speed instruction the executor recorded after a human approved a `voyage_instruction`
+ * recommendation. Every value is read from the stored route calculation's approved option; the
+ * voyage's planned speed and route stay as they are.
+ */
+export const VoyageInstruction = z.object({
+  id: Id,
+  recommendationId: Id,
+  voyageId: Id,
+  calculationId: Id,
+  candidateId: z.string().min(1),
+  speedKn: z.number().positive(),
+  eta: Ts,
+  points: z.array(LatLon).min(2),
+  createdAt: Ts,
+});
+export type VoyageInstruction = z.infer<typeof VoyageInstruction>;
+
 export const Conversation = z.object({
   id: Id,
   title: z.string().nullable(),

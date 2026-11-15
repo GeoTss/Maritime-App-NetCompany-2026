@@ -1,5 +1,11 @@
 /**
- * The executor: the only code that writes purchase orders, and only after a human approves.
+ * The executor: the only code that writes purchase orders or records voyage instructions, and only
+ * after a human approves.
+ *
+ * A `voyage_instruction` makes no external call and writes no order: it records the approved route
+ * option (candidate, speed, ETA, points, all read from the stored route calculation) in
+ * `voyage_instructions`, once per recommendation, and drafts the master's instruction (never
+ * sent). The voyage's planned speed and route stay as they are. It moves through the same states.
  *
  * Every order value comes from the database, never from model text: the quantity is the stored
  * plan option's `qtyMt`; price, currency and barge fee come from the quote the option points at;
@@ -18,9 +24,12 @@ import {
   type FuelGrade,
   type Id,
   type RecommendationStatus,
+  RouteCandidate,
+  RouteSpeedResult,
 } from "@pharos/shared";
+import { z } from "zod";
 import { transition } from "../approvals/state.js";
-import { type DraftedMessageInput, draftMessages } from "./drafts.js";
+import { type DraftedMessageInput, draftMessages, draftVoyageInstruction } from "./drafts.js";
 import type { ErpClient } from "./erp-client.js";
 
 export interface ExecutorDeps {
@@ -125,11 +134,11 @@ export async function approveRecommendation(
         where id = ${id}`;
       await audit(tx, id, "recommendation.approved", decidedBy, {}, now);
     }
-    if (status !== "approved" && status !== "failed") return false; // executing or executed
+    if (status !== "approved" && status !== "failed") return null; // executing or executed
     await beginExecution(tx, { ...rec, status }, now, decidedBy);
-    return true;
+    return rec;
   });
-  if (run) await pushAndFinish(deps, id);
+  if (run) await finish(deps, run);
   return decisionOf(deps.sql, id);
 }
 
@@ -139,7 +148,7 @@ export async function approveRecommendation(
  */
 export async function executeRecommendation(deps: ExecutorDeps, id: Id): Promise<DecisionResult> {
   const now = clock(deps);
-  await deps.sql.begin(async (tx) => {
+  const rec = await deps.sql.begin(async (tx) => {
     const rec = await lockRecommendation(tx, id);
     if (rec.status !== "approved" && rec.status !== "failed") {
       throw new DecisionError(
@@ -148,9 +157,17 @@ export async function executeRecommendation(deps: ExecutorDeps, id: Id): Promise
       );
     }
     await beginExecution(tx, rec, now, EXECUTOR);
+    return rec;
   });
-  await pushAndFinish(deps, id);
+  await finish(deps, rec);
   return decisionOf(deps.sql, id);
+}
+
+/** The second half of an execution, by type: push the order, or draft the voyage instruction. */
+function finish(deps: ExecutorDeps, rec: RecommendationRow): Promise<void> {
+  return rec.type === "voyage_instruction"
+    ? finishInstruction(deps, rec.id)
+    : pushAndFinish(deps, rec.id);
 }
 
 /** Rejects a pending recommendation. Final: it can be neither approved nor rejected again. */
@@ -178,8 +195,9 @@ export async function rejectRecommendation(
 }
 
 /**
- * approved -start-> executing, or failed -retry-> executing; writes the order if none exists. A
- * retry is audited as `actor`: the human whose approval retried it, or the executor.
+ * approved -start-> executing, or failed -retry-> executing; writes the order (or records the
+ * voyage instruction) if none exists. A retry is audited as `actor`: the human whose approval
+ * retried it, or the executor.
  */
 async function beginExecution(
   tx: Tx,
@@ -191,9 +209,136 @@ async function beginExecution(
   const next = transition(rec.status, retry ? "retry" : "start");
   await tx`update recommendations set status = ${next} where id = ${rec.id}`;
   if (retry) await audit(tx, rec.id, "recommendation.retried", actor, {}, now);
+  if (rec.type === "voyage_instruction") {
+    const [existing] = await tx<{ id: number }[]>`
+      select id from voyage_instructions where recommendation_id = ${rec.id}`;
+    if (!existing) await recordInstruction(tx, rec, now);
+    return;
+  }
   const [existing] = await tx<{ id: number }[]>`
     select id from purchase_orders where recommendation_id = ${rec.id} order by id limit 1`;
   if (!existing) await createOrder(tx, rec, now);
+}
+
+/** The parts of a stored route calculation's inputs the executor reads. */
+const RouteInputs = z.object({
+  destination: z.string().min(1),
+  optimiser: z.object({ candidates: z.array(RouteCandidate) }),
+});
+
+/** The approved route of a stored route calculation, or why it cannot be executed. */
+async function approvedRoute(
+  tx: Tx,
+  rec: RecommendationRow,
+): Promise<
+  | {
+      ok: true;
+      voyageId: Id;
+      destination: string;
+      candidate: RouteCandidate;
+      option: RouteSpeedResult["options"][number];
+    }
+  | { ok: false; why: string }
+> {
+  const [calc] = await tx<
+    { kind: string; inputs: unknown; outputs: unknown; voyage_id: number | null }[]
+  >`select kind, inputs, outputs, voyage_id from calculations where id = ${rec.calculation_id}`;
+  if (calc?.kind !== "route_speed") {
+    return { ok: false, why: `calculation ${rec.calculation_id} is not a route plan.` };
+  }
+  if (calc.voyage_id === null) {
+    return { ok: false, why: "the route plan is not for one of the operator's own vessels." };
+  }
+  const inputs = RouteInputs.safeParse(calc.inputs);
+  const result = RouteSpeedResult.safeParse(calc.outputs);
+  if (!inputs.success || !result.success) {
+    return { ok: false, why: `calculation ${rec.calculation_id} is unreadable.` };
+  }
+  const option = result.data.options.find((o) => o.candidateId === rec.option_id);
+  const candidate = inputs.data.optimiser.candidates.find((c) => c.id === rec.option_id);
+  if (!option || !candidate) return { ok: false, why: `the plan has no route ${rec.option_id}.` };
+  if (!option.feasible) return { ok: false, why: `route ${rec.option_id} is not feasible.` };
+  return {
+    ok: true,
+    voyageId: calc.voyage_id,
+    destination: inputs.data.destination,
+    candidate,
+    option,
+  };
+}
+
+/** Records the approved route option as the voyage's instruction (the voyage itself is unchanged). */
+async function recordInstruction(tx: Tx, rec: RecommendationRow, now: Date): Promise<Id> {
+  const route = await approvedRoute(tx, rec);
+  if (!route.ok) {
+    throw new DecisionError(
+      "not_executable",
+      `Recommendation ${rec.id} cannot be executed: ${route.why}`,
+    );
+  }
+  const [row] = await tx<{ id: number }[]>`
+    insert into voyage_instructions (recommendation_id, voyage_id, calculation_id, candidate_id,
+                                     speed_kn, eta, points, created_at)
+    values (${rec.id}, ${route.voyageId}, ${rec.calculation_id}, ${route.option.candidateId},
+            ${route.option.speedKn}, ${route.option.eta}::timestamptz,
+            ${json(route.candidate.points)}::jsonb, ${iso(now)}::timestamptz)
+    returning id`;
+  if (!row) throw new Error("voyage_instructions insert returned no row");
+  await audit(
+    tx,
+    rec.id,
+    "voyage.instructed",
+    EXECUTOR,
+    { instructionId: row.id, calculationId: rec.calculation_id, candidateId: rec.option_id },
+    now,
+  );
+  return row.id;
+}
+
+/**
+ * Drafts the master's route-and-speed instruction from the stored calculation and marks the
+ * recommendation executed. No external call. Any failure leaves it `failed` (audited); a later
+ * approve retries, and the unique indexes keep it to one instruction and one draft.
+ */
+async function finishInstruction(deps: ExecutorDeps, recId: Id): Promise<void> {
+  const { sql } = deps;
+  try {
+    await sql.begin(async (tx) => {
+      const rec = await lockRecommendation(tx, recId);
+      const [instruction] = await tx<{ id: number }[]>`
+        select id from voyage_instructions where recommendation_id = ${recId}`;
+      if (!instruction) throw new Error(`recommendation ${recId} has no voyage instruction`);
+      const route = await approvedRoute(tx, rec);
+      if (!route.ok) throw new Error(`recommendation ${recId}: ${route.why}`);
+      const [vessel] = await tx<{ name: string }[]>`
+        select v.name from voyages vo join vessels v on v.id = vo.vessel_id
+        where vo.id = ${route.voyageId}`;
+      if (!vessel) throw new Error(`voyage ${route.voyageId} has no vessel`);
+      const draft = draftVoyageInstruction({
+        recommendation: { id: recId },
+        vessel: { name: vessel.name },
+        destination: route.destination,
+        route: { candidateId: route.candidate.id, label: route.candidate.label },
+        option: route.option,
+      });
+      const at = clock(deps);
+      const kinds = await insertDrafts(tx, [draft], at);
+      if (kinds.length > 0) await audit(tx, recId, "drafts.created", EXECUTOR, { kinds }, at);
+      await tx`update recommendations set status = ${transition(rec.status, "succeed")} where id = ${recId}`;
+      await audit(
+        tx,
+        recId,
+        "recommendation.executed",
+        EXECUTOR,
+        { instructionId: instruction.id },
+        at,
+      );
+    });
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err);
+    deps.log?.(`[executor] voyage instruction ${recId}: ${error}`);
+    await failRecommendation(deps, recId, { error });
+  }
 }
 
 /** Writes the purchase order and its line from the stored plan option and its quote. */
@@ -405,7 +550,7 @@ async function pushAndFinish(deps: ExecutorDeps, recId: Id): Promise<void> {
 async function failRecommendation(
   deps: ExecutorDeps,
   recId: Id,
-  detail: { orderId: Id; error: string },
+  detail: { orderId?: Id; error: string },
 ): Promise<void> {
   await deps.sql.begin(async (tx) => {
     const rec = await lockRecommendation(tx, recId);

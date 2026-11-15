@@ -78,7 +78,8 @@ export function calculateTool(ctx: ToolContext) {
       "or percentage the operator asks for. Pass the operation and the operand fact ids (never " +
       "typed numbers); subtract is a - b, divide a / b, difference |a - b|, percent_change " +
       "(b - a) / a in %. Units must agree for add, subtract, difference, sum, min and max. " +
-      "Returns one derived fact to cite.",
+      "A percentage difference is one percent_change call: cite the fact it returns and do not " +
+      "also divide. Returns one derived fact to cite.",
     inputSchema: CalculateInput,
     run: async (input) => JSON.stringify(await calculate(ctx, input)),
   });

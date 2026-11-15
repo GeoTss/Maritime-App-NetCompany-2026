@@ -50,6 +50,13 @@
       "when": 1794771242878,
       "tag": "0006_nifty_spacker_dave",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794773348204,
+      "tag": "0007_faulty_plazm",
+      "breakpoints": true
     }
   ]
 }

@@ -4,9 +4,9 @@
  * same sentence: at the precision the answer displays it, with the currency and unit written next
  * to it (if any) agreeing with the fact's unit, and with its sign agreeing with the fact's. Every
  * cited fact id must be a known fact. A few digit runs are not numeric claims (names such as "CO2"
- * or "ISO 8217", clock times and IMO numbers a fact holds). Numbers the gate cannot read
- * (non-ASCII digits, spelled-out amounts) are never grounded. The gate only checks; it never edits
- * the text.
+ * or "ISO 8217"; clock times, IMO numbers, MMSIs and identifiers such as hazard ids that a fact
+ * holds). Numbers the gate cannot read (non-ASCII digits, spelled-out amounts) are never grounded.
+ * The gate only checks; it never edits the text.
  *
  * The vocabulary (currencies, units, fact units, non-claims, the signed-saving rule) is in the
  * tables below; the code after them only reads text with them.
@@ -96,6 +96,19 @@ const NOT_CLAIMS: {
     what: "an IMO number equal to a fact",
     pattern: /(?<![A-Za-z])IMO[ \t]*(?:no\.?[ \t]*)?:?[ \t]*(\d{7})(?!\d)/gi,
     exempt: (m, facts) => facts.some((f) => String(f.value) === m[1]),
+  },
+  {
+    what: "a 9-digit MMSI that a fact's value or label carries",
+    pattern: /(?<![A-Za-z])MMSI[ \t]*(?:no\.?[ \t]*)?:?[ \t]*(\d{9})(?!\d)/gi,
+    exempt: (m, facts) => {
+      const mmsi = new RegExp(`(?<!\\d)${m[1]}(?!\\d)`);
+      return facts.some((f) => mmsi.test(String(f.value)) || mmsi.test(f.label));
+    },
+  },
+  {
+    what: "an identifier such as a hazard id (synthetic:1, ais:distress_beacon:970123456) equal to a fact",
+    pattern: /(?<![A-Za-z0-9_:])[A-Za-z][A-Za-z0-9_]*(?::[A-Za-z0-9_]+)+/g,
+    exempt: (m, facts) => facts.some((f) => f.value === m[0]),
   },
 ];
 
@@ -462,9 +475,10 @@ function grounded(token: Scanned, cited: Fact[], sentence: string): boolean {
  *   citation states (value at its precision, written currency and unit, sign);
  * - a cited fact id that is not in `facts` (listed as `[f_…]`);
  * - non-ASCII digits, and spelled-out amounts ("eight thousand", "five percent").
- * Names such as "CO2" or "ISO 8217", and clock times and IMO numbers some fact holds, are not
- * numbers here. `repaired` is always false; the agent sets it after the repair turn. `attempts`
- * holds this pass as attempt 1; the agent appends the repair pass as attempt 2.
+ * Names such as "CO2" or "ISO 8217", and clock times, IMO numbers, MMSIs and identifiers (hazard
+ * ids) some fact holds, are not numbers here. `repaired` is always false; the agent sets it after
+ * the repair turn. `attempts` holds this pass as attempt 1; the agent appends the repair pass as
+ * attempt 2.
  */
 export function checkNumbers(answer: string, facts: Fact[]): GateResult {
   const byId = new Map(facts.map((f) => [f.id, f]));

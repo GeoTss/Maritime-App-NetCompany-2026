@@ -1,12 +1,18 @@
 /**
- * Drafted messages for a human to send after an approval: a supplier confirmation and a master
+ * Drafted messages for a human to send after an approval: for a purchase order, a supplier
+ * confirmation and a master instruction; for a voyage instruction, the master's route-and-speed
  * instruction. Pure templates, no model call. Every number is the stored calculation's option or
  * the stored order; nothing here is ever sent (Pharos has no outbound channel).
  *
  * Addresses are deterministic placeholders (the seed has no contact address): `bunkers@` the
  * supplier's email domain, and `master.<vessel-slug>@fleet.pharos.example`.
  */
-import type { BunkerOptionResult, DraftedMessage, FuelGrade } from "@pharos/shared";
+import type {
+  BunkerOptionResult,
+  DraftedMessage,
+  FuelGrade,
+  RouteOptionResult,
+} from "@pharos/shared";
 
 export interface DraftInput {
   recommendation: { id: number };
@@ -28,6 +34,17 @@ export interface DraftInput {
 
 export type DraftedMessageInput = Omit<DraftedMessage, "id" | "createdAt">;
 
+export interface VoyageInstructionDraftInput {
+  recommendation: { id: number };
+  vessel: { name: string };
+  /** The destination the route calculation planned to. */
+  destination: string;
+  /** The approved route: its id and description, from the stored calculation. */
+  route: { candidateId: string; label: string };
+  /** The approved option of the stored route calculation. */
+  option: Pick<RouteOptionResult, "speedKn" | "eta" | "distanceNm">;
+}
+
 const slug = (s: string) =>
   s
     .toLowerCase()
@@ -35,6 +52,12 @@ const slug = (s: string) =>
     .replace(/^-+|-+$/g, "");
 
 const fmt = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 2 });
+
+/** An ISO timestamp as "YYYY-MM-DD hh:mm UTC", its own digits (seconds dropped). */
+const utcMinute = (iso: string) => `${iso.slice(0, 10)} ${iso.slice(11, 16)} UTC`;
+
+const NOT_SENT =
+  "This is a draft prepared by Pharos for a person to review and send. Pharos has not sent it.";
 
 export const supplierAddress = (emailDomain: string) => `bunkers@${emailDomain}`;
 export const masterAddress = (vesselName: string) =>
@@ -44,8 +67,6 @@ export function draftMessages(input: DraftInput): DraftedMessageInput[] {
   const { order, supplier, vessel, port, option } = input;
   const po = order.poNumber ?? "(number pending)";
   const grade = order.grade;
-  const notSent =
-    "This is a draft prepared by Pharos for a person to review and send. Pharos has not sent it.";
 
   const supplierBody = [
     `Dear ${supplier.name},`,
@@ -59,7 +80,7 @@ export function draftMessages(input: DraftInput): DraftedMessageInput[] {
     "",
     "Please reply with your confirmation of quantity, price and delivery window.",
     "",
-    notSent,
+    NOT_SENT,
   ].join("\n");
 
   const masterBody = [
@@ -73,7 +94,7 @@ export function draftMessages(input: DraftInput): DraftedMessageInput[] {
     "",
     "Please prepare for the delivery and confirm the barge arrival time to the desk.",
     "",
-    notSent,
+    NOT_SENT,
   ].join("\n");
 
   return [
@@ -94,4 +115,37 @@ export function draftMessages(input: DraftInput): DraftedMessageInput[] {
       status: "draft",
     },
   ];
+}
+
+/**
+ * The master's route-and-speed instruction for an approved voyage instruction. Its only numbers are
+ * the approved option's speed, ETA and distance; it names no IMO or voyage number.
+ */
+export function draftVoyageInstruction(input: VoyageInstructionDraftInput): DraftedMessageInput {
+  const { vessel, destination, route, option } = input;
+  const body = [
+    `Master of ${vessel.name},`,
+    "",
+    `The desk has approved this route and speed to ${destination}:`,
+    `- Route: ${route.label} (route ${route.candidateId})`,
+    `- Speed: ${fmt(option.speedKn)} kn`,
+    `- ETA at ${destination}: ${utcMinute(option.eta)}`,
+    `- Distance: ${fmt(option.distanceNm)} nm`,
+    "",
+    "This is planning-grade advice from the desk's route and speed calculation over the latest " +
+      "weather forecast and reported hazards. It does not replace your passage plan or your " +
+      "judgement on the bridge.",
+    "",
+    "Please confirm receipt to the desk, and tell the desk if you cannot keep to it.",
+    "",
+    NOT_SENT,
+  ].join("\n");
+  return {
+    recommendationId: input.recommendation.id,
+    kind: "master_instruction",
+    to: masterAddress(vessel.name),
+    subject: `Route and speed: ${vessel.name} to ${destination}`,
+    body,
+    status: "draft",
+  };
 }

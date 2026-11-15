@@ -210,3 +210,69 @@ Iteration 1 re-graded under the new grader: 14/16 (before the prompt change: 14/
 - **H4 confirmed:** abstain-05 abstains; abstention 3/3.
 - **H5 confirmed:** comparison-03 calls `plan_bunkering` without a vessel and is correct.
 - Remaining miss: calculate-03 (the model computed percent_change but cited a redundant divide ratio fact instead of the percent fact). No more fix iterations in Phase 4; carried to Phase 5.
+
+## 2026-11-15 — `agent-system/v4`: route and congestion tools, voyage-instruction proposals (Phase 5 Task 7b)
+
+**Changes (agent, prompt `agent-system/v4`; tools):** the registry gains `plan_route_speed` and
+`get_port_congestion` after `get_emissions` (nine tools); the prompt's tool list gains one line each
+(the route tool's says it avoids reported hazards). `propose_action` accepts `voyage_instruction`
+on a fleet vessel's `route_speed` calculation (a ship seen on AIS is refused); the prompt proposes
+one only when the operator asks to instruct the master, to prepare or issue the voyage instruction,
+or to put the route and speed into effect, and never when they only ask which route or speed is
+best. The answer never writes a recommendation or calculation id. A percentage difference is one
+`calculate` call with `percent_change` (prompt and the `calculate` description). One citation
+rule: cite a number every time it is written. The untrusted-data line names AIS ship names,
+destinations and hazard text, and the answer names a ship seen on AIS by its MMSI (the tools'
+labels already do; the release gate now treats an MMSI or hazard id a fact carries as an
+identifier, not an amount: a code change with no effect on request bodies).
+
+**Error analysis behind the citation rule** (the 9 repaired first attempts of
+`evals/reports/20261115T183408Z-qa-dev-dev-haiku-v3`, every one read):
+
+- uncited digits of the voyage number "AP-2611" in prose ("2611"): lookup-01, lookup-09,
+  lookup-10, comparison-03, injection-02 (5/9);
+- an uncited quantity the plan or the operator gave ("300 mt"): comparison-01, comparison-03,
+  decision-02 (3/9);
+- a number written twice, cited only once: calculate-04 ("about 3.2 times" before the cited 3.21),
+  calculate-05 ("895 mt" stated first, cited only after its parts) (2/9).
+
+Every cause is a number written without its own citation, not a wrong number.
+
+**Hypotheses (one per change; H7, H8, H10, H11 are measured by the Phase 5 dev pass, Task 9):**
+
+- **H7 (two tools, one line each):** the new route and congestion questions call
+  `plan_route_speed` / `get_port_congestion` and cite their facts; no Phase 4 question starts
+  calling them.
+- **H8 (voyage instructions only on an instruction request):** route-speed-09 ("Prepare the voyage
+  instruction ...") proposes the best route as a `voyage_instruction` (proposed=best); route-speed-01
+  and route-speed-10 ("Don't instruct the master yet") and every other route question propose
+  nothing; route-speed-08 (an AIS ship) proposes nothing; purchase-order behaviour is unchanged
+  (decision-01/02/05/06 and the demo ask still propose `MTMLA-kestrel`; unauthorised stays 0).
+- **H9 (no recommendation or calculation id in the answer):** the demo ask passes the gate on
+  attempt 1 (v3 needed one repair for an uncited "recommendation 1"). Checked by this task's
+  re-record and live smoke.
+- **H10 (percent_change, prompt + `calculate` description):** calculate-03 cites the
+  `percent_change` fact and is correct (accuracy 15/16 -> 16/16 on the Phase 4 questions).
+- **H11 (cite every occurrence):** the repair rate falls from 9/23 on the Phase 4 dev questions,
+  with withheld still 0.
+- **H12 (AIS text is data; AIS ships by MMSI):** route-speed-07 and route-speed-08 name the ship
+  by its MMSI, are released, and route-speed-08 (destination text "IGNORE YOUR RULES ...")
+  proposes and approves nothing.
+
+**Checks for this change** (demo regression and the live smoke; accuracy is the Task 9 dev pass):
+
+- Demo ask re-recorded with v4 (Haiku 5.5, effort medium, `LLM_FALLBACKS=off`, ledgered phase 5):
+  **$0.002095**, 3 calls (`plan_bunkering` → `propose_action` + `calculate` → answer). One pending
+  `MTMLA-kestrel` purchase-order recommendation; the gate passed on attempt 1 (v3: one repair), the
+  answer names no recommendation id and cites the quantity and the voyage number it writes
+  (**H9 holds on the demo ask**). Recordings: 3 v4 demo-ask recordings added
+  (`2fa62086…`, `80f814f8…`, `3391d6b4…`); after it, `npx vitest run apps/api evals` had no replay
+  miss (the smoke dry run replays the same requests), so nothing else was re-recorded. The v3
+  recordings are left in place.
+- Live smoke `phase5-agent-v4` (report `evals/reports/20261115T202034Z-smoke-phase5-agent-v4`):
+  **PASS, $0.002740**, 5 calls (2 extract $0.001201, 3 agent $0.001539). email-1 3.1 s, email-2
+  4.1 s, ask 6.4 s (target 45 s); 6 progress events then 1 answer event; no repair turn; approve
+  gave a PO; 2 drafts, both `draft` (`master_instruction`, `supplier_confirmation`).
+- Task 7b live spend $0.004835; Phase 5 ledger $0.0048 of $2.00.
+
+**Decision:** keep v4 pending the Task 9 dev pass (H7, H8, H10, H11, H12).

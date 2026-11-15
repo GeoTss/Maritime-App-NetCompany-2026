@@ -769,6 +769,49 @@ describe("checkNumbers v2", () => {
       passed: false,
       ungrounded: ["9480020"],
     },
+    // Phase 5: MMSIs and hazard ids are identifiers, not amounts, when the ledger carries them
+    {
+      name: "an MMSI in a fact label passes uncited",
+      answer: "MMSI 205795000 is best on route B, 1,234.5 nm [f_d].",
+      facts: [labelled("f_d", 1234.5, "nm", "MMSI 205795000, route B: distance")],
+      passed: true,
+    },
+    {
+      name: "an MMSI equal to a fact value passes uncited, also written MMSI:",
+      answer: "The ship (MMSI: 205795000) is not in the fleet.",
+      facts: [str("f_mmsi", "205795000")],
+      passed: true,
+    },
+    {
+      name: "an MMSI no fact carries is ungrounded",
+      answer: "MMSI 205795001 is best on route B.",
+      facts: [labelled("f_d", 1234.5, "nm", "MMSI 205795000, route B: distance")],
+      passed: false,
+      ungrounded: ["205795001"],
+    },
+    {
+      name: "a hazard id equal to a fact value passes uncited",
+      answer: "Route B avoids synthetic:1 and ais:distress_beacon:970123456.",
+      facts: [str("f_h1", "synthetic:1"), str("f_h2", "ais:distress_beacon:970123456")],
+      passed: true,
+    },
+    {
+      name: "a hazard id no fact value equals is ungrounded (a longer id or a label does not count)",
+      answer: "Route B avoids synthetic:1 and synthetic:2.",
+      facts: [
+        str("f_h1", "synthetic:12"),
+        labelled("f_l", "Keep clear", null, "Reported hazard synthetic:2"),
+      ],
+      passed: false,
+      ungrounded: ["1", "2"],
+    },
+    {
+      name: "a quantity space-grouped onto a held hazard id is checked",
+      answer: "Avoids synthetic:1 950 t.",
+      facts: [str("f_h1", "synthetic:1")],
+      passed: false,
+      ungrounded: ["1 950"],
+    },
     // review round 1: an exempt span never hides a number joined onto it
     {
       name: "a quantity space-grouped onto the 2 of CO2 is checked, not skipped",

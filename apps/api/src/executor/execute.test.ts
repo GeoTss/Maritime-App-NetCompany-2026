@@ -7,12 +7,20 @@ import {
 } from "@pharos/db";
 import { connectTestDb, testDbLabel } from "@pharos/db/testing";
 import { planBunkers } from "@pharos/domain";
-import { BunkerPlan, DecisionResult, ERP_IDEMPOTENCY_HEADER } from "@pharos/shared";
+import {
+  BunkerPlan,
+  DecisionResult,
+  ERP_IDEMPOTENCY_HEADER,
+  RouteCandidate,
+  RouteSpeedResult,
+} from "@pharos/shared";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { z } from "zod";
 import { createErpApp } from "../../../../services/erp-sim/src/app.js";
 import { createToolContext } from "../ai/tools/common.js";
 import { planBunkering } from "../ai/tools/plan-bunkering.js";
 import { proposeAction } from "../ai/tools/propose-action.js";
+import { planRouteSpeedFacts } from "../ai/tools/route-speed.js";
 import { ASK_FIXTURE_NOW, insertDemoQuotes, prepareAskFixture } from "../ask/demo-fixture.js";
 import { FIXTURE_ANCHOR, FIXTURE_SEED } from "../read/fixtures.js";
 import { createErpClient, type ErpFetch } from "./erp-client.js";
@@ -563,6 +571,180 @@ describe.skipIf(!sql)("executor (Postgres)", () => {
     expect((approve as DecisionError).code).toBe("not_found");
     const reject = await rejectRecommendation(deps, 999_999, "alice").catch((e: unknown) => e);
     expect((reject as DecisionError).code).toBe("not_found");
+  });
+
+  describe("voyage instructions", () => {
+    let viId: number;
+    let routeCalcId: number;
+
+    beforeEach(async () => {
+      const ctx = createToolContext({ sql: db, now: () => ASK_FIXTURE_NOW });
+      const out = await planRouteSpeedFacts(ctx, { vessel: "Aegean Pioneer" });
+      routeCalcId = (out.data as { calculationId: number }).calculationId;
+      const best = out.facts.find((f) => f.label.endsWith(": recommended route"));
+      const proposed = await proposeAction(ctx, {
+        type: "voyage_instruction",
+        calculationId: routeCalcId,
+        optionId: String(best?.value),
+        factRefs: [best?.id ?? ""],
+        rationale: "Lowest total voyage cost within the berth window.",
+      });
+      viId = (proposed.data as { recommendationId: number }).recommendationId;
+    });
+
+    /** The stored route calculation: its result, approved option, candidate and destination. */
+    const stored = async () => {
+      const [calc] = await db<{ inputs: unknown; outputs: unknown; voyage_id: number }[]>`
+        select inputs, outputs, voyage_id from calculations where id = ${routeCalcId}`;
+      const result = RouteSpeedResult.parse(calc?.outputs);
+      const inputs = z
+        .object({
+          destination: z.string(),
+          optimiser: z.object({ candidates: z.array(RouteCandidate) }),
+        })
+        .parse(calc?.inputs);
+      const option = result.options.find((o) => o.candidateId === result.bestCandidateId);
+      const candidate = inputs.optimiser.candidates.find((c) => c.id === result.bestCandidateId);
+      if (!option || !candidate) throw new Error("no approved option");
+      return { option, candidate, destination: inputs.destination, voyageId: calc?.voyage_id };
+    };
+    const instructionsOf = (id: number) =>
+      db<
+        {
+          voyage_id: number;
+          calculation_id: number;
+          candidate_id: string;
+          speed_kn: number;
+          eta: Date | string;
+          points: unknown;
+        }[]
+      >`select voyage_id, calculation_id, candidate_id, speed_kn, eta, points
+        from voyage_instructions where recommendation_id = ${id} order by id`;
+    const orderCount = async () =>
+      (await db<{ n: number }[]>`select count(*)::int as n from purchase_orders`)[0]?.n ?? 0;
+
+    it("approve records one instruction from the stored option, drafts the master's, calls no ERP and creates no order", async () => {
+      const [speedBefore] = await db<{ planned_speed_kn: number }[]>`
+        select planned_speed_kn from voyages where voyage_no = ${DEMO_SCENARIO.voyageNo}`;
+      const orders = await orderCount();
+      const result = DecisionResult.parse(await approveRecommendation(deps, viId, "alice"));
+      expect(result).toEqual({
+        recommendationId: viId,
+        status: "executed",
+        orderId: null,
+        erpPoNumber: null,
+        erpSyncStatus: null,
+      });
+
+      const { option, candidate, destination, voyageId } = await stored();
+      const rows = await instructionsOf(viId);
+      expect(rows).toHaveLength(1);
+      const row = rows[0];
+      expect({ ...row, eta: new Date(row?.eta ?? 0).toISOString() }).toEqual({
+        voyage_id: voyageId,
+        calculation_id: routeCalcId,
+        candidate_id: option.candidateId,
+        speed_kn: option.speedKn,
+        eta: new Date(option.eta).toISOString(),
+        points: candidate.points,
+      });
+
+      const drafts = await draftsOf(db, viId);
+      expect(drafts.map((d) => [d.kind, d.status])).toEqual([["master_instruction", "draft"]]);
+      const draft = drafts[0];
+      expect(draft?.to).toBe("master.mv-aegean-pioneer@fleet.pharos.example");
+      expect(draft?.subject).toBe(`Route and speed: MV Aegean Pioneer to ${destination}`);
+      expect(draft?.body).toContain(candidate.label);
+      expect(draft?.body).toMatch(/planning-grade advice/);
+      // Every number in the draft is the approved option's speed, distance or ETA (or its label's).
+      const numbers = `${draft?.subject}\n${draft?.body}`.match(/\d[\d,]*(?:\.\d+)?/g) ?? [];
+      expect(numbers.length).toBeGreaterThan(0);
+      for (const n of numbers) {
+        const value = Number(n.replace(/,/g, ""));
+        const fromCalc =
+          option.eta.includes(n) ||
+          candidate.label.includes(n) ||
+          [option.speedKn, option.distanceNm].some((v) => Math.abs(v - value) <= 0.005);
+        expect(fromCalc, `draft number ${n}`).toBe(true);
+      }
+
+      expect(erp.requests).toHaveLength(0);
+      expect(await ordersOf(viId)).toHaveLength(0);
+      expect(await orderCount()).toBe(orders);
+      // Recorded, not applied: the voyage keeps its planned speed (ruling P5).
+      const [speedAfter] = await db<{ planned_speed_kn: number }[]>`
+        select planned_speed_kn from voyages where voyage_no = ${DEMO_SCENARIO.voyageNo}`;
+      expect(speedAfter).toEqual(speedBefore);
+      expect(await auditKinds(viId)).toEqual([
+        "recommendation.approved",
+        "voyage.instructed",
+        "drafts.created",
+        "recommendation.executed",
+      ]);
+      expect((await recommendation(viId))?.decided_by).toBe("alice");
+    });
+
+    it("a concurrent double approve gives one instruction row and one draft", async () => {
+      const results = await Promise.all([
+        approveRecommendation(deps, viId, "alice"),
+        approveRecommendation(deps, viId, "bob"),
+      ]);
+      expect(results.map((r) => r.status)).toContain("executed");
+      expect(await instructionsOf(viId)).toHaveLength(1);
+      expect(await draftsOf(db, viId)).toHaveLength(1);
+      const kinds = await auditKinds(viId);
+      expect(kinds.filter((k) => k === "recommendation.approved")).toHaveLength(1);
+      expect(kinds.filter((k) => k === "voyage.instructed")).toHaveLength(1);
+      expect(kinds.filter((k) => k === "recommendation.executed")).toHaveLength(1);
+      expect(erp.requests).toHaveLength(0);
+    });
+
+    it("a reject records no instruction and drafts nothing", async () => {
+      const rejected = await rejectRecommendation(deps, viId, "carol");
+      expect(rejected.status).toBe("rejected");
+      expect(await instructionsOf(viId)).toHaveLength(0);
+      expect(await draftsOf(db, viId)).toHaveLength(0);
+      expect(await auditKinds(viId)).toEqual(["recommendation.rejected"]);
+    });
+
+    it("a failure while drafting leaves it failed; approving again retries and executes once", async () => {
+      await db.unsafe(`
+        create function pharos_test_block_drafts() returns trigger language plpgsql as
+          $$ begin raise exception 'forced draft failure'; end $$;
+        create trigger pharos_test_block_drafts before insert on drafted_messages
+          for each row execute function pharos_test_block_drafts();`);
+      try {
+        expect((await approveRecommendation(deps, viId, "alice")).status).toBe("failed");
+      } finally {
+        await db.unsafe(
+          "drop trigger pharos_test_block_drafts on drafted_messages; drop function pharos_test_block_drafts();",
+        );
+      }
+      expect(await instructionsOf(viId)).toHaveLength(1);
+      expect(await draftsOf(db, viId)).toHaveLength(0);
+      expect((await approveRecommendation(deps, viId, "bob")).status).toBe("executed");
+      expect(await instructionsOf(viId)).toHaveLength(1);
+      expect(await draftsOf(db, viId)).toHaveLength(1);
+      expect(await auditKinds(viId)).toEqual([
+        "recommendation.approved",
+        "voyage.instructed",
+        "recommendation.failed",
+        "recommendation.retried",
+        "drafts.created",
+        "recommendation.executed",
+      ]);
+      expect(erp.requests).toHaveLength(0);
+    });
+
+    it("a route plan with no voyage of ours (a ship seen on AIS) cannot be executed", async () => {
+      await db`update calculations set voyage_id = null where id = ${routeCalcId}`;
+      const err = await approveRecommendation(deps, viId, "alice").catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(DecisionError);
+      expect((err as DecisionError).code).toBe("not_executable");
+      expect((await recommendation(viId))?.status).toBe("pending");
+      expect(await instructionsOf(viId)).toHaveLength(0);
+      expect(await auditKinds(viId)).toEqual([]);
+    });
   });
 
   it("an option with no stored quote cannot be executed and the recommendation stays pending", async () => {

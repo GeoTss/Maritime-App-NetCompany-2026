@@ -31,9 +31,18 @@ export const ProposeActionInput = z
   .object({
     type: z
       .enum(["purchase_order", "voyage_instruction"])
-      .describe("purchase_order for a bunker plan option."),
-    calculationId: Id.describe("The calculationId a plan_bunkering result returned."),
-    optionId: z.string().min(1).describe("The optionId of the plan option, e.g. its bestOptionId."),
+      .describe(
+        "purchase_order for a bunker plan option; voyage_instruction for a route plan's route.",
+      ),
+    calculationId: Id.describe(
+      "The calculationId a plan_bunkering (purchase_order) or plan_route_speed (voyage_instruction) result returned.",
+    ),
+    optionId: z
+      .string()
+      .min(1)
+      .describe(
+        "A bunker plan's optionId (e.g. its bestOptionId), or a route plan's route id (e.g. its bestCandidateId).",
+      ),
     factRefs: z
       .array(FactId)
       .min(1)

@@ -22,7 +22,9 @@ import { emissionsTool } from "./tools/emissions.js";
 import { listFleetTool } from "./tools/list-fleet.js";
 import { listQuotesTool } from "./tools/list-quotes.js";
 import { planBunkeringTool } from "./tools/plan-bunkering.js";
+import { portCongestionTool } from "./tools/port-congestion.js";
 import { proposeActionTool } from "./tools/propose-action.js";
+import { planRouteSpeedTool } from "./tools/route-speed.js";
 import { vesselStatusTool } from "./tools/vessel-status.js";
 
 export type AgentConfig = Pick<AppConfig, "agentModel" | "agentEffort" | "llmFallbacks">;
@@ -97,6 +99,8 @@ function agentTools(ctx: ToolContext): AgentTools {
     listQuotesTool(ctx),
     planBunkeringTool(ctx),
     emissionsTool(ctx),
+    planRouteSpeedTool(ctx),
+    portCongestionTool(ctx),
     calculateTool(ctx),
     proposeActionTool(ctx),
   ];

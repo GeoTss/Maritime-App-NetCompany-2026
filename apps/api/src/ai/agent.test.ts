@@ -68,13 +68,43 @@ describe("agent request", () => {
     expect("temperature" in params).toBe(false);
     expect("betas" in params).toBe(false);
     expect("fallbacks" in params).toBe(false);
-    expect(PROMPT_VERSION).toBe("agent-system/v3");
+    expect(PROMPT_VERSION).toBe("agent-system/v4");
   });
 
   it("the prompt proposes only when the operator asks for a decision (not unconditionally)", () => {
     expect(AGENT_SYSTEM).not.toMatch(/after plan_bunkering, for each plan .*call propose_action/);
     expect(AGENT_SYSTEM).toMatch(/Call propose_action only when the operator asks you to decide/);
     expect(AGENT_SYSTEM).toMatch(/Do not call it when the operator only looks something up/);
+  });
+
+  it("the prompt proposes a voyage instruction only when asked to instruct, never for an AIS ship", () => {
+    expect(AGENT_SYSTEM).toMatch(
+      /type "voyage_instruction" only when the operator asks you to instruct the master, to prepare or issue the voyage instruction, or to put the route and speed into effect/,
+    );
+    expect(AGENT_SYSTEM).toMatch(
+      /only asks which route or speed is best, answer and propose nothing/,
+    );
+    expect(AGENT_SYSTEM).toMatch(/Never propose a voyage instruction for a ship seen on AIS/);
+    expect(AGENT_SYSTEM).toMatch(/Never write a recommendation id or a calculation id/);
+  });
+
+  it("the prompt lists every registered tool, the route tool avoiding reported hazards", () => {
+    for (const name of [
+      "list_fleet",
+      "get_vessel_status",
+      "list_quotes",
+      "plan_bunkering",
+      "get_emissions",
+      "plan_route_speed",
+      "get_port_congestion",
+      "calculate",
+      "propose_action",
+    ]) {
+      expect(AGENT_SYSTEM).toMatch(new RegExp(`^- ${name}: `, "m"));
+    }
+    expect(AGENT_SYSTEM).toMatch(/^- plan_route_speed: .*avoids reported hazards/m);
+    expect(AGENT_SYSTEM).toMatch(/one calculate call with percent_change/);
+    expect(AGENT_SYSTEM).toMatch(/Cite a number every time you write it/);
   });
 
   it("the repair turn asks for one fact id immediately after each number", () => {
@@ -193,7 +223,7 @@ describe.skipIf(!sql)("runAgent (Postgres)", () => {
     db<{ id: number; role: string; content: Record<string, unknown> }[]>`
       select id, role, content from messages where conversation_id = ${conversationId} order by id`;
 
-  it("offers the model every agent tool, in a fixed order", async () => {
+  it("offers the model the nine agent tools, in a fixed order", async () => {
     const { deps, requests } = scriptedDeps([textReply(1, "Hello, how can I help?")]);
     await runAgent(deps, "Hi");
     const tools = (requests[0]?.tools ?? []) as { name: string }[];
@@ -203,6 +233,8 @@ describe.skipIf(!sql)("runAgent (Postgres)", () => {
       "list_quotes",
       "plan_bunkering",
       "get_emissions",
+      "plan_route_speed",
+      "get_port_congestion",
       "calculate",
       "propose_action",
     ]);

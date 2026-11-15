@@ -1,11 +1,14 @@
-import type { Sql } from "@pharos/db";
+import { loadWorld, type Sql } from "@pharos/db";
 import { connectTestDb, testDbLabel } from "@pharos/db/testing";
-import { BunkerPlan, type Fact, ProposeActionInput } from "@pharos/shared";
+import { recordedLiveData } from "@pharos/integrations";
+import { BunkerPlan, type Fact, ProposeActionInput, RouteSpeedResult } from "@pharos/shared";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { ASK_FIXTURE_NOW, prepareAskFixture } from "../../ask/demo-fixture.js";
+import { FIXTURE_ANCHOR } from "../../read/fixtures.js";
 import { createToolContext, type ToolContext } from "./common.js";
 import { planBunkering } from "./plan-bunkering.js";
 import { proposeAction, proposeActionTool } from "./propose-action.js";
+import { planRouteSpeedFacts } from "./route-speed.js";
 import { getVesselStatus } from "./vessel-status.js";
 
 const sql = await connectTestDb("ask_propose_action");
@@ -192,9 +195,114 @@ describe.skipIf(!sql)("propose_action (Postgres)", () => {
     expect(row?.expected_saving_usd).toBeNull();
   });
 
-  it("only bunker plans back a purchase order; voyage instructions are not supported yet", async () => {
-    await expect(proposeAction(ctx, { ...valid(), type: "voyage_instruction" })).rejects.toThrow(
-      /voyage_instruction/,
-    );
+  describe("voyage_instruction", () => {
+    /** Aegean Pioneer's route plan in this conversation: its stored result and facts. */
+    const routePlan = async (vessel = "Aegean Pioneer", destination?: string) => {
+      const out = await planRouteSpeedFacts(
+        ctx,
+        destination ? { vessel, destination } : { vessel },
+      );
+      const id = (out.data as { calculationId: number }).calculationId;
+      const [calc] = await db<{ outputs: unknown; voyage_id: number | null }[]>`
+        select outputs, voyage_id from calculations where id = ${id}`;
+      const result = RouteSpeedResult.parse(calc?.outputs);
+      const label = (suffix: string) => {
+        const f = out.facts.find((x) => x.label.endsWith(suffix));
+        if (!f) throw new Error(`no route fact ${suffix}`);
+        return f.id;
+      };
+      return { id, result, facts: out.facts, label, voyageId: calc?.voyage_id ?? null };
+    };
+    const instruction = (
+      plan: Awaited<ReturnType<typeof routePlan>>,
+      optionId = plan.result.bestCandidateId,
+    ) => ({
+      type: "voyage_instruction" as const,
+      calculationId: plan.id,
+      optionId,
+      factRefs: [plan.label(": recommended route")],
+      rationale: "Lowest total voyage cost within the berth window.",
+    });
+
+    it("on Aegean Pioneer's route plan and its best route: a pending recommendation with the plan's saving", async () => {
+      const plan = await routePlan();
+      expect(plan.voyageId).not.toBeNull();
+      const best = plan.result.options.find((o) => o.candidateId === plan.result.bestCandidateId);
+      expect(best?.feasible).toBe(true);
+      const result = await proposeAction(ctx, {
+        ...instruction(plan),
+        factRefs: [
+          plan.label(": recommended route"),
+          plan.label(`route ${plan.result.bestCandidateId}: recommended speed`),
+          // A stored-input fact of the same calculation (db provenance on its row) also counts.
+          plan.label(`route ${plan.result.bestCandidateId}: description`),
+        ],
+      });
+      const rows = await recommendations();
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({
+        type: "voyage_instruction",
+        calculation_id: plan.id,
+        option_id: plan.result.bestCandidateId,
+        status: "pending",
+        expected_saving_usd: plan.result.savingVsBaselineUsd,
+      });
+      expect(result.data).toMatchObject({ recommendationId: rows[0]?.id, status: "pending" });
+      expect((result.data as { note: string }).note).toMatch(/No voyage change has been made/);
+      expect(ctx.recommendationIds).toEqual([rows[0]?.id]);
+    });
+
+    it("a type that does not match the calculation kind is a tool error naming both", async () => {
+      const plan = await routePlan();
+      await expect(
+        proposeAction(ctx, { ...instruction(plan), type: "purchase_order" }),
+      ).rejects.toThrow(/purchase_order.*bunker_plan.*route_speed|route_speed.*purchase_order/);
+      await expect(proposeAction(ctx, { ...valid(), type: "voyage_instruction" })).rejects.toThrow(
+        /voyage_instruction.*route_speed.*bunker_plan|bunker_plan.*voyage_instruction/,
+      );
+      expect(await recommendations()).toHaveLength(0);
+    });
+
+    it("an infeasible or unknown route is a tool error", async () => {
+      const plan = await routePlan();
+      const infeasible = plan.result.options.find((o) => !o.feasible);
+      if (!infeasible) throw new Error("the demo route plan has no infeasible route");
+      await expect(proposeAction(ctx, instruction(plan, infeasible.candidateId))).rejects.toThrow(
+        new RegExp(`${infeasible.candidateId} is not feasible \\(${infeasible.reasons[0]}`),
+      );
+      await expect(proposeAction(ctx, instruction(plan, "Z"))).rejects.toThrow(/has no route Z/);
+      expect(await recommendations()).toHaveLength(0);
+    });
+
+    it("a factRef of another calculation, or a plan from another conversation, is a tool error", async () => {
+      const plan = await routePlan();
+      await expect(
+        proposeAction(ctx, { ...instruction(plan), factRefs: [factFor("_bestOptionId")] }),
+      ).rejects.toThrow(new RegExp(`not facts of calculation ${plan.id}`));
+      const other = createToolContext({ sql: db, now: () => ASK_FIXTURE_NOW });
+      await expect(proposeAction(other, instruction(plan))).rejects.toThrow(
+        /not returned earlier in this conversation/,
+      );
+      expect(await recommendations()).toHaveLength(0);
+    });
+
+    it("a public AIS ship's plan is refused", async () => {
+      const world = await loadWorld(db);
+      const ship = recordedLiveData({ anchor: FIXTURE_ANCHOR, ports: world.ports })
+        .traffic.filter(
+          (t) =>
+            t.name?.trim() &&
+            (t.shipType === "cargo" || t.shipType === "tanker") &&
+            (t.sogKn ?? 0) >= 8,
+        )
+        .sort((a, b) => a.mmsi.localeCompare(b.mmsi))[0];
+      if (!ship) throw new Error("no suitable ship in the capture");
+      const plan = await routePlan(ship.mmsi, "Rotterdam");
+      expect(plan.voyageId).toBeNull();
+      await expect(proposeAction(ctx, instruction(plan))).rejects.toThrow(
+        "Pharos can only instruct the operator's own vessels.",
+      );
+      expect(await recommendations()).toHaveLength(0);
+    });
   });
 });

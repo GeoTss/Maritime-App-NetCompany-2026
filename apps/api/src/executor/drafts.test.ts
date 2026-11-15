@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { type DraftInput, draftMessages } from "./drafts.js";
+import {
+  type DraftInput,
+  draftMessages,
+  draftVoyageInstruction,
+  type VoyageInstructionDraftInput,
+} from "./drafts.js";
 
 const input: DraftInput = {
   recommendation: { id: 7 },
@@ -47,5 +52,44 @@ describe("draftMessages", () => {
   it("says it is a draft that was not sent, and is deterministic", () => {
     for (const d of [supplier, master]) expect(d?.body).toContain("Pharos has not sent it");
     expect(draftMessages(input)).toEqual([supplier, master]);
+  });
+});
+
+describe("draftVoyageInstruction", () => {
+  const instruction: VoyageInstructionDraftInput = {
+    recommendation: { id: 9 },
+    vessel: { name: "MV Aegean Pioneer" },
+    destination: "Rotterdam",
+    route: { candidateId: "B", label: "Shortest sea route" },
+    option: { speedKn: 10.5, eta: "2026-11-27T13:42:17.123Z", distanceNm: 3128.8287 },
+  };
+  const draft = draftVoyageInstruction(instruction);
+
+  it("is one master instruction draft, addressed to the master", () => {
+    expect(draft).toMatchObject({
+      recommendationId: 9,
+      kind: "master_instruction",
+      to: "master.mv-aegean-pioneer@fleet.pharos.example",
+      subject: "Route and speed: MV Aegean Pioneer to Rotterdam",
+      status: "draft",
+    });
+  });
+
+  it("carries the route, speed, ETA and distance of the approved option, and only those numbers", () => {
+    expect(draft.body).toContain("Shortest sea route (route B)");
+    expect(draft.body).toContain("10.5 kn");
+    expect(draft.body).toContain("2026-11-27 13:42 UTC");
+    expect(draft.body).toContain("3,128.83 nm");
+    const rest = draft.body
+      .replace("10.5", "")
+      .replace("2026-11-27 13:42", "")
+      .replace("3,128.83", "");
+    expect(rest).not.toMatch(/\d/);
+  });
+
+  it("says it is planning-grade advice and a draft that was not sent, and is deterministic", () => {
+    expect(draft.body).toMatch(/planning-grade advice/);
+    expect(draft.body).toContain("Pharos has not sent it");
+    expect(draftVoyageInstruction(instruction)).toEqual(draft);
   });
 });

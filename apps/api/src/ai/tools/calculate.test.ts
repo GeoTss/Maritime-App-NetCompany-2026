@@ -137,6 +137,12 @@ describe.skipIf(!sql)("calculate (Postgres)", () => {
     expect(second?.operand_fact_ids).toEqual([id, id, STRAIT.id]);
   });
 
+  it("its description makes a percentage difference one percent_change call, cited, with no extra divide", () => {
+    const { description } = calculateTool(ctx) as { description?: string };
+    expect(description).toMatch(/percentage difference is one percent_change call/);
+    expect(description).toMatch(/cite the fact it returns and do not also divide/);
+  });
+
   it("input is strict: fact ids only, and binary ops take exactly two", () => {
     const tool = calculateTool(ctx);
     expect(() => CalculateInput.parse({ op: "subtract", operands: [738, 712] })).toThrow();
