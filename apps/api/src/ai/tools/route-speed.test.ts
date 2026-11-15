@@ -306,6 +306,9 @@ describe.skipIf(!sql)("plan_route_speed (Postgres)", () => {
           const prov = f.provenance;
           sources.add(prov.source === "db" ? `db:${prov.table}:${prov.field}` : prov.source);
           if (prov.source === "calculation") {
+            sources.add(`calc:${prov.path.replace(/^options\[\d+\]/, "options[]")}`);
+          }
+          if (prov.source === "calculation") {
             expect(prov.calculationId).toBe(calculationId);
             expect(pick(calc?.outputs, prov.path), f.label).toEqual(f.value);
           } else if (prov.source === "db" && prov.table === "calculations") {
@@ -345,6 +348,10 @@ describe.skipIf(!sql)("plan_route_speed (Postgres)", () => {
       "db:calculations:inputs.loadFactor",
       "db:calculations:inputs.loadCondition",
       "db:calculations:inputs.optimiser.curve.load.displacementMt",
+      "calc:options[].etsCostUsd",
+      "calc:baseline.etsCostUsd",
+      "calc:options[].fuelEuCostUsd",
+      "calc:baseline.fuelEuCostUsd",
     ]) {
       expect(sources.has(s), s).toBe(true);
     }
@@ -387,6 +394,17 @@ describe.skipIf(!sql)("plan_route_speed (Postgres)", () => {
     expect(byLabel(out.facts, `${S}, current plan: FuelEU exposure`).value).toBe(
       want.result.baseline.fuelEuCostUsd,
     );
+    // EU ETS beside FuelEU on every route and the current plan, to compare like with like.
+    for (const o of want.result.options) {
+      expect(byLabel(out.facts, `${S}, route ${o.candidateId}: EU ETS cost`)).toMatchObject({
+        value: o.etsCostUsd,
+        unit: "USD",
+      });
+    }
+    expect(byLabel(out.facts, `${S}, current plan: EU ETS cost`)).toMatchObject({
+      value: want.result.baseline.etsCostUsd,
+      unit: "USD",
+    });
     // The total names every cost it adds up.
     expect(
       byLabel(
@@ -396,8 +414,10 @@ describe.skipIf(!sql)("plan_route_speed (Postgres)", () => {
     ).toBe(want.result.baseline.totalCostUsd);
     // A fleet vessel's load comes from its voyage, not from AIS.
     expect(out.facts.some((f) => /load condition|AIS draught/.test(f.label))).toBe(false);
-    const added = out.facts.filter((f) => /displacement|load factor|FuelEU exposure/.test(f.label));
-    expect(added.length).toBe(want.result.options.length + 3);
+    const added = out.facts.filter((f) =>
+      /displacement|load factor|FuelEU exposure|EU ETS cost/.test(f.label),
+    );
+    expect(added.length).toBe(2 * (want.result.options.length + 1) + 2);
     for (const f of added) expect(f.label).not.toMatch(/\d/);
   });
 

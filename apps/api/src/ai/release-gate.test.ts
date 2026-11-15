@@ -39,6 +39,15 @@ const hazardIdFact = (id: string, hazard: string) =>
     field: "id",
   });
 
+/** The route tool's AIS draught fact (metres, AIS provenance). */
+const aisDraught = (id: string, value: number): Fact => ({
+  id,
+  label: "MMSI 205795000: AIS draught",
+  value,
+  unit: "m",
+  provenance: { source: "ais", mmsi: "205795000", ts: "2026-11-14T08:00:00.000Z" },
+});
+
 describe("numericTokens", () => {
   it("reads thousands commas, decimals, a leading currency sign and a trailing percent", () => {
     const none = { currency: null, unit: null };
@@ -106,6 +115,24 @@ describe("numericTokens", () => {
       ["10", 10],
       ["300", 300],
       ["6 M", 6e6],
+    ]);
+  });
+
+  it("reads a bare lowercase m as metres, but not after a currency or in m/s, m² or m³", () => {
+    expect(
+      numericTokens("draught 9.5 m, 12 metres, EUR 5 m, $1.2m, 10 m/s, 300 m³, 20 m²").map((t) => [
+        t.text,
+        t.value,
+        t.unit,
+      ]),
+    ).toEqual([
+      ["9.5", 9.5, "m"],
+      ["12", 12, "m"],
+      ["5 m", 5e6, null],
+      ["1.2m", 1_200_000, null],
+      ["10", 10, null],
+      ["300", 300, null],
+      ["20", 20, null],
     ]);
   });
 
@@ -184,6 +211,19 @@ describe("checkNumbers", () => {
         mmsiFact("205795000"),
       ],
       passed: true,
+    },
+    {
+      name: "a draught in metres cited as its metres fact is released",
+      answer: "Its reported draught is 15.2 m [f_d].",
+      facts: [aisDraught("f_d", 15.2)],
+      passed: true,
+    },
+    {
+      name: "a draught fact in metres cited as knots is withheld",
+      answer: "It reports 9.5 kn [f_d].",
+      facts: [aisDraught("f_d", 9.5)],
+      passed: false,
+      ungrounded: ["9.5"],
     },
     {
       name: "$233,851 [f_x] with fact 233851.2 passes at 0 dp",

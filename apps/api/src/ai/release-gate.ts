@@ -20,7 +20,7 @@ export type Currency = "USD" | "EUR";
  * The units the gate reads. "/mt" is a price per tonne: "USD 738 per mt", "$712/mt". "kg" and "g"
  * are read so that they never pass for tonnes: no fact unit means either.
  */
-export type Unit = "/mt" | "mt" | "%" | "kn" | "nm" | "h" | "days" | "t CO₂" | "kg" | "g";
+export type Unit = "/mt" | "mt" | "%" | "kn" | "nm" | "h" | "days" | "t CO₂" | "kg" | "g" | "m";
 
 /** How each currency is written right before a number ("USD 738", "$738") or right after it. */
 const CURRENCIES: { code: Currency; before: string[]; after: string[] }[] = [
@@ -45,6 +45,9 @@ const UNITS: Record<Unit, string[]> = {
   nm: ["nm", "nautical mile", "nautical miles"],
   h: ["h", "hr", "hrs", "hour", "hours"],
   days: ["day", "days"],
+  // Metres (a draught). A lowercase "m" after a currency is million (`scaleOf`) and is read
+  // before units; "m/s", "m²" and "m³" are not metres (see `scan`).
+  m: ["m", "metre", "metres", "meter", "meters"],
 };
 
 interface Dimension {
@@ -68,6 +71,7 @@ const FACT_UNITS = new Map<string, Dimension>([
   ["nm", { currency: null, unit: "nm" }],
   ["h", { currency: null, unit: "h" }],
   ["days", { currency: null, unit: "days" }],
+  ["m", { currency: null, unit: "m" }],
   ["t CO₂", { currency: null, unit: "t CO₂" }],
   ["t CO2", { currency: null, unit: "t CO₂" }],
 ]);
@@ -349,7 +353,11 @@ function scan(text: string, facts: Fact[]): Scanned[] {
       currency ??= CURRENCY_AFTER_FORMS.get(formKey(after[1] ?? "")) ?? null;
       end += after[0].length;
     }
-    const unitMatch = UNIT_AFTER.exec(source.slice(end));
+    let unitMatch = UNIT_AFTER.exec(source.slice(end));
+    // "10 m/s", "300 m³": a compound of metres is not a length, so no unit is read.
+    if (unitMatch && /^[/²³^]/u.test(source.slice(end + unitMatch[0].length))) {
+      if (UNIT_FORMS.get(formKey(unitMatch[1] ?? "")) === "m") unitMatch = null;
+    }
     const unit = unitMatch ? (UNIT_FORMS.get(formKey(unitMatch[1] ?? "")) ?? null) : null;
     if (unitMatch) end += unitMatch[0].length;
 

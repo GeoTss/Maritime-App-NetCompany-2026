@@ -82,6 +82,8 @@ export const LOAD_LABELS = {
 export const routeOptionLabel = (S: string, candidateId: string, name: string) =>
   `${S}, route ${candidateId}: ${name}`;
 export const FUELEU_EXPOSURE = "FuelEU exposure";
+/** Each route's EU ETS cost, so a question can set it beside the FuelEU exposure (Ruling 12). */
+export const EU_ETS_COST = "EU ETS cost";
 
 const OPTION_FIELDS: {
   key:
@@ -90,6 +92,7 @@ const OPTION_FIELDS: {
     | "eta"
     | "totalFuelMt"
     | "co2T"
+    | "etsCostUsd"
     | "fuelEuCostUsd"
     | "totalCostUsd"
     | "weatherDelayHours";
@@ -101,6 +104,7 @@ const OPTION_FIELDS: {
   { key: "eta", text: (d) => `ETA at ${d} (UTC)`, unit: null },
   { key: "totalFuelMt", text: () => "fuel", unit: "mt" },
   { key: "co2T", text: () => "CO₂", unit: "t CO₂" },
+  { key: "etsCostUsd", text: () => EU_ETS_COST, unit: "USD" },
   { key: "fuelEuCostUsd", text: () => FUELEU_EXPOSURE, unit: "USD" },
   {
     key: "totalCostUsd",
@@ -162,7 +166,15 @@ export function routeSpeedFactRows(
   const b = result.baseline;
   for (const f of OPTION_FIELDS) {
     if (
-      !["speedKn", "eta", "totalFuelMt", "co2T", "fuelEuCostUsd", "totalCostUsd"].includes(f.key)
+      ![
+        "speedKn",
+        "eta",
+        "totalFuelMt",
+        "co2T",
+        "etsCostUsd",
+        "fuelEuCostUsd",
+        "totalCostUsd",
+      ].includes(f.key)
     ) {
       continue;
     }
