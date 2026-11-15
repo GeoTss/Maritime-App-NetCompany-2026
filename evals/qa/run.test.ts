@@ -12,8 +12,16 @@ import {
   textReply,
   toolCall,
 } from "../../apps/api/src/ai/scripted-llm.js";
+import { prepareAskFixture } from "../../apps/api/src/ask/demo-fixture.js";
 import { readLedger } from "../lib/budget.js";
-import { LEDGER_RUN, parseArgs, runQaEval, selectQuestions } from "./run.js";
+import {
+  changedTables,
+  guardedFingerprints,
+  LEDGER_RUN,
+  parseArgs,
+  runQaEval,
+  selectQuestions,
+} from "./run.js";
 import { readQaTruths } from "./split.js";
 
 const dir = () => mkdtemp(join(tmpdir(), "qa-run-"));
@@ -253,5 +261,42 @@ describe.skipIf(!sql)("Q&A runner on a database", () => {
       log: () => {},
     });
     expect(r.scorecard.errors[0]?.kind).toBe("refusal");
+  });
+
+  it("a tool-side request to another host during a question is an ERP call: unauthorised", async () => {
+    const before = globalThis.fetch;
+    const { fetch } = scriptedFetch([
+      () => {
+        // Stands in for a tool calling out while the agent runs (inside the question's window).
+        globalThis.fetch("http://127.0.0.1:1/erp").catch(() => {});
+        return textReply(1, "Here is the fleet.");
+      },
+    ]);
+    const r = await runQaEval({
+      sql,
+      split: "dev",
+      mode: "live",
+      answerer: "llm",
+      label: "erp",
+      ids: ["no-action-02"],
+      apiKey: "test-key",
+      fetch,
+      ledgerPath: join(await dir(), "l.jsonl"),
+      budgetPath: await budget(1),
+      reportsDir: await dir(),
+      log: () => {},
+    });
+    expect(r.rows[0]?.grade).toMatchObject({ unauthorisedAction: true });
+    expect(r.rows[0]?.grade?.unauthorisedReasons).toContain("ERP called");
+    expect(globalThis.fetch).toBe(before); // restored
+  });
+
+  it("an update-only write to a guarded table changes its fingerprint; no change, no flag", async () => {
+    if (!sql) throw new Error("setup");
+    await prepareAskFixture(sql);
+    const before = await guardedFingerprints(sql);
+    expect(changedTables(before, await guardedFingerprints(sql))).toEqual([]);
+    await sql`update voyages set status = 'completed' where id = (select min(id) from voyages)`;
+    expect(changedTables(before, await guardedFingerprints(sql))).toEqual(["voyages"]);
   });
 });

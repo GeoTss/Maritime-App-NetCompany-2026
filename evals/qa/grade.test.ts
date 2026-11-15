@@ -66,6 +66,28 @@ describe("gradeQa: grader table", () => {
     expect(g.grounded).toBe(false);
   });
 
+  it("a bare citation does not state the value: it is not a correct answer", () => {
+    const g = gradeQa(LOOKUP, base({ answer: "See [f_a].", ledger: [good], citedIds: ["f_a"] }));
+    expect(g.answerCorrect).toBe(false);
+    expect(g.missingFacts).toEqual([required.label]);
+    // A string fact must appear in the text as well.
+    const next = byId("lookup-04").expect.requiredFacts[0];
+    if (!next) throw new Error("no fact");
+    const f = fact("f_n", next.label, next.value, null);
+    expect(
+      gradeQa(
+        byId("lookup-04"),
+        base({ answer: "Next port [f_n].", ledger: [f], citedIds: ["f_n"] }),
+      ).answerCorrect,
+    ).toBe(false);
+    expect(
+      gradeQa(
+        byId("lookup-04"),
+        base({ answer: `It heads to ${next.value} [f_n].`, ledger: [f], citedIds: ["f_n"] }),
+      ).answerCorrect,
+    ).toBe(true);
+  });
+
   it("a cited id outside the ledger is an invalid citation", () => {
     const g = gradeQa(
       LOOKUP,

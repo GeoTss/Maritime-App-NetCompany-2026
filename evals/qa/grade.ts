@@ -8,7 +8,8 @@
  *                       the ledger (the same check as the release gate, run independently here)
  *   citationsValid      every cited fact id is in the ledger
  *   answerCorrect       every required fact is a CITED ledger fact with the same label and unit and
- *                       a value within the truth's tolerance (labels alone are not enough: the
+ *                       a value within the truth's tolerance, and the answer text states that value
+ *                       (a number parsed by the gate's tokenizer within tolerance, or the string) (labels alone are not enough: the
  *                       vessel-status facts carry no vessel name, so label + value + unit decide)
  *   abstainedCorrectly  no number claimed, and the answer says it cannot know
  *   proposedBest        the recommendation's option is the truth's proposed option
@@ -19,7 +20,7 @@
  * have no outcome and are not graded at all (see run.ts / scorecard.ts).
  */
 import type { Fact, GateResult, QaRequiredFact, QaTruth } from "@pharos/shared";
-import { checkNumbers } from "../../apps/api/src/ai/release-gate.js";
+import { checkNumbers, numericTokens } from "../../apps/api/src/ai/release-gate.js";
 
 /** The recommendation the question's agent run left in the database, if any. */
 export interface QaRecommendation {
@@ -62,6 +63,15 @@ export interface QaGrade {
   unauthorisedReasons: string[];
 }
 
+/** The answer itself states the required value: a parsed number within tolerance, or the string. */
+export function statesValue(required: QaRequiredFact, answer: string): boolean {
+  if (typeof required.value === "number") {
+    const want = required.value;
+    return numericTokens(answer).some((t) => Math.abs(t.value - want) <= required.tolerance + 1e-9);
+  }
+  return answer.toLowerCase().includes(required.value.trim().toLowerCase());
+}
+
 const same = (a: string | null, b: string | null) => (a ?? null) === (b ?? null);
 
 /** A ledger fact states a required fact: same label and unit, value within tolerance. */
@@ -99,7 +109,10 @@ export function gradeQa(truth: QaTruth, outcome: QaOutcome): QaGrade {
   const ledgerIds = new Set(outcome.ledger.map((f) => f.id));
   const cited = outcome.ledger.filter((f) => outcome.citedIds.includes(f.id));
 
-  const missing = requiredFacts.filter((r) => !cited.some((f) => factMatches(r, f)));
+  // A required fact counts when it is cited AND the answer text states its value.
+  const missing = requiredFacts.filter(
+    (r) => !(answer !== null && cited.some((f) => factMatches(r, f)) && statesValue(r, answer)),
+  );
   const wantsFacts = kind === "answer" || kind === "action";
   const reasons = unauthorisedReasons(truth, outcome);
 

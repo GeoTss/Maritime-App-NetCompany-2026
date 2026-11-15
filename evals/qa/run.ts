@@ -213,13 +213,48 @@ const GUARDED_TABLES = [
   "bunker_requirements",
 ] as const;
 
-async function guardedCounts(sql: Sql): Promise<Record<string, number>> {
-  const counts: Record<string, number> = {};
+/** An md5 of each guarded table's rows: any insert, delete or update changes it. */
+export async function guardedFingerprints(sql: Sql): Promise<Record<string, string>> {
+  const out: Record<string, string> = {};
   for (const t of GUARDED_TABLES) {
-    const [row] = await sql<{ n: number }[]>`select count(*)::int as n from ${sql(t)}`;
-    counts[t] = row?.n ?? 0;
+    const [row] = await sql<{ h: string }[]>`
+      select md5(coalesce(string_agg(x::text, ',' order by x::text), '')) as h from ${sql(t)} x`;
+    out[t] = row?.h ?? "";
   }
-  return counts;
+  return out;
+}
+
+/** The guarded tables whose fingerprint differs between two snapshots. */
+export const changedTables = (
+  before: Record<string, string>,
+  after: Record<string, string>,
+): string[] => GUARDED_TABLES.filter((t) => before[t] !== after[t]);
+
+/**
+ * Hosts other than the model API are external. Wraps `globalThis.fetch` while `fn` runs (tool-side
+ * HTTP goes through it) and says whether any such request was made; always restores it.
+ */
+export async function withExternalCallTap<T>(
+  fn: () => Promise<T>,
+): Promise<{ value: T; externalCalls: string[] }> {
+  const original = globalThis.fetch;
+  const externalCalls: string[] = [];
+  globalThis.fetch = ((input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+    const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    let host = url;
+    try {
+      host = new URL(url).hostname;
+    } catch {
+      // a relative or malformed URL is external too
+    }
+    if (host !== "api.anthropic.com") externalCalls.push(url);
+    return original(input, init);
+  }) as typeof fetch;
+  try {
+    return { value: await fn(), externalCalls };
+  } finally {
+    globalThis.fetch = original;
+  }
 }
 
 export function classifyAskError(err: unknown): QaErrorKind | null {
@@ -274,27 +309,39 @@ async function runQuestion(
   ctx.exchanges.length = 0;
   ctx.slot.erpCalled = false;
   await prepareAskFixture(sql);
-  const before = await guardedCounts(sql);
+  const before = await guardedFingerprints(sql);
+  const recsBefore = new Map(
+    (
+      await sql<{ id: number; raw: string }[]>`select id, r::text as raw from recommendations r`
+    ).map((r) => [r.id, r.raw]),
+  );
   const started = performance.now();
-  let res: Awaited<ReturnType<typeof runAgent>> | null = null;
-  let failure: unknown = null;
-  try {
-    if (!ctx.llm) throw new Error("no LLM client");
-    res = await runAgent(
-      { sql, llm: ctx.llm, config: QA_AGENT_CONFIG, now: () => ASK_FIXTURE_NOW },
-      truth.question,
-    );
-  } catch (err) {
-    failure = err;
-  }
+  const box: { res: Awaited<ReturnType<typeof runAgent>> | null; failure: unknown } = {
+    res: null,
+    failure: null,
+  };
+  const tap = await withExternalCallTap(async () => {
+    try {
+      if (!ctx.llm) throw new Error("no LLM client");
+      box.res = await runAgent(
+        { sql, llm: ctx.llm, config: QA_AGENT_CONFIG, now: () => ASK_FIXTURE_NOW },
+        truth.question,
+      );
+    } catch (err) {
+      box.failure = err;
+    }
+  });
+  const { res, failure } = box;
+  ctx.slot.erpCalled = tap.externalCalls.length > 0;
   const latencyMs = performance.now() - started;
 
-  const after = await guardedCounts(sql);
-  const foreignWrites = GUARDED_TABLES.filter((t) => (after[t] ?? 0) !== (before[t] ?? 0));
+  const foreignWrites = changedTables(before, await guardedFingerprints(sql));
   const calls = await sql<{ model: string; cost_usd: number; latency_ms: number }[]>`
     select model, cost_usd, latency_ms from llm_calls order by id`;
-  const recs = await sql<{ id: number; option_id: string | null; status: string }[]>`
-    select id, option_id, status from recommendations order by id`;
+  const recs = await sql<{ id: number; option_id: string | null; status: string; raw: string }[]>`
+    select id, option_id, status, r::text as raw from recommendations r order by id`;
+  /** Created or changed during the question. */
+  const touched = recs.filter((r) => recsBefore.get(r.id) !== r.raw);
   const toolMessages = await sql<{ role: string; content: unknown }[]>`
     select role, content from messages order by id`;
   const costUsd = calls.reduce((a, c) => a + c.cost_usd, 0);
@@ -314,7 +361,11 @@ async function runQuestion(
   let grade: QaGrade | null = null;
   let error: QaRow["error"] = null;
   if (res) {
-    const last = recs.filter((r) => res?.recommendationIds.includes(r.id)).at(-1);
+    // A recommendation that is no longer pending (any touched row) outranks the latest proposal.
+    const last =
+      touched.find((r) => r.status !== "pending") ??
+      touched.filter((r) => res?.recommendationIds.includes(r.id)).at(-1) ??
+      touched.at(-1);
     const outcome: QaOutcome = {
       answer: res.answer,
       gate: res.gate,
@@ -567,13 +618,7 @@ async function runPlan(
             throw new Error("replay mode attempted a network request");
           }
         : (opts.fetch ?? ((input, init) => fetch(input, init)));
-    // Any request to a host other than the model API counts as an ERP (external) call.
-    const watched: LlmFetch = async (input, init) => {
-      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-      if (new URL(url).hostname !== "api.anthropic.com" && !opts.fetch) slot.erpCalled = true;
-      return network(input, init);
-    };
-    const tapped = capturing(watched, exchanges);
+    const tapped = capturing(network, exchanges);
     const guarded = guard ? guard.wrap(tapped, HAIKU) : tapped;
     const counted: LlmFetch = async (input, init) => {
       run.inflight.n++;
