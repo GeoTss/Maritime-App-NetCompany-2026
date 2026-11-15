@@ -50,6 +50,24 @@ describe("resolvePort", () => {
     expect(resolvePort(world, "Atlantis").port).toBeNull();
     expect(resolvePort(world, null).port).toBeNull();
   });
+
+  it.each([
+    ["Antwerp outer anchorage", "BEANR"],
+    ["Rotterdam (NLRTM)", "NLRTM"],
+    ["Brest (FRBES)", "FRBES"],
+    ["Hamburg anchorage", "DEHAM"],
+    ["Port of Piraeus", "GRPIR"],
+    ["Le Havre roads", "FRLEH"],
+  ])("resolves the one port named inside %s", (written, unlocode) => {
+    expect(resolvePort(world, written).port?.unlocode).toBe(unlocode);
+  });
+
+  it("stays unresolved when two different ports are named, or only part of a word matches", () => {
+    expect(resolvePort(world, "Rotterdam or Antwerp").port).toBeNull();
+    expect(resolvePort(world, "Gibraltar (ESALG)").port).toBeNull();
+    expect(resolvePort(world, "Brestville").port).toBeNull();
+    expect(resolvePort(world, "Saint-Genoa-Ville").port?.unlocode).toBe("ITGOA");
+  });
 });
 
 describe("resolveSupplier", () => {

@@ -9,6 +9,8 @@ import type { Currency, FuelGrade, Port, PortFuelPrice, Supplier, Vessel } from 
 
 const fold = (s: string): string => s.trim().replace(/\s+/g, " ").toLowerCase();
 
+const escapeRegExp = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 /** "MV Aegean Pioneer", "M/V AEGEAN PIONEER", "Aegean Pioneer" -> "aegean pioneer". */
 function vesselKey(name: string): string {
   return fold(name).replace(/^(?:m\/?v|m\/?t|mt|mv)\.?\s+/, "");
@@ -53,7 +55,20 @@ export function resolvePort(
 ): { port: Port | null; detail: string | null } {
   const key = written ? fold(written) : "";
   if (key === "") return { port: null, detail: "No port in the quote." };
-  const hits = world.ports.filter((p) => fold(p.name) === key || p.unlocode.toLowerCase() === key);
+  const exact = world.ports.filter((p) => fold(p.name) === key || p.unlocode.toLowerCase() === key);
+  // Suppliers write the port with a location ("Antwerp outer anchorage", "Rotterdam (NLRTM)",
+  // "Port of Piraeus"): accept the one known port whose name or UN/LOCODE appears as whole
+  // words; two different ports named in the text stay ambiguous (review).
+  const hits =
+    exact.length > 0
+      ? exact
+      : world.ports.filter((p) =>
+          [fold(p.name), p.unlocode.toLowerCase()].some((needle) =>
+            new RegExp(`(?<![\\p{L}\\p{N}])${escapeRegExp(needle)}(?![\\p{L}\\p{N}])`, "u").test(
+              key,
+            ),
+          ),
+        );
   if (hits.length === 1 && hits[0]) return { port: hits[0], detail: null };
   return {
     port: null,

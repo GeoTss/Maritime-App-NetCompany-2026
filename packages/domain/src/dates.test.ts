@@ -374,7 +374,7 @@ describe("reviewer probe forms: mentionsDate, parseQuoteDate, parseDeliveryWindo
     ["22/11/2026", true, "2026-11-22", { from: "2026-11-22", to: "2026-11-22" }],
     ["Thursday", true, null, null],
     ["Thu 12:00", true, null, null],
-    ["Delivery 22-24 Nov", true, null, null],
+    ["Delivery 22-24 Nov", true, null, { from: "2026-11-22", to: "2026-11-24" }],
     ["Delivery: 22nd-24th", true, null, null],
     ["valid 48 hrs", false, null, null],
     ["17:00 LT 14th", true, null, null],
@@ -466,9 +466,9 @@ describe("reviewer probe forms, round 1: parseQuoteDate and parseDeliveryWindow"
     ["30 Nov - 2 Dec", { from: "2026-11-30", to: "2026-12-02" }],
     ["18 Nov onwards", null],
     ["ETA 18 Nov +/- 2 days", { from: "2026-11-16", to: "2026-11-20" }],
-    ["laycan 18-19 Nov", null],
+    ["laycan 18-19 Nov", { from: "2026-11-18", to: "2026-11-19" }],
     ["18-19.11.2026", { from: "2026-11-18", to: "2026-11-19" }],
-    ["18-19 Nov (on arrival)", null],
+    ["18-19 Nov (on arrival)", { from: "2026-11-18", to: "2026-11-19" }],
     ["1-2 Dec", { from: "2026-12-01", to: "2026-12-02" }],
   ] as [string, { from: string; to: string } | null][])(
     "parseDeliveryWindow(%j) = %j",
@@ -476,4 +476,19 @@ describe("reviewer probe forms, round 1: parseQuoteDate and parseDeliveryWindow"
       expect(parseDeliveryWindow(text, ref)).toEqual(window);
     },
   );
+});
+
+describe("parseDeliveryWindow: copied labels and remarks", () => {
+  const ref = new Date("2026-11-14T08:00:00Z");
+  it.each([
+    ["Delivery Nov 15-17", "2026-11-15", "2026-11-17"],
+    ["Delivery window: 19-20 Nov", "2026-11-19", "2026-11-20"],
+    ["14-15 Nov (on arrival)", "2026-11-14", "2026-11-15"],
+    ["Dates: 22-24 Nov (subject to berth)", "2026-11-22", "2026-11-24"],
+  ])("%s -> %s..%s", (written, from, to) => {
+    expect(parseDeliveryWindow(written, ref)).toEqual({ from, to });
+  });
+  it("keeps a remark that holds a date (an alternative must not be dropped)", () => {
+    expect(parseDeliveryWindow("18 Nov (or 19 Nov)", ref)).toBeNull();
+  });
 });

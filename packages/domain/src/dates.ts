@@ -212,7 +212,15 @@ export function parseDeliveryWindow(
   reference: Date,
 ): { from: string; to: string } | null {
   if (asWritten === null) return null;
-  const s = fold(asWritten).replace(/^(?:on|eta|etd|by|around|approx\.?|from)\s+/, "");
+  const s = fold(asWritten)
+    // A trailing remark with no digits ("(on arrival)", "(subject to berth)") is not a date.
+    .replace(/\s*\([^()\d]*\)\s*$/, "")
+    // A field label copied with the span ("Delivery Nov 15-17", "Delivery window: 19-20 Nov").
+    .replace(
+      /^(?:delivery(?:\s+(?:window|dates?|period))?|supply(?:\s+dates?)?|dates?|window|laycan)\s*:?\s*/,
+      "",
+    )
+    .replace(/^(?:on|eta|etd|by|around|approx\.?|from)\s+/, "");
   if (s === "") return null;
 
   const tol = /^(.*?)\s*(?:\+\/-|\+-|±)\s*(\d+)\s*days?$/.exec(s);

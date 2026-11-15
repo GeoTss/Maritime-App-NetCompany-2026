@@ -690,3 +690,18 @@ describe("reviewer probe rows: hedgedInSource and parseAmount", () => {
     expect(parseAmount(asWritten)).toBeNull();
   });
 });
+
+describe("normalisePerUnit with the currency written in front", () => {
+  it.each([
+    ["USD/MT", "per_mt"],
+    ["US$ pmt", "per_mt"],
+    ["EUR per mt", "per_mt"],
+    ["usd lump sum", "lump_sum"],
+  ])("%s -> %s", (raw, unit) => {
+    expect(normalisePerUnit(raw)).toBe(unit);
+  });
+  it("still rejects a currency alone or a volume unit", () => {
+    expect(normalisePerUnit("USD")).toBeNull();
+    expect(normalisePerUnit("USD/m3")).toBeNull();
+  });
+});

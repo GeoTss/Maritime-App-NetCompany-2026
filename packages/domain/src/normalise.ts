@@ -75,7 +75,8 @@ const PER_MT = new Set(["mt", "pmt", "per mt", "/mt", "per metric ton", "per met
 const LUMP = new Set(["lump sum", "lumpsum", "ls"]);
 
 export function normalisePerUnit(raw: string | null): "per_mt" | "lump_sum" | null {
-  const s = clean(raw);
+  // "USD/MT", "US$ pmt", "EUR per mt": the currency is checked on its own field.
+  const s = clean(raw).replace(/^(?:usd|us\$|\$|eur|€)\s*(?=\/|p|l)/, "");
   if (PER_MT.has(s)) return "per_mt";
   if (LUMP.has(s)) return "lump_sum";
   return null;
