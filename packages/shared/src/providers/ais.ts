@@ -22,6 +22,8 @@ export const AisShipStaticData = z
     Destination: z.string().nullish(),
     Type: z.number().int().nullish(),
     ImoNumber: z.number().int().nullish(),
+    /** Metres; 0 means not available. */
+    MaximumStaticDraught: z.number().nullish(),
   })
   .loose();
 export type AisShipStaticData = z.infer<typeof AisShipStaticData>;
@@ -92,6 +94,8 @@ export const AisObservation = z.discriminatedUnion("kind", [
       name: z.string().nullable(),
       shipType: z.enum(["cargo", "tanker", "passenger", "other"]).nullable(),
       destination: z.string().nullable(),
+      /** Static draught, m; null when unknown. */
+      draughtM: z.number().nullable(),
       ts: IsoDateTime,
     })
     .strict(),

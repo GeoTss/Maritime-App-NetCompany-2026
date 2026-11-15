@@ -135,6 +135,8 @@ export const RouteOptionResult = z
     co2T: NonNeg,
     fuelCostUsd: NonNeg,
     etsCostUsd: NonNeg,
+    /** FuelEU Maritime penalty exposure of the option's fuel at `etsCoverage`; inside totalCostUsd. */
+    fuelEuCostUsd: NonNeg,
     timeCostUsd: NonNeg,
     totalCostUsd: NonNeg,
     maxWaveHeightM: NonNeg,

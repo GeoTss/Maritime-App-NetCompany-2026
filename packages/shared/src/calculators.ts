@@ -12,9 +12,23 @@ const Positive = z.number().positive();
 const NonNeg = z.number().nonnegative();
 
 /**
+ * The vessel's displacement on this passage against the displacement the curve's reference
+ * consumption was taken at (full load: lightship + deadweight). The main engine burn scales by
+ * (displacementMt / refDisplacementMt)^(2/3) (admiralty law); auxiliary burn is not scaled.
+ */
+export const LoadCondition = z
+  .object({
+    displacementMt: Positive,
+    refDisplacementMt: Positive,
+  })
+  .strict();
+export type LoadCondition = z.infer<typeof LoadCondition>;
+
+/**
  * A vessel's speed–consumption curve under the cubic law:
- * main engine mt/day = refMtPerDay × (speed / refSpeedKn)³, plus a constant auxiliary load.
- * Valid only between minSpeedKn and maxSpeedKn.
+ * main engine mt/day = refMtPerDay × (speed / refSpeedKn)³ × load factor, plus a constant
+ * auxiliary load. Valid only between minSpeedKn and maxSpeedKn. Without `load` the factor is 1
+ * (the reference condition).
  */
 export const ConsumptionCurve = z
   .object({
@@ -23,6 +37,7 @@ export const ConsumptionCurve = z
     auxMtPerDay: NonNeg,
     minSpeedKn: Positive,
     maxSpeedKn: Positive,
+    load: LoadCondition.optional(),
   })
   .strict()
   .refine((c) => c.maxSpeedKn >= c.minSpeedKn, {
@@ -151,6 +166,8 @@ export const BunkerOptionResult = z.object({
   delayCostUsd: NonNeg,
   co2T: NonNeg,
   etsCostUsd: NonNeg,
+  /** FuelEU Maritime penalty exposure of the extra burn (deviation and stay); inside totalCostUsd. */
+  fuelEuCostUsd: NonNeg,
   totalCostUsd: NonNeg,
   effectivePriceUsdPerMt: NonNeg,
 });
@@ -184,6 +201,37 @@ export const EtsCostResult = z.object({
   costUsd: NonNeg,
 });
 export type EtsCostResult = z.infer<typeof EtsCostResult>;
+
+/**
+ * FuelEU Maritime exposure of a quantity of fuel: the penalty it would attract at the year's GHG
+ * intensity limit if nothing offsets it (no pooling, banking or borrowing). `coverage` is the
+ * share of the energy in scope (same split as the EU ETS: 1 / 0.5 / 0).
+ */
+export const FuelEuCostInput = z
+  .object({
+    fuelMt: GradeAmounts,
+    coverage: EtsCoverageFactor,
+    year: z.number().int(),
+    eurUsd: Positive,
+  })
+  .strict();
+export type FuelEuCostInput = z.infer<typeof FuelEuCostInput>;
+
+export const FuelEuCostResult = z
+  .object({
+    /** Energy in scope, MJ. */
+    energyMj: NonNeg,
+    /** Energy-weighted well-to-wake GHG intensity, g CO₂eq/MJ (0 when no energy is in scope). */
+    intensityGPerMj: NonNeg,
+    /** The year's limit, g CO₂eq/MJ; null before FuelEU applies (2025). */
+    targetGPerMj: Positive.nullable(),
+    /** (target − intensity) × energy, tonnes CO₂eq; negative is a deficit. */
+    complianceBalanceT: z.number(),
+    penaltyEur: NonNeg,
+    penaltyUsd: NonNeg,
+  })
+  .strict();
+export type FuelEuCostResult = z.infer<typeof FuelEuCostResult>;
 
 export const CiiRatingLetter = z.enum(["A", "B", "C", "D", "E"]);
 export type CiiRatingLetter = z.infer<typeof CiiRatingLetter>;

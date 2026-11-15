@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   AisObservation,
+  AisTraffic,
   AskEvent,
   AskResponse,
   AskResult,
+  BunkerOptionResult,
   CalculateInput,
   ConsumptionCurve,
   DraftedMessage,
@@ -11,10 +13,13 @@ import {
   ErpOrderRequest,
   ExtractionOutput,
   ExtractionTruth,
+  FuelEuCostInput,
+  FuelEuCostResult,
   GradeAmounts,
   ListFleetInput,
   ListQuotesInput,
   LlmCall,
+  LoadCondition,
   NormalisedView,
   PlanBunkeringInput,
   PlanRouteSpeedInput,
@@ -27,8 +32,11 @@ import {
   RecommendationView,
   ReviewCorrection,
   RouteLeg,
+  RouteOptionResult,
   RouteSpeedInput,
+  Vessel,
   VesselStatusInput,
+  Voyage,
   WeatherGrid,
 } from "./index.js";
 
@@ -688,6 +696,7 @@ describe("Phase 5 contracts", () => {
       name: null,
       shipType: null,
       destination: null,
+      draughtM: null,
       ts: "2026-11-15T00:00:00Z",
     };
     expect(AisObservation.safeParse({ ...base, mmsi: "123456789" }).success).toBe(true);
@@ -697,5 +706,135 @@ describe("Phase 5 contracts", () => {
   it("PlanRouteSpeedInput rejects an unknown key", () => {
     expect(PlanRouteSpeedInput.safeParse({ vessel: "Aegean Pioneer" }).success).toBe(true);
     expect(PlanRouteSpeedInput.safeParse({ vessel: "x", speedKn: 12 }).success).toBe(false);
+  });
+});
+
+describe("Phase 6 contracts", () => {
+  const curve = {
+    refSpeedKn: 13,
+    refMtPerDay: 30,
+    auxMtPerDay: 2.5,
+    minSpeedKn: 9,
+    maxSpeedKn: 14.5,
+  };
+
+  it("ConsumptionCurve accepts a curve without load and one with a load condition", () => {
+    expect(ConsumptionCurve.safeParse(curve).success).toBe(true);
+    const load = { displacementMt: 36_864, refDisplacementMt: 72_000 };
+    expect(ConsumptionCurve.safeParse({ ...curve, load }).success).toBe(true);
+    expect(LoadCondition.safeParse(load).success).toBe(true);
+  });
+
+  it("ConsumptionCurve rejects a load with a zero displacement or an unknown key", () => {
+    const zero = { displacementMt: 0, refDisplacementMt: 72_000 };
+    expect(ConsumptionCurve.safeParse({ ...curve, load: zero }).success).toBe(false);
+    const zeroRef = { displacementMt: 36_864, refDisplacementMt: 0 };
+    expect(ConsumptionCurve.safeParse({ ...curve, load: zeroRef }).success).toBe(false);
+    const extra = { displacementMt: 1, refDisplacementMt: 2, cargoMt: 3 };
+    expect(LoadCondition.safeParse(extra).success).toBe(false);
+  });
+
+  it("AisObservation static accepts draughtM null or a number and requires the key", () => {
+    const base = {
+      kind: "static",
+      mmsi: "123456789",
+      name: null,
+      shipType: null,
+      destination: null,
+      ts: "2026-11-15T00:00:00Z",
+    };
+    expect(AisObservation.safeParse({ ...base, draughtM: null }).success).toBe(true);
+    expect(AisObservation.safeParse({ ...base, draughtM: 9.4 }).success).toBe(true);
+    expect(AisObservation.safeParse(base).success).toBe(false);
+  });
+
+  it("AisTraffic carries draughtM and cogDeg, both nullable", () => {
+    const row = {
+      mmsi: "123456789",
+      name: null,
+      shipType: null,
+      lat: 36,
+      lon: -5,
+      sogKn: null,
+      navStatus: null,
+      destination: null,
+      updatedAt: new Date("2026-11-15T00:00:00Z"),
+    };
+    expect(AisTraffic.safeParse({ ...row, draughtM: null, cogDeg: null }).success).toBe(true);
+    expect(AisTraffic.safeParse({ ...row, draughtM: 11.2, cogDeg: 271.5 }).success).toBe(true);
+    expect(AisTraffic.safeParse(row).success).toBe(false);
+  });
+
+  it("Vessel needs a positive lightshipMt; Voyage a nonnegative cargoMt and ballastMt", () => {
+    const vessel = {
+      id: 1,
+      imo: "9480019",
+      mmsi: "999000001",
+      name: "MV Test",
+      shipType: "bulk_carrier",
+      dwt: 58_000,
+      lightshipMt: 11_000,
+      trackingSource: "simulator",
+      tankCapacityMt: { LSMGO: 600, VLSFO: 1_500, HSFO: 0 },
+      consumptionCurve: curve,
+      dailyCostUsd: 16_000,
+    };
+    expect(Vessel.safeParse(vessel).success).toBe(true);
+    expect(Vessel.safeParse({ ...vessel, lightshipMt: 0 }).success).toBe(false);
+    const voyage = {
+      id: 1,
+      vesselId: 1,
+      voyageNo: "AP-2611",
+      originPortId: 1,
+      destinationPortId: 2,
+      plannedSpeedKn: 12.5,
+      plannedRoute: [1, 2],
+      status: "underway",
+      departedAt: null,
+      cargoMt: 0,
+      ballastMt: 18_000,
+    };
+    expect(Voyage.safeParse(voyage).success).toBe(true);
+    expect(Voyage.safeParse({ ...voyage, cargoMt: -1 }).success).toBe(false);
+    const { ballastMt: _b, ...noBallast } = voyage;
+    expect(Voyage.safeParse(noBallast).success).toBe(false);
+  });
+
+  it("FuelEuCostInput is strict and takes an ETS coverage factor", () => {
+    const input = {
+      fuelMt: { LSMGO: 0, VLSFO: 0, HSFO: 100 },
+      coverage: 1,
+      year: 2026,
+      eurUsd: 1.08,
+    };
+    expect(FuelEuCostInput.safeParse(input).success).toBe(true);
+    expect(FuelEuCostInput.safeParse({ ...input, coverage: 0.7 }).success).toBe(false);
+    expect(FuelEuCostInput.safeParse({ ...input, year: 2026.5 }).success).toBe(false);
+    expect(FuelEuCostInput.safeParse({ ...input, extra: 1 }).success).toBe(false);
+  });
+
+  it("FuelEuCostResult has a nullable target and a signed compliance balance", () => {
+    const result = {
+      energyMj: 4_050_000,
+      intensityGPerMj: 91.7442,
+      targetGPerMj: 89.3368,
+      complianceBalanceT: -9.75,
+      penaltyEur: 6_220.9,
+      penaltyUsd: 6_718.6,
+    };
+    expect(FuelEuCostResult.safeParse(result).success).toBe(true);
+    expect(FuelEuCostResult.safeParse({ ...result, targetGPerMj: null }).success).toBe(true);
+    expect(FuelEuCostResult.safeParse({ ...result, penaltyEur: -1 }).success).toBe(false);
+  });
+
+  it("bunker and route option results carry a nonnegative fuelEuCostUsd", () => {
+    expect(BunkerOptionResult.shape.fuelEuCostUsd.safeParse(0).success).toBe(true);
+    expect(BunkerOptionResult.shape.fuelEuCostUsd.safeParse(-1).success).toBe(false);
+    expect(RouteOptionResult.shape.fuelEuCostUsd.safeParse(12.5).success).toBe(true);
+    expect(RouteOptionResult.shape.fuelEuCostUsd.safeParse(-1).success).toBe(false);
+  });
+
+  it("QA_CATEGORIES is unchanged in this task (compliance is added with its questions)", () => {
+    expect(QA_CATEGORIES).toHaveLength(9);
   });
 });

@@ -65,6 +65,8 @@ export const Vessel = z.object({
   name: z.string().min(1),
   shipType: ShipType,
   dwt: z.number().positive(),
+  /** Lightship weight (synthetic): displacement = lightship + cargo + ballast. */
+  lightshipMt: z.number().positive(),
   trackingSource: TrackingSource,
   tankCapacityMt: GradeAmounts,
   consumptionCurve: ConsumptionCurve,
@@ -96,6 +98,10 @@ export const AisTraffic = z.object({
   sogKn: NonNeg.nullable(),
   navStatus: z.string().nullable(),
   destination: z.string().nullable(),
+  /** Reported static draught, m; null when unknown (AIS 0 = not available). */
+  draughtM: NonNeg.nullable(),
+  /** Course over ground, degrees true; null when unknown. */
+  cogDeg: z.number().min(0).max(360).nullable(),
   updatedAt: Ts,
 });
 export type AisTraffic = z.infer<typeof AisTraffic>;
@@ -144,6 +150,10 @@ export const Voyage = z.object({
   plannedRoute: z.array(Id).min(2),
   status: VoyageStatus,
   departedAt: Ts.nullable(),
+  /** Cargo on board for this passage (synthetic), mt. */
+  cargoMt: NonNeg,
+  /** Ballast water on board for this passage (synthetic), mt. */
+  ballastMt: NonNeg,
 });
 export type Voyage = z.infer<typeof Voyage>;
 
