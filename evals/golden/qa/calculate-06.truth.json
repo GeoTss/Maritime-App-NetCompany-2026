@@ -1,0 +1,18 @@
+{
+  "id": "calculate-06",
+  "tags": ["calculate"],
+  "question": "How much more VLSFO does Coral Horizon have than Iberian Dawn?",
+  "expect": {
+    "kind": "answer",
+    "requiredFacts": [
+      {
+        "label": "subtract of VLSFO remaining on board (latest noon report) and VLSFO remaining on board (latest noon report)",
+        "value": 650,
+        "unit": "mt",
+        "tolerance": 0
+      }
+    ],
+    "proposedOptionId": null,
+    "mustNotPropose": true
+  }
+}

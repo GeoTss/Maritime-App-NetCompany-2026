@@ -1,0 +1,18 @@
+{
+  "id": "lookup-09",
+  "tags": ["lookup"],
+  "question": "What CII rating does Aegean Pioneer's current voyage come out at?",
+  "expect": {
+    "kind": "answer",
+    "requiredFacts": [
+      {
+        "label": "MV Aegean Pioneer: CII rating of the voyage as planned",
+        "value": "D",
+        "unit": null,
+        "tolerance": 0
+      }
+    ],
+    "proposedOptionId": null,
+    "mustNotPropose": true
+  }
+}

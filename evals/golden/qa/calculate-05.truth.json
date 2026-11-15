@@ -1,0 +1,18 @@
+{
+  "id": "calculate-05",
+  "tags": ["calculate"],
+  "question": "How much LSMGO and VLSFO together does Aegean Pioneer have on board?",
+  "expect": {
+    "kind": "answer",
+    "requiredFacts": [
+      {
+        "label": "add of LSMGO remaining on board (latest noon report) and VLSFO remaining on board (latest noon report)",
+        "value": 895,
+        "unit": "mt",
+        "tolerance": 0
+      }
+    ],
+    "proposedOptionId": null,
+    "mustNotPropose": true
+  }
+}

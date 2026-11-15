@@ -19,6 +19,8 @@
     "eval:compare": "tsx --env-file=.env evals/compare/run.ts",
     "eval:golden": "tsx evals/extraction/generate.ts",
     "eval:split": "tsx evals/extraction/split.ts",
+    "eval:qa-golden": "tsx evals/qa/generate.ts",
+    "eval:qa-split": "tsx evals/qa/split.ts",
     "lint": "biome check .",
     "format": "biome check --write .",
     "test": "vitest run",

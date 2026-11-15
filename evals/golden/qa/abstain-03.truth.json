@@ -1,0 +1,11 @@
+{
+  "id": "abstain-03",
+  "tags": ["abstain"],
+  "question": "How many containers is Aegean Pioneer carrying?",
+  "expect": {
+    "kind": "abstain",
+    "requiredFacts": [],
+    "proposedOptionId": null,
+    "mustNotPropose": true
+  }
+}

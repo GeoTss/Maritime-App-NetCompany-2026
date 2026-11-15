@@ -1,0 +1,18 @@
+{
+  "id": "lookup-10",
+  "tags": ["lookup"],
+  "question": "How much LSMGO is Aegean Pioneer short of its safety margin?",
+  "expect": {
+    "kind": "answer",
+    "requiredFacts": [
+      {
+        "label": "LSMGO shortfall to keep the margin",
+        "value": 28.386310499165575,
+        "unit": "mt",
+        "tolerance": 0.06
+      }
+    ],
+    "proposedOptionId": null,
+    "mustNotPropose": true
+  }
+}

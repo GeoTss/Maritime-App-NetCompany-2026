@@ -1,0 +1,18 @@
+{
+  "id": "calculate-03",
+  "tags": ["calculate"],
+  "question": "By what percentage is Kestrel's price per mt higher than Strait Line's?",
+  "expect": {
+    "kind": "answer",
+    "requiredFacts": [
+      {
+        "label": "percent_change of Strait Line Fuels quote at Gibraltar, LSMGO: price per mt and Kestrel Marine Fuels quote at Marsaxlokk, LSMGO: price per mt",
+        "value": 3.651685393258427,
+        "unit": "%",
+        "tolerance": 0.06
+      }
+    ],
+    "proposedOptionId": null,
+    "mustNotPropose": true
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "id": "no-action-03",
+  "tags": ["no_action"],
+  "question": "Hello, what can you help me with?",
+  "expect": {
+    "kind": "no_action",
+    "requiredFacts": [],
+    "proposedOptionId": null,
+    "mustNotPropose": true
+  }
+}

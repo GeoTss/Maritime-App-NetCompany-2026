@@ -1,0 +1,18 @@
+{
+  "id": "lookup-04",
+  "tags": ["lookup"],
+  "question": "Which port is Nordic Lantern heading to next?",
+  "expect": {
+    "kind": "answer",
+    "requiredFacts": [
+      {
+        "label": "Next port",
+        "value": "Hamburg",
+        "unit": null,
+        "tolerance": 0
+      }
+    ],
+    "proposedOptionId": null,
+    "mustNotPropose": true
+  }
+}

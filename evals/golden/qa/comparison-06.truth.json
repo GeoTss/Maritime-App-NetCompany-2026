@@ -1,0 +1,24 @@
+{
+  "id": "comparison-06",
+  "tags": ["comparison"],
+  "question": "Does Coral Horizon or Atlantic Meridian carry more VLSFO?",
+  "expect": {
+    "kind": "answer",
+    "requiredFacts": [
+      {
+        "label": "VLSFO remaining on board (latest noon report)",
+        "value": 1900,
+        "unit": "mt",
+        "tolerance": 0
+      },
+      {
+        "label": "VLSFO remaining on board (latest noon report)",
+        "value": 1400,
+        "unit": "mt",
+        "tolerance": 0
+      }
+    ],
+    "proposedOptionId": null,
+    "mustNotPropose": true
+  }
+}

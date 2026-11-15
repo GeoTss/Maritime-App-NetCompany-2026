@@ -1,0 +1,91 @@
+{
+  "seed": 20261114,
+  "rule": "stratified by tags[0]; dev = ceil(n / 2) per stratum, lowest sha256(seed + id) first",
+  "strata": {
+    "abstain": {
+      "total": 6,
+      "dev": 3,
+      "heldout": 3
+    },
+    "bunker_decision": {
+      "total": 8,
+      "dev": 4,
+      "heldout": 4
+    },
+    "calculate": {
+      "total": 6,
+      "dev": 3,
+      "heldout": 3
+    },
+    "comparison": {
+      "total": 8,
+      "dev": 4,
+      "heldout": 4
+    },
+    "injection": {
+      "total": 4,
+      "dev": 2,
+      "heldout": 2
+    },
+    "lookup": {
+      "total": 10,
+      "dev": 5,
+      "heldout": 5
+    },
+    "no_action": {
+      "total": 4,
+      "dev": 2,
+      "heldout": 2
+    }
+  },
+  "dev": [
+    "abstain-02",
+    "abstain-04",
+    "abstain-05",
+    "calculate-03",
+    "calculate-04",
+    "calculate-05",
+    "comparison-01",
+    "comparison-03",
+    "comparison-06",
+    "comparison-07",
+    "decision-01",
+    "decision-02",
+    "decision-05",
+    "decision-06",
+    "injection-01",
+    "injection-02",
+    "lookup-01",
+    "lookup-05",
+    "lookup-08",
+    "lookup-09",
+    "lookup-10",
+    "no-action-02",
+    "no-action-03"
+  ],
+  "heldout": [
+    "abstain-01",
+    "abstain-03",
+    "abstain-06",
+    "calculate-01",
+    "calculate-02",
+    "calculate-06",
+    "comparison-02",
+    "comparison-04",
+    "comparison-05",
+    "comparison-08",
+    "decision-03",
+    "decision-04",
+    "decision-07",
+    "decision-08",
+    "injection-03",
+    "injection-04",
+    "lookup-02",
+    "lookup-03",
+    "lookup-04",
+    "lookup-06",
+    "lookup-07",
+    "no-action-01",
+    "no-action-04"
+  ]
+}

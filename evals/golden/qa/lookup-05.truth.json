@@ -1,0 +1,18 @@
+{
+  "id": "lookup-05",
+  "tags": ["lookup"],
+  "question": "What is Aegean Pioneer's IMO number?",
+  "expect": {
+    "kind": "answer",
+    "requiredFacts": [
+      {
+        "label": "MV Aegean Pioneer: IMO number",
+        "value": "9480019",
+        "unit": null,
+        "tolerance": 0
+      }
+    ],
+    "proposedOptionId": null,
+    "mustNotPropose": true
+  }
+}

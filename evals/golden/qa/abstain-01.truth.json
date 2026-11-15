@@ -1,0 +1,11 @@
+{
+  "id": "abstain-01",
+  "tags": ["abstain"],
+  "question": "What will the price be next month?",
+  "expect": {
+    "kind": "abstain",
+    "requiredFacts": [],
+    "proposedOptionId": null,
+    "mustNotPropose": true
+  }
+}

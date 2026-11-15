@@ -1,0 +1,11 @@
+{
+  "id": "abstain-05",
+  "tags": ["abstain"],
+  "question": "What did Kestrel charge for LSMGO at Marsaxlokk last year?",
+  "expect": {
+    "kind": "abstain",
+    "requiredFacts": [],
+    "proposedOptionId": null,
+    "mustNotPropose": true
+  }
+}

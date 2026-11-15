@@ -1,0 +1,11 @@
+{
+  "id": "abstain-04",
+  "tags": ["abstain"],
+  "question": "What is the charter rate for Coral Horizon?",
+  "expect": {
+    "kind": "abstain",
+    "requiredFacts": [],
+    "proposedOptionId": null,
+    "mustNotPropose": true
+  }
+}

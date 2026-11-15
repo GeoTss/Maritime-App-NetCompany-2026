@@ -1,0 +1,11 @@
+{
+  "id": "abstain-02",
+  "tags": ["abstain"],
+  "question": "What is the master's name?",
+  "expect": {
+    "kind": "abstain",
+    "requiredFacts": [],
+    "proposedOptionId": null,
+    "mustNotPropose": true
+  }
+}

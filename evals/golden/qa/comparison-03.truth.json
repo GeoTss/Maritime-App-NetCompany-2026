@@ -1,0 +1,24 @@
+{
+  "id": "comparison-03",
+  "tags": ["comparison"],
+  "question": "Once everything is counted, which costs us less in total, Marsaxlokk with Kestrel or Gibraltar with Strait Line?",
+  "expect": {
+    "kind": "answer",
+    "requiredFacts": [
+      {
+        "label": "MTMLA-kestrel (Kestrel Marine Fuels, Marsaxlokk): total delivered cost",
+        "value": 233914.44900287892,
+        "unit": "USD",
+        "tolerance": 0.5
+      },
+      {
+        "label": "GIGIB-straitline (Strait Line Fuels, Gibraltar): total delivered cost",
+        "value": 250085.99188110302,
+        "unit": "USD",
+        "tolerance": 0.5
+      }
+    ],
+    "proposedOptionId": null,
+    "mustNotPropose": true
+  }
+}

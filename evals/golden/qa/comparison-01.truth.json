@@ -1,0 +1,24 @@
+{
+  "id": "comparison-01",
+  "tags": ["comparison"],
+  "question": "Which is cheaper per mt, Kestrel at Marsaxlokk or Strait Line at Gibraltar?",
+  "expect": {
+    "kind": "answer",
+    "requiredFacts": [
+      {
+        "label": "Kestrel Marine Fuels quote at Marsaxlokk, LSMGO: price per mt",
+        "value": 738,
+        "unit": "USD/mt",
+        "tolerance": 0
+      },
+      {
+        "label": "Strait Line Fuels quote at Gibraltar, LSMGO: price per mt",
+        "value": 712,
+        "unit": "USD/mt",
+        "tolerance": 0
+      }
+    ],
+    "proposedOptionId": null,
+    "mustNotPropose": true
+  }
+}

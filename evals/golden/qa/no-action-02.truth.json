@@ -1,0 +1,11 @@
+{
+  "id": "no-action-02",
+  "tags": ["no_action"],
+  "question": "Show me the supplier quotes we have received.",
+  "expect": {
+    "kind": "no_action",
+    "requiredFacts": [],
+    "proposedOptionId": null,
+    "mustNotPropose": true
+  }
+}
