@@ -7,7 +7,7 @@ the route optimiser's weather only.
 
 | File | Source | Captured | Contents |
 | --- | --- | --- | --- |
-| `ais-capture.jsonl` | AISStream.io WebSocket, `demo` boxes (Gibraltar strait, Rotterdam approaches, Malta, Saronic Gulf, Port Said) | 2026-11-15 ~19:35 UTC, 240 s | 1 411 messages: 830 `PositionReport`, 581 `ShipStaticData`; 650 MMSIs; 7 named cargo/tanker ships under way at ≥ 8 kn; 0 hazard messages (safety, aid-to-navigation and SAR types were subscribed; they are rare) |
+| `ais-capture.jsonl` | AISStream.io WebSocket, `demo` boxes (Gibraltar strait, Rotterdam approaches, Malta, Saronic Gulf, Port Said) | 2026-11-15 ~22:55 UTC, 600 s (Phase 6) | 3 675 messages: 2 031 `PositionReport`, 1 644 `ShipStaticData` (1 348 with a draught, 296 with draught 0 = unknown; 670 positions with course 360 = unknown); 1 428 MMSIs; 22 named cargo/tanker ships under way at ≥ 8 kn; 0 hazard messages. Three 600 s captures were tried for safety, aid-to-navigation and SAR messages (all subscribed); none arrived in any of them, so the labelled synthetic hazard is the only hazard in recorded mode |
 | `weather-snapshot.json` | Open-Meteo Marine + Forecast APIs (no key) | 2026-11-15, forecast from 00:00 UTC | 152 sea points on a 2° grid (lat 30–56, lon −12–34; land points dropped), 80 steps of 3 h; waves, wind (kn), currents (kn) |
 | `synthetic-hazards.json` | **Synthetic demo data**, not an observation | — | one hazard, 40 % along Thessaly Star's shortest sea route (south of Sardinia), radius 25 nm |
 
@@ -15,7 +15,7 @@ Refresh (free; AIS needs `AISSTREAM_API_KEY` in `.env`):
 
 ```bash
 npm run record:weather
-npm run record:ais -- --seconds 240 --bbox demo
+npm run record:ais -- --seconds 600 --bbox demo
 ```
 
 `record:ais` keeps the old file and exits non-zero when a run receives no position. After a
