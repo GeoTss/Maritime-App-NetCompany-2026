@@ -73,12 +73,15 @@ async function main() {
 
   const weather = createWeatherProvider({ mode: cfg.weatherMode });
   const aisMode = cfg.aisMode === "live" ? "live" : "recorded";
+  let socketDown = false;
   const aisDetail = (rows: number | null) =>
     cfg.aisMode === "off"
       ? "AIS ingestion is off"
-      : rows === null
-        ? cfg.aisMode
-        : `${cfg.aisMode}; ${rows} congestion rows`;
+      : socketDown
+        ? "socket down, showing last data"
+        : rows === null
+          ? cfg.aisMode
+          : `${cfg.aisMode}; ${rows} congestion rows`;
   /**
    * The API reseeds on boot (SEED_ON_BOOT=reset truncates the live tables too): put back a weather
    * snapshot, the labelled synthetic demo hazard and the source rows whenever they are missing.
@@ -113,7 +116,22 @@ async function main() {
   const tasks: Promise<unknown>[] = [];
   const aisProvider: AisProvider | null =
     cfg.aisMode === "live" && cfg.aisApiKey
-      ? createLiveAis({ apiKey: cfg.aisApiKey, boxes: AIS_BOXES.demo ?? [], log })
+      ? createLiveAis({
+          apiKey: cfg.aisApiKey,
+          boxes: AIS_BOXES.demo ?? [],
+          log,
+          onSocket: (state) => {
+            const down = state === "down";
+            if (down === socketDown) return;
+            socketDown = down;
+            upsertSourceStatus(sql, {
+              source: "ais",
+              mode: aisMode,
+              detail: aisDetail(null),
+              at: new Date(),
+            }).catch((e) => log(`source status: ${errText(e)}`));
+          },
+        })
       : cfg.aisMode === "replay"
         ? createReplayAis({ path: join(RECORDED_DIR, "ais-capture.jsonl"), loop: true })
         : null;

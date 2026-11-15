@@ -54,6 +54,8 @@ export function createLiveAis(opts: {
   sleep?: (ms: number, signal: AbortSignal) => Promise<void>;
   /** Test seam: the clock (ms) that times how long a connection stayed open. */
   now?: () => number;
+  /** Called when the socket opens ("up") and when it closes ("down"), for the source status. */
+  onSocket?: (state: "up" | "down") => void;
 }): AisProvider {
   const WS = opts.WebSocketImpl ?? (globalThis.WebSocket as unknown as WebSocketCtor);
   const log = opts.log ?? ((l) => console.log(l));
@@ -75,6 +77,7 @@ export function createLiveAis(opts: {
           }
           let openedAt: number | null = null;
           const finish = () => {
+            opts.onSocket?.("down");
             signal.removeEventListener("abort", onAbort);
             if (openedAt !== null && now() - openedAt >= STABLE_OPEN_MS) delay = MIN_BACKOFF_MS;
             resolve();
@@ -88,6 +91,7 @@ export function createLiveAis(opts: {
           signal.addEventListener("abort", onAbort, { once: true });
           ws.onopen = () => {
             openedAt = now();
+            opts.onSocket?.("up");
             ws.send(
               JSON.stringify({
                 APIKey: opts.apiKey,

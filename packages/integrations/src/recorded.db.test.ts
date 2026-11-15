@@ -46,7 +46,10 @@ const withoutName = (m: ReturnType<typeof position>) => {
 function writeFixtures(extraLines = 0): string {
   const dir = mkdtempSync(join(tmpdir(), "pharos-recorded-"));
   const lines = [
-    { offsetMs: 0, message: staticData(211000002, { Name: "SECOND SHIP", Type: 71 }) },
+    {
+      offsetMs: 0,
+      message: staticData(211000002, { Name: "SECOND SHIP", Type: 71, MaximumStaticDraught: 9.4 }),
+    },
     {
       offsetMs: 500,
       message: position(211000001, port.lat + 0.05, port.lon, { NavigationalStatus: 1 }),
@@ -172,6 +175,8 @@ describe("recorded sources", () => {
       name: "TEST ONE",
       shipType: "cargo",
       destination: "PIRAEUS",
+      draughtM: 9.4,
+      cogDeg: 90,
     });
     const hz = await sql`select * from nav_hazards order by id`;
     expect(live.hazards.map((h) => h.id)).toEqual(

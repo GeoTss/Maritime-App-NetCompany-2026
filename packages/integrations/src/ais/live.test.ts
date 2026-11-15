@@ -145,4 +145,24 @@ describe("createLiveAis", () => {
     const shortOpen = oneFrameSocket(() => "{}", clock, 29_000);
     expect(await delaysFor(shortOpen, clock)).toEqual([1000, 2000, 4000, 8000]);
   });
+
+  it("reports the socket going up and down", async () => {
+    FakeSocket.instances = [];
+    FakeSocket.closeAfterOpen = 1;
+    const ctrl = new AbortController();
+    const states: string[] = [];
+    const provider = createLiveAis({
+      apiKey: KEY,
+      boxes: [],
+      WebSocketImpl: FakeSocket,
+      log: () => {},
+      sleep: async () => {
+        ctrl.abort();
+      },
+      onSocket: (s) => states.push(s),
+    });
+    await provider.run(() => {}, ctrl.signal);
+    expect(states.slice(0, 2)).toEqual(["up", "down"]);
+    FakeSocket.closeAfterOpen = 2;
+  });
 });

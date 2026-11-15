@@ -55,6 +55,10 @@ function parseTime(v: string | null | undefined, fallback: Date): string {
   return fallback.toISOString();
 }
 
+/** AIS static draught is 0.1 m steps in 8 bits: 0 means not available; above 25.5 m is not valid. */
+const draught = (v: number | null | undefined): number | null =>
+  v == null || !Number.isFinite(v) || v <= 0 || v > 25.5 ? null : v;
+
 /** MMSI prefixes of AIS-SART (970), man-overboard (972) and EPIRB-AIS (974) devices. */
 const DISTRESS_PREFIXES = ["970", "972", "974"];
 const validLat = (v: number) => Number.isFinite(v) && v >= -90 && v <= 90;
@@ -99,8 +103,7 @@ export function normaliseAisMessage(raw: unknown, now: Date = new Date()): AisOb
       name: cleanName(s.Name) ?? cleanName(MetaData.ShipName),
       shipType: shipType(s.Type),
       destination: cleanName(s.Destination),
-      // Type plumbing only (Phase 6 task 2); Phase 6 task 3 reads MaximumStaticDraught.
-      draughtM: null,
+      draughtM: draught(s.MaximumStaticDraught),
       ts,
     });
   }

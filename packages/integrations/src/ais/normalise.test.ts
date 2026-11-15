@@ -35,6 +35,25 @@ describe("normaliseAisMessage", () => {
     expect(sentinel).toMatchObject({ sogKn: null, cogDeg: null });
   });
 
+  it("draught 0 is unknown, over 25.5 m is dropped, a real value is kept", () => {
+    const d = (v: unknown) =>
+      normaliseAisMessage(staticData(211000001, { MaximumStaticDraught: v }));
+    expect(d(0)).toMatchObject({ draughtM: null });
+    expect(d(25.6)).toMatchObject({ draughtM: null });
+    expect(d(25.5)).toMatchObject({ draughtM: 25.5 });
+    expect(d(11.4)).toMatchObject({ draughtM: 11.4 });
+    expect(normaliseAisMessage(staticData(211000001))).toMatchObject({ draughtM: null });
+  });
+
+  it("course 360 is unknown", () => {
+    expect(normaliseAisMessage(position(211000001, 1, 1, { Cog: 360 }))).toMatchObject({
+      cogDeg: null,
+    });
+    expect(normaliseAisMessage(position(211000001, 1, 1, { Cog: 359.9 }))).toMatchObject({
+      cogDeg: 359.9,
+    });
+  });
+
   it("maps ship type ranges, status codes and empty names", () => {
     const type = (t: number) => normaliseAisMessage(staticData(211000001, { Type: t, Name: "  " }));
     expect(type(72)).toMatchObject({ shipType: "cargo" });

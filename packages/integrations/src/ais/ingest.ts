@@ -177,6 +177,8 @@ export function createAisIngester(
       sog_kn: t.sogKn,
       nav_status: t.navStatus,
       destination: t.destination,
+      draught_m: t.draughtM,
+      cog_deg: t.cogDeg,
       updated_at: t.updatedAt.toISOString(),
     }));
 
@@ -187,6 +189,8 @@ export function createAisIngester(
           ship_type = coalesce(excluded.ship_type, ais_traffic.ship_type),
           lat = excluded.lat, lon = excluded.lon, sog_kn = excluded.sog_kn,
           nav_status = excluded.nav_status,
+          cog_deg = excluded.cog_deg,
+          draught_m = coalesce(excluded.draught_m, ais_traffic.draught_m),
           destination = coalesce(excluded.destination, ais_traffic.destination),
           updated_at = excluded.updated_at`;
     }
@@ -199,10 +203,13 @@ export function createAisIngester(
         update ais_traffic t set
           name = coalesce(v.name, t.name),
           ship_type = coalesce(v.ship_type, t.ship_type),
-          destination = coalesce(v.destination, t.destination)
+          destination = coalesce(v.destination, t.destination),
+          draught_m = coalesce(v.draught_m, t.draught_m)
         from unnest(${mmsis}::text[], ${infos.map((i) => i.name)}::text[],
           ${infos.map((i) => i.shipType)}::text[],
-          ${infos.map((i) => i.destination)}::text[]) as v(mmsi, name, ship_type, destination)
+          ${infos.map((i) => i.destination)}::text[],
+          ${infos.map((i) => i.draughtM)}::double precision[]
+        ) as v(mmsi, name, ship_type, destination, draught_m)
         where t.mmsi = v.mmsi
         returning t.mmsi`;
       for (const r of updated) pendingStatic.delete(r.mmsi);

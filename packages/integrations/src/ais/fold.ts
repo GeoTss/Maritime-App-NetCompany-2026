@@ -4,6 +4,7 @@ export interface HeldStatic {
   name: string | null;
   shipType: string | null;
   destination: string | null;
+  draughtM: number | null;
 }
 
 /** `rows`: latest traffic per MMSI. `held`: static data waiting for that MMSI's first position. */
@@ -19,8 +20,8 @@ export const newFoldState = (held: Map<string, HeldStatic> = new Map()): FoldSta
 
 /**
  * Fold one observation into traffic rows. The single merge rule, used by the ingest path and by
- * `recordedLiveData`: position fields (lat, lon, speed, status, time) always take the newest
- * message; name, ship type and destination take the newest non-null value and otherwise keep the
+ * `recordedLiveData`: position fields (lat, lon, speed, course, status, time) always take the newest
+ * message; name, ship type, destination and draught take the newest non-null value and otherwise keep the
  * previous one. Static data that precedes a position is held, then applied to that position's row.
  */
 export type TrafficObservation = Extract<AisObservation, { kind: "position" | "static" }>;
@@ -34,6 +35,7 @@ export function foldObservation(state: FoldState, obs: TrafficObservation, at: D
         name: obs.name ?? prev.name,
         shipType: obs.shipType ?? prev.shipType,
         destination: obs.destination ?? prev.destination,
+        draughtM: obs.draughtM ?? prev.draughtM,
       });
     } else {
       const h = state.held.get(obs.mmsi);
@@ -41,6 +43,7 @@ export function foldObservation(state: FoldState, obs: TrafficObservation, at: D
         name: obs.name ?? h?.name ?? null,
         shipType: obs.shipType ?? h?.shipType ?? null,
         destination: obs.destination ?? h?.destination ?? null,
+        draughtM: obs.draughtM ?? h?.draughtM ?? null,
       });
     }
     return;
@@ -56,9 +59,8 @@ export function foldObservation(state: FoldState, obs: TrafficObservation, at: D
     sogKn: obs.sogKn,
     navStatus: obs.navStatus,
     destination: prev?.destination ?? h?.destination ?? null,
-    // Type plumbing only (Phase 6 task 2); Phase 6 task 3 parses draught and course.
-    draughtM: null,
-    cogDeg: null,
+    draughtM: prev?.draughtM ?? h?.draughtM ?? null,
+    cogDeg: obs.cogDeg,
     updatedAt: at,
   });
 }
