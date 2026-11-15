@@ -639,6 +639,7 @@ describe("Phase 5 contracts", () => {
       etsCoverage: 0.5,
       market: { euaPriceEur: 70, eurUsd: 1.1, year: 2026 },
       weather: null,
+      hazards: [],
     };
     expect(RouteSpeedInput.safeParse(input).success).toBe(false);
     const ok = {

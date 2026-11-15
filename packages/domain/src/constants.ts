@@ -96,3 +96,42 @@ export const REFERENCE_VESSEL_PROFILES: Record<
     dailyCostUsd: 24000,
   },
 };
+
+/**
+ * Exclusion radius (nm) of a reported navigational hazard by kind, when the report gives none.
+ * Illustrative planning parameters, not a regulation: a distress beacon or an aid to navigation
+ * adrift marks a small area; a search-and-rescue aircraft or a safety broadcast a wide one.
+ * A synthetic demo hazard carries its own radius.
+ */
+export const HAZARD_DEFAULT_RADIUS_NM: Record<
+  "distress_beacon" | "sar_aircraft" | "aton" | "safety_message",
+  number
+> = {
+  distress_beacon: 5,
+  sar_aircraft: 10,
+  aton: 2,
+  safety_message: 10,
+};
+
+/** Radius (nm) used for a synthetic hazard that has none of its own. Illustrative. */
+export const HAZARD_SYNTHETIC_RADIUS_NM = 10;
+
+/**
+ * Hours a reported hazard stays active after it was last observed, by kind. Illustrative
+ * planning parameters. A synthetic demo hazard never expires.
+ */
+export const HAZARD_LIFETIME_HOURS: Record<
+  "distress_beacon" | "sar_aircraft" | "aton" | "safety_message",
+  number
+> = {
+  distress_beacon: 24,
+  sar_aircraft: 6,
+  aton: 72,
+  safety_message: 24,
+};
+
+/**
+ * Route search: an edge whose endpoint or midpoint lies inside a hazard zone weighs this many times
+ * its length, so the shortest path goes round the hazard whenever the network allows. Illustrative.
+ */
+export const HAZARD_EDGE_PENALTY = 1000;

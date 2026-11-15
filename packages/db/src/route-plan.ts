@@ -9,12 +9,14 @@ import {
   REFERENCE_VESSEL_PROFILES,
   RouteError,
   remainingRoutePoints,
+  routeHazardIds,
   sailedNmAt,
 } from "@pharos/domain";
 import {
   type AisTraffic,
   FUEL_GRADES,
   type GradeAmounts,
+  type HazardZone,
   type Id,
   type LatLon,
   type Port,
@@ -34,6 +36,8 @@ export type RoutePlan = {
   destination: Port;
   /** "own" for a fleet vessel's curve, else the reference profile used. */
   profile: "own" | ShipType;
+  /** Ids of the hazard zones the unconstrained shortest sea route passes through, sorted: those the plan goes round. */
+  avoidedHazardIds: string[];
 };
 
 /** Speed grid step (kn) and the longest sub-step (nm) the optimiser walks. */
@@ -41,6 +45,25 @@ const SPEED_STEP_KN = 0.5;
 const STEP_NM = 20;
 /** ETS coverage of a passage from an unknown last port: half when the destination is in the EU. */
 const SHIP_EU_COVERAGE = 0.5;
+
+/** The baseline speed: rounded to the speed grid and held within the vessel's curve. */
+const clampSpeed = (curve: { minSpeedKn: number; maxSpeedKn: number }, speedKn: number): number =>
+  Math.min(
+    curve.maxSpeedKn,
+    Math.max(curve.minSpeedKn, Math.round(speedKn / SPEED_STEP_KN) * SPEED_STEP_KN),
+  );
+
+/** Zones the shortest sea route, searched without `avoid`, passes through; [] when there is none. */
+function avoidedBy(graph: RouteGraph, start: LatLon, end: LatLon, hazards: HazardZone[]): string[] {
+  if (hazards.length === 0) return [];
+  try {
+    const [shortest] = candidateRoutes(graph, start, end, { max: 1 });
+    return shortest ? routeHazardIds(shortest.points, STEP_NM, hazards) : [];
+  } catch (e) {
+    if (e instanceof RouteError) return [];
+    throw e;
+  }
+}
 
 const latLon = (p: { lat: number; lon: number }): LatLon => ({ lat: p.lat, lon: p.lon });
 
@@ -75,13 +98,15 @@ function market(world: World): RouteSpeedInput["market"] {
  * A fleet voyage from its latest noon report: "A" is the rest of the planned route; up to two sea
  * routes from the graph follow as "B" (shortest) and "C" (alternative). When the graph cannot
  * route the voyage, only "A" remains. The baseline is "A" at the planned speed; the berth window
- * of the discharge call bounds the arrival.
+ * of the discharge call bounds the arrival; the planned speed is rounded to 0.5 kn and clamped to
+ * the curve. `hazards` are routed round in B and C (A is the planned route, kept as it is).
  */
 export function fleetRoutePlan(
   world: World,
   voyageId: Id,
   graph: RouteGraph,
   weather: WeatherGrid | null,
+  hazards: HazardZone[] = [],
 ): RoutePlan {
   const { vessel, voyage, path, report } = voyageState(world, voyageId);
   const planned = remainingRoutePoints(path, sailedNmAt(path, report.ts));
@@ -90,7 +115,7 @@ export function fleetRoutePlan(
 
   let sea: RouteCandidate[] = [];
   try {
-    sea = candidateRoutes(graph, position, latLon(destination), { max: 2 });
+    sea = candidateRoutes(graph, position, latLon(destination), { max: 2, avoid: hazards });
   } catch (e) {
     if (!(e instanceof RouteError)) throw e;
   }
@@ -112,7 +137,10 @@ export function fleetRoutePlan(
     input: {
       startAt: report.ts.toISOString(),
       candidates,
-      baseline: { candidateId: "A", speedKn: voyage.plannedSpeedKn },
+      baseline: {
+        candidateId: "A",
+        speedKn: clampSpeed(vessel.consumptionCurve, voyage.plannedSpeedKn),
+      },
       curve: vessel.consumptionCurve,
       speedStepKn: SPEED_STEP_KN,
       stepNm: STEP_NM,
@@ -123,10 +151,12 @@ export function fleetRoutePlan(
       etsCoverage: etsCoverage(path.origin.isEu, destination.isEu),
       market: market(world),
       weather,
+      hazards,
     },
     subject: vessel.name,
     destination,
     profile: "own",
+    avoidedHazardIds: avoidedBy(graph, position, latLon(destination), hazards),
   };
 }
 
@@ -142,18 +172,14 @@ export function shipRoutePlan(
   destination: Port,
   graph: RouteGraph,
   weather: WeatherGrid | null,
+  hazards: HazardZone[] = [],
 ): RoutePlan {
   const profile: ShipType = ship.shipType === "tanker" ? "tanker" : "bulk_carrier";
   const { curve, dailyCostUsd } = REFERENCE_VESSEL_PROFILES[profile];
-  const candidates = candidateRoutes(graph, latLon(ship), latLon(destination));
+  const candidates = candidateRoutes(graph, latLon(ship), latLon(destination), { avoid: hazards });
   const sog = ship.sogKn;
   const speedKn =
-    sog === null || sog < curve.minSpeedKn
-      ? curve.refSpeedKn
-      : Math.min(
-          curve.maxSpeedKn,
-          Math.max(curve.minSpeedKn, Math.round(sog / SPEED_STEP_KN) * SPEED_STEP_KN),
-        );
+    sog === null || sog < curve.minSpeedKn ? curve.refSpeedKn : clampSpeed(curve, sog);
   return {
     input: {
       startAt: ship.updatedAt.toISOString(),
@@ -169,9 +195,11 @@ export function shipRoutePlan(
       etsCoverage: destination.isEu ? SHIP_EU_COVERAGE : 0,
       market: market(world),
       weather,
+      hazards,
     },
     subject: ship.name?.trim() || `MMSI ${ship.mmsi}`,
     destination,
     profile,
+    avoidedHazardIds: avoidedBy(graph, latLon(ship), latLon(destination), hazards),
   };
 }

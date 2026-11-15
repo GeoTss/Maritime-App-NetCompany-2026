@@ -136,6 +136,62 @@ describe("shortestPath", () => {
   });
 });
 
+describe("candidateRoutes with hazards to avoid", () => {
+  /*
+   * Diamond: S (0, 0), M (0, 2), E (0, 4), N (1.5, 2). Direct S-M-E = 2 x 120.081 = 240.162 nm;
+   * the detour S-N-E is about 2 x 150 nm (1.25 x direct, inside the 1.35 detour limit).
+   * A 10 nm hazard at M (the direct path's middle node) makes both direct edges weigh 1000 x.
+   */
+  const S = p(0, 0);
+  const M = p(0, 2);
+  const E = p(0, 4);
+  const N = p(1.5, 2);
+  const diamond = () =>
+    buildRouteGraph([
+      [S, M, E],
+      [S, N, E],
+    ]);
+  const hazard = { id: "h1", center: M, radiusNm: 10 };
+
+  it("without hazards the shortest path goes through M", () => {
+    expect(candidateRoutes(diamond(), S, E, { max: 1 })[0]?.points).toEqual([S, S, M, E, E]);
+  });
+
+  it("a hazard on the shortest path makes candidate A go round it", () => {
+    const routes = candidateRoutes(diamond(), S, E, { max: 1, avoid: [hazard] });
+    expect(routes[0]?.points).toEqual([S, S, N, E, E]);
+  });
+
+  it("an edge whose midpoint (not an endpoint) is inside a zone is penalised too", () => {
+    // Zone at (0, 1), the midpoint of S-M, 5 nm radius: neither S nor M is inside it.
+    const zone = { id: "mid", center: p(0, 1), radiusNm: 5 };
+    expect(candidateRoutes(diamond(), S, E, { max: 1, avoid: [zone] })[0]?.points).toEqual([
+      S,
+      S,
+      N,
+      E,
+      E,
+    ]);
+  });
+
+  it("an empty avoid list is the same as none", () => {
+    expect(candidateRoutes(diamond(), S, E, { avoid: [] })).toEqual(
+      candidateRoutes(diamond(), S, E),
+    );
+  });
+
+  it("goes through the hazard when the network has no other way", () => {
+    const line = buildRouteGraph([[S, M, E]]);
+    expect(candidateRoutes(line, S, E, { max: 1, avoid: [hazard] })[0]?.points).toEqual([
+      S,
+      S,
+      M,
+      E,
+      E,
+    ]);
+  });
+});
+
 describe("candidateRoutes", () => {
   const start = p(0, -0.5); // 30.020 nm west of n0
   const end = p(0, 5.5); // 30.020 nm east of n2

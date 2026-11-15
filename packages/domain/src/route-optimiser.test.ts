@@ -8,7 +8,7 @@ import {
   type WeatherGrid,
 } from "@pharos/shared";
 import { describe, expect, it } from "vitest";
-import { evaluateRoute, optimiseRouteSpeed } from "./route-optimiser.js";
+import { evaluateRoute, optimiseRouteSpeed, routeHazardIds } from "./route-optimiser.js";
 
 const p = (lat: number, lon: number): LatLon => ({ lat, lon });
 const HOUR_MS = 3_600_000;
@@ -45,6 +45,7 @@ function makeInput(over: Partial<RouteSpeedInput> = {}): RouteSpeedInput {
     etsCoverage: 0.5,
     market: { euaPriceEur: 75, eurUsd: 1.08, year: 2026 },
     weather: null,
+    hazards: [],
     ...over,
   };
 }
@@ -268,7 +269,79 @@ function gridOptions(input: RouteSpeedInput, speeds: number[]): RouteOptionResul
   return input.candidates.flatMap((c) => speeds.map((s) => evaluateRoute(input, c, s)));
 }
 
+describe("hazard zones", () => {
+  // 1 deg of longitude on the equator = 60.0405 nm. DIRECT_20 is (0,0) -> (0,20): 1200.8 nm cut
+  // into ceil(1200.8 / 20) = 61 sub-steps; sub-step 30 has its midpoint at lon 30.5/61 x 20 = 10.
+  const onTrack = { id: "h-on", center: p(0, 10), radiusNm: 5 };
+  // 1 deg of latitude = 60.04 nm away from the track, with a 30 nm radius: no sub-step midpoint inside.
+  const offTrack = { id: "h-off", center: p(1, 10), radiusNm: 30 };
+
+  it("lists the zones a sub-step midpoint falls inside, sorted, and no others", () => {
+    const input = makeInput({ hazards: [onTrack, offTrack, { ...onTrack, id: "h-a" }] });
+    const r = evaluateRoute(input, DIRECT_20, 12);
+    expect(r.hazardIds).toEqual(["h-a", "h-on"]);
+    expect(routeHazardIds(DIRECT_20.points, input.stepNm, input.hazards)).toEqual(["h-a", "h-on"]);
+  });
+
+  it("a route through a zone is infeasible with crosses_hazard", () => {
+    const r = evaluateRoute(makeInput({ hazards: [onTrack] }), DIRECT_20, 12);
+    expect(r.feasible).toBe(false);
+    expect(r.reasons).toEqual(["crosses_hazard"]);
+  });
+
+  it("a route that misses the zone stays feasible with no hazard ids", () => {
+    const r = evaluateRoute(makeInput({ hazards: [offTrack] }), DIRECT_20, 12);
+    expect(r.hazardIds).toEqual([]);
+    expect(r.feasible).toBe(true);
+    expect(r.reasons).toEqual([]);
+  });
+
+  it("lists both reasons when the route also misses arriveBy", () => {
+    const r = evaluateRoute(makeInput({ hazards: [onTrack], arriveBy: at(1) }), DIRECT_20, 12);
+    expect(r.reasons).toEqual(["misses_arrive_by", "crosses_hazard"]);
+  });
+
+  it("hazards do not change the numbers, only the verdict", () => {
+    const clear = evaluateRoute(makeInput(), DIRECT_20, 12);
+    const crossing = evaluateRoute(makeInput({ hazards: [onTrack] }), DIRECT_20, 12);
+    expect({ ...crossing, feasible: true, reasons: [], hazardIds: [] }).toEqual(clear);
+  });
+
+  it("the best option is a feasible one that avoids the hazard, even when dearer", () => {
+    const detour: RouteCandidate = {
+      id: "B",
+      label: "Detour",
+      points: [p(0, 0), p(3, 10), p(0, 20)],
+    };
+    const input = makeInput({ candidates: [DIRECT_20, detour], hazards: [onTrack] });
+    const free = optimiseRouteSpeed({ ...input, hazards: [] });
+    expect(free.bestCandidateId).toBe("A");
+    const r = optimiseRouteSpeed(input);
+    expect(r.options[0]?.feasible).toBe(false);
+    expect(r.options[0]?.hazardIds).toEqual(["h-on"]);
+    expect(r.options[1]?.feasible).toBe(true);
+    expect(r.bestCandidateId).toBe("B");
+  });
+
+  it("is deterministic with hazards", () => {
+    const input = makeInput({ hazards: [onTrack] });
+    expect(JSON.stringify(optimiseRouteSpeed(input))).toBe(
+      JSON.stringify(optimiseRouteSpeed(structuredClone(input))),
+    );
+  });
+});
+
 describe("optimiseRouteSpeed", () => {
+  it("never searches below the curve's minimum speed (9.124 kn)", () => {
+    const curve: ConsumptionCurve = { ...BULK, minSpeedKn: 9.124 };
+    const r = optimiseRouteSpeed(
+      makeInput({ curve, baseline: { candidateId: "A", speedKn: 12 }, dailyCostUsd: 0 }),
+    );
+    for (const o of r.options) expect(o.speedKn).toBeGreaterThanOrEqual(9.124);
+    // Time is free, so the cheapest speed is the slowest on the grid: 9.124, then +0.5 steps.
+    expect(r.options[0]?.speedKn).toBe(9.124);
+  });
+
   it("synthetic storm: 6 m head seas on the direct route make the detour best", () => {
     const input = stormInput(6);
     const r = optimiseRouteSpeed(input);
@@ -504,6 +577,7 @@ describe("never worse than the baseline (60 seeded inputs)", () => {
         year: r.pick([2024, 2025, 2026]),
       },
       weather,
+      hazards: [],
     };
   }
 

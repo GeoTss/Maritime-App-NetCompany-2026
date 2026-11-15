@@ -7,6 +7,7 @@ import {
   FUEL_GRADES,
   type FuelGrade,
   type GradeAmounts,
+  type HazardZone,
   type LatLon,
   type RouteCandidate,
   type RouteOptionResult,
@@ -17,6 +18,7 @@ import { dailyConsumptionMt } from "./consumption.js";
 import { gradeAt } from "./eca.js";
 import { co2Tonnes, etsCost } from "./emissions.js";
 import { bearingDeg, greatCircleNm } from "./geo.js";
+import { zonesContaining } from "./hazards.js";
 import { effectiveSpeedKn, sampleWeather } from "./weather-effect.js";
 
 const HOUR_MS = 3_600_000;
@@ -59,6 +61,19 @@ function subSteps(points: LatLon[], stepNm: number): { steps: SubStep[]; distanc
     }
   }
   return { steps, distanceNm };
+}
+
+/** Ids of the zones any sub-step midpoint falls inside, sorted. The one rule for "passes through a hazard". */
+function hazardIdsOfSteps(steps: SubStep[], zones: HazardZone[]): string[] {
+  if (zones.length === 0) return [];
+  const hit = new Set<string>();
+  for (const step of steps) for (const id of zonesContaining(step.mid, zones)) hit.add(id);
+  return [...hit].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+}
+
+/** Zones a polyline passes through: any sub-step midpoint (steps of at most `stepNm`) inside one. Sorted. */
+export function routeHazardIds(points: LatLon[], stepNm: number, zones: HazardZone[]): string[] {
+  return hazardIdsOfSteps(subSteps(points, stepNm).steps, zones);
 }
 
 function evaluateSteps(
@@ -116,7 +131,12 @@ function evaluateSteps(
   const untilWindowHours =
     input.notBefore === null ? 0 : (Date.parse(input.notBefore) - startMs) / HOUR_MS;
   const timeCostUsd = (input.dailyCostUsd * Math.max(hours, untilWindowHours)) / 24;
-  const feasible = input.arriveBy === null || etaMs <= Date.parse(input.arriveBy);
+  const meetsArriveBy = input.arriveBy === null || etaMs <= Date.parse(input.arriveBy);
+  const hazardIds = hazardIdsOfSteps(route.steps, input.hazards);
+  const reasons: RouteOptionResult["reasons"] = [];
+  if (!meetsArriveBy) reasons.push("misses_arrive_by");
+  if (hazardIds.length > 0) reasons.push("crosses_hazard");
+  const feasible = reasons.length === 0;
 
   return {
     candidateId,
@@ -137,7 +157,8 @@ function evaluateSteps(
     // Both sums add the same sub-steps, so full coverage is exactly 100.
     weatherCoveragePct: walkedNm > 0 ? (sampledNm / walkedNm) * 100 : 0,
     feasible,
-    reasons: feasible ? [] : ["misses_arrive_by"],
+    hazardIds,
+    reasons,
   };
 }
 
@@ -145,7 +166,8 @@ function evaluateSteps(
  * One route at one speed through the water. The polyline is walked in equal sub-steps of at most
  * `stepNm`; each takes the weather at its midpoint, the speed over ground from `effectiveSpeedKn`
  * on its heading, and burns `dailyConsumptionMt(curve, speedKn)` for its hours in the grade
- * `gradeAt(midpoint)` requires. Vessel time is charged up to `notBefore` at least.
+ * `gradeAt(midpoint)` requires. Vessel time is charged up to `notBefore` at least. A route whose
+ * sub-step midpoint lies inside a hazard zone is infeasible (`crosses_hazard`).
  */
 export function evaluateRoute(
   input: RouteSpeedInput,
@@ -162,7 +184,7 @@ function speedGrid(input: RouteSpeedInput): number[] {
   const { minSpeedKn, maxSpeedKn } = input.curve;
   const out: number[] = [];
   for (let i = 0; ; i++) {
-    const s = round2(minSpeedKn + i * input.speedStepKn);
+    const s = Math.max(minSpeedKn, round2(minSpeedKn + i * input.speedStepKn));
     if (s > maxSpeedKn) break;
     out.push(s);
   }

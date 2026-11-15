@@ -4,6 +4,7 @@ import {
   REFERENCE_VESSEL_PROFILES,
   RouteError,
   remainingRoutePoints,
+  routeHazardIds,
   sailedNmAt,
 } from "@pharos/domain";
 import { type AisTraffic, type LatLon, type Port, RouteSpeedInput } from "@pharos/shared";
@@ -133,6 +134,39 @@ describe("fleetRoutePlan", () => {
     );
   });
 
+  it("clamps the baseline speed to the curve and rounds it to 0.5 kn", () => {
+    const planAt = (plannedSpeedKn: number) => {
+      const w = structuredClone(world);
+      const v = w.voyages.find((x) => x.id === pioneer().id);
+      if (!v) throw new Error("no voyage");
+      v.plannedSpeedKn = plannedSpeedKn;
+      return fleetRoutePlan(w, v.id, graph, null).input;
+    };
+    const { minSpeedKn, maxSpeedKn } = planAt(12.5).curve;
+    expect(planAt(30).baseline.speedKn).toBe(maxSpeedKn);
+    expect(planAt(1).baseline.speedKn).toBe(minSpeedKn);
+    expect(planAt(12.3).baseline.speedKn).toBe(12.5);
+    expect(planAt(12.2).baseline.speedKn).toBe(12);
+  });
+
+  it("passes hazards to the input; avoidedHazardIds names those the shortest route crosses", () => {
+    // A node on the main lane, 10 nm radius; and a zone in the Pacific nobody passes.
+    const onLane = { id: "h-lane", center: p(37.3, 11.5), radiusNm: 10 };
+    const far = { id: "h-far", center: p(-30, -150), radiusNm: 10 };
+    const none = fleetRoutePlan(world, pioneer().id, graph, null);
+    expect(none.input.hazards).toEqual([]);
+    expect(none.avoidedHazardIds).toEqual([]);
+    const plan = fleetRoutePlan(world, pioneer().id, graph, null, [far, onLane]);
+    expect(plan.input.hazards).toEqual([far, onLane]);
+    expect(plan.avoidedHazardIds).toEqual(["h-lane"]);
+    // The shortest sea route (B) goes round it by the southern branch.
+    const b = plan.input.candidates.find((c) => c.id === "B");
+    expect(routeHazardIds(b?.points ?? [], plan.input.stepNm, [onLane])).toEqual([]);
+    expect(
+      optimiseRouteSpeed(plan.input).options.find((o) => o.candidateId === "B")?.feasible,
+    ).toBe(true);
+  });
+
   it("passes the weather grid through", () => {
     const weather = {
       startAt: "2026-11-14T08:00:00.000Z",
@@ -205,6 +239,15 @@ describe("shipRoutePlan", () => {
     const plan = shipRoutePlan(world, ship({ name: null }), port("GIGIB"), graph, null);
     expect(plan.input.etsCoverage).toBe(0);
     expect(plan.subject).toBe("MMSI 237000001");
+  });
+
+  it("passes hazards through and lists those the unconstrained shortest route crosses", () => {
+    const onLane = { id: "h-lane", center: p(37.3, 11.5), radiusNm: 10 };
+    const plan = shipRoutePlan(world, ship(), algeciras, graph, null, [onLane]);
+    expect(plan.input.hazards).toEqual([onLane]);
+    expect(plan.avoidedHazardIds).toEqual(["h-lane"]);
+    expect(shipRoutePlan(world, ship(), algeciras, graph, null).avoidedHazardIds).toEqual([]);
+    expect(shipRoutePlan(world, ship(), algeciras, graph, null).input.hazards).toEqual([]);
   });
 
   it("a RouteError from the graph propagates", () => {

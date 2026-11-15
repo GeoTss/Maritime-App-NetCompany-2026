@@ -3,8 +3,10 @@
  * Dijkstra and a penalty search for distinct alternative routes. Pure and deterministic: ties are
  * broken by node index and every loop runs in input order.
  */
-import type { LatLon, RouteCandidate, RouteGraph } from "@pharos/shared";
+import type { HazardZone, LatLon, RouteCandidate, RouteGraph } from "@pharos/shared";
+import { HAZARD_EDGE_PENALTY } from "./constants.js";
 import { greatCircleNm, polylineNm } from "./geo.js";
+import { zonesContaining } from "./hazards.js";
 
 export type RouteErrorCode = "off_network" | "no_path" | "same_point";
 
@@ -218,6 +220,12 @@ export interface CandidateRouteOptions {
   maxDetour?: number;
   /** Farthest (nm) start or end may be from the network (default 150). */
   maxSnapNm?: number;
+  /**
+   * Hazard zones to route round: an edge whose endpoint or midpoint lies inside one weighs
+   * `HAZARD_EDGE_PENALTY` × its length in every search, so the path goes round whenever the
+   * network allows (and through only when it does not).
+   */
+  avoid?: HazardZone[];
 }
 
 const routeLabel = (i: number): string =>
@@ -264,7 +272,19 @@ export function candidateRoutes(
       );
     }
   }
-  const first = shortestPath(graph, from.node, to.node);
+  const avoid = opts.avoid ?? [];
+  const base = graph.edges.map((e) => {
+    if (avoid.length === 0) return e.nm;
+    const a = graph.nodes[e.a] as LatLon;
+    const b = graph.nodes[e.b] as LatLon;
+    const mid = { lat: (a.lat + b.lat) / 2, lon: (a.lon + b.lon) / 2 };
+    const hit =
+      zonesContaining(a, avoid).length > 0 ||
+      zonesContaining(b, avoid).length > 0 ||
+      zonesContaining(mid, avoid).length > 0;
+    return hit ? e.nm * HAZARD_EDGE_PENALTY : e.nm;
+  });
+  const first = shortestPath(graph, from.node, to.node, (e) => base[e] as number);
   if (!first) throw new RouteError("no_path", "no sea route joins the start and the end");
 
   const toPoints = (nodes: number[]): LatLon[] => [
@@ -281,7 +301,7 @@ export function candidateRoutes(
     { points: toPoints(first.nodes), edges: new Set(first.edges), trueNm: shortestNm },
   ];
 
-  const weights = graph.edges.map((e) => e.nm);
+  const weights = [...base];
   const used = new Array<boolean>(graph.edges.length).fill(false);
   for (const e of first.edges) used[e] = true;
   for (let attempt = 0; attempt < MAX_EXTRA_ATTEMPTS && kept.length < max; attempt++) {

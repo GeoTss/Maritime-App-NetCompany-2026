@@ -95,6 +95,12 @@ export const RouteCandidate = z
   .strict();
 export type RouteCandidate = z.infer<typeof RouteCandidate>;
 
+/** A reported navigational hazard as a circle to keep out of: a route passing through it is infeasible. */
+export const HazardZone = z
+  .object({ id: z.string().min(1), center: LatLon, radiusNm: Positive })
+  .strict();
+export type HazardZone = z.infer<typeof HazardZone>;
+
 export const RouteSpeedInput = z
   .object({
     startAt: IsoDateTime,
@@ -110,6 +116,7 @@ export const RouteSpeedInput = z
     etsCoverage: EtsCoverageFactor,
     market: z.object({ euaPriceEur: NonNeg, eurUsd: Positive, year: z.number().int() }).strict(),
     weather: WeatherGrid.nullable(),
+    hazards: z.array(HazardZone),
   })
   .strict();
 export type RouteSpeedInput = z.infer<typeof RouteSpeedInput>;
@@ -133,7 +140,9 @@ export const RouteOptionResult = z
     maxWaveHeightM: NonNeg,
     weatherCoveragePct: z.number().min(0).max(100),
     feasible: z.boolean(),
-    reasons: z.array(z.literal("misses_arrive_by")),
+    /** Ids of the hazard zones the route passes through, sorted. */
+    hazardIds: z.array(z.string()),
+    reasons: z.array(z.enum(["misses_arrive_by", "crosses_hazard"])),
   })
   .strict();
 export type RouteOptionResult = z.infer<typeof RouteOptionResult>;
