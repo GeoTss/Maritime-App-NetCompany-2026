@@ -61,5 +61,14 @@ export const QaTruth = z
     question: z.string().min(1),
     expect: QaExpect,
   })
-  .strict();
+  .strict()
+  .superRefine((truth, ctx) => {
+    if (!(QA_CATEGORIES as readonly string[]).includes(truth.tags[0] ?? "")) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["tags", 0],
+        message: `tags[0] must be a category: ${QA_CATEGORIES.join(", ")}`,
+      });
+    }
+  });
 export type QaTruth = z.infer<typeof QaTruth>;

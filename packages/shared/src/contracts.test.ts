@@ -546,6 +546,14 @@ describe("QaTruth", () => {
     ).toBe(false);
   });
 
+  it("tags[0] must be one of the categories", () => {
+    for (const category of QA_CATEGORIES) {
+      expect(QaTruth.safeParse({ ...answer, tags: [category, "x"] }).success).toBe(true);
+    }
+    expect(QaTruth.safeParse({ ...answer, tags: ["fob", "lookup"] }).success).toBe(false);
+    expect(QaTruth.safeParse({ ...answer, tags: ["Lookup"] }).success).toBe(false);
+  });
+
   it("lists the seven question categories", () => {
     expect(QA_CATEGORIES).toEqual([
       "lookup",
