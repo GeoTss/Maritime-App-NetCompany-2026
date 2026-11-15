@@ -4,3 +4,4 @@
 {"at":"2026-11-15T03:39:24.782Z","run":"eval-extraction","label":"dev-haiku-gate-final","costUsd":0.06128125999999999}
 {"phase":4,"at":"2026-11-15T16:56:12.185Z","run":"record-demo-ask","label":"ask-recording","costUsd":0.0017133399999999998}
 {"phase":4,"at":"2026-11-15T17:01:25.041Z","run":"smoke","label":"phase4-agent-v2","costUsd":0.0034430800000000003}
+{"phase":4,"at":"2026-11-15T17:51:09.725Z","run":"eval-qa","label":"dev-haiku-v1","costUsd":0.024371699999999996}
