@@ -1,4 +1,4 @@
-import type { FuelGrade, ShipType } from "@pharos/shared";
+import type { ConsumptionCurve, FuelGrade, ShipType } from "@pharos/shared";
 
 /** Mean Earth radius in nautical miles (6371.0088 km / 1.852 km per nm). Haversine great-circle distance. */
 export const EARTH_RADIUS_NM = 3440.065;
@@ -57,4 +57,42 @@ export const CII_RATING_BOUNDARIES: Record<ShipType, readonly [number, number, n
   bulk_carrier: [0.86, 0.94, 1.06, 1.18],
   tanker: [0.82, 0.93, 1.08, 1.28],
   container: [0.83, 0.94, 1.07, 1.19],
+};
+
+/** Weather effect on speed. Illustrative planning parameters, not a vessel-specific seakeeping model. */
+export const WAVE_LOSS_PCT_PER_M2 = 1.0;
+export const WIND_LOSS_PCT_PER_KN = 0.1;
+/** Headwind component below this (kn) costs no speed. */
+export const WIND_LOSS_THRESHOLD_KN = 10;
+export const MAX_SPEED_LOSS = 0.4;
+/** Floor for speed over ground (kn) so a transit time is always finite. */
+export const MIN_SOG_KN = 1;
+/** A weather grid point farther than this (nm) from the position is treated as no data. */
+export const WEATHER_MAX_NM = 120;
+
+/** Port congestion from AIS. Illustrative parameters, not measured queue times. */
+export const ANCHORAGE_RADIUS_NM = 20;
+export const WAIT_HOURS_PER_ANCHORED_VESSEL = 1.5;
+export const MAX_WAITING_HOURS = 72;
+
+/**
+ * Reference profiles for ships outside the fleet (route optimiser for an arbitrary vessel type).
+ * Assumptions for planning, not data from any vessel.
+ */
+export const REFERENCE_VESSEL_PROFILES: Record<
+  ShipType,
+  { curve: ConsumptionCurve; dailyCostUsd: number }
+> = {
+  bulk_carrier: {
+    curve: { refSpeedKn: 13, refMtPerDay: 30, auxMtPerDay: 2.5, minSpeedKn: 9, maxSpeedKn: 14.5 },
+    dailyCostUsd: 16000,
+  },
+  tanker: {
+    curve: { refSpeedKn: 13, refMtPerDay: 34, auxMtPerDay: 3, minSpeedKn: 9, maxSpeedKn: 14.5 },
+    dailyCostUsd: 19000,
+  },
+  container: {
+    curve: { refSpeedKn: 18, refMtPerDay: 70, auxMtPerDay: 4, minSpeedKn: 12, maxSpeedKn: 21 },
+    dailyCostUsd: 24000,
+  },
 };

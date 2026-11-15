@@ -35,6 +35,7 @@ const pairs: Pair[] = [
   ["AuditEvent", shared.AuditEvent, schema.auditEvents],
   ["ReferenceRate", shared.ReferenceRate, schema.referenceRates],
   ["LlmCall", shared.LlmCall, schema.llmCalls],
+  ["SourceStatus", shared.SourceStatus, schema.sourceStatus],
 ];
 
 describe("drizzle schema mirrors the shared entities", () => {
@@ -42,9 +43,9 @@ describe("drizzle schema mirrors the shared entities", () => {
     expect(Object.keys(getTableColumns(table)).sort()).toEqual(Object.keys(entity.shape).sort());
   });
 
-  it("has 27 entity tables plus world_meta (28 in all)", () => {
+  it("has 28 entity tables plus world_meta (29 in all)", () => {
     const names = [...pairs.map(([, , t]) => getTableName(t)), getTableName(schema.worldMeta)];
-    expect(new Set(names).size).toBe(28);
+    expect(new Set(names).size).toBe(29);
     expect(names).toContain("world_meta");
   });
 
@@ -101,6 +102,15 @@ describe("drizzle schema mirrors the shared entities", () => {
     expect(sqlText).toMatch(/CREATE TABLE "drafted_messages"/);
     expect(sqlText).toMatch(/ADD COLUMN "operand_fact_ids"/);
     expect(sqlText).toMatch(/ADD COLUMN "gate_attempts"/);
+  });
+
+  it("the Phase 5 migration is additive and creates source_status", () => {
+    const dir = new URL("../drizzle/", import.meta.url);
+    const file = readdirSync(dir).find((f) => f.startsWith("0005_") && f.endsWith(".sql"));
+    expect(file).toBeDefined();
+    const sqlText = readFileSync(new URL(file ?? "", dir), "utf8");
+    expect(sqlText).not.toMatch(/DROP |RENAME |ALTER COLUMN|TRUNCATE|DELETE FROM/i);
+    expect(sqlText).toMatch(/CREATE TABLE "source_status"/);
   });
 
   it("world_meta carries the seed bookkeeping columns", () => {

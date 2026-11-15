@@ -10,7 +10,7 @@ import type {
   Voyage,
 } from "@pharos/shared";
 import { legFuel, portStayFuelMt } from "./consumption.js";
-import { pointAlongPolyline } from "./geo.js";
+import { greatCircleNm, pointAlongPolyline } from "./geo.js";
 
 const HOUR_MS = 3_600_000;
 
@@ -120,4 +120,31 @@ export function hoursBetween(a: Date, b: Date): number {
     throw new RangeError("dates must be valid");
   }
   return (b.getTime() - a.getTime()) / HOUR_MS;
+}
+
+/**
+ * Points still to sail from `sailedNm`: the position there, then every later waypoint of the
+ * current and following legs, ending at the destination port.
+ */
+export function remainingRoutePoints(path: VoyagePath, sailedNm: number): LatLon[] {
+  const out: LatLon[] = [positionAt(path, sailedNm)];
+  let rest = Math.max(0, sailedNm);
+  let found = false;
+  for (const leg of path.legs) {
+    if (!found && rest > leg.distanceNm) {
+      rest -= leg.distanceNm;
+      continue;
+    }
+    const later = found;
+    let along = 0;
+    leg.waypoints.forEach((w, i) => {
+      const prev = leg.waypoints[i - 1];
+      if (prev) along += greatCircleNm(prev, w);
+      // Later legs start where the previous one ended; skip that duplicate point.
+      if (later ? i > 0 : along > rest) out.push({ lat: w.lat, lon: w.lon });
+    });
+    found = true;
+  }
+  if (!found) out.push({ lat: path.destination.lat, lon: path.destination.lon });
+  return out;
 }

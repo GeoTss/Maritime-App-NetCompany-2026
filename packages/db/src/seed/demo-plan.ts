@@ -126,7 +126,7 @@ export function projectDemo(world: World, legs: FobLeg[]): FobProjection {
 /**
  * Planner input for a voyage's open requirement against the given offers. The deviation distance
  * is the port's approach distance; bunkering takes DEFAULT_BUNKERING_HOURS; waits come from the
- * latest congestion reading. Off-route ports are reached via Gibraltar. The requirement is the
+ * latest seeded congestion reading (AIS-derived rows are ignored so the demo plan stays pinned). Off-route ports are reached via Gibraltar. The requirement is the
  * lowest-id open one, of `requirementGrade` when given, of any grade otherwise.
  */
 export function buildBunkerPlanInput(
@@ -213,7 +213,7 @@ export function buildBunkerPlanInput(
       );
       const congestion = must(
         world.portCongestion
-          .filter((c) => c.portId === port.id)
+          .filter((c) => c.portId === port.id && c.source === "seed")
           .sort((a, b) => b.observedAt.getTime() - a.observedAt.getTime())[0],
         `congestion at ${port.unlocode}`,
       );

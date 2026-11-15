@@ -110,6 +110,14 @@ export const aisTraffic = pgTable("ais_traffic", {
   updatedAt: ts().notNull(),
 });
 
+/** Whether each external data source (AIS, weather) is running live or from a recording. */
+export const sourceStatus = pgTable("source_status", {
+  source: text().$type<"ais" | "weather">().primaryKey(),
+  mode: text().$type<"live" | "recorded">().notNull(),
+  detail: text(),
+  updatedAt: ts().notNull(),
+});
+
 export const voyages = pgTable("voyages", {
   id: id(),
   vesselId: integer()

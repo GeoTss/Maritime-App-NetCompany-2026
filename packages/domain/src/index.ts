@@ -6,13 +6,17 @@
 export const DOMAIN_CODE_VERSION = "0.0.0";
 export * from "./bunker-planner.js";
 export * from "./calculate.js";
+export * from "./congestion.js";
 export * from "./constants.js";
 export * from "./consumption.js";
 export * from "./dates.js";
+export * from "./eca.js";
 export * from "./emissions.js";
 export * from "./fob.js";
 export * from "./geo.js";
 export * from "./identity.js";
 export * from "./normalise.js";
 export * from "./price-band.js";
+export * from "./units.js";
 export * from "./voyage.js";
+export * from "./weather-effect.js";

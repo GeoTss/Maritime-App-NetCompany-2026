@@ -47,6 +47,26 @@ describe("buildBunkerPlanInput", () => {
     expect(JSON.stringify(planBunkers(fromOffers))).toBe(JSON.stringify(planBunkers(demo)));
   });
 
+  it("a later AIS congestion row leaves the plan input unchanged", () => {
+    const gib = byCode("GIGIB").id;
+    const before = buildBunkerPlanInput(world, voyage.id, demoOffers());
+    const withAis = {
+      ...world,
+      portCongestion: [
+        ...world.portCongestion,
+        {
+          id: 9999,
+          portId: gib,
+          observedAt: new Date("2026-11-15T00:00:00.000Z"),
+          anchoredCount: 40,
+          waitingHours: 60,
+          source: "ais" as const,
+        },
+      ],
+    };
+    expect(buildBunkerPlanInput(withAis, voyage.id, demoOffers())).toEqual(before);
+  });
+
   it("demo plan matches the Phase 1 output pinned from commit 5da5fe9", () => {
     // Values taken by running the Phase 1 demo-plan.ts (git show 5da5fe9) on seed 20261114 /
     // anchor 2026-11-14T08:00:00Z, not from the current code.

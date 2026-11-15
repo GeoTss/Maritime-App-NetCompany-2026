@@ -66,6 +66,20 @@ describe.skipIf(!sql)("seedDatabase (Postgres)", () => {
     for (const row of await db.select().from(schema.voyages)) Voyage.parse(row);
   });
 
+  it("reset also empties ais_traffic, weather_snapshots and source_status", async () => {
+    await db.insert(schema.aisTraffic).values({ mmsi: "1", lat: 1, lon: 1, updatedAt: ANCHOR });
+    await db
+      .insert(schema.weatherSnapshots)
+      .values({ source: "t", modelRun: ANCHOR, fetchedAt: ANCHOR, grid: null });
+    await db
+      .insert(schema.sourceStatus)
+      .values({ source: "ais", mode: "recorded", detail: null, updatedAt: ANCHOR });
+    await seedDatabase(sql, { seed: SEED, anchor: ANCHOR, mode: "reset" });
+    expect(await count(schema.aisTraffic)).toBe(0);
+    expect(await count(schema.weatherSnapshots)).toBe(0);
+    expect(await count(schema.sourceStatus)).toBe(0);
+  });
+
   it("reseed is repeatable and sequences continue after seeded ids", async () => {
     const before = await count(schema.quotes);
     await seedDatabase(sql, { seed: SEED, anchor: ANCHOR, mode: "reset" });

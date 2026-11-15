@@ -1,5 +1,6 @@
 import type { ConsumptionCurve, Port, RouteLeg, Voyage } from "@pharos/shared";
 import { describe, expect, it } from "vitest";
+import { polylineNm } from "./geo.js";
 import {
   cumulativeNm,
   fuelBetween,
@@ -8,6 +9,7 @@ import {
   portGrade,
   positionAt,
   remainingFobLegs,
+  remainingRoutePoints,
   sailedNmAt,
   tankFreeMt,
   totalNm,
@@ -218,5 +220,39 @@ describe("voyage maths is deterministic", () => {
       });
     expect(run()).toBe(run());
     expect(JSON.stringify(PATH)).toBe(before);
+  });
+});
+
+describe("remainingRoutePoints", () => {
+  // Consistent fixture: leg distances equal their polyline lengths. A(0,0) -> M(1,0) -> B(1,1) -> C(2,1).
+  const w = (lat: number, lon: number) => ({ lat, lon });
+  const len = (pts: { lat: number; lon: number }[]) => polylineNm(pts);
+  const wp1 = [w(0, 0), w(0.5, 0), w(1, 0)];
+  const wp2 = [w(1, 0), w(1, 1), w(2, 1)];
+  const path: VoyagePath = {
+    voyage: { plannedSpeedKn: 12 } as Voyage,
+    legs: [
+      { ...LEG_AB, distanceNm: len(wp1), waypoints: wp1 },
+      { ...LEG_BC, distanceNm: len(wp2), waypoints: wp2 },
+    ],
+    origin: A,
+    destination: { ...C, lat: 2, lon: 1 },
+    curve: CURVE,
+    departAt: T0,
+  };
+  const total = len(wp1) + len(wp2);
+
+  it.each([0, 10, 45, len(wp1), len(wp1) + 20, total - 1, total])(
+    "at %f nm starts at positionAt and the rest has length total - sailed",
+    (sailed) => {
+      const pts = remainingRoutePoints(path, sailed);
+      expect(pts[0]).toEqual(positionAt(path, sailed));
+      expect(pts[pts.length - 1]).toEqual({ lat: 2, lon: 1 });
+      expect(Math.abs(polylineNm(pts) - (total - sailed))).toBeLessThan(0.01);
+    },
+  );
+  it("mid first leg keeps later waypoints once, with no duplicate at the leg join", () => {
+    const pts = remainingRoutePoints(path, 10);
+    expect(pts).toHaveLength(5); // position, (0.5,0), (1,0), (1,1), (2,1)
   });
 });
