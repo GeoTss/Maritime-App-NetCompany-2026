@@ -8,6 +8,7 @@ import {
 import { CO2_FACTOR_T_PER_T } from "./constants.js";
 import { legFuel, portStayFuelMt } from "./consumption.js";
 import { etsCost } from "./emissions.js";
+import { fuelEuCost } from "./fueleu.js";
 
 type Unranked = Omit<BunkerOptionResult, "rank">;
 
@@ -44,7 +45,20 @@ function evaluate(input: BunkerPlanInput, o: BunkerOptionInput): Unranked {
     etsCost({ ...etsArgs, co2T: deviationCo2T, coverage: input.voyageEtsCoverage }).costUsd +
     etsCost({ ...etsArgs, co2T: stayCo2T, coverage: o.portIsEu ? 1 : 0 }).costUsd;
 
-  const totalCostUsd = fuelCostUsd + bargeFeeUsd + deviationCostUsd + delayCostUsd + etsCostUsd;
+  // FuelEU exposure of the same extra burn, scoped like the ETS (voyage share; EU stay in full).
+  const inGrade = (mt: number) => ({ LSMGO: 0, VLSFO: 0, HSFO: 0, [o.deviationGrade]: mt });
+  const fuelEuArgs = { year: market.year, eurUsd: market.fxToUsd.EUR };
+  const fuelEuCostUsd =
+    fuelEuCost({
+      ...fuelEuArgs,
+      fuelMt: inGrade(deviationFuelMt),
+      coverage: input.voyageEtsCoverage,
+    }).penaltyUsd +
+    fuelEuCost({ ...fuelEuArgs, fuelMt: inGrade(stayFuelMt), coverage: o.portIsEu ? 1 : 0 })
+      .penaltyUsd;
+
+  const totalCostUsd =
+    fuelCostUsd + bargeFeeUsd + deviationCostUsd + delayCostUsd + etsCostUsd + fuelEuCostUsd;
 
   const reasons: InfeasibleReason[] = [];
   if (o.offeredQtyMt < input.requiredQtyMt) reasons.push("insufficient_quantity");
@@ -67,13 +81,15 @@ function evaluate(input: BunkerPlanInput, o: BunkerOptionInput): Unranked {
     delayCostUsd,
     co2T: deviationCo2T + stayCo2T,
     etsCostUsd,
+    fuelEuCostUsd,
     totalCostUsd,
     effectivePriceUsdPerMt: totalCostUsd / qtyMt,
   };
 }
 
 /**
- * Rank bunker options by total cost of ownership (fuel + barge + deviation + delay + ETS),
+ * Rank bunker options by total cost of ownership (fuel + barge + deviation + delay + ETS +
+ * FuelEU exposure),
  * not by headline price. Infeasible options are kept, ranked after all feasible ones.
  *
  * `savingVsCheapestHeadlineUsd` = total of the cheapest-headline option − total of the best

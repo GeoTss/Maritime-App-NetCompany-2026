@@ -1,4 +1,5 @@
 import type { ConsumptionCurve } from "@pharos/shared";
+import { loadFactor } from "./load.js";
 
 function assertSpeed(curve: ConsumptionCurve, speedKn: number): void {
   if (!(speedKn > 0)) throw new RangeError("speedKn must be > 0");
@@ -9,10 +10,10 @@ function assertSpeed(curve: ConsumptionCurve, speedKn: number): void {
   }
 }
 
-/** Cubic law: refMtPerDay * (v / refSpeedKn)^3. */
+/** Cubic law: refMtPerDay * (v / refSpeedKn)^3 * loadFactor(curve.load) (1 without a load). */
 export function mainEngineMtPerDay(curve: ConsumptionCurve, speedKn: number): number {
   assertSpeed(curve, speedKn);
-  return curve.refMtPerDay * (speedKn / curve.refSpeedKn) ** 3;
+  return curve.refMtPerDay * (speedKn / curve.refSpeedKn) ** 3 * loadFactor(curve.load);
 }
 
 /** Main engine plus constant auxiliary load, mt/day. */

@@ -17,6 +17,7 @@ import {
 import { dailyConsumptionMt } from "./consumption.js";
 import { gradeAt } from "./eca.js";
 import { co2Tonnes, etsCost } from "./emissions.js";
+import { fuelEuCost } from "./fueleu.js";
 import { bearingDeg, greatCircleNm } from "./geo.js";
 import { zonesContaining } from "./hazards.js";
 import { effectiveSpeedKn, sampleWeather } from "./weather-effect.js";
@@ -127,6 +128,12 @@ function evaluateSteps(
     euaPriceEur: input.market.euaPriceEur,
     eurUsd: input.market.eurUsd,
   }).costUsd;
+  const fuelEuCostUsd = fuelEuCost({
+    fuelMt,
+    coverage: input.etsCoverage,
+    year: input.market.year,
+    eurUsd: input.market.eurUsd,
+  }).penaltyUsd;
   // Arriving before the berth window opens saves no vessel time.
   const untilWindowHours =
     input.notBefore === null ? 0 : (Date.parse(input.notBefore) - startMs) / HOUR_MS;
@@ -151,8 +158,9 @@ function evaluateSteps(
     co2T,
     fuelCostUsd,
     etsCostUsd,
+    fuelEuCostUsd,
     timeCostUsd,
-    totalCostUsd: fuelCostUsd + etsCostUsd + timeCostUsd,
+    totalCostUsd: fuelCostUsd + etsCostUsd + fuelEuCostUsd + timeCostUsd,
     maxWaveHeightM,
     // Both sums add the same sub-steps, so full coverage is exactly 100.
     weatherCoveragePct: walkedNm > 0 ? (sampledNm / walkedNm) * 100 : 0,

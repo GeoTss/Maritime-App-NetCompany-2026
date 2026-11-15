@@ -68,7 +68,8 @@ describe("planBunkers", () => {
     // delay 1 + 11 = 12 h -> 12/24 * 16000 = 8 000; fuel 300 * 700 = 210 000; barge 2 000
     // CO2 = (1.354167 + 1.145833) * 3.206 = 8.015
     // ETS = (1.354167*3.206*0.5 + 1.145833*3.206*1) * 80 * 1.1 = 514.2958
-    // total = 210000 + 2000 + 2000 + 8000 + 514.2958 = 222 514.2958
+    // total before FuelEU = 210000 + 2000 + 2000 + 8000 + 514.2958 = 222 514.2958
+    // FuelEU 78.9982 (next test) → total 222 593.2940
     const a = opt(planBunkers(input()), "A");
     expect(a.feasible).toBe(true);
     expect(a.reasons).toEqual([]);
@@ -83,13 +84,49 @@ describe("planBunkers", () => {
     expect(a.delayCostUsd).toBeCloseTo(8000, 6);
     expect(a.co2T).toBeCloseTo(8.015, 6);
     expect(a.etsCostUsd).toBeCloseTo(514.2958, 3);
-    expect(a.totalCostUsd).toBeCloseTo(222514.2958, 3);
-    expect(a.effectivePriceUsdPerMt).toBeCloseTo(222514.2958 / 300, 6);
+    expect(a.totalCostUsd - a.fuelEuCostUsd).toBeCloseTo(222514.2958, 3);
+    expect(a.totalCostUsd).toBeCloseTo(222593.294, 3);
+    expect(a.effectivePriceUsdPerMt).toBeCloseTo(222593.294 / 300, 6);
+  });
+
+  it("option A: FuelEU exposure of the extra LSMGO burn, inside the total", () => {
+    // MGO WtW intensity I = 14.4 + 3.26089 / 0.0427 = 90.767447; 2026 limit T = 89.3368
+    // per mt MGO in scope: E = 42 700 MJ; |CB| = (I − T) × 42 700 g; penalty = |CB| / (I × 41 000) × 2 400
+    //   = 1.430647 × 42 700 / 3 721 465.3 × 2 400 = 39.396507 EUR/mt
+    // deviation 1.354167 mt × coverage 0.5 × 39.396507 = 26.674 EUR
+    // stay (EU port) 1.145833 mt × coverage 1 × 39.396507 = 45.142 EUR
+    // (26.674 + 45.142) = 71.81655 EUR × 1.1 = 78.9982 USD
+    // total = 222 514.2958 (Phase 1 lines) + 78.9982 = 222 593.2940
+    const a = opt(planBunkers(input()), "A");
+    expect(a.fuelEuCostUsd).toBeCloseTo(78.9982, 3);
+    expect(a.totalCostUsd).toBeCloseTo(222593.294, 3);
+    expect(a.totalCostUsd - a.fuelEuCostUsd).toBeCloseTo(222514.2958, 3);
+    expect(a.effectivePriceUsdPerMt).toBeCloseTo(222593.294 / 300, 6);
+  });
+
+  it("FuelEU follows the ETS scope: nothing for a non-EU stop with no deviation, stay only at coverage 0", () => {
+    expect(opt(planBunkers(input()), "B").fuelEuCostUsd).toBe(0);
+    // coverage 0: only the EU stay, 1.145833 × 39.396507 × 1.1 = 49.6560 USD
+    expect(opt(planBunkers(input({ voyageEtsCoverage: 0 })), "A").fuelEuCostUsd).toBeCloseTo(
+      49.656,
+      3,
+    );
+    // before 2025 FuelEU does not apply
+    const y2024 = input({ market: { fxToUsd: { USD: 1, EUR: 1.1 }, euaPriceEur: 80, year: 2024 } });
+    expect(opt(planBunkers(y2024), "A").fuelEuCostUsd).toBe(0);
+  });
+
+  it("a load condition scales the deviation burn's main engine only", () => {
+    // load factor 0.64: deviation daily 30 × 0.64 + 2.5 = 21.7 mt/day → 1 h → 0.904167 mt; stay unchanged
+    const curve = { ...C, load: { displacementMt: 36_864, refDisplacementMt: 72_000 } };
+    const a = opt(planBunkers(input({ curve })), "A");
+    expect(a.deviationFuelMt).toBeCloseTo(21.7 / 24, 9);
+    expect(a.portStayFuelMt).toBeCloseTo(1.145833, 6);
   });
 
   it("option B: zero deviation, non-EU stop", () => {
     // port stay 30 + 6 = 36 h * 2.5 / 24 = 3.75 mt -> 3 000; delay 36 h -> 24 000
-    // fuel 300 * 690 = 207 000; barge 6 000; ETS 0 (no deviation, non-EU port)
+    // fuel 300 * 690 = 207 000; barge 6 000; ETS 0 and FuelEU 0 (no deviation, non-EU port)
     // total = 207000 + 6000 + 3000 + 24000 = 240 000
     const b = opt(planBunkers(input()), "B");
     expect(b.deviationFuelMt).toBe(0);
@@ -109,8 +146,8 @@ describe("planBunkers", () => {
     ]);
     expect(plan.bestOptionId).toBe("A");
     expect(plan.cheapestHeadlineOptionId).toBe("B");
-    // 240000 - 222514.2958
-    expect(plan.savingVsCheapestHeadlineUsd).toBeCloseTo(17485.7042, 3);
+    // 240000 - 222593.2940 (A's total with its FuelEU 78.9982; B has none)
+    expect(plan.savingVsCheapestHeadlineUsd).toBeCloseTo(17406.706, 3);
   });
 
   it("converts an EUR quote at the market rate", () => {
@@ -196,14 +233,17 @@ describe("planBunkers", () => {
     // A with 12 h weather delay: stay 5+6+12 = 23 h → port-stay 2.5×23/24 = 2.395833 mt
     // deviation cost (1.354167 + 2.395833) × 800 = 3000; delay 1+23 = 24 h → 16000
     // ETS (1.354167×3.206×0.5 + 2.395833×3.206×1) × 80 × 1.1 = 866.9558
-    // total 210000 + 2000 + 3000 + 16000 + 866.9558 = 231866.9558
+    // total before FuelEU 210000 + 2000 + 3000 + 16000 + 866.9558 = 231866.9558
+    // FuelEU (1.354167 × 0.5 + 2.395833 × 1) × 39.396507 EUR × 1.1 = 133.1684 → 232 000.1242
     const a = opt(planBunkers(input({ options: [{ ...A, weatherDelayHours: 12 }] })), "A");
     expect(a.portStayFuelMt).toBeCloseTo(2.395833, 5);
     expect(a.deviationCostUsd).toBeCloseTo(3000, 4);
     expect(a.delayHours).toBeCloseTo(24, 9);
     expect(a.delayCostUsd).toBeCloseTo(16000, 4);
     expect(a.etsCostUsd).toBeCloseTo(866.9558, 3);
-    expect(a.totalCostUsd).toBeCloseTo(231866.9558, 3);
+    expect(a.fuelEuCostUsd).toBeCloseTo(133.1684, 3);
+    expect(a.totalCostUsd - a.fuelEuCostUsd).toBeCloseTo(231866.9558, 3);
+    expect(a.totalCostUsd).toBeCloseTo(232000.1242, 3);
   });
 
   it("reports every failed check, in a fixed order", () => {
@@ -225,11 +265,11 @@ describe("planBunkers", () => {
 
   it("saving vs the cheapest headline is negative when that option is infeasible but cheaper", () => {
     // B with no wait: stay 6 h → 0.625 mt → 500; delay 6 h → 4000; total 207000+6000+500+4000 = 217500.
-    // B is unreachable (ROB 60 < 65), so best = A (222514.2958); saving = 217500 − 222514.2958.
+    // B is unreachable (ROB 60 < 65), so best = A (222593.2940 with FuelEU); saving = 217500 − 222593.2940.
     const b = { ...B, waitingHours: 0, robAtArrivalMt: 60 };
     const plan = planBunkers(input({ options: [A, b] }));
     expect(plan.bestOptionId).toBe("A");
     expect(plan.cheapestHeadlineOptionId).toBe("B");
-    expect(plan.savingVsCheapestHeadlineUsd).toBeCloseTo(-5014.2958, 3);
+    expect(plan.savingVsCheapestHeadlineUsd).toBeCloseTo(-5093.294, 3);
   });
 });

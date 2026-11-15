@@ -80,6 +80,8 @@ const VOYAGE: Voyage = {
   plannedRoute: [1, 2, 3],
   status: "underway",
   departedAt: T0,
+  cargoMt: 0,
+  ballastMt: 0,
 };
 // 100 nm at 10 kn: departs T0, arrives T0 + 10 h.
 const PATH: VoyagePath = {

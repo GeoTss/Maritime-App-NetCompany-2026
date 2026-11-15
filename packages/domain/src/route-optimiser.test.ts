@@ -107,7 +107,8 @@ describe("evaluateRoute", () => {
      * CO₂ = 108.805875 × 3.114 = 338.821496 t
      * ETS = 338.821496 × 0.5 coverage × 1 (2026 phase-in) × 75 EUR × 1.08 = 13 722.27 USD
      * time = 16 000 × 100.067435 / 24 = 66 711.62 USD
-     * total = 66 371.58 + 13 722.27 + 66 711.62 = 146 805.48 USD
+     * total before FuelEU = 66 371.58 + 13 722.27 + 66 711.62 = 146 805.48 USD
+     * (+ FuelEU 3 655.1, the next test)
      */
     const r = evaluateRoute(makeInput(), DIRECT_20, 12);
     const distance = (3440.065 * 20 * Math.PI) / 180;
@@ -127,8 +128,8 @@ describe("evaluateRoute", () => {
     relClose(r.fuelCostUsd, fuel * 610);
     relClose(r.etsCostUsd, ets);
     relClose(r.timeCostUsd, (16_000 * hours) / 24);
-    relClose(r.totalCostUsd, fuel * 610 + ets + (16_000 * hours) / 24);
-    relClose(r.totalCostUsd, 146_805.477527);
+    relClose(r.totalCostUsd - r.fuelEuCostUsd, fuel * 610 + ets + (16_000 * hours) / 24);
+    relClose(r.totalCostUsd - r.fuelEuCostUsd, 146_805.477527);
     expect(r.eta).toBe(at(hours));
     expect(r.candidateId).toBe("A");
     expect(r.speedKn).toBe(12);
@@ -136,6 +137,35 @@ describe("evaluateRoute", () => {
     expect(r.weatherCoveragePct).toBe(0);
     expect(r.feasible).toBe(true);
     expect(r.reasons).toEqual([]);
+  });
+
+  it("hand-computed FuelEU exposure: 108.805875 mt VLSFO (HFO row) at coverage 0.5 in 2026", () => {
+    /*
+     * HFO WtW I = 13.5 + 3.16889 / 0.0405 = 91.744198; 2026 limit T = 89.3368
+     * per mt in scope: (I − T) × 40 500 g / (I × 41 000) × 2 400 = 62.209 EUR
+     * 108.805875 × 0.5 × 62.209 = 3 384.36 EUR × 1.08 = 3 655.1 USD
+     * total = 146 805.48 (fuel + ETS + time, Phase 5) + 3 655.1 = 150 460.6 USD
+     */
+    const r = evaluateRoute(makeInput(), DIRECT_20, 12);
+    const fuel = ((30 * (12 / 13) ** 3 + 2.5) * ((3440.065 * 20 * Math.PI) / 180 / 12)) / 24;
+    const i = 13.5 + (3.114 + 0.00005 * 25 + 0.00018 * 298) / 0.0405;
+    const perMtEur = (((i - 91.16 * 0.98) * 40_500) / (i * 41_000)) * 2_400;
+    relClose(r.fuelEuCostUsd, fuel * 0.5 * perMtEur * 1.08);
+    expect(r.fuelEuCostUsd).toBeCloseTo(3655.1, 0);
+    relClose(r.totalCostUsd - r.fuelEuCostUsd, 146_805.477527);
+    relClose(r.totalCostUsd, r.fuelCostUsd + r.etsCostUsd + r.fuelEuCostUsd + r.timeCostUsd);
+  });
+
+  it("no FuelEU exposure at ETS coverage 0", () => {
+    expect(evaluateRoute(makeInput({ etsCoverage: 0 }), DIRECT_20, 12).fuelEuCostUsd).toBe(0);
+  });
+
+  it("a load condition lowers the burn by the load factor on the main engine", () => {
+    // factor 0.64: daily 30 × (12/13)³ × 0.64 + 2.5 vs 30 × (12/13)³ + 2.5
+    const load = { displacementMt: 36_864, refDisplacementMt: 72_000 };
+    const r = evaluateRoute(makeInput({ curve: { ...BULK, load } }), DIRECT_20, 12);
+    const hours = (3440.065 * 20 * Math.PI) / 180 / 12;
+    relClose(r.totalFuelMt, ((30 * (12 / 13) ** 3 * 0.64 + 2.5) * hours) / 24);
   });
 
   it("burns LSMGO for the part of the route inside a sulphur ECA", () => {

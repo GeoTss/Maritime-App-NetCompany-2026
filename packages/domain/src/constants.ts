@@ -75,27 +75,137 @@ export const ANCHORAGE_RADIUS_NM = 20;
 export const WAIT_HOURS_PER_ANCHORED_VESSEL = 1.5;
 export const MAX_WAITING_HOURS = 72;
 
+/** A reference profile for a ship outside the fleet: its curve, day cost and load geometry. */
+export interface ReferenceVesselProfile {
+  curve: ConsumptionCurve;
+  dailyCostUsd: number;
+  /** Lightship weight, mt. Reference displacement = lightshipMt + dwtMt (full load). */
+  lightshipMt: number;
+  dwtMt: number;
+  /** Ballast water in the ballast condition, mt: ballast displacement = lightshipMt + ballastMt. */
+  ballastMt: number;
+  /** Mean draught (m) fully laden and in ballast; `draughtLoad` interpolates between them. */
+  ladenDraughtM: number;
+  ballastDraughtM: number;
+}
+
 /**
  * Reference profiles for ships outside the fleet (route optimiser for an arbitrary vessel type).
- * Assumptions for planning, not data from any vessel.
+ * Assumptions for planning, not data from any vessel: a Supramax-size bulk carrier, an
+ * Aframax-size tanker and a 4 000 TEU-class container ship, with typical lightship, deadweight,
+ * ballast water and draughts for those sizes (Phase 6 synthetic values).
  */
-export const REFERENCE_VESSEL_PROFILES: Record<
-  ShipType,
-  { curve: ConsumptionCurve; dailyCostUsd: number }
-> = {
+export const REFERENCE_VESSEL_PROFILES: Record<ShipType, ReferenceVesselProfile> = {
   bulk_carrier: {
     curve: { refSpeedKn: 13, refMtPerDay: 30, auxMtPerDay: 2.5, minSpeedKn: 9, maxSpeedKn: 14.5 },
     dailyCostUsd: 16000,
+    lightshipMt: 12_000,
+    dwtMt: 60_000,
+    ballastMt: 20_000,
+    ladenDraughtM: 12.8,
+    ballastDraughtM: 6.8,
   },
   tanker: {
     curve: { refSpeedKn: 13, refMtPerDay: 34, auxMtPerDay: 3, minSpeedKn: 9, maxSpeedKn: 14.5 },
     dailyCostUsd: 19000,
+    lightshipMt: 17_000,
+    dwtMt: 105_000,
+    ballastMt: 35_000,
+    ladenDraughtM: 14.8,
+    ballastDraughtM: 7.6,
   },
   container: {
     curve: { refSpeedKn: 18, refMtPerDay: 70, auxMtPerDay: 4, minSpeedKn: 12, maxSpeedKn: 21 },
     dailyCostUsd: 24000,
+    lightshipMt: 18_000,
+    dwtMt: 52_000,
+    ballastMt: 12_000,
+    ladenDraughtM: 12.5,
+    ballastDraughtM: 8.5,
   },
 };
+
+/**
+ * `draughtLoad` thresholds: the share of the way from the ballast to the laden draught at or
+ * above which a ship counts as laden, and at or below which it counts as in ballast. A
+ * planning-grade reading of an AIS draught (Phase 6 Ruling R3), not a stability calculation.
+ */
+export const DRAUGHT_LADEN_SHARE = 0.85;
+export const DRAUGHT_BALLAST_SHARE = 0.15;
+
+/** Route plans: the speed grid step (kn) the baseline speed is rounded to. */
+export const ROUTE_SPEED_STEP_KN = 0.5;
+
+/** ETS (and FuelEU) coverage of a passage from an unknown last port: half when the destination is in the EU. */
+export const SHIP_EU_COVERAGE = 0.5;
+
+/** A baseline speed rounded to the speed grid (`stepKn`) and held within the curve's range. */
+export function clampSpeed(
+  curve: { minSpeedKn: number; maxSpeedKn: number },
+  speedKn: number,
+  stepKn: number = ROUTE_SPEED_STEP_KN,
+): number {
+  return Math.min(
+    curve.maxSpeedKn,
+    Math.max(curve.minSpeedKn, Math.round(speedKn / stepKn) * stepKn),
+  );
+}
+
+/**
+ * FuelEU Maritime, Regulation (EU) 2023/1805, Art. 4(2): the reference GHG intensity
+ * (g CO₂eq/MJ) the yearly limits are set against.
+ */
+export const FUELEU_REFERENCE_G_PER_MJ = 91.16;
+
+/**
+ * Reduction below the reference, from the given year until the next key. Regulation (EU)
+ * 2023/1805 Art. 4(2): 2 % from 2025, 6 % from 2030, 14.5 % from 2035, 31 % from 2040, 62 % from
+ * 2045, 80 % from 2050. Look years up through `fuelEuTargetGPerMj` (fueleu.ts).
+ */
+export const FUELEU_REDUCTION: Record<number, number> = {
+  2025: 0.02,
+  2030: 0.06,
+  2035: 0.145,
+  2040: 0.31,
+  2045: 0.62,
+  2050: 0.8,
+};
+
+/**
+ * Default factors per fuel class, Regulation (EU) 2023/1805 Annex II (verbatim): lower calorific
+ * value (MJ/g), well-to-tank intensity (g CO₂eq/MJ) and tank-to-wake emission factors (g gas per g
+ * fuel). No methane slip for these fuels.
+ */
+export const FUELEU_FUEL = {
+  HFO: { lcvMjPerG: 0.0405, wttGPerMj: 13.5, cfCo2: 3.114, cfCh4: 0.00005, cfN2o: 0.00018 },
+  MDO_MGO: { lcvMjPerG: 0.0427, wttGPerMj: 14.4, cfCo2: 3.206, cfCh4: 0.00005, cfN2o: 0.00018 },
+} as const;
+export type FuelEuFuelClass = keyof typeof FUELEU_FUEL;
+
+/**
+ * Which Annex II row a grade is reported under (Phase 6 Ruling R4): VLSFO and HSFO as HFO
+ * (consistent with the 3.114 CO₂ factor above), LSMGO as MDO/MGO.
+ */
+export const FUELEU_GRADE_FUEL: Record<FuelGrade, FuelEuFuelClass> = {
+  LSMGO: "MDO_MGO",
+  VLSFO: "HFO",
+  HSFO: "HFO",
+};
+
+/**
+ * Global warming potentials (100-year) FuelEU uses: Directive (EU) 2018/2001 Annex V Part C
+ * point 4 (consolidated text of 2023-11-20, unchanged by Directive (EU) 2023/2413),
+ * https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02018L2001-20231120
+ */
+export const FUELEU_GWP_CH4 = 25;
+export const FUELEU_GWP_N2O = 298;
+
+/**
+ * Penalty, Regulation (EU) 2023/1805 Annex IV Part B: a deficit is converted to tonnes of VLSFO
+ * equivalent at 41 000 MJ/t and charged EUR 2 400 per tonne.
+ */
+export const FUELEU_VLSFO_MJ_PER_T = 41_000;
+export const FUELEU_PENALTY_EUR_PER_T = 2_400;
 
 /**
  * Exclusion radius (nm) of a reported navigational hazard by kind, when the report gives none.
