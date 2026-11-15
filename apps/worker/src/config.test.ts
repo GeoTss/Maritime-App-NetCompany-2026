@@ -56,4 +56,13 @@ describe("loadWorkerConfig", () => {
     }
     expect(() => loadWorkerConfig({})).toThrow(/DATABASE_URL/);
   });
+
+  it("DEMO_ANCHOR is optional, parsed to a Date, and a bad value fails naming the variable", () => {
+    expect(loadWorkerConfig(base).demoAnchor).toBeUndefined();
+    expect(loadWorkerConfig({ ...base, DEMO_ANCHOR: "" }).demoAnchor).toBeUndefined();
+    expect(loadWorkerConfig({ ...base, DEMO_ANCHOR: "2026-11-16T08:00:00Z" }).demoAnchor).toEqual(
+      new Date("2026-11-16T08:00:00.000Z"),
+    );
+    expect(() => loadWorkerConfig({ ...base, DEMO_ANCHOR: "tomorrow" })).toThrow(/DEMO_ANCHOR/);
+  });
 });

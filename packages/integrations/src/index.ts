@@ -20,6 +20,7 @@ export { createSimulatorAis } from "./ais/simulator.js";
 export { type AisProvider, abortableSleep } from "./ais/types.js";
 export { ensureLiveBaseline } from "./baseline.js";
 export {
+  ensurePinnedSources,
   loadRecordedSources,
   RECORDED_DIR,
   recordedLiveData,

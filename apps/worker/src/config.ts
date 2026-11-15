@@ -10,6 +10,12 @@ const Env = z.object({
     .optional()
     .transform((v) => v?.trim() || undefined),
   DEMO_HAZARDS: z.enum(["on", "off"]).default("off"),
+  // Pinned demo clock: an ISO instant with an offset ("2026-11-16T08:00:00Z").
+  DEMO_ANCHOR: z
+    .string()
+    .datetime({ offset: true })
+    .optional()
+    .transform((v) => (v ? new Date(v) : undefined)),
 });
 
 export interface WorkerConfig {
@@ -19,6 +25,8 @@ export interface WorkerConfig {
   aisApiKey: string | undefined;
   /** Load the labelled synthetic demo hazard at start: always in replay mode, in live mode only when DEMO_HAZARDS=on. */
   loadSyntheticHazards: boolean;
+  /** Set: the demo is pinned; the worker loads the recorded sources at this anchor and stamps rows with anchor + 5 min. */
+  demoAnchor: Date | undefined;
 }
 
 /** Validate the worker's environment. Errors name the variable, never its value. */
@@ -46,6 +54,7 @@ export function loadWorkerConfig(
     aisMode,
     weatherMode: e.WEATHER_MODE,
     aisApiKey: e.AISSTREAM_API_KEY,
+    demoAnchor: e.DEMO_ANCHOR,
     loadSyntheticHazards: aisMode === "replay" || e.DEMO_HAZARDS === "on",
   };
 }

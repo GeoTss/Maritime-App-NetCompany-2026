@@ -136,16 +136,19 @@ export interface PortCongestionRow {
 /** Write the recorded weather and AIS capture into the database as if observed at `anchor`. */
 export async function loadRecordedSources(
   sql: Sql,
-  opts: { anchor: Date; dir?: string },
+  opts: { anchor: Date; now?: Date; dir?: string },
 ): Promise<{ snapshotId: Id; vessels: number; congestionRows: number }> {
   const dir = opts.dir ?? RECORDED_DIR;
+  // The instant the rows are stamped with (fetch time, congestion observation, source status);
+  // the capture itself is rebased to `anchor`. Defaults to `anchor`.
+  const now = opts.now ?? opts.anchor;
   const items = rebasedCapture(dir, opts.anchor);
   const grid = recordedWeather(dir, opts.anchor);
 
   const snapshotId = await insertWeatherSnapshot(sql, {
     grid,
     source: "open-meteo-recorded",
-    fetchedAt: opts.anchor,
+    fetchedAt: now,
   });
   const ingester = createAisIngester(sql, {
     now: () => opts.anchor,
@@ -154,7 +157,7 @@ export async function loadRecordedSources(
   });
   await ingester.ingestBatch(items);
   await upsertHazards(sql, syntheticHazards(dir, opts.anchor));
-  const congestionRows = await refreshCongestion(sql, opts.anchor);
+  const congestionRows = await refreshCongestion(sql, now);
 
   const counted = await sql<{ n: number }[]>`select count(*)::int as n from ais_traffic`;
   const n = counted[0]?.n ?? 0;
@@ -163,8 +166,26 @@ export async function loadRecordedSources(
       source,
       mode: "recorded",
       detail: `recorded fixtures loaded at ${opts.anchor.toISOString()}`,
-      at: opts.anchor,
+      at: now,
     });
   }
   return { snapshotId, vessels: n, congestionRows };
+}
+
+/**
+ * Pinned-demo refresh: loads the recorded sources when the live tables are empty (first boot, or
+ * after a reseed truncated them) and does nothing otherwise, so it is safe on every tick.
+ * Every timestamp written is `now` (the pinned clock), so two boots write identical rows.
+ */
+export async function ensurePinnedSources(
+  sql: Sql,
+  opts: { anchor: Date; now: Date; dir?: string },
+): Promise<{ loaded: boolean }> {
+  const [c] = await sql<{ weather: number; traffic: number; sources: number }[]>`
+    select (select count(*)::int from weather_snapshots) as weather,
+           (select count(*)::int from ais_traffic) as traffic,
+           (select count(*)::int from source_status where source in ('ais', 'weather')) as sources`;
+  if (c && c.weather > 0 && c.traffic > 0 && c.sources === 2) return { loaded: false };
+  await loadRecordedSources(sql, opts);
+  return { loaded: true };
 }

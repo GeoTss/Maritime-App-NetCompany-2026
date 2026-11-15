@@ -6,7 +6,7 @@ import { connectTestDb } from "@pharos/db/testing";
 import type { WeatherGrid } from "@pharos/shared";
 import { afterAll, describe, expect, it } from "vitest";
 import { aton, position, safety, sar, staticData } from "./ais/__helpers.js";
-import { loadRecordedSources, recordedLiveData } from "./recorded.js";
+import { ensurePinnedSources, loadRecordedSources, recordedLiveData } from "./recorded.js";
 
 const sql = await connectTestDb("integrations_recorded");
 if (!sql) throw new Error("Postgres is not reachable; the DB test must run, not skip");
@@ -230,5 +230,53 @@ describe("recorded sources", () => {
   it("a missing capture names npm run record:ais", async () => {
     const dir = mkdtempSync(join(tmpdir(), "pharos-empty-"));
     await expect(loadRecordedSources(sql, { anchor: ANCHOR, dir })).rejects.toThrow(/record:ais/);
+  });
+
+  describe("pinned mode", () => {
+    const NOW = new Date(ANCHOR.getTime() + 5 * 60_000);
+    const reseed = () => seedDatabase(sql, { seed: 20261114, anchor: ANCHOR, mode: "reset" });
+
+    it("a reseed in pinned mode restores traffic, hazards, weather and sources", async () => {
+      const dir = writeFixtures();
+      await reseed();
+      expect(await ensurePinnedSources(sql, { anchor: ANCHOR, now: NOW, dir })).toEqual({
+        loaded: true,
+      });
+      const first = await dump();
+      expect(first.traffic).toHaveLength(3);
+      expect(first.hazards.length).toBeGreaterThan(0);
+      expect(first.weather).toHaveLength(1);
+      expect(first.status.map((s) => [s.source, s.mode])).toEqual([
+        ["ais", "recorded"],
+        ["weather", "recorded"],
+      ]);
+      // nothing to do while the tables are filled
+      expect(await ensurePinnedSources(sql, { anchor: ANCHOR, now: NOW, dir })).toEqual({
+        loaded: false,
+      });
+      expect(await dump()).toEqual(first);
+      await reseed(); // truncates every table, the live ones included
+      expect((await dump()).traffic).toHaveLength(0);
+      expect(await ensurePinnedSources(sql, { anchor: ANCHOR, now: NOW, dir })).toEqual({
+        loaded: true,
+      });
+      expect(await dump()).toEqual(first);
+    });
+
+    it("two pinned loads write identical rows", async () => {
+      const dir = writeFixtures();
+      const run = async () => {
+        await reseed();
+        await ensurePinnedSources(sql, { anchor: ANCHOR, now: NOW, dir });
+        return dump();
+      };
+      const a = await run();
+      const b = await run();
+      expect(b).toEqual(a);
+      // every stamp is the pinned clock
+      expect(a.status.map((s) => new Date(s.updated_at))).toEqual([NOW, NOW]);
+      expect(new Date(a.congestion[0]?.observed_at as string)).toEqual(NOW);
+      expect(new Date(a.weather[0]?.fetched_at as string)).toEqual(NOW);
+    });
   });
 });

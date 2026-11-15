@@ -10,6 +10,7 @@ import {
   createSimulatorAis,
   createWeatherProvider,
   ensureLiveBaseline,
+  ensurePinnedSources,
   insertWeatherSnapshot,
   RECORDED_DIR,
   refreshCongestion,
@@ -64,12 +65,34 @@ async function supervise(
   }
 }
 
+/** The pinned clock's now(): anchor + 5 min, frozen (the same as the API's). */
+const pinnedNow = (anchor: Date) => new Date(anchor.getTime() + 5 * 60_000);
+
+/**
+ * Pinned demo: no real-time AIS and no live fetch. The recorded sources are loaded once at the
+ * anchor and again whenever a reseed has emptied them; every timestamp is the pinned clock.
+ */
+async function runPinned(sql: Sql, anchor: Date, signal: AbortSignal) {
+  log(`worker: pinned demo at ${anchor.toISOString()}; recorded sources only`);
+  await every("pinned", CONGESTION_INTERVAL_MS, signal, async () => {
+    const r = await ensurePinnedSources(sql, { anchor, now: pinnedNow(anchor) });
+    if (r.loaded) log("worker: recorded sources loaded (pinned)");
+  });
+}
+
 async function main() {
   const cfg = loadWorkerConfig(process.env);
   const sql: Sql = createSql(cfg.databaseUrl, { max: 4 });
   const ctrl = new AbortController();
   for (const sig of ["SIGINT", "SIGTERM"] as const) process.on(sig, () => ctrl.abort());
   const { signal } = ctrl;
+
+  if (cfg.demoAnchor) {
+    await runPinned(sql, cfg.demoAnchor, signal);
+    await sql.end({ timeout: 5 });
+    log("worker: stopped");
+    return;
+  }
 
   const weather = createWeatherProvider({ mode: cfg.weatherMode });
   const aisMode = cfg.aisMode === "live" ? "live" : "recorded";
