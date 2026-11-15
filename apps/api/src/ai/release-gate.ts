@@ -16,8 +16,11 @@ import type { Fact, GateResult } from "@pharos/shared";
 // ---- Vocabulary ---------------------------------------------------------------------------------
 
 export type Currency = "USD" | "EUR";
-/** The units the gate reads. "/mt" is a price per tonne: "USD 738 per mt", "$712/mt". */
-export type Unit = "/mt" | "mt" | "%" | "kn" | "nm" | "h" | "days" | "t CO₂";
+/**
+ * The units the gate reads. "/mt" is a price per tonne: "USD 738 per mt", "$712/mt". "kg" and "g"
+ * are read so that they never pass for tonnes: no fact unit means either.
+ */
+export type Unit = "/mt" | "mt" | "%" | "kn" | "nm" | "h" | "days" | "t CO₂" | "kg" | "g";
 
 /** How each currency is written right before a number ("USD 738", "$738") or right after it. */
 const CURRENCIES: { code: Currency; before: string[]; after: string[] }[] = [
@@ -25,11 +28,18 @@ const CURRENCIES: { code: Currency; before: string[]; after: string[] }[] = [
   { code: "EUR", before: ["€", "EUR"], after: ["EUR", "euro", "euros"] },
 ];
 
+const TONNES = ["mt", "t", "tonne", "tonnes", "ton", "tons", "metric ton", "metric tons"];
+/** A mass followed by CO₂ is a mass of CO₂: "mt CO2", "t of CO₂", "tCO2", "kg CO2". */
+const ofCo2 = (masses: string[]) =>
+  masses.flatMap((m) => ["CO₂", "CO2"].flatMap((c) => [`${m} ${c}`, `${m} of ${c}`, `${m}${c}`]));
+
 /** How each unit is written after a number, or after the currency that follows it ("738 USD/mt"). */
 const UNITS: Record<Unit, string[]> = {
   "/mt": ["/mt", "/t", "/tonne", "per mt", "per t", "per tonne", "per ton", "per metric ton"],
-  "t CO₂": ["t CO₂", "t CO2", "tCO₂", "tCO2", "tonnes of CO₂", "tonnes of CO2", "tonnes CO₂"],
-  mt: ["mt", "t", "tonne", "tonnes", "ton", "tons", "metric ton", "metric tons"],
+  "t CO₂": ofCo2(TONNES),
+  mt: TONNES,
+  kg: ["kg", "kilogram", "kilograms", ...ofCo2(["kg"])],
+  g: ["g", "gram", "grams", ...ofCo2(["g"])],
   "%": ["%", "percent", "per cent"],
   kn: ["kn", "knot", "knots", "kts"],
   nm: ["nm", "nautical mile", "nautical miles"],
@@ -63,8 +73,9 @@ const FACT_UNITS = new Map<string, Dimension>([
 ]);
 
 /**
- * Digit runs that state no amount. A number that starts inside one of these spans is skipped:
- * always for a name, and for a clock time or an IMO number only when a fact holds it.
+ * Digit runs that state no amount. A number that lies wholly inside one of these spans is skipped:
+ * always for a name, and for a clock time or an IMO number only when a fact holds it. A number
+ * that runs on past the span ("CO2 950 t" reads "2 950") is checked, and fails closed.
  */
 const NOT_CLAIMS: {
   what: string;
@@ -247,10 +258,13 @@ function scannable(text: string): string {
   });
 }
 
-/** A string fact holds the clock time `hour:minutes`, with or without a leading zero. */
+/**
+ * A string fact holds the clock time `hour:minutes`, with or without a leading zero, as an hour and
+ * minute: the "15:30" of "T03:15:30" is minutes and seconds, not a time.
+ */
 function holdsTime(fact: Fact, hour: number, minutes: string): boolean {
   if (typeof fact.value !== "string") return false;
-  return new RegExp(`(?<!\\d)0?${hour}:${minutes}(?!\\d)`).test(fact.value);
+  return new RegExp(`(?<![\\d:])0?${hour}:${minutes}(?!\\d)`).test(fact.value);
 }
 
 /** The spans of `text` that are not numeric claims, given the facts. */
@@ -270,9 +284,9 @@ function scan(text: string, facts: Fact[]): Scanned[] {
   const tokens: Scanned[] = [];
   for (const m of source.matchAll(NUMBER)) {
     const start = m.index;
-    if (skipped.some((s) => start >= s.start && start < s.end)) continue;
     const digits = m[0];
     let end = start + digits.length;
+    if (skipped.some((s) => start >= s.start && end <= s.end)) continue;
 
     const before = SIGN_AND_CURRENCY_BEFORE.exec(source.slice(0, start));
     const negative = Boolean(before?.[1] ?? before?.[3]);

@@ -499,6 +499,23 @@ describe("numericTokens: currency, unit, sign and formats", () => {
     ]);
   });
 
+  it("reads a mass followed by CO₂ as a CO₂ mass, and kilograms and grams as their own units", () => {
+    expect(
+      numericTokens(
+        "738 mt CO2, 738 tonnes CO₂, 738 t of CO2, 738 metric tons of CO₂, 738 kg CO2, 5 kg, " +
+          "5.2 g CO₂/dwt·nm",
+      ).map((t) => [t.text, t.unit]),
+    ).toEqual([
+      ["738", "t CO₂"],
+      ["738", "t CO₂"],
+      ["738", "t CO₂"],
+      ["738", "t CO₂"],
+      ["738", "kg"],
+      ["5", "kg"],
+      ["5.2", "g"],
+    ]);
+  });
+
   it("does not read a letter glued to the next number as a unit", () => {
     expect(numericTokens("2026-11-15T10:30 and 26 USD2").map((t) => [t.text, t.unit])).toEqual([
       ["2026", null],
@@ -734,6 +751,69 @@ describe("checkNumbers v2", () => {
       facts: [str("f_imo", "9480019")],
       passed: false,
       ungrounded: ["9480020"],
+    },
+    // review round 1: an exempt span never hides a number joined onto it
+    {
+      name: "a quantity space-grouped onto the 2 of CO2 is checked, not skipped",
+      answer: "Total CO2 950 t this voyage.",
+      facts: [],
+      passed: false,
+      ungrounded: ["2 950"],
+    },
+    {
+      name: "a quantity space-grouped onto a lowercase co2 is checked",
+      answer: "Emitted co2 120 t.",
+      facts: [],
+      passed: false,
+      ungrounded: ["2 120"],
+    },
+    {
+      name: "a quantity comma-grouped onto the 2 of CO2 is checked",
+      answer: "Emitted CO2,500 t.",
+      facts: [],
+      passed: false,
+      ungrounded: ["2,500"],
+    },
+    {
+      name: "a quantity space-grouped onto the minutes of a held clock time is checked",
+      answer: "Arrives 08:00 950 mt loaded.",
+      facts: [str("f_eta", "2026-11-15T08:00:00.000Z")],
+      passed: false,
+      ungrounded: ["00 950"],
+    },
+    {
+      name: "the minutes and seconds of a timestamp fact do not hold a clock time",
+      answer: "Arrives 15:30 UTC.",
+      facts: [str("f_eta", "2026-11-17T03:15:30.000Z")],
+      passed: false,
+      ungrounded: ["15", "30"],
+    },
+    {
+      name: "the seconds of a timestamp fact do not hold 00:00",
+      answer: "The clock reads 00:00.",
+      facts: [str("f_eta", "2026-11-15T08:00:00.000Z")],
+      passed: false,
+      ungrounded: ["00"],
+    },
+    {
+      name: '"mt CO2" and "tonnes CO2" are CO₂, not fuel',
+      answer: "It emits 738 mt CO2 [f_fuel] or 738 tonnes CO2 [f_fuel].",
+      facts: [labelled("f_fuel", 738, "mt")],
+      passed: false,
+      ungrounded: ["738"],
+    },
+    {
+      name: "a mass followed by CO₂ is grounded by a t CO₂ fact",
+      answer: "It emits 738 mt CO2 [f_c], 738 t of CO2 [f_c] and 738 metric tons of CO₂ [f_c].",
+      facts: [labelled("f_c", 738, "t CO₂")],
+      passed: true,
+    },
+    {
+      name: "kilograms and grams agree with no fact in tonnes",
+      answer: "It emits 738 kg CO2 [f_c], or 738 g [f_q].",
+      facts: [labelled("f_c", 738, "t CO₂"), labelled("f_q", 738, "mt")],
+      passed: false,
+      ungrounded: ["738"],
     },
     // space-grouped thousands
     {
