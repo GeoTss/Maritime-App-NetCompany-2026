@@ -153,6 +153,8 @@ describe("recorded sources", () => {
         sogKn: r.sog_kn,
         navStatus: r.nav_status,
         destination: r.destination,
+        draughtM: r.draught_m,
+        cogDeg: r.cog_deg,
         updatedAt: new Date(r.updated_at),
       })),
     ).toEqual(live.traffic);

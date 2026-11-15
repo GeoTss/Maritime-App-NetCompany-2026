@@ -56,6 +56,9 @@ export function foldObservation(state: FoldState, obs: TrafficObservation, at: D
     sogKn: obs.sogKn,
     navStatus: obs.navStatus,
     destination: prev?.destination ?? h?.destination ?? null,
+    // Type plumbing only (Phase 6 task 2); Phase 6 task 3 parses draught and course.
+    draughtM: null,
+    cogDeg: null,
     updatedAt: at,
   });
 }

@@ -11,9 +11,12 @@ import {
   sailedNmAt,
   tankFreeMt,
   type VoyagePath,
+  voyageLoad,
+  withLoad,
 } from "@pharos/domain";
 import type {
   BunkerPlanInput,
+  ConsumptionCurve,
   Currency,
   FobLeg,
   FobProjection,
@@ -22,6 +25,8 @@ import type {
   Id,
   Port,
   Supplier,
+  Vessel,
+  Voyage,
 } from "@pharos/shared";
 import { openRequirements } from "../world-rules.js";
 import { DEMO_SCENARIO, SUPPLIERS } from "./scenario.js";
@@ -57,7 +62,12 @@ function must<T>(v: T | undefined, what: string): T {
   return v;
 }
 
-/** A voyage as a path, with its vessel, latest noon report and remaining legs. */
+/** The vessel's curve with this voyage's load condition (cargo + ballast) on it. */
+export function voyageCurve(vessel: Vessel, voyage: Voyage): ConsumptionCurve {
+  return withLoad(vessel.consumptionCurve, voyageLoad(vessel, voyage));
+}
+
+/** A voyage as a path (on its loaded curve), with its vessel, latest noon report and remaining legs. */
 export function voyageState(world: World, voyageId: Id) {
   const voyage = must(
     world.voyages.find((v) => v.id === voyageId),
@@ -77,7 +87,7 @@ export function voyageState(world: World, voyageId: Id) {
     legs: legsForRoute(voyage.plannedRoute, world.routeLegs),
     origin: port(voyage.originPortId),
     destination: port(voyage.destinationPortId),
-    curve: vessel.consumptionCurve,
+    curve: voyageCurve(vessel, voyage),
     departAt: voyage.departedAt ?? world.meta.anchor,
   };
   const report = must(
@@ -105,12 +115,12 @@ export function demoVoyageState(world: World) {
 
 /** Fuel-on-board projection input for a voyage over `legs`, from its latest noon report. */
 export function fobProjectionInput(world: World, voyageId: Id, legs: FobLeg[]): FobProjectionInput {
-  const { vessel, voyage, report } = voyageState(world, voyageId);
+  const { voyage, path, report } = voyageState(world, voyageId);
   return {
     robMt: report.robMt,
     legs,
     speedKn: voyage.plannedSpeedKn,
-    curve: vessel.consumptionCurve,
+    curve: path.curve,
     safetyMarginDays: SAFETY_MARGIN_DAYS,
   };
 }
@@ -186,7 +196,7 @@ export function buildBunkerPlanInput(
     minQtyMt: fob.shortfallMt[grade],
     tankFreeMt: tankFreeMt(vessel.tankCapacityMt[grade], report.robMt[grade]),
     speedKn: voyage.plannedSpeedKn,
-    curve: vessel.consumptionCurve,
+    curve: path.curve,
     dailyCostUsd: vessel.dailyCostUsd,
     voyageEtsCoverage: etsCoverage(path.origin.isEu, path.destination.isEu),
     berthWindowSlackHours: hoursBetween(discharge.eta, windowEnd),

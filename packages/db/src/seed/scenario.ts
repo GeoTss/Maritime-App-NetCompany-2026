@@ -7,7 +7,7 @@
 import { imoWithCheckDigit } from "@pharos/domain";
 import type { ConsumptionCurve, Currency, FuelGrade, GradeAmounts, ShipType } from "@pharos/shared";
 
-export const SEED_VERSION = "phase1-task6-v1";
+export const SEED_VERSION = "phase6-task2-v1";
 
 export interface ScenarioPort {
   unlocode: string;
@@ -64,6 +64,8 @@ export interface ScenarioVessel {
   imoBase: string;
   shipType: ShipType;
   dwt: number;
+  /** Lightship weight, mt (synthetic). Full-load displacement = lightship + dwt. */
+  lightshipMt: number;
   tankCapacityMt: GradeAmounts;
   consumptionCurve: ConsumptionCurve;
   dailyCostUsd: number;
@@ -73,6 +75,9 @@ export interface ScenarioVessel {
     plannedSpeedKn: number;
     /** Hours before the anchor the vessel left the origin; null = still in port, sails at the anchor. */
     departedHoursAgo: number | null;
+    /** Cargo and ballast water on board for the passage, mt (synthetic; cargo + ballast ≤ dwt). */
+    cargoMt: number;
+    ballastMt: number;
   };
   /** Current (k = 0 noon report) remaining on board. */
   currentRobMt: GradeAmounts;
@@ -92,6 +97,7 @@ export const VESSELS: readonly ScenarioVessel[] = [
     imoBase: AEGEAN_PIONEER_IMO_BASE,
     shipType: "bulk_carrier",
     dwt: 58_000,
+    lightshipMt: 11_000,
     // Tuned: LSMGO tank 450 -> 600 so a 300 mt stem fits (see report).
     tankCapacityMt: { LSMGO: 600, VLSFO: 1_500, HSFO: 0 },
     consumptionCurve: bulkCurve(30),
@@ -101,6 +107,9 @@ export const VESSELS: readonly ScenarioVessel[] = [
       route: ["EGPSD", "MTMLA", "GIGIB", "PTSIE", "FRBES", "NLRTM"],
       plannedSpeedKn: 12.5,
       departedHoursAgo: 24,
+      // Phase 6 probe: laden at 54 000 t keeps the LSMGO shortfall (17.6 mt) and the demo trap.
+      cargoMt: 54_000,
+      ballastMt: 0,
     },
     // Tuned: LSMGO 230 -> 275 so the ECA legs are covered (min ROB >= 0) but not with the 2-day margin.
     currentRobMt: { LSMGO: 275, VLSFO: 620, HSFO: 0 },
@@ -110,6 +119,7 @@ export const VESSELS: readonly ScenarioVessel[] = [
     imoBase: "948102",
     shipType: "bulk_carrier",
     dwt: 63_500,
+    lightshipMt: 12_000,
     tankCapacityMt: { LSMGO: 500, VLSFO: 1_600, HSFO: 0 },
     consumptionCurve: bulkCurve(32),
     dailyCostUsd: 17_000,
@@ -118,6 +128,8 @@ export const VESSELS: readonly ScenarioVessel[] = [
       route: ["GRPIR", "ITGOA", "ESALG"],
       plannedSpeedKn: 12,
       departedHoursAgo: 40,
+      cargoMt: 58_000,
+      ballastMt: 0,
     },
     currentRobMt: { LSMGO: 310, VLSFO: 540, HSFO: 0 },
   },
@@ -126,6 +138,7 @@ export const VESSELS: readonly ScenarioVessel[] = [
     imoBase: "948203",
     shipType: "bulk_carrier",
     dwt: 38_000,
+    lightshipMt: 8_500,
     tankCapacityMt: { LSMGO: 400, VLSFO: 1_100, HSFO: 0 },
     consumptionCurve: bulkCurve(24),
     dailyCostUsd: 13_500,
@@ -134,6 +147,8 @@ export const VESSELS: readonly ScenarioVessel[] = [
       route: ["NLRTM", "DEHAM"],
       plannedSpeedKn: 11,
       departedHoursAgo: 10,
+      cargoMt: 34_000,
+      ballastMt: 0,
     },
     currentRobMt: { LSMGO: 280, VLSFO: 700, HSFO: 0 },
   },
@@ -142,6 +157,7 @@ export const VESSELS: readonly ScenarioVessel[] = [
     imoBase: "948304",
     shipType: "bulk_carrier",
     dwt: 81_000,
+    lightshipMt: 14_500,
     tankCapacityMt: { LSMGO: 550, VLSFO: 2_000, HSFO: 0 },
     consumptionCurve: bulkCurve(36),
     dailyCostUsd: 19_000,
@@ -150,6 +166,9 @@ export const VESSELS: readonly ScenarioVessel[] = [
       route: ["DEHAM", "BEANR", "FRLEH"],
       plannedSpeedKn: 11.5,
       departedHoursAgo: null,
+      // In ballast to her loading port: the fleet's ballast voyage.
+      cargoMt: 0,
+      ballastMt: 26_000,
     },
     currentRobMt: { LSMGO: 360, VLSFO: 1_250, HSFO: 0 },
   },
@@ -158,6 +177,7 @@ export const VESSELS: readonly ScenarioVessel[] = [
     imoBase: "948405",
     shipType: "tanker",
     dwt: 74_000,
+    lightshipMt: 14_000,
     tankCapacityMt: { LSMGO: 600, VLSFO: 2_200, HSFO: 800 },
     consumptionCurve: {
       refSpeedKn: 13.5,
@@ -172,6 +192,8 @@ export const VESSELS: readonly ScenarioVessel[] = [
       route: ["EGPSD", "GRPIR", "ITGOA"],
       plannedSpeedKn: 13,
       departedHoursAgo: 30,
+      cargoMt: 68_000,
+      ballastMt: 0,
     },
     currentRobMt: { LSMGO: 420, VLSFO: 900, HSFO: 300 },
   },
@@ -180,6 +202,7 @@ export const VESSELS: readonly ScenarioVessel[] = [
     imoBase: "948506",
     shipType: "tanker",
     dwt: 109_000,
+    lightshipMt: 18_000,
     tankCapacityMt: { LSMGO: 650, VLSFO: 2_600, HSFO: 1_000 },
     consumptionCurve: {
       refSpeedKn: 13.5,
@@ -194,6 +217,8 @@ export const VESSELS: readonly ScenarioVessel[] = [
       route: ["ESALG", "PTSIE", "FRBES"],
       plannedSpeedKn: 12.5,
       departedHoursAgo: 20,
+      cargoMt: 100_000,
+      ballastMt: 0,
     },
     currentRobMt: { LSMGO: 380, VLSFO: 1_400, HSFO: 500 },
   },
@@ -202,6 +227,7 @@ export const VESSELS: readonly ScenarioVessel[] = [
     imoBase: "948607",
     shipType: "container",
     dwt: 52_000,
+    lightshipMt: 17_000,
     tankCapacityMt: { LSMGO: 700, VLSFO: 3_000, HSFO: 0 },
     consumptionCurve: {
       refSpeedKn: 18,
@@ -216,6 +242,8 @@ export const VESSELS: readonly ScenarioVessel[] = [
       route: ["MTMLA", "GIGIB", "PTSIE"],
       plannedSpeedKn: 17,
       departedHoursAgo: 36,
+      cargoMt: 38_000,
+      ballastMt: 4_000,
     },
     currentRobMt: { LSMGO: 520, VLSFO: 1_900, HSFO: 0 },
   },
@@ -224,6 +252,7 @@ export const VESSELS: readonly ScenarioVessel[] = [
     imoBase: "948708",
     shipType: "container",
     dwt: 28_000,
+    lightshipMt: 9_500,
     tankCapacityMt: { LSMGO: 450, VLSFO: 1_400, HSFO: 0 },
     consumptionCurve: {
       refSpeedKn: 17,
@@ -238,6 +267,8 @@ export const VESSELS: readonly ScenarioVessel[] = [
       route: ["BEANR", "FRLEH", "FRBES"],
       plannedSpeedKn: 15,
       departedHoursAgo: null,
+      cargoMt: 20_000,
+      ballastMt: 2_000,
     },
     currentRobMt: { LSMGO: 300, VLSFO: 880, HSFO: 0 },
   },

@@ -16,6 +16,8 @@ import {
   sailedNmAt,
   totalNm,
   type VoyagePath,
+  voyageLoad,
+  withLoad,
 } from "@pharos/domain";
 import type {
   FuelGrade,
@@ -108,6 +110,7 @@ function buildFleet(anchor: Date, ports: Port[], legs: RouteLeg[]): Fleet {
       name: s.name,
       shipType: s.shipType,
       dwt: s.dwt,
+      lightshipMt: s.lightshipMt,
       trackingSource: "simulator",
       tankCapacityMt: { ...s.tankCapacityMt },
       consumptionCurve: { ...s.consumptionCurve },
@@ -128,6 +131,8 @@ function buildFleet(anchor: Date, ports: Port[], legs: RouteLeg[]): Fleet {
       plannedRoute: route,
       status: underway ? "underway" : "planned",
       departedAt: underway ? departAt : null,
+      cargoMt: s.voyage.cargoMt,
+      ballastMt: s.voyage.ballastMt,
     };
     out.voyages.push(voyage);
 
@@ -136,7 +141,8 @@ function buildFleet(anchor: Date, ports: Port[], legs: RouteLeg[]): Fleet {
       legs: legsForRoute(route, legs),
       origin: portOf(s.voyage.route[0] ?? ""),
       destination: portOf(s.voyage.route[s.voyage.route.length - 1] ?? ""),
-      curve: vessel.consumptionCurve,
+      // Noon-report burn follows the voyage's load (cargo + ballast), as every builder does.
+      curve: withLoad(vessel.consumptionCurve, voyageLoad(vessel, voyage)),
       departAt,
     };
     if (sailedNmAt(path, anchor) >= totalNm(path)) {

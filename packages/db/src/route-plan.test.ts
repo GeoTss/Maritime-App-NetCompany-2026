@@ -1,11 +1,14 @@
 import {
   buildRouteGraph,
+  draughtLoad,
   optimiseRouteSpeed,
   REFERENCE_VESSEL_PROFILES,
   RouteError,
   remainingRoutePoints,
   routeHazardIds,
   sailedNmAt,
+  voyageLoad,
+  withLoad,
 } from "@pharos/domain";
 import { type AisTraffic, type LatLon, type Port, RouteSpeedInput } from "@pharos/shared";
 import { describe, expect, it } from "vitest";
@@ -83,6 +86,15 @@ describe("fleetRoutePlan", () => {
     expect(input.market).toEqual({ euaPriceEur: 75, eurUsd: 1.08, year: 2026 });
     expect(input.weather).toBeNull();
     expect(() => RouteSpeedInput.parse(input)).not.toThrow();
+  });
+
+  it("a fleet plan carries the voyage's load from cargo and ballast, not a draught", () => {
+    const voyage = pioneer();
+    const vessel = world.vessels.find((v) => v.id === voyage.vesselId);
+    if (!vessel) throw new Error("no vessel");
+    const plan = fleetRoutePlan(world, voyage.id, graph, null);
+    expect(plan.input.curve).toEqual(withLoad(vessel.consumptionCurve, voyageLoad(vessel, voyage)));
+    expect(plan.loadCondition).toBeNull();
   });
 
   it("adds the shortest and an alternative sea route from the graph as B and C", () => {
@@ -187,6 +199,8 @@ describe("shipRoutePlan", () => {
     sogKn: 11.3,
     navStatus: "under_way_using_engine",
     destination: "ALGECIRAS",
+    draughtM: null,
+    cogDeg: null,
     updatedAt: new Date("2026-11-14T07:30:00Z"),
     ...over,
   });
@@ -205,7 +219,9 @@ describe("shipRoutePlan", () => {
     expect(input.candidates[0]?.points.at(-1)).toEqual({ lat: algeciras.lat, lon: algeciras.lon });
     // 11.3 kn rounds to 11.5 on the 0.5 kn grid.
     expect(input.baseline).toEqual({ candidateId: "A", speedKn: 11.5 });
-    expect(input.curve).toEqual(bulk.curve);
+    // No draught reported: assumed laden at full load (factor 1).
+    expect(plan.loadCondition).toBe("assumed_laden");
+    expect(input.curve).toEqual(withLoad(bulk.curve, draughtLoad(bulk, null).load));
     expect(input.dailyCostUsd).toBe(bulk.dailyCostUsd);
     expect(input.arriveBy).toBeNull();
     expect(input.notBefore).toBeNull();
@@ -213,6 +229,37 @@ describe("shipRoutePlan", () => {
     expect(input.etsCoverage).toBe(0.5);
     expect(input.market).toEqual({ euaPriceEur: 75, eurUsd: 1.08, year: 2026 });
     expect(() => RouteSpeedInput.parse(input)).not.toThrow();
+  });
+
+  it("reads the load from the AIS draught against the reference profile", () => {
+    const bulk = REFERENCE_VESSEL_PROFILES.bulk_carrier;
+    const light = shipRoutePlan(
+      world,
+      ship({ draughtM: bulk.ballastDraughtM }),
+      algeciras,
+      graph,
+      null,
+    );
+    expect(light.loadCondition).toBe("ballast");
+    expect(light.input.curve.load).toEqual({
+      displacementMt: bulk.lightshipMt + bulk.ballastMt,
+      refDisplacementMt: bulk.lightshipMt + bulk.dwtMt,
+    });
+    const deep = shipRoutePlan(
+      world,
+      ship({ draughtM: bulk.ladenDraughtM }),
+      algeciras,
+      graph,
+      null,
+    );
+    expect(deep.loadCondition).toBe("laden");
+    expect(shipRoutePlan(world, ship({ draughtM: 0 }), algeciras, graph, null).loadCondition).toBe(
+      "assumed_laden",
+    );
+    // A ship in ballast burns less on the same route at the same speed.
+    const lightR = optimiseRouteSpeed(light.input).baseline;
+    const deepR = optimiseRouteSpeed(deep.input).baseline;
+    expect(lightR.totalFuelMt).toBeLessThan(deepR.totalFuelMt);
   });
 
   it("a ship at 3 kn gets the reference speed", () => {
@@ -231,7 +278,8 @@ describe("shipRoutePlan", () => {
   it("a tanker gets the tanker profile", () => {
     const plan = shipRoutePlan(world, ship({ shipType: "tanker" }), algeciras, graph, null);
     expect(plan.profile).toBe("tanker");
-    expect(plan.input.curve).toEqual(REFERENCE_VESSEL_PROFILES.tanker.curve);
+    const tanker = REFERENCE_VESSEL_PROFILES.tanker;
+    expect(plan.input.curve).toEqual(withLoad(tanker.curve, draughtLoad(tanker, null).load));
     expect(plan.input.dailyCostUsd).toBe(REFERENCE_VESSEL_PROFILES.tanker.dailyCostUsd);
   });
 

@@ -5,12 +5,17 @@
  */
 import {
   candidateRoutes,
+  clampSpeed,
+  type DraughtCondition,
+  draughtLoad,
   etsCoverage,
   REFERENCE_VESSEL_PROFILES,
   RouteError,
   remainingRoutePoints,
   routeHazardIds,
+  SHIP_EU_COVERAGE,
   sailedNmAt,
+  withLoad,
 } from "@pharos/domain";
 import {
   type AisTraffic,
@@ -38,20 +43,16 @@ export type RoutePlan = {
   profile: "own" | ShipType;
   /** Ids of the hazard zones the unconstrained shortest sea route passes through, sorted: those the plan goes round. */
   avoidedHazardIds: string[];
+  /**
+   * For an AIS ship, the load read from its reported draught ("assumed_laden" when none is
+   * reported); null for a fleet vessel, whose load comes from the voyage's cargo and ballast.
+   */
+  loadCondition: DraughtCondition | null;
 };
 
 /** Speed grid step (kn) and the longest sub-step (nm) the optimiser walks. */
 const SPEED_STEP_KN = 0.5;
 const STEP_NM = 20;
-/** ETS coverage of a passage from an unknown last port: half when the destination is in the EU. */
-const SHIP_EU_COVERAGE = 0.5;
-
-/** The baseline speed: rounded to the speed grid and held within the vessel's curve. */
-const clampSpeed = (curve: { minSpeedKn: number; maxSpeedKn: number }, speedKn: number): number =>
-  Math.min(
-    curve.maxSpeedKn,
-    Math.max(curve.minSpeedKn, Math.round(speedKn / SPEED_STEP_KN) * SPEED_STEP_KN),
-  );
 
 /** Zones the shortest sea route, searched without `avoid`, passes through; [] when there is none. */
 function avoidedBy(graph: RouteGraph, start: LatLon, end: LatLon, hazards: HazardZone[]): string[] {
@@ -139,9 +140,9 @@ export function fleetRoutePlan(
       candidates,
       baseline: {
         candidateId: "A",
-        speedKn: clampSpeed(vessel.consumptionCurve, voyage.plannedSpeedKn),
+        speedKn: clampSpeed(path.curve, voyage.plannedSpeedKn, SPEED_STEP_KN),
       },
-      curve: vessel.consumptionCurve,
+      curve: path.curve,
       speedStepKn: SPEED_STEP_KN,
       stepNm: STEP_NM,
       arriveBy: discharge?.berthWindowEnd?.toISOString() ?? null,
@@ -157,12 +158,14 @@ export function fleetRoutePlan(
     destination,
     profile: "own",
     avoidedHazardIds: avoidedBy(graph, position, latLon(destination), hazards),
+    loadCondition: null,
   };
 }
 
 /**
  * A public AIS ship to `destination`: the graph's candidate routes from its position (a
- * `RouteError` propagates), the tanker or bulk carrier reference profile, and its reported speed
+ * `RouteError` propagates), the tanker or bulk carrier reference profile with the load its AIS
+ * draught implies (`draughtLoad`; assumed laden when unknown), and its reported speed
  * as the baseline (rounded to 0.5 kn and clamped to the curve; the reference speed when unknown
  * or below the curve's minimum). No berth window is known.
  */
@@ -175,17 +178,21 @@ export function shipRoutePlan(
   hazards: HazardZone[] = [],
 ): RoutePlan {
   const profile: ShipType = ship.shipType === "tanker" ? "tanker" : "bulk_carrier";
-  const { curve, dailyCostUsd } = REFERENCE_VESSEL_PROFILES[profile];
+  const reference = REFERENCE_VESSEL_PROFILES[profile];
+  const { curve, dailyCostUsd } = reference;
+  const { condition, load } = draughtLoad(reference, ship.draughtM);
   const candidates = candidateRoutes(graph, latLon(ship), latLon(destination), { avoid: hazards });
   const sog = ship.sogKn;
   const speedKn =
-    sog === null || sog < curve.minSpeedKn ? curve.refSpeedKn : clampSpeed(curve, sog);
+    sog === null || sog < curve.minSpeedKn
+      ? curve.refSpeedKn
+      : clampSpeed(curve, sog, SPEED_STEP_KN);
   return {
     input: {
       startAt: ship.updatedAt.toISOString(),
       candidates,
       baseline: { candidateId: "A", speedKn },
-      curve: { ...curve },
+      curve: withLoad(curve, load),
       speedStepKn: SPEED_STEP_KN,
       stepNm: STEP_NM,
       arriveBy: null,
@@ -201,5 +208,6 @@ export function shipRoutePlan(
     destination,
     profile,
     avoidedHazardIds: avoidedBy(graph, latLon(ship), latLon(destination), hazards),
+    loadCondition: condition,
   };
 }

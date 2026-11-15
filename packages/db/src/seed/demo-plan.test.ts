@@ -67,21 +67,49 @@ describe("buildBunkerPlanInput", () => {
     expect(buildBunkerPlanInput(withAis, voyage.id, demoOffers())).toEqual(before);
   });
 
-  it("demo plan matches the Phase 1 output pinned from commit 5da5fe9", () => {
-    // Values taken by running the Phase 1 demo-plan.ts (git show 5da5fe9) on seed 20261114 /
-    // anchor 2026-11-14T08:00:00Z, not from the current code.
+  it("demo plan matches the output pinned in Phase 6 task 2 (load condition + FuelEU)", () => {
+    // Re-pinned in the commit "Phase 6 task 2: db and seed …" (base 67cc481): the demo voyage now
+    // sails laden (54 000 t cargo, load factor 0.9610) and every total carries the FuelEU
+    // exposure. Values taken by running this code on seed 20261114 / anchor 2026-11-14T08:00:00Z.
+    // The Phase 1 pin (5da5fe9: 67d3caa3…, totals 233 914.449 / 239 202.823 / 250 085.992) is
+    // kept as the legacy test below: with no load, total − FuelEU is unchanged.
     const plan = planBunkers(buildDemoBunkerPlanInput(world));
     expect(createHash("sha256").update(JSON.stringify(plan)).digest("hex")).toBe(
-      "67d3caa309202c43ca6636e66abbd1d313c30c9a6bc153aa4f81aa9a7c1511d2",
+      "623742c462aec2510b149ee428c90c1bca69e678446009e9aac178bce5803f37",
     );
     expect(plan.bestOptionId).toBe("MTMLA-kestrel");
     expect(plan.cheapestHeadlineOptionId).toBe("GIGIB-straitline");
-    expect(plan.savingVsCheapestHeadlineUsd).toBeCloseTo(16171.542878224107, 6);
+    expect(plan.savingVsCheapestHeadlineUsd).toBeCloseTo(16138.452312674606, 6);
     expect(plan.options.map((o) => [o.optionId, o.rank, o.feasible, o.totalCostUsd])).toEqual([
-      ["MTMLA-kestrel", 1, true, 233914.44900287892],
-      ["ESALG-nordwind", 2, true, 239202.82313363682],
-      ["GIGIB-straitline", 3, true, 250085.99188110302],
+      ["MTMLA-kestrel", 1, true, 233942.91134964247],
+      ["ESALG-nordwind", 2, true, 239253.2780543905],
+      ["GIGIB-straitline", 3, true, 250081.36366231708],
     ]);
+  });
+
+  it("legacy input: with no load, total − FuelEU equals the Phase 1 totals (old maths intact)", () => {
+    // The demo input with the load taken off the curve: every Phase 1 cost line is unchanged and
+    // the only difference in the total is the new FuelEU term.
+    const input = buildDemoBunkerPlanInput(world);
+    const { load: _load, ...curve } = input.curve;
+    const plan = planBunkers({ ...input, curve });
+    expect(plan.options.map((o) => [o.optionId, o.totalCostUsd - o.fuelEuCostUsd])).toEqual([
+      ["MTMLA-kestrel", expect.closeTo(233914.44900287892, 6)],
+      ["ESALG-nordwind", expect.closeTo(239202.82313363682, 6)],
+      ["GIGIB-straitline", expect.closeTo(250085.99188110302, 6)],
+    ]);
+    for (const o of plan.options) expect(o.fuelEuCostUsd).toBeGreaterThan(0);
+  });
+
+  it("the demo input carries the demo voyage's load on the curve", () => {
+    const { vessel, voyage: v } = demoVoyageState(world);
+    expect(buildDemoBunkerPlanInput(world).curve).toEqual({
+      ...vessel.consumptionCurve,
+      load: {
+        displacementMt: vessel.lightshipMt + v.cargoMt + v.ballastMt,
+        refDisplacementMt: vessel.lightshipMt + vessel.dwt,
+      },
+    });
   });
 
   it("rejects an offer from a supplier that is not in the world", () => {

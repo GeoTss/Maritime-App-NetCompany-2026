@@ -99,6 +99,8 @@ export function normaliseAisMessage(raw: unknown, now: Date = new Date()): AisOb
       name: cleanName(s.Name) ?? cleanName(MetaData.ShipName),
       shipType: shipType(s.Type),
       destination: cleanName(s.Destination),
+      // Type plumbing only (Phase 6 task 2); Phase 6 task 3 reads MaximumStaticDraught.
+      draughtM: null,
       ts,
     });
   }

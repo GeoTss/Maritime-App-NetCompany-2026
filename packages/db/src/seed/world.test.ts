@@ -1,8 +1,21 @@
 import { readFileSync } from "node:fs";
-import { etaAfter, etsCoverage, isValidImo, planBunkers, polylineNm } from "@pharos/domain";
+import {
+  etaAfter,
+  etsCoverage,
+  fuelBetween,
+  isValidImo,
+  planBunkers,
+  polylineNm,
+  voyageLoad,
+} from "@pharos/domain";
 import { describe, expect, it } from "vitest";
 import { buildRoutes, ROUTES_FILE, serializeRoutes } from "./build-routes.js";
-import { buildDemoBunkerPlanInput, demoVoyageState, projectDemo } from "./demo-plan.js";
+import {
+  buildDemoBunkerPlanInput,
+  demoVoyageState,
+  projectDemo,
+  voyageState,
+} from "./demo-plan.js";
 import { DEMO_SCENARIO } from "./scenario.js";
 import { World } from "./types.js";
 import { generateWorld, ROUTES, requiredGradeFor } from "./world.js";
@@ -235,6 +248,35 @@ describe("synthetic world", () => {
       (l) => port(l.fromPortId)?.unlocode === "PTSIE" && port(l.toPortId)?.unlocode === "FRBES",
     );
     expect(sinesBrest?.requiredGrade).toBe("VLSFO");
+  });
+
+  it("load: every vessel has a lightship, every voyage's cargo + ballast fits its deadweight", () => {
+    for (const voyage of world.voyages) {
+      const vessel = world.vessels.find((v) => v.id === voyage.vesselId);
+      if (!vessel) throw new Error(`no vessel ${voyage.vesselId}`);
+      expect(vessel.lightshipMt, vessel.name).toBeGreaterThan(0);
+      expect(voyage.cargoMt + voyage.ballastMt, voyage.voyageNo).toBeLessThanOrEqual(vessel.dwt);
+      // The vessel row keeps the curve without a load; the voyage applies it.
+      expect(vessel.consumptionCurve.load).toBeUndefined();
+      expect(voyageState(world, voyage.id).path.curve.load).toEqual(voyageLoad(vessel, voyage));
+    }
+  });
+
+  it("load: at least one voyage is in ballast (no cargo, ballast water aboard)", () => {
+    expect(world.voyages.some((v) => v.cargoMt === 0 && v.ballastMt > 0)).toBe(true);
+  });
+
+  it("noon reports burn the voyage's loaded curve", () => {
+    const { vessel, voyage, path, report } = demoVoyageState(world);
+    expect(path.curve.load).toBeDefined();
+    const prev = new Date(report.ts.getTime() - 24 * 3_600_000);
+    const raw = fuelBetween(path, prev, report.ts);
+    const consumed = report.consumedMt;
+    for (const g of FUEL) expect(consumed[g]).toBeCloseTo(raw[g], 2);
+    // and not the unloaded one (Aegean Pioneer sails laden below full load)
+    const unloaded = fuelBetween({ ...path, curve: vessel.consumptionCurve }, prev, report.ts);
+    expect(unloaded.LSMGO + unloaded.VLSFO).toBeGreaterThan(raw.LSMGO + raw.VLSFO);
+    expect(voyage.cargoMt).toBeGreaterThan(0);
   });
 
   it("Aegean Pioneer is short on LSMGO for the ECA legs", () => {

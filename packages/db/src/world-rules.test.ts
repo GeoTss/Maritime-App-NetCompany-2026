@@ -13,6 +13,8 @@ const voyage = (id: number, vesselId: number, status: Voyage["status"]): Voyage 
   destinationPortId: 2,
   plannedSpeedKn: 12,
   plannedRoute: [1, 2],
+  cargoMt: 0,
+  ballastMt: 0,
   status,
   departedAt: null,
 });

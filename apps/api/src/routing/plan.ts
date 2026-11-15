@@ -72,6 +72,8 @@ export type TrafficRow = {
   sog_kn: number | null;
   nav_status: string | null;
   destination: string | null;
+  draught_m: number | null;
+  cog_deg: number | null;
   updated_at: string | Date;
 };
 
@@ -84,6 +86,8 @@ export const toTraffic = (r: TrafficRow): AisTraffic => ({
   sogKn: r.sog_kn,
   navStatus: r.nav_status,
   destination: r.destination,
+  draughtM: r.draught_m,
+  cogDeg: r.cog_deg,
   updatedAt: new Date(r.updated_at),
 });
 
