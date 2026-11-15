@@ -24,6 +24,26 @@ const okFetch: typeof fetch = async (input) => {
 
 afterEach(() => vi.restoreAllMocks());
 
+describe("weather robustness", () => {
+  it("a fetch that never resolves until aborted becomes a WeatherFetchError", async () => {
+    const hung: typeof fetch = (_input, init) =>
+      new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => reject(new Error("aborted")));
+      });
+    await expect(
+      fetchWeatherGrid({ points: POINTS, fetch: hung, now: new Date(), timeoutMs: 20 }),
+    ).rejects.toBeInstanceOf(WeatherFetchError);
+  });
+
+  it("a missing recorded snapshot names npm run record:weather", async () => {
+    const provider = createWeatherProvider({
+      mode: "recorded",
+      snapshotPath: join(tmpdir(), "pharos-no-such-snapshot.json"),
+    });
+    await expect(provider.load(new Date())).rejects.toThrow(/npm run record:weather/);
+  });
+});
+
 describe("fetchWeatherGrid", () => {
   it("turns a marine and a forecast payload into a WeatherGrid in knots with 3-hour steps", async () => {
     const grid = await fetchWeatherGrid({ points: POINTS, fetch: okFetch, now: new Date() });

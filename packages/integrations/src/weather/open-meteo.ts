@@ -23,10 +23,12 @@ const round1 = (v: number): number => Math.round(v * 10) / 10;
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 const asList = <T>(v: T | T[]): T[] => (Array.isArray(v) ? v : [v]);
 
-async function getJson(f: typeof fetch, url: string): Promise<unknown> {
+const REQUEST_TIMEOUT_MS = 15_000;
+
+async function getJson(f: typeof fetch, url: string, timeoutMs: number): Promise<unknown> {
   let res: Response;
   try {
-    res = await f(url);
+    res = await f(url, { signal: AbortSignal.timeout(timeoutMs) });
   } catch (err) {
     throw new WeatherFetchError(`Open-Meteo request failed: ${(err as Error).message}`);
   }
@@ -52,7 +54,10 @@ export async function fetchWeatherGrid(opts: {
   points: LatLon[];
   fetch?: typeof fetch;
   now: Date;
+  /** Per-request timeout; a hung connection becomes a WeatherFetchError. */
+  timeoutMs?: number;
 }): Promise<WeatherGrid> {
+  const timeoutMs = opts.timeoutMs ?? REQUEST_TIMEOUT_MS;
   const f = opts.fetch ?? fetch;
   const points: WeatherPoint[] = [];
   let startAt: string | null = null;
@@ -64,10 +69,12 @@ export async function fetchWeatherGrid(opts: {
     const marineRaw = await getJson(
       f,
       `${MARINE_URL}?${query(chunk, "wave_height,wave_direction,ocean_current_velocity,ocean_current_direction")}`,
+      timeoutMs,
     );
     const forecastRaw = await getJson(
       f,
       `${FORECAST_URL}?${query(chunk, "wind_speed_10m,wind_direction_10m", "&wind_speed_unit=kn")}`,
+      timeoutMs,
     );
     const marineP = OpenMeteoMarineResponse.safeParse(marineRaw);
     const forecastP = OpenMeteoForecastResponse.safeParse(forecastRaw);

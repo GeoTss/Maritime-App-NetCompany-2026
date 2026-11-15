@@ -30,7 +30,18 @@ export function createWeatherProvider(opts: {
   const snapshotPath = opts.snapshotPath ?? DEFAULT_SNAPSHOT_PATH;
 
   const recorded = async (now: Date): Promise<WeatherLoad> => {
-    const grid = WeatherGrid.parse(JSON.parse(await readFile(snapshotPath, "utf8")) as unknown);
+    let text: string;
+    try {
+      text = await readFile(snapshotPath, "utf8");
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+        throw new Error(
+          `recorded weather snapshot not found at ${snapshotPath}; run npm run record:weather`,
+        );
+      }
+      throw err;
+    }
+    const grid = WeatherGrid.parse(JSON.parse(text) as unknown);
     return {
       grid: shiftWeatherGrid(grid, floorToHour(now)),
       source: "open-meteo-recorded",
