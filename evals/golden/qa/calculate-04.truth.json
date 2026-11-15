@@ -1,7 +1,7 @@
 {
   "id": "calculate-04",
   "tags": ["calculate"],
-  "question": "How many times Kestrel's barge fee is Strait Line's barge fee?",
+  "question": "How many times larger is Strait Line's barge fee than Kestrel's?",
   "expect": {
     "kind": "answer",
     "requiredFacts": [

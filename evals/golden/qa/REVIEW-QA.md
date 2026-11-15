@@ -302,7 +302,7 @@ Split: dev 23, held-out 23. stratified by tags[0]; dev = ceil(n / 2) per stratum
 
 ### calculate-04 [dev]
 
-- Question: How many times Kestrel's barge fee is Strait Line's barge fee?
+- Question: How many times larger is Strait Line's barge fee than Kestrel's?
 - Expected kind: `answer`
 - Must not propose: true
 - Proposed option: none

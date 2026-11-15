@@ -267,10 +267,12 @@ export const QUESTIONS: readonly QuestionSpec[] = [
     "percent_change",
     [price(STR), price(KES)],
   ),
-  calc("calculate-04", "How many times Kestrel's barge fee is Strait Line's barge fee?", "divide", [
-    barge(STR),
-    barge(KES),
-  ]),
+  calc(
+    "calculate-04",
+    "How many times larger is Strait Line's barge fee than Kestrel's?",
+    "divide",
+    [barge(STR), barge(KES)],
+  ),
   calc(
     "calculate-05",
     "How much LSMGO and VLSFO together does Aegean Pioneer have on board?",
