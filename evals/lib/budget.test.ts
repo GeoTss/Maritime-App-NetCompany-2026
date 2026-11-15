@@ -120,7 +120,7 @@ describe("per-phase budget", () => {
     const cfg = tempBudget(4, 1);
     expect(() => assertBudget(0.1, tempLedger(""), 3, cfg)).toThrow(/covers Phase 4, not Phase 3/);
   });
-  it("the real budget file is Phase 4 with the cap not set yet", () => {
+  it("the real budget file covers Phase 4, the current phase", () => {
     expect(readBudgetConfig(DEFAULT_BUDGET_PATH).phase).toBe(4);
     expect(currentPhase()).toBe(4);
   });

@@ -140,3 +140,59 @@ unauthorised 0/23, proposed=best 4/4. Answer accuracy 10/16, abstention 2/3, wit
   vessel and the model asked a clarifying question instead of calling it. Either `plan_bunkering`
   with no vessel plans every open requirement, or the question is reworded to name Aegean Pioneer
   (user's call; truth untouched).
+
+## 2026-11-15 — `agent-system/v3` and the outcome grader (Phase 4 fix wave)
+
+**Changes (agent, prompt `agent-system/v3`):** `propose_action` only when the operator asks for a
+decision (where or from whom to buy, which offer, a recommendation, an order), never on a lookup,
+comparison, calculation or "do not order yet" (prompt and tool description; v2 proposed after every
+feasible plan); one fact id immediately after each number (prompt and the repair message); a "no
+fact covers the period, subject or person: say so, write no numbers" rule; `plan_bunkering` takes an
+optional vessel (none = every vessel's open requirements; today only Aegean Pioneer's).
+
+**Hypotheses (one per change, tested by Q&A dev pass 2, run by the eval engineer after this wave):**
+
+- **H6 (C1, propose only when asked to decide):** questions whose truth says `mustNotPropose`
+  (lookups, comparisons, calculations) get no pending recommendation even when they call
+  `plan_bunkering` (comparison-03), so unauthorised stays 0/23, while decision-01/02/05/06 and the
+  demo ask still propose `MTMLA-kestrel` (proposed=best 4/4).
+- **H3 (citation placement, prompt + repair message):** comparison-06 is released (1,900 and 1,400
+  each cited right after the number), and the repair rate falls from 11/23.
+- **H4 (no fact covers the question):** abstain-05 ("last year") abstains with no numbers; abstain
+  stays 3/3 or better.
+- **H5 (`plan_bunkering` with no vessel):** comparison-03 calls `plan_bunkering` without a vessel
+  and states both total delivered costs, cited.
+
+**Grader change (Ruling 16; not an agent hypothesis, truth files untouched):** `evals/qa/grade.ts`
+now grades outcomes (MASTER_PLAN §7 B): a number is a cited ledger fact in the truth's unit within
+tolerance whose value the answer states as the release gate reads it (displayed precision); labels
+only pick between equal values; a string is in the ledger and written as a whole word; the
+best-option id is satisfied by proposing it (or, where no proposal is allowed, by naming its
+supplier and citing one of its facts). Re-grading the iteration-1 transcripts
+(`20261115T174910Z-qa-dev-dev-haiku-v1`, $0, no model) with the new grader: answer accuracy
+**10/16 → 14/16** (decision-01/02/05/06 become correct: right supplier, right numbers, right
+proposal; comparison-03 and comparison-06 stay wrong). Both scorecards are to be reported; the
+iteration-2 accuracy must be read against 14/16, not 10/16.
+
+**Checks for this change** (demo regression and the gate's live smoke; accuracy is dev pass 2):
+
+- Demo ask re-recorded with v3 (Haiku 5.5, effort medium, `LLM_FALLBACKS=off`): **$0.002991**,
+  4 calls (`plan_bunkering` → `propose_action` + `calculate` → answer → repair answer). One
+  pending `MTMLA-kestrel` recommendation (the demo question asks for a decision, so H6 keeps it);
+  gate failed attempt 1 on one number ("pending recommendation 1", uncited) and passed on the
+  repair turn (v2 passed on attempt 1). Recordings: 4 v3 demo-ask recordings added, the 3 v2 ones
+  removed (unreachable, unreferenced).
+- Live smoke `phase4-agent-v3` (report `evals/reports/20261115T182833Z-smoke-phase4-agent-v3`), now
+  over `POST /api/ask/stream` and reading the drafts: **PASS, $0.003687**, 6 calls (2 extract
+  $0.001253, 4 agent $0.002434). email-1 3.1 s, email-2 5.1 s, ask 9.8 s (target 45 s); 6
+  progress events then 1 answer event; approve gave a PO; 2 drafts, both `draft`
+  (`master_instruction`, `supplier_confirmation`).
+- Oracle `fixwave-oracle` (new grader): accuracy 16/16, grounded 23/23, abstention 3/3,
+  injection 2/2, no-action 2/2, proposed=best 4/4, unauthorised 0/23. Empty `fixwave-empty`: 0/16,
+  abstention 0/3, proposed=best 0/4.
+- Fix-wave live spend $0.006678; Phase 4 ledger $0.0362 of $1.00.
+
+**Decision:** keep v3 pending dev pass 2. Watch the repair rate: both live demo asks needed one
+repair turn (the smoke's second answer call shows it; in the recording the cause was an uncited
+recommendation id). If dev pass 2 shows the same, a candidate next change is "do not write the
+recommendation id; the approval card shows it".

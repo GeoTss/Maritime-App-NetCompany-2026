@@ -166,16 +166,19 @@ critical correctness per run, unsafe runs, and, for truth `needs_review` cases, 
 to review and runs where a review check matched. It also gives needs-review recall and review
 check matched over every graded run of the repeated cases.
 
-## Spend rules (Phase 3: $3 cap, Haiku 5.5 only)
+## Spend rules (per-phase budget, Haiku 5.5 only)
 
-Live and record only (replay, `--oracle` and `--empty` spend nothing and write no ledger row):
+The cap is per phase: `evals/budget.json` names the current phase and its cap (set by the user;
+Phase 3 was $3.00), and the phase's spend is the sum of its rows in `evals/spend-ledger.jsonl`
+(`evals/lib/budget.ts`). Live and record only (replay, `--oracle` and `--empty` spend nothing and
+write no ledger row):
 
 1. Before the first call: `assertHaikuOnly([configured model])`; the estimate (case runs ×
-   $0.002) must be at most the $0.25 per-pass cap; then `assertBudget(estimate)` against
-   `evals/spend-ledger.jsonl`. The run refuses to start if the ledger total plus the estimate
-   would pass $3.00.
-2. During the run, a per-request guard is capped at min($0.25, $3.00 − the ledger total). Once it
-   is over, the runner starts no further case. The report names the cases not run, and the exit
+   $0.002) must be at most the $0.25 per-pass cap; then `assertBudget(estimate)` against the
+   ledger. The run refuses to start if the phase's ledger total plus the estimate would pass the
+   phase cap.
+2. During the run, a per-request guard is capped at min($0.25, phase cap − the phase's ledger
+   total). Once it is over, the runner starts no further case. The report names the cases not run, and the exit
    code is 1. Overrun is bounded to one request. The guard also stops the run at the first
    response served by a model other than `claude-haiku-5-5`: it refuses the next request, the
    runner starts no further case (`aborted` names the model), and step 3 fails the run.
