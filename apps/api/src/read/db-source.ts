@@ -9,6 +9,8 @@
  */
 import { loadWorld, type Sql } from "@pharos/db";
 import {
+  type AuditEventView,
+  AuditEventView as AuditEventViewSchema,
   BunkerPlan,
   BunkerPlanInput,
   CheckResult,
@@ -19,6 +21,7 @@ import {
   type InboxItem,
   type InboxItemDetail,
   IsoDateTime,
+  type PortView,
   type QuoteView,
   type RecommendationView,
   RouteCandidate,
@@ -340,6 +343,61 @@ async function recommendations(sql: Sql, id?: Id): Promise<RecommendationView[]>
   });
 }
 
+// ---------- ports, audit, world anchor ----------
+
+/** The most audit events one unfiltered list returns (the latest ones). */
+export const AUDIT_LIST_LIMIT = 200;
+
+async function ports(sql: Sql): Promise<PortView[]> {
+  const rows = await sql<
+    { id: number; name: string; unlocode: string; lat: number; lon: number; is_eu: boolean }[]
+  >`select id, name, unlocode, lat, lon, is_eu from ports order by id`;
+  return rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    unlocode: r.unlocode,
+    position: { lat: r.lat, lon: r.lon },
+    isEu: r.is_eu,
+  }));
+}
+
+interface AuditRow {
+  id: number;
+  recommendation_id: number | null;
+  kind: string;
+  actor: string;
+  detail: unknown;
+  at: string;
+}
+
+async function auditEvents(sql: Sql, recommendationId: Id | null): Promise<AuditEventView[]> {
+  const rows =
+    recommendationId === null
+      ? await sql<AuditRow[]>`
+          select * from (
+            select id, recommendation_id, kind, actor, detail, at from audit_events
+            order by id desc limit ${AUDIT_LIST_LIMIT}
+          ) latest order by id`
+      : await sql<AuditRow[]>`
+          select id, recommendation_id, kind, actor, detail, at from audit_events
+          where recommendation_id = ${recommendationId} order by id`;
+  return rows.map((r) =>
+    AuditEventViewSchema.parse({
+      id: r.id,
+      recommendationId: r.recommendation_id,
+      kind: r.kind,
+      actor: r.actor,
+      detail: r.detail ?? null,
+      at: iso(r.at),
+    }),
+  );
+}
+
+async function worldAnchor(sql: Sql): Promise<Date | null> {
+  const [row] = await sql<{ anchor: string }[]>`select anchor from world_meta where id = 1`;
+  return row ? new Date(row.anchor) : null;
+}
+
 // ---------- source ----------
 
 export function createDbSource(sql: Sql): ReadSource {
@@ -357,5 +415,8 @@ export function createDbSource(sql: Sql): ReadSource {
     getQuote: async (id) => (await quotes(sql, id))[0] ?? null,
     listRecommendations: () => recommendations(sql),
     getRecommendation: async (id) => (await recommendations(sql, id))[0] ?? null,
+    worldAnchor: () => worldAnchor(sql),
+    listPorts: () => ports(sql),
+    listAuditEvents: (recommendationId) => auditEvents(sql, recommendationId),
   };
 }

@@ -7,6 +7,8 @@ import { currentVoyage, fobProjectionInput, voyageState, type World } from "@pha
 import { legsForRoute, projectFuelOnBoard } from "@pharos/domain";
 import type {
   FobProjection,
+  LatLon,
+  PortView,
   VesselDetail,
   VesselSummary,
   VoyageDetail,
@@ -69,6 +71,26 @@ export function buildVessels(world: World) {
   });
 }
 
+export function buildPorts(world: World): PortView[] {
+  return world.ports.map((p) => ({
+    id: p.id,
+    name: p.name,
+    unlocode: p.unlocode,
+    position: { lat: p.lat, lon: p.lon },
+    isEu: p.isEu,
+  }));
+}
+
+/**
+ * The legs' waypoints joined in order. Each leg starts where the previous one ended, so a later
+ * leg's first point is that joint again and is dropped. No number is computed here.
+ */
+export function plannedTrack(legs: { waypoints: LatLon[] }[]): LatLon[] {
+  return legs.flatMap((l, i) =>
+    (i === 0 ? l.waypoints : l.waypoints.slice(1)).map((w) => ({ lat: w.lat, lon: w.lon })),
+  );
+}
+
 export function buildVoyages(world: World) {
   const portName = (id: number) =>
     must(
@@ -77,6 +99,7 @@ export function buildVoyages(world: World) {
     ).name;
 
   return world.voyages.map((voyage): { summary: VoyageSummary; detail: VoyageDetail } => {
+    const legs = legsForRoute(voyage.plannedRoute, world.routeLegs);
     const calls = world.portCalls
       .filter((c) => c.voyageId === voyage.id)
       .sort((a, b) => a.sequence - b.sequence);
@@ -110,7 +133,8 @@ export function buildVoyages(world: World) {
         berthWindowStart: c.berthWindowStart?.toISOString() ?? null,
         berthWindowEnd: c.berthWindowEnd?.toISOString() ?? null,
       })),
-      legs: legsForRoute(voyage.plannedRoute, world.routeLegs).map((l) => ({
+      plannedTrack: plannedTrack(legs),
+      legs: legs.map((l) => ({
         fromPortId: l.fromPortId,
         toPortId: l.toPortId,
         distanceNm: l.distanceNm,

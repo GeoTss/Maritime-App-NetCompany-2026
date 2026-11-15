@@ -3,6 +3,8 @@ import { Hono } from "hono";
 import type { AgentDeps } from "./ai/agent.js";
 import { type ApprovalDeps, createApprovalRoutes } from "./approvals/routes.js";
 import { createAskRoutes } from "./ask/routes.js";
+import { type Clock, createClock } from "./clock.js";
+import { createEvalRoutes, type EvalRouteDeps } from "./eval/routes.js";
 import { createInboxRoutes, type InboxDeps } from "./inbox/routes.js";
 import { createLiveRoutes, type LiveDeps } from "./live/routes.js";
 import { createLlmCallRoutes, type LlmCallDeps } from "./llm-calls/routes.js";
@@ -29,6 +31,10 @@ export interface AppDeps {
   llmCalls?: LlmCallDeps;
   /** Live map data and route planning; omitted, those routes are not mounted. */
   live?: LiveDeps;
+  /** The request clock /api/clock reports; omitted, the wall clock. */
+  clock?: Clock;
+  /** The published evaluation summary behind GET /api/eval/summary; omitted, not mounted. */
+  evalSummary?: EvalRouteDeps;
 }
 
 export function createApp(deps: AppDeps) {
@@ -55,7 +61,8 @@ export function createApp(deps: AppDeps) {
   if (deps.approvals) app.route("/api/recommendations", createApprovalRoutes(deps.approvals));
   if (deps.llmCalls) app.route("/api/llm-calls", createLlmCallRoutes(deps.llmCalls));
   if (deps.live) app.route("/api", createLiveRoutes(deps.live));
-  app.route("/api", createReadRoutes(deps.read));
+  if (deps.evalSummary) app.route("/api/eval", createEvalRoutes(deps.evalSummary));
+  app.route("/api", createReadRoutes(deps.read, deps.clock ?? createClock(null)));
 
   return app;
 }

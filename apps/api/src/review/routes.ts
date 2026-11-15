@@ -2,7 +2,7 @@
  * The review queue API.
  *
  *   GET  /api/review                     → `{ items: ReviewItem[] }`
- *   GET  /api/review/reference           → the vessels, ports and suppliers the Accept form offers
+ *   GET  /api/review/reference           → `ReviewReference`: the vessels, ports and suppliers the Accept form offers
  *   POST /api/review/:id/accept          body `ReviewCorrection` → `ReviewDecision`
  *   POST /api/review/:id/reject          → `ReviewDecision`
  *   POST /api/review/:id/retry           → `ReviewDecision` (202; the new extraction is `pending`)
@@ -10,7 +10,7 @@
  * Every POST needs `application/json` (415 otherwise), even those with no body: a cross-site HTML
  * form can send only form-encoded, multipart or text/plain, so it can never decide anything.
  */
-import { ReviewCorrection } from "@pharos/shared";
+import { ReviewCorrection, ReviewReference } from "@pharos/shared";
 import { Hono } from "hono";
 import { processDocument } from "../ingest/workflow.js";
 import { parseId } from "../read/routes.js";
@@ -36,7 +36,10 @@ export function createReviewRoutes(deps: ReviewRouteDeps) {
 
   app.get("/", async (c) => c.json({ items: await listReviewItems(deps.sql) }));
 
-  app.get("/reference", async (c) => c.json(await reviewReference(deps.sql)));
+  // Validated on the way out: the console's Accept form is typed by this contract.
+  app.get("/reference", async (c) =>
+    c.json(ReviewReference.parse(await reviewReference(deps.sql))),
+  );
 
   const decision = (
     path: "accept" | "reject" | "retry",

@@ -19,6 +19,7 @@ import {
   type ReviewCorrection,
   type ReviewDecision,
   type ReviewItem,
+  type ReviewReference,
 } from "@pharos/shared";
 import { z } from "zod";
 import { emptyNormalisedView, normaliseExtraction } from "../ingest/evaluate.js";
@@ -124,7 +125,7 @@ export async function listReviewItems(sql: Sql): Promise<ReviewItem[]> {
 }
 
 /** The choices the Accept form offers: what a correction's IMO, UN/LOCODE and supplier id can be. */
-export async function reviewReference(sql: Sql) {
+export async function reviewReference(sql: Sql): Promise<ReviewReference> {
   const world = await loadWorld(sql);
   return {
     vessels: world.vessels.map((v) => ({ id: v.id, imo: v.imo, name: v.name })),

@@ -269,6 +269,8 @@ export function createLlm(opts: CreateLlmOptions): { client: Anthropic } {
 export interface LlmCallLinks {
   documentId?: Id | undefined;
   conversationId?: Id | undefined;
+  /** When the call is recorded: the caller's request clock (wall clock if omitted). */
+  at?: Date | undefined;
 }
 
 /** Inserts one `llm_calls` row (cost computed from the usage) and returns its id. */
@@ -300,7 +302,7 @@ export async function recordLlmCall(
       requestKey: metrics.requestKey,
       documentId: links.documentId ?? null,
       conversationId: links.conversationId ?? null,
-      createdAt: new Date(),
+      createdAt: links.at ?? new Date(),
     })
     .returning({ id: schema.llmCalls.id });
   if (!row) throw new Error("llm_calls insert returned no row");

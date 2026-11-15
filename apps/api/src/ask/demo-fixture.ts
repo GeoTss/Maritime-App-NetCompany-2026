@@ -9,13 +9,14 @@
 import { DEMO_SCENARIO, generateWorld, type Sql, seedDatabase } from "@pharos/db";
 import { loadRecordedSources } from "@pharos/integrations";
 import type { Id } from "@pharos/shared";
+import { pinnedNow } from "../clock.js";
 import { buildDemoEmails, FIXTURE_ANCHOR, FIXTURE_SEED } from "../read/fixtures.js";
 
 /** The question Task 9's live smoke asks. */
 export const DEMO_QUESTION = "Where should Aegean Pioneer bunker, and who should we buy from?";
 
-/** The agent clock for recording and replay: five minutes after the world anchor. */
-export const ASK_FIXTURE_NOW = new Date(FIXTURE_ANCHOR.getTime() + 5 * 60_000);
+/** The agent clock for recording and replay: five minutes after the world anchor (a pinned clock). */
+export const ASK_FIXTURE_NOW = pinnedNow(FIXTURE_ANCHOR);
 
 /** The demo offers that become quotes, in insertion order. */
 export const DEMO_QUOTE_SUPPLIERS = ["kestrel", "straitline"] as const;

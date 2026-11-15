@@ -6,8 +6,8 @@
  * Illegal moves (`TransitionError`) are 409. Only `application/json` is accepted (415 otherwise): a cross-site HTML form can send only
  * form-encoded, multipart or text/plain bodies, so it can never approve or reject.
  */
+import { DecisionBody } from "@pharos/shared";
 import { Hono } from "hono";
-import { z } from "zod";
 import {
   approveRecommendation,
   DecisionError,
@@ -22,8 +22,6 @@ import { TransitionError } from "./state.js";
 export type ApprovalDeps = ExecutorDeps;
 
 export const DEFAULT_DECIDED_BY = "operator";
-
-const DecisionBody = z.object({ decidedBy: z.string().trim().min(1).max(100).optional() }).strict();
 
 export function createApprovalRoutes(deps: ApprovalDeps) {
   const app = new Hono();

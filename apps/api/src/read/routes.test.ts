@@ -1,11 +1,14 @@
 import { buildDemoBunkerPlanInput, DEMO_SCENARIO, generateWorld } from "@pharos/db";
-import { planBunkers } from "@pharos/domain";
+import { legsForRoute, planBunkers } from "@pharos/domain";
 import {
+  AuditEventList,
   InboxItem,
   InboxItemDetail,
   listOf,
+  PortList,
   QuoteView,
   RecommendationView,
+  SimClockView,
   VesselDetail,
   VesselSummary,
   VoyageDetail,
@@ -13,6 +16,7 @@ import {
 } from "@pharos/shared";
 import { describe, expect, it } from "vitest";
 import { createApp } from "../app.js";
+import { createClock } from "../clock.js";
 import { createFixtureSource, FIXTURE_ANCHOR, FIXTURE_SEED } from "./fixtures.js";
 import { createReadRoutes } from "./routes.js";
 import type { ReadSource } from "./source.js";
@@ -161,6 +165,86 @@ describe("fixture content", () => {
         ...x.lines.flatMap((l) => [l.grade.evidence, l.quantity.evidence, l.price.evidence]),
       ];
       for (const e of evidence) expect(detail.bodyText).toContain(e as string);
+    }
+  });
+});
+
+describe("console read routes (fixture source)", () => {
+  const pinned = createApp({
+    llmMode: "replay",
+    pingDb: async () => true,
+    read: createFixtureSource(),
+    clock: createClock(FIXTURE_ANCHOR),
+  });
+
+  it("GET /api/clock is a SimClockView: the world anchor and the pinned now", async () => {
+    const res = await pinned.request("/api/clock");
+    expect(res.status).toBe(200);
+    expect(SimClockView.parse(await res.json())).toEqual({
+      anchor: "2026-11-14T08:00:00.000Z",
+      now: "2026-11-14T08:05:00.000Z",
+      pinned: true,
+    });
+  });
+
+  it("GET /api/clock unpinned reports the wall clock", async () => {
+    const before = Date.now();
+    const body = SimClockView.parse((await get("/api/clock")).body);
+    const after = Date.now();
+    expect(body.pinned).toBe(false);
+    expect(body.anchor).toBe(FIXTURE_ANCHOR.toISOString());
+    expect(Date.parse(body.now)).toBeGreaterThanOrEqual(before);
+    expect(Date.parse(body.now)).toBeLessThanOrEqual(after);
+  });
+
+  it("GET /api/ports is a PortList of the world's ports", async () => {
+    const world = generateWorld({ seed: FIXTURE_SEED, anchor: FIXTURE_ANCHOR });
+    const { res, body } = await get("/api/ports");
+    expect(res.status).toBe(200);
+    const { items } = PortList.parse(body);
+    expect(items).toHaveLength(world.ports.length);
+    const marsaxlokk = items.find((p) => p.unlocode === "MTMLA");
+    const port = world.ports.find((p) => p.unlocode === "MTMLA");
+    expect(marsaxlokk).toEqual({
+      id: port?.id,
+      name: port?.name,
+      unlocode: "MTMLA",
+      position: { lat: port?.lat, lon: port?.lon },
+      isEu: true,
+    });
+  });
+
+  it("GET /api/audit is an AuditEventList (the fixture recommendation is undecided)", async () => {
+    const { res, body } = await get("/api/audit");
+    expect(res.status).toBe(200);
+    expect(AuditEventList.parse(body).items).toEqual([]);
+    const filtered = await get("/api/audit?recommendationId=1");
+    expect(filtered.res.status).toBe(200);
+    AuditEventList.parse(filtered.body);
+  });
+
+  it.each(["abc", "0", "-1", "2147483648"])(
+    "GET /api/audit 400s on recommendationId=%s",
+    async (id) => {
+      const { res, body } = await get(`/api/audit?recommendationId=${id}`);
+      expect(res.status).toBe(400);
+      expect(body).toMatchObject({ error: "invalid_request" });
+    },
+  );
+
+  it("gives every voyage detail a planned track from its route legs' waypoints", async () => {
+    const world = generateWorld({ seed: FIXTURE_SEED, anchor: FIXTURE_ANCHOR });
+    const { items } = listOf(VoyageSummary).parse((await get("/api/voyages")).body);
+    for (const v of items) {
+      const detail = VoyageDetail.parse((await get(`/api/voyages/${v.id}`)).body);
+      expect(detail.plannedTrack.length).toBeGreaterThanOrEqual(2);
+      const voyage = world.voyages.find((x) => x.id === v.id);
+      const legs = legsForRoute(voyage?.plannedRoute ?? [], world.routeLegs);
+      // Every leg's waypoints, in order, with each joint (a leg starts where the last one ended) once.
+      const expected = legs.flatMap((l, i) => (i === 0 ? l.waypoints : l.waypoints.slice(1)));
+      expect(detail.plannedTrack).toEqual(expected.map((w) => ({ lat: w.lat, lon: w.lon })));
+      const origin = world.ports.find((p) => p.id === voyage?.originPortId);
+      expect(detail.plannedTrack[0]).toEqual({ lat: origin?.lat, lon: origin?.lon });
     }
   });
 });

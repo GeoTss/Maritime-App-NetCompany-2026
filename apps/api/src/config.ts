@@ -1,6 +1,6 @@
 import { isAbsolute, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { LlmMode } from "@pharos/shared";
+import { IsoDateTime, LlmMode } from "@pharos/shared";
 import { z } from "zod";
 import { isPricedModel } from "./ai/pricing.js";
 
@@ -28,6 +28,11 @@ export interface AppConfig {
   recordingsDir: string;
   /** Base URL of the ERP that approved purchase orders are pushed to (the simulator by default). */
   erpBaseUrl: string;
+  /**
+   * DEMO_ANCHOR: the instant the demo world is pinned to (the boot seed uses it and the request
+   * clock is frozen at anchor + 5 min), or null for today's behaviour (boot time, wall clock).
+   */
+  demoAnchor: Date | null;
 }
 
 export const Effort = z.enum(["low", "medium", "high", "xhigh", "max"]);
@@ -48,6 +53,9 @@ export const DEFAULT_WORLD_SEED = 20261114;
 export const MAX_WORLD_SEED = 2_147_483_647;
 
 export const DEFAULT_ERP_BASE_URL = "http://localhost:4100";
+
+/** The published evaluation summary (`npm run eval:publish` writes it; /app in the container). */
+export const DEFAULT_EVAL_SUMMARY_PATH = resolve(REPO_ROOT, "evals", "published", "summary.json");
 
 const blankToUndefined = (v: unknown) => (typeof v === "string" && v.trim() === "" ? undefined : v);
 
@@ -81,6 +89,8 @@ const EnvSchema = z.object({
       .refine((v) => URL.canParse(v) && /^https?:$/.test(new URL(v).protocol), "an http(s) URL")
       .default(DEFAULT_ERP_BASE_URL),
   ),
+  // An ISO instant with Z or an offset; a bare date or a local time would be ambiguous.
+  DEMO_ANCHOR: z.preprocess(blankToUndefined, z.string().trim().pipe(IsoDateTime).optional()),
 });
 
 /**
@@ -120,5 +130,6 @@ export function loadConfig(env: Record<string, string | undefined>): AppConfig {
         : resolve(REPO_ROOT, e.RECORDINGS_DIR)
       : DEFAULT_RECORDINGS_DIR,
     erpBaseUrl: e.ERP_BASE_URL,
+    demoAnchor: e.DEMO_ANCHOR === undefined ? null : new Date(e.DEMO_ANCHOR),
   };
 }

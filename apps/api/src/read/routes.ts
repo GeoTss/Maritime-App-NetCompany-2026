@@ -1,4 +1,6 @@
+import type { AuditEventList, PortList, SimClockView } from "@pharos/shared";
 import { Hono } from "hono";
+import { type Clock, createClock } from "../clock.js";
 import type { ReadSource } from "./source.js";
 
 /** Marks every response with its source ("fixture" or "db") so the console can badge it. */
@@ -16,7 +18,12 @@ export function parseId(raw: string): number | null {
   return id <= MAX_ID ? id : null;
 }
 
-export function createReadRoutes(read: ReadSource, dataTag: string = read.dataTag) {
+/**
+ * The read API (mounted under /api): vessels, voyages, inbox, quotes, recommendations, plus the
+ * console's clock, ports and audit trail. `clock` is the request clock (wall clock by default).
+ */
+export function createReadRoutes(read: ReadSource, clock: Clock = createClock(null)) {
+  const dataTag = read.dataTag;
   const app = new Hono();
 
   app.use("*", async (c, next) => {
@@ -62,6 +69,36 @@ export function createReadRoutes(read: ReadSource, dataTag: string = read.dataTa
     () => read.listRecommendations(),
     (id) => read.getRecommendation(id),
   );
+
+  /** The served world's anchor and the clock every request reads. */
+  app.get("/clock", async (c) => {
+    const anchor = await read.worldAnchor();
+    if (anchor === null) {
+      return c.json({ error: "no_world", message: "No world is seeded yet." }, 503);
+    }
+    const body: SimClockView = {
+      anchor: anchor.toISOString(),
+      now: clock.now().toISOString(),
+      pinned: clock.pinned,
+    };
+    return c.json(body);
+  });
+
+  app.get("/ports", async (c) => c.json({ items: await read.listPorts() } satisfies PortList));
+
+  /** `?recommendationId=` narrows the trail to one recommendation; without it, the latest events. */
+  app.get("/audit", async (c) => {
+    const raw = c.req.query("recommendationId");
+    const recommendationId = raw === undefined ? null : parseId(raw);
+    if (raw !== undefined && recommendationId === null) {
+      return c.json(
+        { error: "invalid_request", message: "recommendationId must be a positive integer id." },
+        400,
+      );
+    }
+    const items = await read.listAuditEvents(recommendationId);
+    return c.json({ items } satisfies AuditEventList);
+  });
 
   return app;
 }

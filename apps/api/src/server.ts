@@ -1,14 +1,11 @@
 import { serve } from "@hono/node-server";
-import { createSql, pingDb, runMigrations, seedDatabase } from "@pharos/db";
+import { createSql, runMigrations } from "@pharos/db";
 import { captureLlmCall } from "./ai/call-capture.js";
-import { createLlmExtractor } from "./ai/extract.js";
 import { createLlm } from "./ai/llm.js";
-import { createApp } from "./app.js";
+import { createClock } from "./clock.js";
 import { ConfigError, loadConfig } from "./config.js";
-import { createErpClient } from "./executor/erp-client.js";
-import { DEMO_INBOX_DIR, type InboxDeps } from "./inbox/routes.js";
 import { failInterruptedExtractions, processDocument } from "./ingest/workflow.js";
-import { createDbSource } from "./read/db-source.js";
+import { bootWorld, createStackApp } from "./stack.js";
 
 async function main() {
   let config: ReturnType<typeof loadConfig>;
@@ -22,20 +19,33 @@ async function main() {
     throw err;
   }
 
+  // Pinned (DEMO_ANCHOR), every request reads anchor + 5 min; unpinned, the wall clock.
+  const clock = createClock(config.demoAnchor);
   const sql = createSql(config.databaseUrl);
   await runMigrations(sql);
   console.log("[api] migrations applied");
-  if (config.seedOnBoot !== "off") {
-    // The demo world is anchored to the moment the stack boots.
-    const result = await seedDatabase(sql, {
-      seed: config.worldSeed,
-      anchor: new Date(),
-      mode: config.seedOnBoot,
-    });
+  // The demo world is anchored at DEMO_ANCHOR, or else at the moment the stack boots.
+  let world: Awaited<ReturnType<typeof bootWorld>>;
+  try {
+    world = await bootWorld(sql, config, clock);
+  } catch (err) {
+    if (err instanceof ConfigError) {
+      console.error(`[api] refusing to start: ${err.message}`);
+      await sql.end({ timeout: 2 });
+      process.exit(1);
+    }
+    throw err;
+  }
+  if (world) {
     console.log(
-      `[api] world ${result.seeded ? "seeded" : "kept"} (SEED_ON_BOOT=${config.seedOnBoot}, seed=${config.worldSeed}, anchor=${result.anchor.toISOString()})`,
+      `[api] world ${world.seeded ? "seeded" : "kept"} (SEED_ON_BOOT=${config.seedOnBoot}, seed=${config.worldSeed}, anchor=${world.anchor.toISOString()})`,
     );
   }
+  console.log(
+    clock.pinned
+      ? `[api] clock pinned: now=${clock.now().toISOString()} (DEMO_ANCHOR + 5 min)`
+      : "[api] clock: wall time",
+  );
   // Every model call goes through this client; calls are recorded (with their document or
   // conversation) by the workflow and the agent from the metrics captured per call.
   const llm = createLlm({
@@ -45,24 +55,7 @@ async function main() {
     onCall: captureLlmCall,
   });
   const log = (message: string) => console.warn(message);
-  const inbox: InboxDeps = {
-    sql,
-    extractor: createLlmExtractor(llm, config),
-    inboxDir: DEMO_INBOX_DIR,
-    log,
-  };
-  const app = createApp({
-    llmMode: config.llmMode,
-    pingDb: () => pingDb(sql),
-    models: { extractModel: config.extractModel, agentModel: config.agentModel },
-    read: createDbSource(sql),
-    inbox,
-    review: inbox,
-    ask: { sql, llm, config, log },
-    approvals: { sql, erp: createErpClient(config.erpBaseUrl), log },
-    llmCalls: { sql },
-    live: { sql, now: () => new Date() },
-  });
+  const { app, inbox } = createStackApp({ config, sql, llm, clock, log });
 
   // An extraction claimed but still pending was cut off mid-way by a crash or restart: mark it
   // failed so it waits in the review queue for a retry, instead of being silently re-run.

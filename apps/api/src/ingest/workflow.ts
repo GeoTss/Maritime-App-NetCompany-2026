@@ -120,9 +120,13 @@ interface DocumentRow {
  * for an older one. Returns the claimed extraction id, or undefined when the latest extraction
  * is not pending or is already claimed.
  */
-async function claimLatestExtraction(sql: Sql, documentId: Id): Promise<number | undefined> {
+async function claimLatestExtraction(
+  sql: Sql,
+  documentId: Id,
+  now: Date,
+): Promise<number | undefined> {
   const [claimed] = await sql<{ id: number }[]>`
-    update extractions set claimed_at = now()
+    update extractions set claimed_at = ${iso(now)}::timestamptz
     where id = (select max(id) from extractions where document_id = ${documentId})
       and status = 'pending' and claimed_at is null
     returning id`;
@@ -148,7 +152,7 @@ export async function processDocument(deps: IngestDeps, documentId: Id): Promise
       `[ingest] document ${documentId}: extraction ${extractionId} is no longer pending; ${what}`,
     );
   try {
-    extractionId = await claimLatestExtraction(sql, documentId);
+    extractionId = await claimLatestExtraction(sql, documentId, clock(deps));
     if (extractionId === undefined) return;
     const claimedId = extractionId;
     const [row] = await sql<DocumentRow[]>`
@@ -231,7 +235,9 @@ async function extractAndRecord(
   doc: ExtractInput,
 ): Promise<ExtractionOutput> {
   const record = async (calls: CallMetrics[]) => {
-    for (const m of calls) await recordLlmCall(deps.sql, "extract", m, { documentId });
+    for (const m of calls) {
+      await recordLlmCall(deps.sql, "extract", m, { documentId, at: clock(deps) });
+    }
   };
   try {
     const { output, metrics } = await deps.extractor.extract(doc);

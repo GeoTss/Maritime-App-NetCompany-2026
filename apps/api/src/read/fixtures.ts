@@ -15,7 +15,7 @@ import type {
 } from "@pharos/shared";
 import { convert } from "html-to-text";
 import type { ReadSource } from "./source.js";
-import { buildVessels, buildVoyages, must } from "./world-views.js";
+import { buildPorts, buildVessels, buildVoyages, must } from "./world-views.js";
 
 export const FIXTURE_SEED = 20261114;
 export const FIXTURE_ANCHOR = new Date("2026-11-14T08:00:00Z");
@@ -417,6 +417,7 @@ export function createFixtureSource(): ReadSource {
   const inbox = buildInbox(world);
   const quotes = buildQuotes(world);
   const recommendation = buildRecommendation(world);
+  const ports = buildPorts(world);
 
   return {
     dataTag: "fixture",
@@ -430,5 +431,9 @@ export function createFixtureSource(): ReadSource {
     getQuote: async (id) => quotes.find((q) => q.id === id) ?? null,
     listRecommendations: async () => [recommendation],
     getRecommendation: async (id) => (id === recommendation.id ? recommendation : null),
+    worldAnchor: async () => new Date(world.meta.anchor.getTime()),
+    listPorts: async () => ports,
+    // The fixture recommendation is still pending: nothing has been decided, so nothing is audited.
+    listAuditEvents: async () => [],
   };
 }

@@ -97,6 +97,40 @@ describe("loadConfig", () => {
     }
   });
 
+  describe("DEMO_ANCHOR", () => {
+    const replay = { ...base, LLM_MODE: "replay" };
+
+    it("is unset (null) by default and when blank, as Compose passes it", () => {
+      expect(loadConfig(replay).demoAnchor).toBeNull();
+      expect(loadConfig({ ...replay, DEMO_ANCHOR: "" }).demoAnchor).toBeNull();
+      expect(loadConfig({ ...replay, DEMO_ANCHOR: "  " }).demoAnchor).toBeNull();
+    });
+
+    it("parses an ISO instant, with Z or an offset", () => {
+      expect(
+        loadConfig({ ...replay, DEMO_ANCHOR: "2026-11-14T08:00:00Z" }).demoAnchor?.toISOString(),
+      ).toBe("2026-11-14T08:00:00.000Z");
+      expect(
+        loadConfig({
+          ...replay,
+          DEMO_ANCHOR: "2026-11-14T10:00:00+02:00",
+        }).demoAnchor?.toISOString(),
+      ).toBe("2026-11-14T08:00:00.000Z");
+    });
+
+    it("fails fast on anything that is not an ISO instant, naming the variable", () => {
+      for (const bad of ["2026-11-14", "tomorrow", "2026-13-40T08:00:00Z", "2026-11-14T08:00:00"]) {
+        try {
+          loadConfig({ ...replay, DEMO_ANCHOR: bad });
+          expect.unreachable(`DEMO_ANCHOR=${bad} must be rejected`);
+        } catch (e) {
+          expect(e).toBeInstanceOf(ConfigError);
+          expect(String(e)).toMatch(/DEMO_ANCHOR/);
+        }
+      }
+    });
+  });
+
   it("requires WORLD_SEED to be an integer", () => {
     expect(() => loadConfig({ ...base, LLM_MODE: "replay", WORLD_SEED: "1.5" })).toThrow(
       /WORLD_SEED/,

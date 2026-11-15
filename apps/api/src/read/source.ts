@@ -1,6 +1,9 @@
 import type {
+  AuditEventView,
+  Id,
   InboxItem,
   InboxItemDetail,
+  PortView,
   QuoteView,
   RecommendationView,
   VesselDetail,
@@ -23,4 +26,9 @@ export interface ReadSource {
   getQuote(id: number): Promise<QuoteView | null>;
   listRecommendations(): Promise<RecommendationView[]>;
   getRecommendation(id: number): Promise<RecommendationView | null>;
+  /** The anchor the served world was generated at; null when no world is stored. */
+  worldAnchor(): Promise<Date | null>;
+  listPorts(): Promise<PortView[]>;
+  /** Audit events in the order they happened, all of them or one recommendation's. */
+  listAuditEvents(recommendationId: Id | null): Promise<AuditEventView[]>;
 }

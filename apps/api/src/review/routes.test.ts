@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { currentVoyage, loadWorld, openRequirements, type Sql, seedDatabase } from "@pharos/db";
 import { connectTestDb, testDbLabel } from "@pharos/db/testing";
 import type { ExtractionOutput, QuoteExtraction } from "@pharos/shared";
-import { ReviewDecision, ReviewItem } from "@pharos/shared";
+import { ReviewDecision, ReviewItem, ReviewReference } from "@pharos/shared";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { ExtractionError, type Extractor } from "../ai/extract.js";
 import { createApp } from "../app.js";
@@ -451,11 +451,7 @@ describe.skipIf(!sql)("review routes (Postgres)", () => {
   it("GET /api/review/reference offers the vessels, ports and suppliers", async () => {
     const res = await app.request("/api/review/reference");
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
-      vessels: { imo: string }[];
-      ports: { unlocode: string }[];
-      suppliers: { name: string }[];
-    };
+    const body = ReviewReference.parse(await res.json());
     expect(body.vessels.map((v) => v.imo)).toContain("9480019");
     expect(body.ports.length).toBeGreaterThan(0);
     expect(body.suppliers.map((s) => s.name)).toContain("Kestrel Marine Fuels");

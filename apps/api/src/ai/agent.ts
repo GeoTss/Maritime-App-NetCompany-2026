@@ -286,7 +286,7 @@ export async function runAgent(
   for (const call of ctx.calls) await insertMessage(sql, convId, "tool", call, now());
   const llmCallIds: Id[] = [];
   for (const m of run.calls) {
-    llmCallIds.push(await recordLlmCall(sql, "agent", m, { conversationId: convId }));
+    llmCallIds.push(await recordLlmCall(sql, "agent", m, { conversationId: convId, at: now() }));
   }
 
   const meta = { model: deps.config.agentModel, promptVersion: PROMPT_VERSION };
