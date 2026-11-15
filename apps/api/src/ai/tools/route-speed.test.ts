@@ -118,8 +118,17 @@ describe.skipIf(!sql)("plan_route_speed (Postgres)", () => {
       byLabel(out.facts, `${S}: saving of the recommended route and speed against the current plan`)
         .value,
     ).toBe(want.result.savingVsBaselineUsd);
-    const run = byLabel(out.facts, "Weather forecast model run (UTC)");
+    const run = byLabel(out.facts, "Weather forecast start (UTC)");
     expect(run.provenance.source).toBe("weather");
+    expect(out.facts.some((f) => f.label.includes("model run"))).toBe(false);
+    // The current plan's speed is the plan's, not a recommendation.
+    expect(byLabel(out.facts, `${S}, current plan: speed`).value).toBe(
+      want.result.baseline.speedKn,
+    );
+    expect(
+      out.facts.some((f) => /current plan: recommended speed|assumed plan/.test(f.label)),
+    ).toBe(false);
+    expect(out.facts.some((f) => f.label.endsWith("reported speed over ground"))).toBe(false);
     expect(byLabel(out.facts, "Route calculation id").value).toBe(calc.id);
     expect(out.facts.find((f) => f.label.includes("berth window closes"))).toBeDefined();
     const data = out.data as { calculationId: number; note: string };
@@ -145,6 +154,16 @@ describe.skipIf(!sql)("plan_route_speed (Postgres)", () => {
       ship.shipType === "tanker" ? "tanker" : "bulk_carrier",
     );
     expect(byLabel(out.facts, `${name}: MMSI`).value).toBe(ship.mmsi);
+    // A ship seen on AIS: the baseline speed is assumed from its reported SOG, said as such.
+    const assumed = byLabel(out.facts, `${name}, assumed plan: speed`);
+    expect(assumed.unit).toBe("kn");
+    expect(out.facts.some((f) => f.label.startsWith(`${name}, current plan: speed`))).toBe(false);
+    const sog = byLabel(out.facts, `${name}: reported speed over ground`);
+    expect(sog).toMatchObject({
+      value: ship.sogKn,
+      unit: "kn",
+      provenance: { source: "db", table: "ais_traffic", rowId: ship.mmsi, field: "sog_kn" },
+    });
 
     const planned = await planRouteSpeed(
       { sql: db, now: () => ASK_FIXTURE_NOW },

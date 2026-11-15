@@ -52,6 +52,8 @@ export interface PlannedRoute {
   hazards: NavHazard[];
   /** Set when the subject is an AIS ship, not a fleet vessel. */
   mmsi: string | null;
+  /** The AIS ship's reported speed over ground (kn) when it reports one; null for a fleet vessel. */
+  sogKn: number | null;
 }
 
 let graph: RouteGraph | undefined;
@@ -176,6 +178,7 @@ export async function planRouteSpeed(
   let plan: RoutePlan;
   let voyageId: Id | null = null;
   let mmsi: string | null = null;
+  let sogKn: number | null = null;
   try {
     const vessel = fleetVessel(world, input.vessel);
     if (vessel) {
@@ -186,6 +189,7 @@ export async function planRouteSpeed(
     } else {
       const ship = await findShip(deps.sql, input.vessel);
       mmsi = ship.mmsi;
+      sogKn = ship.sogKn;
       const destination = destinationFor(world, ship, input.destination);
       plan = shipRoutePlan(world, ship, destination, g, weather, zones);
     }
@@ -233,5 +237,6 @@ export async function planRouteSpeed(
     snapshot,
     hazards,
     mmsi,
+    sogKn,
   };
 }

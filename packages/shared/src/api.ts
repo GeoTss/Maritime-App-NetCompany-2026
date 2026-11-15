@@ -388,7 +388,8 @@ export const WeatherView = z
   .object({
     snapshotId: Id,
     source: z.string().min(1),
-    modelRun: z.string().nullable(),
+    /** The forecast's first hour (UTC), the snapshot's `model_run` column. */
+    forecastStart: z.string().nullable(),
     fetchedAt: IsoDateTime,
     startAt: IsoDateTime,
     stepHours: z.number().positive(),

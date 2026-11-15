@@ -68,7 +68,19 @@ describe("agent request", () => {
     expect("temperature" in params).toBe(false);
     expect("betas" in params).toBe(false);
     expect("fallbacks" in params).toBe(false);
-    expect(PROMPT_VERSION).toBe("agent-system/v4");
+    expect(PROMPT_VERSION).toBe("agent-system/v5");
+  });
+
+  it("the prompt cites speeds and quantities like money and names a recommended route by its id", () => {
+    expect(AGENT_SYSTEM).toMatch(
+      /A speed in knots and a quantity in mt are cited like money: the fact id right after the unit, every time/,
+    );
+    expect(AGENT_SYSTEM).toMatch(
+      /<speed> kn \[<id of that speed>\] and <quantity> mt \[<id of that quantity>\]/,
+    );
+    expect(AGENT_SYSTEM).toMatch(
+      /^- plan_route_speed: .*Name a route by its id \("route B"\) in the sentence that recommends it/m,
+    );
   });
 
   it("the prompt proposes only when the operator asks for a decision (not unconditionally)", () => {

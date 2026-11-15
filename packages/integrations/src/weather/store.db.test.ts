@@ -1,3 +1,4 @@
+import { createSql } from "@pharos/db";
 import { connectTestDb } from "@pharos/db/testing";
 import type { WeatherGrid } from "@pharos/shared";
 import { afterAll, describe, expect, it } from "vitest";
@@ -45,5 +46,27 @@ describe("weather store", () => {
       fetchedAt,
       grid,
     });
+  });
+
+  it("stores the grid as a JSON object from a client drizzle never touched (the worker's)", async () => {
+    // connectTestDb's client ran the migrations through drizzle, which makes jsonb parameters
+    // pass through as-is; the worker's plain postgres.js client serialises them itself.
+    const url = new URL(
+      process.env.TEST_DATABASE_URL ?? "postgres://pharos:pharos@localhost:5432/pharos_test",
+    );
+    url.pathname = "/pharos_test_integrations_weather";
+    const plain = createSql(url.toString(), { max: 1 });
+    try {
+      await plain`truncate weather_snapshots restart identity cascade`;
+      const fetchedAt = new Date("2026-11-15T10:42:00.000Z");
+      const id = await insertWeatherSnapshot(plain, { grid, source: "open-meteo", fetchedAt });
+      const [row] = await plain<{ t: string }[]>`
+        select jsonb_typeof(grid) as t from weather_snapshots where id = ${id}`;
+      expect(row?.t).toBe("object");
+      expect((await latestWeatherSnapshot(plain))?.grid).toEqual(grid);
+      expect((await latestWeatherSnapshot(sql))?.grid).toEqual(grid);
+    } finally {
+      await plain.end();
+    }
   });
 });

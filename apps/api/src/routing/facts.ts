@@ -1,7 +1,8 @@
 /**
  * The facts a route plan yields, as pure rows: a JSON path, a label, a value and a unit.
  * `routeFactOfRow` turns a row into the `Fact` the route tool returns (calculation provenance for a
- * path into the stored calculation; `weather.modelRun` carries weather provenance; `calculation.id`
+ * path into the stored calculation; `weather.modelRun` (the forecast's start, stored as the
+ * snapshot's model_run) carries weather provenance; `calculation.id`
  * is the calculation's own row); the approval view re-derives the same facts with it, so the ids
  * the agent cited resolve there. A path starting `inputs.` is a field of the stored calculation's
  * inputs (cited as `db` on the calculation row); every other path points into its outputs (the
@@ -111,12 +112,15 @@ export function routeSpeedFactRows(
   const b = result.baseline;
   for (const f of OPTION_FIELDS) {
     if (!["speedKn", "eta", "totalFuelMt", "co2T", "totalCostUsd"].includes(f.key)) continue;
-    rows.push({
-      path: `baseline.${f.key}`,
-      label: `${S}, current plan: ${f.text(D)}`,
-      value: b[f.key],
-      unit: f.unit,
-    });
+    // The plan's own speed, not a recommendation. A ship seen on AIS has no plan the operator
+    // knows: its speed is assumed (from its reported speed over ground, see routePlanFacts).
+    const label =
+      f.key !== "speedKn"
+        ? `${S}, current plan: ${f.text(D)}`
+        : plan.profile === "own"
+          ? `${S}, current plan: speed`
+          : `${S}, assumed plan: speed`;
+    rows.push({ path: `baseline.${f.key}`, label, value: b[f.key], unit: f.unit });
   }
 
   rows.push(
@@ -170,7 +174,7 @@ export function routeSpeedFactRows(
   if (snapshot) {
     rows.push({
       path: WEATHER_RUN_PATH,
-      label: "Weather forecast model run (UTC)",
+      label: "Weather forecast start (UTC)",
       value: snapshot.modelRun.toISOString(),
       unit: null,
     });
@@ -295,10 +299,11 @@ function hazardFacts(planned: PlannedRoute, S: string): Fact[] {
 
 /**
  * Every fact of a stored route plan, as `plan_route_speed` returns them and `POST /api/route-plan`
- * serves them: the plan's rows, the AIS ship name (untrusted text, a value only), and the hazards.
+ * serves them: the plan's rows, the AIS ship name (untrusted text, a value only) and its reported
+ * speed over ground, and the hazards.
  */
 export function routePlanFacts(planned: PlannedRoute): Fact[] {
-  const { response, plan, snapshot, mmsi } = planned;
+  const { response, plan, snapshot, mmsi, sogKn } = planned;
   const calculationId = response.calculationId;
   const S = subjectLabel(plan, mmsi);
   const rows = routeSpeedFactRows(plan, response.result, snapshot, { mmsi, calculationId });
@@ -311,6 +316,17 @@ export function routePlanFacts(planned: PlannedRoute): Fact[] {
         `${S}: AIS ship name`,
         plan.subject,
         null,
+      ),
+    );
+  }
+  if (mmsi && sogKn !== null) {
+    facts.push(
+      dbFact(
+        ROUTE_TOOL,
+        { table: "ais_traffic", rowId: mmsi, field: "sog_kn" },
+        `${S}: reported speed over ground`,
+        sogKn,
+        "kn",
       ),
     );
   }

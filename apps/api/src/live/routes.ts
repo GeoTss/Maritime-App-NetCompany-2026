@@ -139,7 +139,7 @@ export function createLiveRoutes(deps: LiveDeps) {
     const view: WeatherView = {
       snapshotId: snapshot.id,
       source: snapshot.source,
-      modelRun: snapshot.modelRun.toISOString(),
+      forecastStart: snapshot.modelRun.toISOString(),
       fetchedAt: snapshot.fetchedAt.toISOString(),
       startAt: grid.startAt,
       stepHours: grid.stepHours,

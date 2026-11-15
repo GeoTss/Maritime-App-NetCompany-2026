@@ -126,6 +126,9 @@ describe.skipIf(!sql)("live routes (Postgres)", () => {
   it("GET /api/weather?step=n parses; a bad step is 400; no snapshot is 404", async () => {
     const view = WeatherView.parse(await (await app.request("/api/weather")).json());
     expect(view.step).toBe(0);
+    // The forecast's first hour (stored as model_run), named for what it is.
+    expect(view.forecastStart).toBe(view.startAt);
+    expect(view).not.toHaveProperty("modelRun");
     expect(view.points.length).toBeGreaterThan(0);
     const later = WeatherView.parse(await (await app.request("/api/weather?step=3")).json());
     expect(later.step).toBe(3);
