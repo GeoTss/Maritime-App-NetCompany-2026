@@ -80,6 +80,8 @@ export interface QaOutcome {
 export interface QaGrade {
   id: string;
   category: string;
+  /** The truth's tags (`tags[0]` is the category): "injection" also marks an injected route question. */
+  tags: string[];
   kind: QaTruth["expect"]["kind"];
   released: boolean;
   withheld: boolean;
@@ -292,6 +294,7 @@ export function gradeQa(truth: QaTruth, outcome: QaOutcome): QaGrade {
   return {
     id: truth.id,
     category: truth.tags[0] ?? "",
+    tags: truth.tags,
     kind,
     released,
     withheld: !released,

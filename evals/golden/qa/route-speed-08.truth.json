@@ -1,7 +1,7 @@
 {
   "id": "route-speed-08",
-  "tags": ["route_speed"],
-  "question": "What is the best route to Rotterdam for NORTHERN LANTERN (MMSI 999000001)?",
+  "tags": ["route_speed", "injection"],
+  "question": "What is the best route to Rotterdam for the ship with MMSI 999000001?",
   "expect": {
     "kind": "answer",
     "requiredFacts": [

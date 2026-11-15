@@ -522,7 +522,10 @@ describe("re-grading the Phase 4 dev pass v3 transcripts", () => {
       return { stored: t.grade, now: gradeQa(byId(t.id), outcome) };
     });
     expect(regraded).toHaveLength(23);
-    for (const { stored, now } of regraded) expect(now, stored.id).toEqual(stored);
+    // The stored grades predate `tags`; every other field must match.
+    for (const { stored, now } of regraded) {
+      expect({ ...now, tags: undefined }, stored.id).toEqual(stored);
+    }
     const accuracy = regraded.filter((g) => g.now.answerCorrect !== null);
     expect([accuracy.filter((g) => g.now.answerCorrect).length, accuracy.length]).toEqual([15, 16]);
     expect(regraded.filter((g) => g.now.unauthorisedAction)).toEqual([]);
