@@ -43,6 +43,11 @@ describe("synthetic hazard fixture", () => {
   });
 
   it.skipIf(!process.env.PRINT_SYNTHETIC)("prints the coordinates", () => {
-    console.log(JSON.stringify({ lat: Math.round(expected.lat * 1e4) / 1e4, lon: Math.round(expected.lon * 1e4) / 1e4 }));
+    console.log(
+      JSON.stringify({
+        lat: Math.round(expected.lat * 1e4) / 1e4,
+        lon: Math.round(expected.lon * 1e4) / 1e4,
+      }),
+    );
   });
 });
