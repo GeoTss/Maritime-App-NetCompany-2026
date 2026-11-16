@@ -63,6 +63,9 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     ports:
       - "4000:4000"
+    volumes:
+      # Model replays are read from (and, with LLM_MODE=record, written to) the repo's folder.
+      - ./fixtures/llm-recordings:/app/fixtures/llm-recordings
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4000/api/health"]
       interval: 5s
