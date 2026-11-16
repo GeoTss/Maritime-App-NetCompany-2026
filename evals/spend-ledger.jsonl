@@ -22,3 +22,4 @@
 {"phase":7,"at":"2026-11-16T14:57:19.170Z","run":"demo-story-live","label":"p7-live-story-1-failed-step4","costUsd":0.006576}
 {"phase":7,"at":"2026-11-16T15:07:14.536Z","run":"demo-story-live","label":"p7-live-story-2-pass","costUsd":0.009373}
 {"phase":7,"at":"2026-11-16T15:40:13.895Z","run":"eval-extraction","label":"p7-heldout","costUsd":0.13125011999999997}
+{"phase":7,"at":"2026-11-16T15:42:39.244Z","run":"eval-qa","label":"p7-heldout","costUsd":0.03153544}
