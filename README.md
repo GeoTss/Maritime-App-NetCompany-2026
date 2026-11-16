@@ -38,7 +38,7 @@ npx playwright install chromium
 npm run demo:reset && npx playwright test
 ```
 
-This is the recorded story: free, about 15 seconds. `npm run demo:reset` (ready in about 15 seconds when measured; it waits up to 3 minutes) recreates the api, erp, worker and
+This is the recorded story: free, about 17 seconds. `npm run demo:reset` (ready in about 15 seconds when measured; it waits up to 3 minutes) recreates the api, erp, worker and
 web containers pinned, reseeded and on recorded sources, and waits until they are ready.
 
 ## Go live
@@ -65,9 +65,10 @@ The live story is `npm run demo:live && STORY_MODE=live npx playwright test` (ab
 ## Evaluation
 
 Extraction and question answering are measured against golden sets with programmatic graders. The
-held-out split ran once, live. The approach, the headline numbers and the stated limits are in
-[`docs/APPROACH.md`](docs/APPROACH.md); the same scorecards are on the console's Evaluation page.
-The log of earlier passes is `docs/EVAL_LOG.md`.
+held-out split ran once, live, on frozen code, and is published beside the dev split. The approach,
+the headline numbers and the stated limits are in [`docs/APPROACH.md`](docs/APPROACH.md); the same
+scorecards are on the console's Evaluation page. Every pass, the held-out pre-registration
+included, is logged in `docs/EVAL_LOG.md`.
 
 ## Verify
 
