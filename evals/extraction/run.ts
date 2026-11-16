@@ -27,8 +27,9 @@
  * measurement when a call was served from one (meta.calls.fromRecordings, printed), and `--final`
  * refuses it. Measure with `--mode live`.
  * Held-out runs once (Ruling R8): a final live held-out pass refuses to start when a selected case
- * is already in `evals/heldout-passes.jsonl`, and appends one row there per case row it writes
- * (errors included). Oracle, empty and replay passes never touch that file. A pass that stops
+ * is already in `evals/heldout-passes.jsonl` (or has an empty label), and appends one row there
+ * per case row it writes, before that row (errors included). Oracle, empty and replay passes never
+ * touch that file. A pass that stops
  * early keeps its rows and scorecard; the cases not run may run once more, then
  * `npm run eval:merge` joins the reports.
  * The key comes from `ANTHROPIC_API_KEY` (via `tsx --env-file-if-exists=.env`) and is never printed.
@@ -900,14 +901,30 @@ async function runCase(
 
 // ---------- the run ----------
 
+/** The signals a run handles: Ctrl-C, a kill, and a closed terminal. */
+export type InterruptSignal = "SIGINT" | "SIGTERM" | "SIGHUP";
+export const INTERRUPT_SIGNALS: readonly InterruptSignal[] = ["SIGINT", "SIGTERM", "SIGHUP"];
+
 /** Where interrupt signals come from (`process` by default; tests inject an emitter). */
 export interface SignalSource {
-  once(signal: "SIGINT" | "SIGTERM", listener: () => void): unknown;
-  off(signal: "SIGINT" | "SIGTERM", listener: () => void): unknown;
+  once(signal: InterruptSignal, listener: () => void): unknown;
+  off(signal: InterruptSignal, listener: () => void): unknown;
 }
 
-/** Exit status after SIGINT or SIGTERM is handled (128 + 2, the shell's interrupt status). */
+/** Exit status after SIGINT, SIGTERM or SIGHUP is handled (128 + 2, the shell's interrupt status). */
 export const INTERRUPT_EXIT = 130;
+
+/**
+ * Refuses, before any call, a final held-out pass (one that writes pass rows) whose label is empty:
+ * every pass row names its pass by the label.
+ */
+export function assertPassLabel(passesPath: string | null, label: string): void {
+  if (passesPath !== null && label.trim() === "") {
+    throw new Error(
+      "a final held-out pass needs a non-empty --label: it names the pass's rows in the passes file",
+    );
+  }
+}
 
 export interface EvalOptions {
   sql: Sql;
@@ -1049,6 +1066,7 @@ export async function runExtractionEval(opts: EvalOptions): Promise<EvalResult> 
   // A held-out case runs once: before any call, ledger row or report, refuse a final live pass
   // that selects a case already in the passes file.
   const passesPath = heldoutPassesPath({ ...opts, model: llm });
+  assertPassLabel(passesPath, opts.label);
   if (passesPath !== null) assertNotRun("extraction", ids, passesPath);
   const cases = await Promise.all(
     ids.map((id) => loadCase(goldenDir, id, opts.extractor === "oracle")),
@@ -1109,7 +1127,7 @@ export async function runExtractionEval(opts: EvalOptions): Promise<EvalResult> 
   // ledgers it and writes the report so far synchronously, then exits 130.
   const signals = opts.signals ?? process;
   const exit = opts.exit ?? ((code: number) => process.exit(code));
-  const onSignal = (signal: "SIGINT" | "SIGTERM") => () => {
+  const onSignal = (signal: InterruptSignal) => () => {
     const reason = `interrupted by ${signal}`;
     ctx.interrupted.reason = reason;
     try {
@@ -1124,15 +1142,12 @@ export async function runExtractionEval(opts: EvalOptions): Promise<EvalResult> 
     }
     exit(INTERRUPT_EXIT);
   };
-  const onInt = onSignal("SIGINT");
-  const onTerm = onSignal("SIGTERM");
-  signals.once("SIGINT", onInt);
-  signals.once("SIGTERM", onTerm);
+  const handlers = INTERRUPT_SIGNALS.map((s) => [s, onSignal(s)] as const);
+  for (const [s, h] of handlers) signals.once(s, h);
   try {
     return await withRunLock(opts.sql, () => runPlan(opts, plan, ctx));
   } finally {
-    signals.off("SIGINT", onInt);
-    signals.off("SIGTERM", onTerm);
+    for (const [s, h] of handlers) signals.off(s, h);
     settle();
   }
 }
@@ -1280,9 +1295,30 @@ async function runPlan(
       log(`[eval] stopped before ${notRun[0]}: ${aborted}`);
       break;
     }
-    let result: Awaited<ReturnType<typeof runCase>>;
+    let row: CaseRow;
     try {
-      result = await runCase(ctx, step.c, step.run);
+      const result = await runCase(ctx, step.c, step.run);
+      row = result.row;
+      // The pass row first: once it is written the case is consumed (it never runs again), even if
+      // a write below fails. A failed pass-row write stops the run before the case has a row.
+      if (run.passesPath !== null) {
+        appendPass(
+          {
+            suite: "extraction",
+            id: row.id,
+            run: row.run,
+            at: now().toISOString(),
+            label: opts.label,
+            report: basename(reportDir),
+            outcome: passOutcome(row.errorKind),
+          },
+          run.passesPath,
+        );
+      }
+      appendFileSync(file("rows.jsonl"), `${JSON.stringify(row)}\n`);
+      rows.push(row);
+      done++;
+      appendFileSync(file("transcripts.jsonl"), `${JSON.stringify(result.transcript)}\n`);
     } catch (err) {
       // A runner fault (not a model outcome) fails the run. The report so far gets its scorecard
       // first, so the cases not run can run once more and the reports be merged.
@@ -1290,35 +1326,17 @@ async function runPlan(
       writeFaultReport(run, () => writeScorecard(reason, remaining()), reason);
       throw err;
     }
-    const { row, transcript } = result;
-    rows.push(row);
-    appendFileSync(file("rows.jsonl"), `${JSON.stringify(row)}\n`);
-    // Next to its row, so a pass that fails or is stopped later still lists every case it ran.
-    if (run.passesPath !== null) {
-      appendPass(
-        {
-          suite: "extraction",
-          id: row.id,
-          run: row.run,
-          at: now().toISOString(),
-          label: opts.label,
-          report: basename(reportDir),
-          outcome: passOutcome(row.errorKind),
-        },
-        run.passesPath,
-      );
-    }
-    appendFileSync(file("transcripts.jsonl"), `${JSON.stringify(transcript)}\n`);
-    done++;
     const what = row.errorKind ? `error ${row.errorKind}` : row.status;
     log(
       `[eval] ${row.id}${step.run > 1 ? ` #${step.run}` : ""}: ${what} ${(row.latencyMs / 1000).toFixed(1)}s $${row.costUsd.toFixed(5)}`,
     );
   }
-  await cleanupCases(opts.sql, baseline);
   run.settle();
   const { card, meta } = writeScorecard(aborted, notRun);
   log(`[eval] report: ${reportDir}`);
+  // Only after the report is complete: a cleanup failure still fails the run, but it can no longer
+  // leave a finished pass without its scorecard (the next run reseeds the database anyway).
+  await cleanupCases(opts.sql, baseline);
 
   // A call served (or requested) by any model but Haiku fails the run; the report above says where.
   if (llm) {

@@ -25,8 +25,9 @@
  * with a call served from one is not a measurement (meta.calls.fromRecordings, printed), and
  * `--final` refuses it. Measure with `--mode live`.
  * Held-out runs once (Ruling R8), as in the extraction runner: a final live held-out pass refuses
- * to start when a selected question is already in `evals/heldout-passes.jsonl`, and appends one
- * row there per question row it writes (errors included); oracle, empty and replay passes never
+ * to start when a selected question is already in `evals/heldout-passes.jsonl` (or the label is
+ * empty), and appends one row there per question row it writes, before that row (errors
+ * included); it handles SIGINT, SIGTERM and SIGHUP alike; oracle, empty and replay passes never
  * touch that file; `npm run eval:merge` joins the reports of a pass that stopped early.
  */
 import { appendFileSync, writeFileSync } from "node:fs";
@@ -47,12 +48,15 @@ import { ASK_FIXTURE_NOW, prepareAskFixture } from "../../apps/api/src/ask/demo-
 import { DEFAULT_RECORDINGS_DIR } from "../../apps/api/src/config.js";
 import {
   assertFinalMode,
+  assertPassLabel,
   assertSplitAllowed,
   capturing,
   createReportDir,
   type Exchange,
   heldoutPassesPath,
   INTERRUPT_EXIT,
+  INTERRUPT_SIGNALS,
+  type InterruptSignal,
   passOutcome,
   requireApiKey,
   type SignalSource,
@@ -566,6 +570,7 @@ export async function runQaEval(opts: EvalOptions): Promise<EvalResult> {
   // A held-out question runs once: before any call, ledger row or report, refuse a final live
   // pass that selects a question already in the passes file.
   const passesPath = heldoutPassesPath({ ...opts, model: llm });
+  assertPassLabel(passesPath, opts.label);
   if (passesPath !== null) assertNotRun("qa", ids, passesPath);
   const truths = await Promise.all(ids.map((id) => loadTruth(goldenDir, id)));
   if (llm && !opts.sql) throw new Error("the llm answerer needs a database");
@@ -609,7 +614,7 @@ export async function runQaEval(opts: EvalOptions): Promise<EvalResult> {
   };
   const signals = opts.signals ?? process;
   const exit = opts.exit ?? ((code: number) => process.exit(code));
-  const onSignal = (signal: "SIGINT" | "SIGTERM") => () => {
+  const onSignal = (signal: InterruptSignal) => () => {
     const reason = `interrupted by ${signal}`;
     state.interrupted = reason;
     try {
@@ -624,10 +629,8 @@ export async function runQaEval(opts: EvalOptions): Promise<EvalResult> {
     }
     exit(INTERRUPT_EXIT);
   };
-  const onInt = onSignal("SIGINT");
-  const onTerm = onSignal("SIGTERM");
-  signals.once("SIGINT", onInt);
-  signals.once("SIGTERM", onTerm);
+  const handlers = INTERRUPT_SIGNALS.map((s) => [s, onSignal(s)] as const);
+  for (const [s, h] of handlers) signals.once(s, h);
 
   const log = opts.log ?? ((l: string) => console.log(l));
   try {
@@ -644,8 +647,7 @@ export async function runQaEval(opts: EvalOptions): Promise<EvalResult> {
       });
     return llm && opts.sql ? await withRunLock(opts.sql, body) : await body();
   } finally {
-    signals.off("SIGINT", onInt);
-    signals.off("SIGTERM", onTerm);
+    for (const [s, h] of handlers) signals.off(s, h);
     settle();
   }
 }
@@ -772,14 +774,34 @@ async function runPlan(
       log(`[eval] stopped before ${notRun[0]}: ${aborted}`);
       break;
     }
-    let result: { row: QaRow; transcript: QaTranscript };
+    let row: QaRow;
     try {
-      result = llm
+      const result: { row: QaRow; transcript: QaTranscript } = llm
         ? await runQuestion(
             { sql: opts.sql as Sql, guard, exchanges, llm: client, mode, slot },
             truth,
           )
         : runFixed(truth, opts.answerer as "oracle" | "empty");
+      row = result.row;
+      // The pass row first: once it is written the question is consumed (it never runs again), even
+      // if a write below fails. A failed pass-row write stops the run before the question has a row.
+      if (run.passesPath !== null) {
+        appendPass(
+          {
+            suite: "qa",
+            id: row.id,
+            run: 1,
+            at: now().toISOString(),
+            label: opts.label,
+            report: basename(reportDir),
+            outcome: passOutcome(row.error?.kind ?? null),
+          },
+          run.passesPath,
+        );
+      }
+      appendFileSync(file("rows.jsonl"), `${JSON.stringify(row)}\n`);
+      rows.push(row);
+      appendFileSync(file("transcripts.jsonl"), `${JSON.stringify(result.transcript)}\n`);
     } catch (err) {
       // A runner fault (not a model outcome) fails the run. The report so far gets its scorecard
       // first, so the questions not run can run once more and the reports be merged.
@@ -787,25 +809,6 @@ async function runPlan(
       writeFaultReport(run, () => writeScorecard(reason, remaining()), reason);
       throw err;
     }
-    const { row, transcript } = result;
-    rows.push(row);
-    appendFileSync(file("rows.jsonl"), `${JSON.stringify(row)}\n`);
-    // Next to its row, so a pass that fails or is stopped later still lists every question it ran.
-    if (run.passesPath !== null) {
-      appendPass(
-        {
-          suite: "qa",
-          id: row.id,
-          run: 1,
-          at: now().toISOString(),
-          label: opts.label,
-          report: basename(reportDir),
-          outcome: passOutcome(row.error?.kind ?? null),
-        },
-        run.passesPath,
-      );
-    }
-    appendFileSync(file("transcripts.jsonl"), `${JSON.stringify(transcript)}\n`);
     log(
       `[eval] ${row.id}: ${row.error ? `error ${row.error.kind}` : row.grade?.withheld ? "withheld" : "answered"} ${(row.latencyMs / 1000).toFixed(1)}s $${row.costUsd.toFixed(5)}`,
     );

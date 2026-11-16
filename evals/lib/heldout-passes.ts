@@ -1,7 +1,8 @@
 /**
  * The held-out passes file: one row per case run of a final live held-out pass, so a held-out case
- * runs once (Ruling R8). A runner appends a row next to each `rows.jsonl` row it writes (errors
- * included), and refuses to start a final live held-out pass when a selected case already has a
+ * runs once (Ruling R8). A runner appends a row for each `rows.jsonl` row it writes, before that
+ * row (errors included; the case is consumed even if the row write then fails), and refuses to
+ * start a final live held-out pass when a selected case already has a
  * row. A case with no row (the pass stopped first) may still run, once; the reports are then
  * merged with `npm run eval:merge`.
  *

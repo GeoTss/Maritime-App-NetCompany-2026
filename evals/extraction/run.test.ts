@@ -496,6 +496,31 @@ describe("runExtractionEval refusals (before any database, network or spend)", (
     );
   });
 
+  it("a final live held-out pass refuses an empty label before any call (its pass rows need one)", async () => {
+    const fetch = networkForbidden();
+    const ledgerPath = await tempLedger(0);
+    const reportsDir = await temp("reports");
+    const passesPath = await tempPasses();
+    await expect(
+      runEval(
+        await base({
+          ...STAND_IN_FINAL,
+          ids: [heldoutId(0)],
+          label: "",
+          apiKey: "test-key",
+          fetch,
+          ledgerPath,
+          passesPath,
+          reportsDir,
+        }),
+      ),
+    ).rejects.toThrow(/final held-out pass needs a non-empty --label/);
+    expect(fetch).not.toHaveBeenCalled();
+    expect(readLedger(ledgerPath)).toHaveLength(1);
+    expect(await readdir(reportsDir)).toEqual([]);
+    expect(fileText(passesPath)).toBeNull();
+  });
+
   it("refuses a paid run without a key, naming the variable", async () => {
     await expect(runEval(await base({ ledgerPath: await tempLedger(0) }))).rejects.toThrow(
       /ANTHROPIC_API_KEY/,
@@ -854,9 +879,9 @@ describe.skipIf(!sql)("extraction runner (database)", () => {
     expect(await readdir(join(reportsDir, name))).toEqual([]);
   }, 120_000);
 
-  describe("SIGINT / SIGTERM during a paid run", () => {
+  describe("SIGINT / SIGTERM / SIGHUP during a paid run", () => {
     const interrupted = async (
-      signal: "SIGINT" | "SIGTERM",
+      signal: "SIGINT" | "SIGTERM" | "SIGHUP",
       when: "between cases" | "in flight",
     ) => {
       const ids = [firstOf("eur"), firstOf("plain")];
@@ -937,12 +962,39 @@ describe.skipIf(!sql)("extraction runner (database)", () => {
       expect(r.meta.spend.ledgerUsd).toBeCloseTo(ESTIMATE_PER_CASE_RUN_USD, 12);
       expect(r.meta.spend.guardUsd).toBeCloseTo(api.costPerCall, 12);
     }, 120_000);
+
+    it("SIGHUP is handled like SIGTERM: ledgered once, the report so far written, exit 130", async () => {
+      const { r, exit, atExit, api, ledgerPath, signals, ids } = await interrupted(
+        "SIGHUP",
+        "between cases",
+      );
+      expect(exit).toHaveBeenCalledTimes(1);
+      expect(exit).toHaveBeenCalledWith(INTERRUPT_EXIT);
+      const ledger = readLedger(ledgerPath);
+      expect(ledger).toHaveLength(2);
+      expect(ledger.at(-1)).toMatchObject({ run: LEDGER_RUN, label: "signal-SIGHUP" });
+      expect(atExit).toMatchObject({
+        ledger: 2,
+        rows: 1,
+        scorecard: { meta: { aborted: "interrupted by SIGHUP", notRun: [ids[1]] } },
+      });
+      expect(api.fetch).toHaveBeenCalledTimes(1);
+      expect(r.meta).toMatchObject({ aborted: "interrupted by SIGHUP", notRun: [ids[1]] });
+      expect(signals.eventNames()).toEqual([]);
+    }, 120_000);
   });
 
   it("an unpaid run registers the handlers too and removes them afterwards", async () => {
     const signals = new EventEmitter();
-    await dry({ label: "handlers", ids: [firstOf("eur")], signals });
-    expect(signals.listenerCount("SIGINT") + signals.listenerCount("SIGTERM")).toBe(0);
+    const during: string[][] = [];
+    await dry({
+      label: "handlers",
+      ids: [firstOf("eur")],
+      signals,
+      log: () => during.push(signals.eventNames().map(String).sort()),
+    });
+    expect(during[0]).toEqual(["SIGHUP", "SIGINT", "SIGTERM"]);
+    expect(signals.eventNames()).toEqual([]);
   }, 120_000);
 
   it("refuses to start while another run holds the database", async () => {
@@ -1063,6 +1115,87 @@ describe.skipIf(!sql)("extraction runner (database)", () => {
           passesPath,
         }),
       ).rejects.toThrow(HeldoutRerunError);
+    }, 120_000);
+
+    it("the pass row is written before its rows.jsonl line: a failed pass-row write stops the run before the row", async () => {
+      const ids = [heldoutId(0), heldoutId(1)];
+      // A passes path in a directory that does not exist: it reads as empty (the guard passes),
+      // and the first append fails.
+      const passesPath = join(await temp("passes"), "missing", "passes.jsonl");
+      const reportsDir = await temp("reports");
+      const ledgerPath = await tempLedger(0);
+      const { fetch, requests } = scriptedFetch([
+        textReply(1, JSON.stringify({ extraction: EMPTY_EXTRACTION })),
+        textReply(2, JSON.stringify({ extraction: EMPTY_EXTRACTION })),
+      ]);
+      await expect(
+        dry({
+          ...STAND_IN_FINAL,
+          extractor: "llm",
+          mode: "live",
+          label: "pass-first",
+          ids,
+          apiKey: "test-key",
+          fetch,
+          ledgerPath,
+          passesPath,
+          reportsDir,
+        }),
+      ).rejects.toThrow(/ENOENT/);
+      expect(requests).toHaveLength(1);
+      expect(fileText(passesPath)).toBeNull();
+      const [dir = ""] = await readdir(reportsDir);
+      // No row without its pass row: the case has no row, so it may still run once.
+      expect(await readFile(join(reportsDir, dir, "rows.jsonl"), "utf8")).toBe("");
+      expect(await readFile(join(reportsDir, dir, "transcripts.jsonl"), "utf8")).toBe("");
+      const json = JSON.parse(await readFile(join(reportsDir, dir, "scorecard.json"), "utf8"));
+      expect(json.meta).toMatchObject({ final: true, notRun: ids });
+      expect(json.meta.aborted).toMatch(/^runner fault: .*ENOENT/);
+      expect(json.scorecard.cases).toBe(0);
+      expect(readLedger(ledgerPath)).toHaveLength(2); // the spend of the one call is ledgered
+    }, 120_000);
+
+    it("a cleanup throw after the last case still leaves a readable scorecard.json with final meta", async () => {
+      const ids = [heldoutId(0)];
+      const passesPath = await tempPasses();
+      const reportsDir = await temp("reports");
+      const { fetch } = scriptedFetch([
+        textReply(1, JSON.stringify({ extraction: EMPTY_EXTRACTION })),
+      ]);
+      // The run's last cleanup is the first to delete a document: make that delete fail.
+      await db`create or replace function eval_test_cleanup_fault() returns trigger as $$
+               begin raise exception 'eval test: injected cleanup fault'; end $$ language plpgsql`;
+      await db`create trigger eval_test_cleanup_fault before delete on documents
+               for each row execute function eval_test_cleanup_fault()`;
+      try {
+        await expect(
+          dry({
+            ...STAND_IN_FINAL,
+            extractor: "llm",
+            mode: "live",
+            label: "cleanup",
+            ids,
+            apiKey: "test-key",
+            fetch,
+            ledgerPath: await tempLedger(0),
+            passesPath,
+            reportsDir,
+          }),
+        ).rejects.toThrow(/eval test: injected cleanup fault/);
+      } finally {
+        await db`drop trigger if exists eval_test_cleanup_fault on documents`;
+        await db`drop function if exists eval_test_cleanup_fault()`;
+      }
+      const [dir = ""] = await readdir(reportsDir);
+      const json = JSON.parse(await readFile(join(reportsDir, dir, "scorecard.json"), "utf8"));
+      // The complete pass: every case run, nothing aborted, final, and its spend ledgered.
+      expect(json.meta).toMatchObject({ final: true, aborted: null, notRun: [], selected: 1 });
+      expect(json.meta.spend.ledgerUsd).toBeGreaterThan(0);
+      expect(json.scorecard.cases).toBe(1);
+      expect(await readFile(join(reportsDir, dir, "scorecard.md"), "utf8")).toContain(
+        "- Final pass (--final)",
+      );
+      expect(readPasses(passesPath).map((p) => p.id)).toEqual(ids);
     }, 120_000);
 
     it("oracle, empty and replay passes never touch the passes file", async () => {

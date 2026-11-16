@@ -63,15 +63,19 @@ The runner refuses:
   `--repeat-hard 8` is 266 ($0.266) and is refused. An `--offset` that leaves no case is refused
   too.
 - A final live held-out pass (`--split heldout --final --mode live`) that selects a case already
-  listed in `evals/heldout-passes.jsonl`, before any call, ledger row or report.
+  listed in `evals/heldout-passes.jsonl`, or that has an empty label, before any call, ledger row
+  or report.
 
 **Held-out runs once (Ruling R8).** A final live held-out pass appends one row to the tracked
-`evals/heldout-passes.jsonl` next to each `rows.jsonl` row it writes, errors included:
-`{suite, id, run, at, label, report, outcome}`, with `outcome` `graded` or `error:<kind>`. Oracle,
-empty and replay passes never touch the file. If a pass stops early (spend cap, interrupt, a
-runner fault), its report keeps its rows and a scorecard listing what was not run; the cases with
-no row then run once, with `--offset`, and `npm run eval:merge` joins the reports. A case that
-produced a row is never run again. Only the CLI names the real file; tests pass temp paths.
+`evals/heldout-passes.jsonl` for each `rows.jsonl` row it writes, errors included:
+`{suite, id, run, at, label, report, outcome}`, with `outcome` `graded` or `error:<kind>`. The pass
+row is written first, so a case is consumed before it has a row: if that write fails, the run stops
+(a runner fault) before the case's `rows.jsonl` line. Oracle, empty and replay passes never touch
+the file. If a pass stops early (spend cap, interrupt, a runner fault), its report keeps its rows
+and a scorecard listing what was not run; the cases with no row then run once, with `--offset`, and
+`npm run eval:merge` joins the reports. A case that produced a row is never run again. Only the
+CLI names the real file; tests pass temp paths. A finished pass writes its scorecard before the
+last database cleanup, so a cleanup failure cannot leave it without one.
 
 **Merging (`npm run eval:merge`).** Only the reports of one pass merge: they must share suite,
 split, mode (any of live, record, replay, oracle, empty), model, effort, fallbacks, prompt version,
@@ -79,11 +83,19 @@ seed, anchor and `final` (a report without `final` reads as false); chunks may d
 `--repeat-hard`; a case with a first run in two reports is refused. The rows are put in the
 runner's order (first runs in `split.json` order, then the repeats), scored as one run's rows are,
 and written as a new report with `meta.mergedFrom`. When the reports cover every selected case,
-`aborted` is null and `notRun` empty.
+`aborted` is null and `notRun` empty. Two kinds of entry can stay in a merged `notRun`:
+
+- **Missing first runs** (`<id>`): cases with no row in any report. These are what a resume must
+  fill: run them once (`--offset`), then merge again.
+- **Hard-case repeats that can no longer run** (`<id>#2`, `<id>#3`): a pass that stopped during
+  its first runs never reached the repeats, and their case already has a run-1 row, so the passes
+  file refuses it. They stay in `notRun` as a note (with the original `aborted` reason). The
+  headline is complete without them; only the variance section has fewer runs. While anything is
+  listed in `notRun`, `eval:merge` exits 1.
 
 The exit code is 1 when the run stopped at the spend cap, failed (a non-Haiku model, an unreadable
-response body, a runner error), or was a replay run with misses. After Ctrl-C (SIGINT) or SIGTERM
-it is 130.
+response body, a runner error), or was a replay run with misses. After Ctrl-C (SIGINT), SIGTERM or
+SIGHUP it is 130.
 
 **Runner errors.** After each case the runner reads back what `processDocument` stored. An
 `extracted` case must have exactly one stored quote, of its extraction, whose supplier, port,
@@ -218,9 +230,9 @@ write no ledger row):
 4. Every response body the guard could not read is listed in `meta.spend.parseErrors` and fails
    the run, after the report is written, because its cost is not counted.
 5. The guard's summed cost is appended to the ledger (`run: "eval-extraction"`, the label) exactly
-   once. This happens on success, failure, a stop, or SIGINT / SIGTERM. On a signal the handler
-   ledgers synchronously, writes the scorecard for the rows so far (`aborted: "interrupted by
-   SIGINT"`, the cases not run), and exits 130. A request still in flight then has no usage yet,
-   so it is ledgered at the $0.002 per-case estimate.
+   once. This happens on success, failure, a stop, or SIGINT / SIGTERM / SIGHUP. On a signal the
+   handler ledgers synchronously, writes the scorecard for the rows so far (`aborted: "interrupted
+   by SIGINT"`, the cases not run), and exits 130. A request still in flight then has no usage yet,
+   so it is ledgered at the $0.001 per-case estimate.
 
 A 64-case dev pass is about $0.03–0.10 on Haiku 5.5.

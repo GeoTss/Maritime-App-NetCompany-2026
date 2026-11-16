@@ -1,11 +1,12 @@
 /** The Q&A runner: argument refusals, the oracle and empty dry runs, and runs on a real database. */
-import { readFileSync } from "node:fs";
+import { EventEmitter } from "node:events";
+import { readdirSync, readFileSync } from "node:fs";
 import { copyFile, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { connectTestDb, testDbLabel } from "@pharos/db/testing";
 import type { Fact } from "@pharos/shared";
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
 import {
   lastToolResult,
   type ScriptedRequest,
@@ -14,6 +15,7 @@ import {
   toolCall,
 } from "../../apps/api/src/ai/scripted-llm.js";
 import { prepareAskFixture } from "../../apps/api/src/ask/demo-fixture.js";
+import { INTERRUPT_EXIT } from "../extraction/run.js";
 import { readLedger } from "../lib/budget.js";
 import { appendPass, HeldoutRerunError, readPasses } from "../lib/heldout-passes.js";
 import {
@@ -268,6 +270,71 @@ describe("dry runs (no model, no database)", () => {
       const md = await readFile(join(r.reportDir, "scorecard.md"), "utf8");
       expect(md.includes("- Final pass (--final)")).toBe(want);
     }
+  });
+
+  it("a final live held-out pass refuses an empty label before any call (its pass rows need one)", async () => {
+    const { fetch, requests } = scriptedFetch([textReply(1, "x")]);
+    const ledgerPath = join(await dir(), "ledger.jsonl");
+    const reportsDir = await dir();
+    const passesPath = await tempPasses();
+    await expect(
+      runQaEval({
+        ...STAND_IN_FINAL,
+        mode: "live",
+        answerer: "llm",
+        label: "",
+        ids: [heldoutId(0)],
+        apiKey: "test-key",
+        fetch,
+        ledgerPath,
+        passesPath,
+        reportsDir,
+        log: () => {},
+      }),
+    ).rejects.toThrow(/final held-out pass needs a non-empty --label/);
+    expect(requests).toHaveLength(0);
+    expect(readLedger(ledgerPath)).toEqual([]);
+    expect(await readdir(reportsDir)).toEqual([]);
+    expect(fileText(passesPath)).toBeNull();
+  });
+
+  it("SIGHUP is handled like SIGTERM: the report so far is written and the run exits 130", async () => {
+    const ids = split.dev.slice(0, 3);
+    const signals = new EventEmitter();
+    const reportsDir = await dir();
+    let atExit: unknown = null;
+    const exit = vi.fn((_code: number) => {
+      const [name] = readdirSync(reportsDir);
+      atExit = JSON.parse(readFileSync(join(reportsDir, name ?? "", "scorecard.json"), "utf8"));
+    });
+    const during: string[][] = [];
+    let sent = false;
+    const r = await runQaEval({
+      split: "dev",
+      mode: "replay",
+      answerer: "oracle",
+      label: "sighup",
+      ids,
+      reportsDir,
+      signals,
+      exit,
+      log: (line) => {
+        during.push(signals.eventNames().map(String).sort());
+        if (!sent && line.includes(`${ids[0]}:`)) {
+          sent = true;
+          signals.emit("SIGHUP");
+        }
+      },
+    });
+    expect(during[0]).toEqual(["SIGHUP", "SIGINT", "SIGTERM"]);
+    expect(exit).toHaveBeenCalledTimes(1);
+    expect(exit).toHaveBeenCalledWith(INTERRUPT_EXIT);
+    expect(atExit).toMatchObject({
+      meta: { aborted: "interrupted by SIGHUP", notRun: ids.slice(1) },
+      scorecard: { questions: 1 },
+    });
+    expect(r.meta).toMatchObject({ aborted: "interrupted by SIGHUP", notRun: ids.slice(1) });
+    expect(signals.eventNames()).toEqual([]);
   });
 });
 
@@ -583,6 +650,47 @@ describe.skipIf(!sql)("Q&A runner on a database", () => {
       expect(json.meta).toMatchObject({ final: true, notRun: [ids[2]] });
       expect(json.meta.aborted).toMatch(/^runner fault: .*eval test: injected runner fault/);
       expect(json.scorecard.questions).toBe(2);
+    });
+
+    it("the pass row is written before its rows.jsonl line: a failed pass-row write stops the run before the row", async () => {
+      const ids = [heldoutId(0), heldoutId(1)];
+      // A passes path in a directory that does not exist: it reads as empty (the guard passes),
+      // and the first append fails.
+      const passesPath = join(await dir(), "missing", "passes.jsonl");
+      const reportsDir = await dir();
+      const ledgerPath = join(await dir(), "ledger.jsonl");
+      const { fetch, requests } = scriptedFetch([
+        textReply(1, "There is nothing to add."),
+        textReply(2, "There is nothing to add."),
+      ]);
+      await expect(
+        runQaEval({
+          ...STAND_IN_FINAL,
+          sql,
+          mode: "live",
+          answerer: "llm",
+          label: "pass-first",
+          ids,
+          apiKey: "test-key",
+          fetch,
+          ledgerPath,
+          budgetPath: await budget(1),
+          passesPath,
+          reportsDir,
+          log: () => {},
+        }),
+      ).rejects.toThrow(/ENOENT/);
+      expect(requests).toHaveLength(1);
+      expect(fileText(passesPath)).toBeNull();
+      const [name = ""] = await readdir(reportsDir);
+      // No row without its pass row: the question has no row, so it may still run once.
+      expect(await readFile(join(reportsDir, name, "rows.jsonl"), "utf8")).toBe("");
+      expect(await readFile(join(reportsDir, name, "transcripts.jsonl"), "utf8")).toBe("");
+      const json = JSON.parse(await readFile(join(reportsDir, name, "scorecard.json"), "utf8"));
+      expect(json.meta).toMatchObject({ final: true, notRun: ids });
+      expect(json.meta.aborted).toMatch(/^runner fault: .*ENOENT/);
+      expect(json.scorecard.questions).toBe(0);
+      expect(readLedger(ledgerPath)).toHaveLength(1); // the spend of the one call is ledgered
     });
 
     it("oracle, empty and replay passes never touch the passes file", async () => {
