@@ -2,8 +2,10 @@
  * The single LLM gateway: every model call in the API goes through the client built here.
  *
  * - `live` forwards to the Anthropic API.
- * - `record` forwards and writes each successful request/response pair to
- *   `<recordingsDir>/<requestKey>.json`.
+ * - `record` is replay-first: a request whose recording exists is served from it (reported as
+ *   mode `replay`, latency 0, no transport call, so it costs nothing and shared recordings are
+ *   never overwritten); only a miss forwards and writes the successful request/response pair
+ *   to `<recordingsDir>/<requestKey>.json`. Deleting a recording file forces a fresh sample.
  * - `replay` serves only recordings and throws `ReplayMissError` on a miss; it never touches
  *   the network and needs no API key. Tests run in replay.
  *
@@ -204,15 +206,17 @@ function gateway(opts: CreateLlmOptions): Middleware {
     const key = requestKey(method, path, body);
     const file = join(recordingsDir, `${key}.json`);
 
-    if (mode === "replay") {
+    if (mode === "replay" || mode === "record") {
       const recording = await readRecording(file);
-      if (!recording) throw new ReplayMissError(key, file);
-      const { status, headers, body: recorded } = recording.response;
-      await report(metricsOf(key, body, recorded, 0, mode));
-      return new Response(JSON.stringify(recorded), {
-        status,
-        headers: { "content-type": "application/json", ...headers },
-      });
+      if (!recording && mode === "replay") throw new ReplayMissError(key, file);
+      if (recording) {
+        const { status, headers, body: recorded } = recording.response;
+        await report(metricsOf(key, body, recorded, 0, "replay"));
+        return new Response(JSON.stringify(recorded), {
+          status,
+          headers: { "content-type": "application/json", ...headers },
+        });
+      }
     }
 
     const started = performance.now();

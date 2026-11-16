@@ -136,6 +136,58 @@ describe("createLlm record mode", () => {
     expect(calls[0]?.latencyMs).toBeGreaterThanOrEqual(0);
   });
 
+  it("record mode reuses an existing recording without calling the transport", async () => {
+    const first = createLlm({
+      mode: "record",
+      apiKey: "test-key",
+      recordingsDir: dir,
+      onCall,
+      fetch: async () => jsonResponse(MESSAGE),
+    });
+    await first.client.messages.create(PARAMS);
+    const key = requestKey("POST", "/v1/messages", PARAMS);
+    const before = await readFile(join(dir, `${key}.json`), "utf8");
+    calls.length = 0;
+
+    let transportCalls = 0;
+    const other = { ...MESSAGE, content: [{ type: "text", text: "different", citations: null }] };
+    const { client } = createLlm({
+      mode: "record",
+      apiKey: "test-key",
+      recordingsDir: dir,
+      onCall,
+      fetch: async () => {
+        transportCalls += 1;
+        return jsonResponse(other);
+      },
+    });
+    const msg = await client.messages.create(PARAMS);
+    expect(transportCalls).toBe(0);
+    expect(textOf(msg)).toBe("hi");
+    expect(await readFile(join(dir, `${key}.json`), "utf8")).toBe(before);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({ requestKey: key, latencyMs: 0, mode: "replay" });
+  });
+
+  it("record mode calls the model and writes on a miss", async () => {
+    let transportCalls = 0;
+    const { client } = createLlm({
+      mode: "record",
+      apiKey: "test-key",
+      recordingsDir: dir,
+      onCall,
+      fetch: async () => {
+        transportCalls += 1;
+        return jsonResponse(MESSAGE);
+      },
+    });
+    await client.messages.create(PARAMS);
+    expect(transportCalls).toBe(1);
+    const key = requestKey("POST", "/v1/messages", PARAMS);
+    expect(await readdir(dir)).toContain(`${key}.json`);
+    expect(calls[0]).toMatchObject({ mode: "record" });
+  });
+
   it("does not write a recording for an error response", async () => {
     const { client } = createLlm({
       mode: "record",
