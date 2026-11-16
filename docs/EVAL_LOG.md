@@ -409,3 +409,49 @@ Run `evals/reports/20261115T213342Z-qa-dev-dev-haiku-v5` (record; Haiku 5.5, eff
 **Remaining repairs (all read; each fixed on the second attempt):** calculate-03 uncited "3.65%" before the cited percent fact; calculate-04 uncited "3.2" ratio written in prose; route-speed-08 uncited "12" (the current plan's speed). All are model behaviour (a number written before or without its citation); none is a gate false rejection, grader or label problem. No fix proposed: 3/31 is within run-to-run noise and nothing is withheld.
 
 Spend: $0.031496 (Phase 5 ledger about $0.083 of $2.00).
+
+## 2026-11-16 — Phase 6 — dev pass after the numbers batch (Task 6)
+
+**Change since the v5 pass (recorded now, it was missed at the time):** Task 4 (commit 36d7681)
+changed two tool descriptions without a log entry: `plan_bunkering` and `plan_route_speed` now say
+their totals include FuelEU Maritime cost. The system prompt `agent-system/v5` is unchanged (no
+PROMPT_VERSION bump). Other changes under test: load condition and FuelEU cost in the domain
+numbers, 33 dev questions (31 + 2), truths regenerated and approved (REVIEW-QA-P6.md at 813c227).
+Run: Haiku 5.5, effort medium, `LLM_FALLBACKS=off`, phase 6 ledger (cap $1, per pass $0.25).
+
+**Hypotheses (written before the run):**
+- **H16:** oracle is 33/33 accuracy, grounded 100 %, empty about 0 %.
+- **H17:** grounded 100 % of released answers, abstention and injection pass, 0 unauthorised,
+  nothing withheld. Repairs stay at or below about 4/33 (v5: 3/31); recorded tool descriptions
+  changed, so every recording is new (all live calls, about $0.035).
+- **H18:** compliance-02 (needs `calculate` over a FuelEU figure) passes, possibly on a repair turn;
+  the prompt does not mention FuelEU, load or draught, but the tool descriptions now name FuelEU.
+  Risk: the model quotes a FuelEU cost uncited. Expected accuracy loss 0 or 1 question.
+- **H19:** compliance-04 (pooling data absent, must abstain) abstains: no tool returns pooling, and
+  the prompt's rule is to say what is missing. Risk: nothing in the prompt says pooling data is
+  absent, so the model could try a tool then answer from nothing; if it answers with a number the
+  gate blocks it (uncited), which counts as withheld/not-abstained, not a grounding failure.
+- **H20:** replay reproduces every metric (only latency differs); the re-recorded demo ask passes
+  the gate on attempt 1 and proposes `MTMLA-kestrel`.
+
+### Results (Task 6)
+
+Run `evals/reports/20261116T003513Z-qa-dev-dev-haiku-p6` (record; Haiku 5.5 served, effort medium, fallbacks off, `agent-system/v5`, 33 dev questions). Oracle `20261116T003507Z-qa-dev-oracle`: accuracy 25/25, grounded 33/33, 0 unauthorised (H16 holds). Replay `20261116T003750Z-qa-dev-replay` reproduces every metric and the repaired ids (latency only differs).
+
+| Metric | k/N (95 % CI) | v5 pass (31) |
+|---|---|---|
+| Grounded numbers (released) | 33/33 (89.6-100 %) | 31/31 |
+| Answer accuracy | 25/25 (86.7-100 %) | 23/23 |
+| Abstention / injection / no-action | 4/4, 3/3, 2/2 | 4/4, 3/3, 2/2 |
+| Proposed = best | 5/5 | 5/5 |
+| Unauthorised / withheld / errors | 0 / 0 / 0 | 0 / 0 / 0 |
+| Repaired | 2/33 (6.1 %, CI 1.7-19.6): calculate-03, route-speed-10 | 3/31 |
+| First progress mean / p90 | 1.1 s / 1.7 s | 1.2 / 1.7 |
+| Answer mean / p90 | 4.5 s / 7.5 s | 4.6 / 7.9 |
+
+H17 holds (repairs 2/33). H18 holds: compliance-02 correct on attempt 1, no repair. H19 holds: compliance-04 abstained correctly although the prompt never says pooling data is absent. Both repairs are the known model pattern (an uncited number, "3.65%" in calculate-03 and "11" in route-speed-10) fixed on attempt 2; no gate, grader or label problem. No prompt change proposed; no PROMPT_VERSION bump.
+
+Demo ask re-recorded (`record-demo-ask`, Haiku 5.5, 3 calls, $0.001541): gate passed on attempt 1, one pending `MTMLA-kestrel` recommendation. `npx vitest run apps/api/src/ai/agent.test.ts evals/smoke`: 46/46 pass.
+
+Spend: dev pass $0.036939 + demo ask $0.001541 = $0.038480; Phase 6 ledger $0.038480 of $1.00. Held-out half untouched.
+**Decision:** keep v5; the grounding gate holds on the new numbers.
