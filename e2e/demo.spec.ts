@@ -94,7 +94,14 @@ async function ask(page: Page, question: string, label: string) {
   return turn;
 }
 
+// Always write the timings, pass or fail: a paid live run that fails at step 4 keeps what it timed.
+test.afterEach(() => {
+  writeTimings();
+});
+
 test("demo story: six steps", async ({ page }) => {
+  // Live only: the public ship chosen by the preflight (and proven plannable) for step 4.
+  let liveShip: { mmsi: string; name: string | null } | null = null;
   // The first action: the stack's model mode must match the story's, so a recorded story can
   // never spend money against a live-model stack (and a live story never replays).
   if (STOP_AFTER !== "map") {
@@ -146,10 +153,7 @@ test("demo story: six steps", async ({ page }) => {
     await expect(page.getByRole("button", { name: "Aegean Pioneer, has an alert" })).toBeVisible();
   });
   await shot(page, 1, "map");
-  if (STOP_AFTER === "map") {
-    writeTimings();
-    return;
-  }
+  if (STOP_AFTER === "map") return;
 
   // Live only: a free preflight, so live conditions that are not product bugs fail early and
   // clearly, before any paid step. GETs, plus one route plan (never in recorded or record mode,
@@ -159,18 +163,20 @@ test("demo story: six steps", async ({ page }) => {
       items: { id: string }[];
     };
     const ids = hazards.items.map((h) => h.id);
-    expect(ids, "the synthetic demo hazard").toContain("synthetic:1");
     notes.otherHazardIds = ids.filter((id) => id !== "synthetic:1");
+    expect(ids, "the synthetic demo hazard").toContain("synthetic:1");
+    type Plan = {
+      result: {
+        options: { candidateId: string; feasible: boolean }[];
+        baseline: { candidateId: string };
+        bestCandidateId: string;
+      };
+    };
     const res = await page.request.post("/api/route-plan", {
       data: { vessel: "Aegean Pioneer" },
     });
     expect(res.ok(), `preflight route-plan status ${res.status()}`).toBe(true);
-    const plan = (await res.json()) as {
-      result: {
-        options: { candidateId: string; feasible: boolean }[];
-        baseline: { candidateId: string };
-      };
-    };
+    const plan = (await res.json()) as Plan;
     const open = plan.result.options.filter(
       (o) => o.feasible && o.candidateId !== plan.result.baseline.candidateId,
     );
@@ -178,7 +184,44 @@ test("demo story: six steps", async ({ page }) => {
       open.length,
       "live conditions block every route: report, not a product fix",
     ).toBeGreaterThan(0);
+    notes.aegeanBestCandidate = plan.result.bestCandidateId;
+    expect(
+      plan.result.bestCandidateId,
+      "live conditions make the baseline route A the best: report, not a product fix",
+    ).not.toBe("A");
     notes.preflightFeasibleRoutes = open.map((o) => o.candidateId);
+
+    // The public ship: the first named, non-fleet ship south of 45N whose route to Rotterdam the
+    // graph can plan (a ship in a river or a sea the graph does not cover is skipped).
+    const trafficLive = (await (await page.request.get("/api/traffic")).json()) as {
+      items: { mmsi: string; name: string | null; lat: number }[];
+    };
+    const fleetLive = (await (await page.request.get("/api/vessels")).json()) as {
+      items: { mmsi: string }[];
+    };
+    const fleetMmsi = new Set(fleetLive.items.map((v) => v.mmsi));
+    const candidates = trafficLive.items
+      .filter((t) => t.name?.trim() && !fleetMmsi.has(t.mmsi) && t.lat < 45)
+      .slice(0, 5);
+    const tried: string[] = [];
+    for (const c of candidates) {
+      const r = await page.request.post("/api/route-plan", {
+        data: { vessel: c.mmsi, destination: "Rotterdam" },
+      });
+      tried.push(`${c.mmsi} ${r.status()}`);
+      if (!r.ok()) continue;
+      const pl = (await r.json()) as Plan;
+      if (pl.result.options.length > 0) {
+        liveShip = { mmsi: c.mmsi, name: c.name };
+        break;
+      }
+    }
+    notes.publicShipTried = tried;
+    expect(
+      liveShip,
+      `no public ship could be planned to Rotterdam (tried ${tried.join(", ") || "none"}): report, not a product fix`,
+    ).not.toBeNull();
+    notes.publicShip = liveShip;
   }
 
   // 2. Inbox ----------------------------------------------------------------------------------
@@ -193,8 +236,10 @@ test("demo story: six steps", async ({ page }) => {
     }
     await expect(emails.locator('[data-status="pending"]')).toHaveCount(0, { timeout: 120_000 });
   });
-  await expect(emails.locator('[data-status="needs_review"]')).toHaveCount(1);
-  await expect(emails.locator('[data-status="extracted"]')).toHaveCount(2);
+  if (!LIVE) {
+    await expect(emails.locator('[data-status="needs_review"]')).toHaveCount(1);
+    await expect(emails.locator('[data-status="extracted"]')).toHaveCount(2);
+  }
 
   const openEmail = async (re: RegExp) => {
     await emails.filter({ hasText: re }).getByRole("button").click();
@@ -217,7 +262,16 @@ test("demo story: six steps", async ({ page }) => {
 
   await openEmail(/Algeciras/i);
   await expect(page.getByRole("region", { name: "Fix this quote" })).toBeVisible();
-  await expect(page.getByTestId("written-qty-0")).toContainText("300/350 mt");
+  if (LIVE) {
+    // A live model may write the as-written span slightly differently: both quantities, not the text.
+    await expect(
+      emails.filter({ hasText: /Algeciras/i }).locator('[data-status="needs_review"]'),
+    ).toHaveCount(1);
+    await expect(page.getByTestId("written-qty-0")).toContainText("300");
+    await expect(page.getByTestId("written-qty-0")).toContainText("350");
+  } else {
+    await expect(page.getByTestId("written-qty-0")).toContainText("300/350 mt");
+  }
   await page.getByRole("spinbutton", { name: "Quantity in mt, line 1" }).fill("300");
   // The email's "EUR 690 / mt" has no per-mt unit the code accepts: the reviewer enters it.
   await page.getByRole("spinbutton", { name: "Price per mt, line 1" }).fill("690");
@@ -283,16 +337,10 @@ test("demo story: six steps", async ({ page }) => {
     items: { mmsi: string; name: string | null; lat: number }[];
   };
   let ship = traffic.items.find((s) => s.name) ?? traffic.items[0];
-  if (LIVE) {
-    // Live: the first named ship that is not in the fleet and is not next to Rotterdam.
-    const fleet = (await (await page.request.get("/api/vessels")).json()) as {
-      items: { mmsi: string }[];
-    };
-    const fleetMmsi = new Set(fleet.items.map((v) => v.mmsi));
-    const pick = traffic.items.find((s) => s.name?.trim() && !fleetMmsi.has(s.mmsi) && s.lat < 45);
-    expect(pick, "a named, non-fleet public ship south of 45N").toBeTruthy();
-    ship = pick as (typeof traffic.items)[number];
-    notes.publicShip = { mmsi: ship.mmsi, name: ship.name };
+  if (LIVE && liveShip) {
+    // Live: the ship the preflight proved plannable.
+    const chosen = liveShip;
+    ship = traffic.items.find((t) => t.mmsi === chosen.mmsi) ?? { ...chosen, lat: 0 };
   }
   await page.keyboard.press("ControlOrMeta+k");
   await page.getByRole("combobox").fill(ship.mmsi);
@@ -359,7 +407,6 @@ test("demo story: six steps", async ({ page }) => {
     .evaluate((el) => el.scrollIntoView({ block: "start" }));
   await shot(page, 6, "evaluation");
 
-  writeTimings();
   expect(offOrigin, "requests to other hosts").toEqual([]);
   expect(consoleErrors, "console errors").toEqual([]);
 });
