@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { liveEnv, type LiveSnapshot, missingLive } from "./demo-live.js";
+import { type LiveSnapshot, liveEnv, missingLive } from "./demo-live.js";
 
 const want = { llm: "live", ais: "live", weather: "live" };
 
@@ -72,7 +72,10 @@ describe("missingLive", () => {
 
   it("flags AIS not live and AIS socket down, naming AISSTREAM_API_KEY", () => {
     const sources = (ais: object) => ({
-      items: [{ source: "weather", mode: "live" }, { source: "ais", ...ais }],
+      items: [
+        { source: "weather", mode: "live" },
+        { source: "ais", ...ais },
+      ],
     });
     const replay = missingLive({ ...ready, sources: sources({ mode: "replay" }) }, want);
     expect(replay.join("|")).toContain("AISSTREAM_API_KEY");
