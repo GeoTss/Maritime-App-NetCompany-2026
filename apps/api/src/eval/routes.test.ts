@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { EvalSummary } from "@pharos/shared";
@@ -63,6 +63,16 @@ describe("GET /api/eval/summary", () => {
     const res = await appAt(join(dir, "absent.json")).request("/api/eval/summary");
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ error: "no_published_summary" });
+  });
+
+  it("500s with invalid_published_summary when the path cannot be read (a directory)", async () => {
+    const path = join(dir, "a-directory");
+    await mkdir(path);
+    const res = await appAt(path).request("/api/eval/summary");
+    expect(res.status).toBe(500);
+    const body = (await res.json()) as { error: string; message: string };
+    expect(body.error).toBe("invalid_published_summary");
+    expect(body.message).toMatch(/EISDIR/);
   });
 
   it.each([

@@ -2,7 +2,7 @@
  * `GET /api/eval/summary` → `EvalSummary`: the published live-run scorecards for the evaluation
  * page. The file is written by `npm run eval:publish` from named live reports (never by the API);
  * this route only reads and validates it. 404 `no_published_summary` while nothing is published;
- * 500 `invalid_published_summary` when the file does not parse or validate.
+ * 500 `invalid_published_summary` when the path cannot be read or the file does not parse or validate.
  */
 import { readFile } from "node:fs/promises";
 import { EvalSummary } from "@pharos/shared";
@@ -21,10 +21,16 @@ export function createEvalRoutes(deps: EvalRouteDeps) {
     try {
       text = await readFile(deps.path, "utf8");
     } catch (err) {
-      if ((err as { code?: unknown }).code === "ENOENT") {
-        return c.json({ error: "no_published_summary" }, 404);
-      }
-      throw err;
+      const code = (err as { code?: unknown }).code;
+      if (code === "ENOENT") return c.json({ error: "no_published_summary" }, 404);
+      // A directory or an unreadable file at the path (EISDIR, EACCES, ...): the same 500 shape.
+      return c.json(
+        {
+          error: "invalid_published_summary",
+          message: `The published summary cannot be read (${typeof code === "string" ? code : "read error"}).`,
+        },
+        500,
+      );
     }
     let raw: unknown;
     try {

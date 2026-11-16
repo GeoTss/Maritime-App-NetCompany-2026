@@ -14,6 +14,7 @@ import {
   AskResponse,
   AuditEventList,
   DecisionResult,
+  ERP_IDEMPOTENCY_HEADER,
   HazardZoneList,
   listOf,
   PortList,
@@ -32,7 +33,7 @@ import { proposeAction } from "./ai/tools/propose-action.js";
 import { DEMO_QUESTION, insertDemoQuotes } from "./ask/demo-fixture.js";
 import { createClock } from "./clock.js";
 import { loadConfig } from "./config.js";
-import { createErpClient } from "./executor/erp-client.js";
+import { createErpClient, type ErpFetch } from "./executor/erp-client.js";
 import { bootWorld, createStackApp } from "./stack.js";
 
 const DEMO_ANCHOR = "2026-11-14T08:00:00Z";
@@ -77,7 +78,7 @@ describe.skipIf(!reachable)("the API stack (Postgres)", () => {
   });
 
   /** Boots a stack the way server.ts does; the worker's part (recorded sources) is done here. */
-  async function boot(sql: Sql, env: Record<string, string>) {
+  async function boot(sql: Sql, env: Record<string, string>, shared: { erpFetch?: ErpFetch } = {}) {
     const config = loadConfig({
       DATABASE_URL: "postgres://unused-by-the-test",
       LLM_MODE: "record",
@@ -110,8 +111,12 @@ describe.skipIf(!reachable)("the API stack (Postgres)", () => {
         captureLlmCall(m);
       },
     });
+    // The ERP runs as its own service: a caller can keep one store across API restarts.
     const erpApp = createErpApp({ now: clock.now });
-    const erp = createErpClient("http://erp.test", (input, init) => erpApp.request(input, init));
+    const erp = createErpClient(
+      "http://erp.test",
+      shared.erpFetch ?? ((input, init) => erpApp.request(input, init)),
+    );
     const processing: Promise<void>[] = [];
     const { app } = createStackApp({
       config,
@@ -255,6 +260,47 @@ describe.skipIf(!reachable)("the API stack (Postgres)", () => {
       select created_at from llm_calls where purpose = 'extract'`;
     expect(rows.length).toBeGreaterThanOrEqual(3);
     for (const r of rows) expect(r.at && new Date(r.at).toISOString()).toBe(PINNED_NOW);
+  });
+
+  it("a pinned rehearsal, an API restart with a reseed, then the demo: approving recommendation 1 again makes a new PO", async () => {
+    // One ERP store across both boots (Compose runs it as a separate service).
+    const erpApp = createErpApp({ now: () => new Date(PINNED_NOW) });
+    const keys: (string | null)[] = [];
+    const erpFetch: ErpFetch = async (input, init) => {
+      keys.push(new Headers(init.headers).get(ERP_IDEMPOTENCY_HEADER));
+      return erpApp.request(input, init);
+    };
+
+    const approveFirst = async () => {
+      const stack = await boot(dbA, { DEMO_ANCHOR }, { erpFetch });
+      await insertDemoQuotes(dbA);
+      const ctx = createToolContext({ sql: dbA, now: stack.clock.now });
+      const planned = await planBunkering(ctx, { vessel: "Aegean Pioneer" });
+      const best = planned.facts.find((f) => f.id.endsWith("_bestOptionId"));
+      const proposed = await proposeAction(ctx, {
+        type: "purchase_order",
+        calculationId: (planned.data as { calculationId: number }).calculationId,
+        optionId: "MTMLA-kestrel",
+        factRefs: [best?.id ?? ""],
+        rationale: "Lowest total delivered cost.",
+      });
+      const recId = (proposed.data as { recommendationId: number }).recommendationId;
+      const res = await postJson(stack.app, `/api/recommendations/${recId}/approve`, {});
+      expect(res.status).toBe(200);
+      return { recId, result: DecisionResult.parse(await res.json()) };
+    };
+
+    const rehearsal = await approveFirst();
+    const demo = await approveFirst();
+    expect(demo.recId).toBe(rehearsal.recId);
+    expect(rehearsal.result).toMatchObject({ status: "executed", erpPoNumber: "PO-000001" });
+    expect(demo.result).toMatchObject({
+      status: "executed",
+      erpSyncStatus: "synced",
+      erpPoNumber: "PO-000002",
+    });
+    expect(keys).toHaveLength(2);
+    expect(keys[1]).not.toBe(keys[0]);
   });
 
   it("unpinned keeps the wall clock", async () => {

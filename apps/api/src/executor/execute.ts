@@ -11,7 +11,7 @@
  * plan option's `qtyMt`; price, currency and barge fee come from the quote the option points at;
  * supplier ERP code, vessel IMO and port UN/LOCODE from their rows. The order is written once per
  * recommendation (row lock + unique idempotency key) and pushed to the ERP after the commit, with
- * `idempotencyKey = "rec-<id>-<world anchor epoch seconds>"`, minted once and stored on the order,
+ * `idempotencyKey = "rec-<id>-<world seeded_at epoch ms>"`, minted once and stored on the order,
  * so a retry after an outage can never create a second order.
  */
 import type { Sql } from "@pharos/db";
@@ -59,13 +59,17 @@ export class DecisionError extends Error {
 }
 
 /**
- * The ERP idempotency key (and our order reference) for a recommendation in a world. Every boot
- * reseeds the world with restarted ids while the ERP keeps its keys, so the world's anchor (epoch
- * seconds, from `world_meta`) keeps "recommendation 1" of one world apart from that of the next.
- * Deterministic for the same world and recommendation.
+ * The ERP idempotency key (and our order reference) for a recommendation in a world. Every reseed
+ * restarts the ids while the ERP (its own service) keeps its keys, so the instant the world was
+ * seeded (`world_meta.seeded_at`, epoch ms) keeps "recommendation 1" of one world apart from that
+ * of the next. Not the anchor: with DEMO_ANCHOR pinned every reseed has the same anchor, and a
+ * rehearsal's key would come back in the demo (a duplicate PO, or a 409 on a changed order).
+ * seeded_at is wall time, but it reaches only the ERP request and the drafted messages, never a
+ * model request or a tool result, so pinned replays are unaffected. Deterministic for the same
+ * world and recommendation.
  */
-export const idempotencyKeyFor = (recommendationId: Id, worldAnchor: Date) =>
-  `rec-${recommendationId}-${Math.floor(worldAnchor.getTime() / 1000)}`;
+export const idempotencyKeyFor = (recommendationId: Id, worldSeededAt: Date) =>
+  `rec-${recommendationId}-${worldSeededAt.getTime()}`;
 
 /** Audit actor for what the executor does on its own after a decision. */
 const EXECUTOR = "executor";
@@ -388,10 +392,10 @@ async function createOrder(tx: Tx, rec: RecommendationRow, now: Date): Promise<I
     order by id limit 1`;
   if (!line) refuse(`quote ${quote.id} has no ${grade} line.`);
 
-  const [world] = await tx<{ anchor: Date | string }[]>`
-    select anchor from world_meta order by id limit 1`;
+  const [world] = await tx<{ seeded_at: Date | string }[]>`
+    select seeded_at from world_meta order by id limit 1`;
   if (!world) throw new Error("world_meta is empty; seed the database first");
-  const key = idempotencyKeyFor(rec.id, new Date(world.anchor));
+  const key = idempotencyKeyFor(rec.id, new Date(world.seeded_at));
   const [order] = await tx<{ id: number }[]>`
     insert into purchase_orders (quote_id, recommendation_id, status, erp_po_number,
                                  erp_sync_status, idempotency_key, created_at)
