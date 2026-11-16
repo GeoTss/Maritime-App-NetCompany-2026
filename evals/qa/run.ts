@@ -20,7 +20,9 @@
  * ledger afterwards, also when the run fails, stops early or is interrupted.
  * `--oracle` answers from the truth's reference facts and `--empty` answers nothing: neither
  * makes a model call or touches the database, and both need no key. `--split heldout` needs
- * `--final`.
+ * `--final`. Record mode is replay-first (Ruling 25): it only refreshes recordings, so a record run
+ * with a call served from one is not a measurement (meta.calls.fromRecordings, printed), and
+ * `--final` refuses it. Measure with `--mode live`.
  */
 import { appendFileSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
@@ -39,6 +41,7 @@ import { citedFactIds } from "../../apps/api/src/ai/release-gate.js";
 import { ASK_FIXTURE_NOW, prepareAskFixture } from "../../apps/api/src/ask/demo-fixture.js";
 import { DEFAULT_RECORDINGS_DIR } from "../../apps/api/src/config.js";
 import {
+  assertFinalMode,
   assertSplitAllowed,
   capturing,
   createReportDir,
@@ -49,6 +52,7 @@ import {
   type SplitName,
   withRunLock,
 } from "../extraction/run.js";
+import { recordingsNotice } from "../extraction/scorecard.js";
 import { EVAL_ANCHOR, EVAL_SEED } from "../extraction/world.js";
 import {
   appendSpend,
@@ -145,6 +149,7 @@ export function parseArgs(argv: string[]): RunArgs {
     throw new Error(`--${answerer} makes no model calls: drop --mode ${modeArg}`);
   }
   const mode = (modeArg ?? "replay") as LlmMode;
+  assertFinalMode(final, mode);
   const label = values.get("--label") ?? (answerer === "llm" ? mode : answerer);
   if (!/^[A-Za-z0-9._-]+$/.test(label)) {
     throw new Error("--label needs a name made of letters, digits, '.', '_' or '-'");
@@ -282,6 +287,8 @@ export interface QaRow extends QaRun {
   foreignWrites: string[];
   llmLatencyMs: number;
   calls: number;
+  /** Of `calls`, those a recording served (llm_calls mode `replay`; record mode is replay-first). */
+  callsFromRecordings: number;
   runnerErrors: string[];
 }
 
@@ -354,8 +361,9 @@ async function runQuestion(
   const latencyMs = performance.now() - started;
 
   const foreignWrites = changedTables(before, await guardedFingerprints(sql));
-  const calls = await sql<{ model: string; cost_usd: number; latency_ms: number }[]>`
-    select model, cost_usd, latency_ms from llm_calls order by id`;
+  const calls = await sql<
+    { model: string; cost_usd: number; latency_ms: number; mode: string }[]
+  >`select model, cost_usd, latency_ms, mode from llm_calls order by id`;
   const recs = await sql<
     {
       id: number;
@@ -380,6 +388,7 @@ async function runQuestion(
     foreignWrites,
     llmLatencyMs: calls.reduce((a, c) => a + c.latency_ms, 0),
     calls: calls.length,
+    callsFromRecordings: calls.filter((c) => c.mode === "replay").length,
     runnerErrors: [] as string[],
   };
 
@@ -452,6 +461,7 @@ function runFixed(
       foreignWrites: [],
       llmLatencyMs: 0,
       calls: 0,
+      callsFromRecordings: 0,
       runnerErrors: [],
     },
     transcript: {
@@ -513,6 +523,7 @@ const stamp = (d: Date) =>
 
 export async function runQaEval(opts: EvalOptions): Promise<EvalResult> {
   assertSplitAllowed(opts.split, opts.final ?? false);
+  assertFinalMode(opts.final ?? false, opts.mode);
   const llm = opts.answerer === "llm";
   const paid = llm && opts.mode !== "replay";
   const now = opts.now ?? (() => new Date());
@@ -692,6 +703,11 @@ async function runPlan(
         parseErrors: guard ? [...guard.parseErrors] : [],
       },
       runnerErrors: rows.flatMap((r) => r.runnerErrors.map((e) => `${r.id}: ${e}`)),
+      // A record run reuses existing recordings (Ruling 25); those rows are written as `replay`.
+      calls: {
+        total: rows.reduce((a, r) => a + r.calls, 0),
+        fromRecordings: rows.reduce((a, r) => a + r.callsFromRecordings, 0),
+      },
     };
     writeFileSync(
       file("scorecard.json"),
@@ -792,6 +808,8 @@ export async function main(argv: string[]): Promise<void> {
           ? " (nothing spent or ledgered)"
           : `; ledgered $${meta.spend.ledgerUsd.toFixed(6)}`),
     );
+    const reused = recordingsNotice(meta);
+    if (reused) console.error(`[eval] ${reused}. Measure with --mode live.`);
     const misses = card.errors.filter((e) => e.kind === "replay_miss").length;
     if (misses > 0) {
       console.error(`[eval] ${misses} replay misses: record them with --mode record.`);

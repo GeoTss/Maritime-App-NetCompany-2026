@@ -3,6 +3,7 @@ import type { CaseGrade, FieldGrade } from "./grade.js";
 import {
   type GradedRun,
   percentile,
+  recordingsNotice,
   renderScorecardMd,
   type ScorecardMeta,
   scorecard,
@@ -381,6 +382,7 @@ const META: ScorecardMeta = {
   servedModels: ["claude-haiku-5-5"],
   spend: { guardUsd: null, dbUsd: 0.002, ledgerUsd: null, parseErrors: [] },
   runnerErrors: [],
+  calls: { total: 3, fromRecordings: 3 },
 };
 
 describe("renderScorecardMd", () => {
@@ -447,6 +449,21 @@ describe("renderScorecardMd", () => {
   it("shows a metric with N = 0 as not measured", () => {
     const md = renderScorecardMd(scorecard([run(notAQuote())]), meta);
     expect(md).toContain("| Critical-field accuracy | 0/0 | - | - |");
+  });
+
+  it("says a record run with calls served from recordings is not a live measurement", () => {
+    const card = scorecard([run(grade())]);
+    const record = { ...meta, mode: "record" as const };
+    const reused = renderScorecardMd(card, { ...record, calls: { total: 5, fromRecordings: 2 } });
+    expect(reused).toContain(
+      "- **2 of 5 calls served from recordings: not a live measurement.** Measure with --mode live.",
+    );
+    expect(recordingsNotice({ ...record, calls: { total: 5, fromRecordings: 0 } })).toBeNull();
+    expect(
+      renderScorecardMd(card, { ...record, calls: { total: 5, fromRecordings: 0 } }),
+    ).not.toContain("served from recordings");
+    // Replay serves every call from a recording by design; it already says it is no measurement.
+    expect(renderScorecardMd(card, meta)).not.toContain("served from recordings");
   });
 
   it("lists runner errors (a stored quote that is not the graded view) and says the run failed", () => {

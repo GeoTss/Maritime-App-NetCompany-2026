@@ -1,7 +1,8 @@
 /**
  * Publish the measured accuracy: live dev reports -> evals/published/summary.json (`EvalSummary`),
  * the file GET /api/eval/summary serves. Only live (or record, a live run that also writes
- * recordings) dev reports are accepted; replay, oracle, empty and held-out reports are refused.
+ * recordings) dev reports are accepted; replay, oracle, empty and held-out reports are refused,
+ * and so is a record report with any call served from a recording (record is replay-first).
  * Rates and intervals are the scorecard's own; nothing is recomputed.
  *
  *   npm run eval:publish -- --extraction <report dir> --qa <report dir>
@@ -79,8 +80,22 @@ async function load(dir: string, expected: Suite) {
     );
   }
   if (meta.mode === "record") {
-    // Record mode reuses an existing recording (Ruling 25): the guard counts only calls that
-    // reached the model, the database counts every call. They are equal only when nothing was reused.
+    // Record mode reuses an existing recording (Ruling 25). First line: the runner's own count of
+    // llm_calls rows a recording served (reports written before the count existed have none).
+    const calls = meta.calls as { total?: unknown; fromRecordings?: unknown } | undefined;
+    if (calls !== undefined) {
+      const reused = calls.fromRecordings;
+      if (typeof reused !== "number" || !Number.isInteger(reused) || reused < 0) {
+        throw new PublishRefusal(`${dir}: meta.calls.fromRecordings is not a count`);
+      }
+      if (reused > 0) {
+        throw new PublishRefusal(
+          `${dir}: a record report with ${reused} of ${String(calls.total)} calls served from recordings is not a live measurement; only fully live reports are published`,
+        );
+      }
+    }
+    // Second line: the guard counts only calls that reached the model, the database counts every
+    // call. They are equal only when nothing was reused.
     const spend = meta.spend as { guardUsd?: unknown; dbUsd?: unknown } | undefined;
     const guard = spend?.guardUsd;
     const db = spend?.dbUsd;

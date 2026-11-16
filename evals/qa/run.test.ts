@@ -70,6 +70,13 @@ describe("parseArgs", () => {
     expect(() => parseArgs(["--suite", "qa", "--split", "heldout"])).toThrow(/--final/);
     expect(parseArgs(["--suite", "qa", "--split", "heldout", "--final"]).final).toBe(true);
   });
+  it("refuses --final in record mode: record is replay-first, so the final pass runs live", () => {
+    const final = ["--suite", "qa", "--split", "heldout", "--final", "--mode"];
+    expect(() => parseArgs([...final, "record"])).toThrow(
+      /--final is a live measurement: run it with --mode live/,
+    );
+    expect(parseArgs([...final, "live"])).toMatchObject({ final: true, mode: "live" });
+  });
   it("refuses a model mode with --oracle, both baselines, and unknown flags", () => {
     expect(() => parseArgs(["--suite", "qa", "--oracle", "--mode", "live"])).toThrow(
       /no model calls/,
@@ -132,6 +139,20 @@ describe("dry runs (no model, no database)", () => {
     expect(r.scorecard.answerAccuracy.n).toBeGreaterThan(0);
     expect(r.scorecard.abstention.k).toBe(0);
     expect(r.scorecard.proposedBest.k).toBe(0);
+  });
+
+  it("refuses a final record pass through the API before anything runs", async () => {
+    await expect(
+      runQaEval({
+        split: "heldout",
+        final: true,
+        mode: "record",
+        answerer: "llm",
+        label: "t",
+        reportsDir: await dir(),
+        log: () => {},
+      }),
+    ).rejects.toThrow(/--final is a live measurement/);
   });
 
   it("refuses the held-out split without final, even through the API", async () => {
@@ -240,6 +261,40 @@ describe.skipIf(!sql)("Q&A runner on a database", () => {
       }),
     ).rejects.toThrow(/budget/);
     expect(requests).toHaveLength(0);
+  });
+
+  it("a record run over existing recordings counts the reused calls and says it is not a live measurement (I2)", async () => {
+    const recordingsDir = await dir();
+    const run = async (label: string, fetch: ReturnType<typeof scripted>["fetch"]) =>
+      runQaEval({
+        sql,
+        split: "dev",
+        mode: "record",
+        answerer: "llm",
+        label,
+        ids: ["lookup-01"],
+        apiKey: "test-key",
+        fetch,
+        recordingsDir,
+        ledgerPath: join(await dir(), "ledger.jsonl"),
+        budgetPath: await budget(1),
+        reportsDir: await dir(),
+        log: () => {},
+      });
+    const fresh = await run("record-fresh", scripted().fetch);
+    expect(fresh.meta.calls).toEqual({ total: 2, fromRecordings: 0 });
+    expect(await readFile(join(fresh.reportDir, "scorecard.md"), "utf8")).not.toContain(
+      "served from recordings",
+    );
+
+    const second = scripted();
+    const reused = await run("record-reused", second.fetch);
+    expect(second.requests).toHaveLength(0);
+    expect(reused.meta.calls).toEqual({ total: 2, fromRecordings: 2 });
+    expect(reused.rows[0]?.callsFromRecordings).toBe(2);
+    expect(await readFile(join(reused.reportDir, "scorecard.md"), "utf8")).toContain(
+      "2 of 2 calls served from recordings: not a live measurement",
+    );
   });
 
   it("a replay miss is an error listed apart, not a wrong answer", async () => {

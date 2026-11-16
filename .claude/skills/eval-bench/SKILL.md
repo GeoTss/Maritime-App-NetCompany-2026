@@ -19,7 +19,8 @@ Full strategy: `docs/MASTER_PLAN.md` §7. Results log: `docs/EVAL_LOG.md`.
 - Free, deterministic: `npm run eval -- --suite extraction --mode replay`
 - Paid smoke (a few dev cases, cents): `npm run eval:smoke`
 - Paid dev pass: `npm run eval -- --suite extraction --split dev --mode live`
-- Final held-out pass: **once, in Phase 7 only.**
+- Measure with `--mode live`; `--mode record` only refreshes recordings (replay-first: a call with an existing recording is served from it, not the model). A record report counts those calls in `meta.calls.fromRecordings` and prints "N of M calls served from recordings: not a live measurement"; `npm run eval:publish` refuses it, and `--final` refuses record mode.
+- Final held-out pass: **once, in Phase 7 only**, with `--mode live`.
 - Before the first paid run of a suite: run the oracle and empty baselines (`--oracle`, `--empty`) and confirm ≈100% / ≈0%.
 
 ## Read the scorecard (`evals/reports/<run>/scorecard.json`)

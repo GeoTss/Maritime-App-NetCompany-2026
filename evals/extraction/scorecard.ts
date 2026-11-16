@@ -368,6 +368,24 @@ export interface ScorecardMeta {
    * other status). Any one fails the run.
    */
   runnerErrors: string[];
+  /** Model calls (llm_calls rows) and how many of them a recording served (mode `replay`). */
+  calls: RecordingUse;
+}
+
+/**
+ * llm_calls rows of a run and those served from a recording. Record mode is replay-first
+ * (Ruling 25): a call whose recording exists never reaches the model, so a record run with any
+ * reused call is not a live measurement.
+ */
+export interface RecordingUse {
+  total: number;
+  fromRecordings: number;
+}
+
+/** The warning a record run with reused calls carries (scorecard and stdout); null otherwise. */
+export function recordingsNotice(meta: { mode: string; calls: RecordingUse }): string | null {
+  if (meta.mode !== "record" || meta.calls.fromRecordings === 0) return null;
+  return `${meta.calls.fromRecordings} of ${meta.calls.total} calls served from recordings: not a live measurement`;
 }
 
 const pct = (x: number) => (x * 100).toFixed(1);
@@ -412,6 +430,8 @@ export function renderScorecardMd(card: Scorecard, meta: ScorecardMeta): string 
         ? "; nothing ledgered (no live calls)"
         : `; ledgered ${usd(meta.spend.ledgerUsd)}`),
   );
+  const reused = recordingsNotice(meta);
+  if (reused) out.push(`- **${reused}.** Measure with --mode live.`);
   if (meta.spend.parseErrors.length > 0) {
     out.push(
       `- **Spend guard could not read ${meta.spend.parseErrors.length} response bodies** (their cost is not counted; the run failed): ${meta.spend.parseErrors.join("; ")}`,

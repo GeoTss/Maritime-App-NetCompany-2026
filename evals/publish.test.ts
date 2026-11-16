@@ -96,6 +96,32 @@ describe("buildSummary", () => {
     );
   });
 
+  it("refuses a record report whose own count says a call was served from a recording, even when the spend matches", async () => {
+    const reused = await report(
+      "qa",
+      { calls: { total: 12, fromRecordings: 3 }, spend: { guardUsd: 0.01, dbUsd: 0.01 } },
+      qaCard,
+    );
+    await expect(buildSummary({ qa: reused }, new Date())).rejects.toThrow(
+      /3 of 12 calls served from recordings is not a live measurement/,
+    );
+    const bad = await report("qa", { calls: { total: 12 } }, qaCard);
+    await expect(buildSummary({ qa: bad }, new Date())).rejects.toThrow(/not a count/);
+  });
+
+  it("publishes a record report whose count is 0 and whose spend matches; the spend check still holds", async () => {
+    const clean = await report("qa", { calls: { total: 12, fromRecordings: 0 } }, qaCard);
+    await expect(buildSummary({ qa: clean }, new Date())).resolves.toBeTruthy();
+    const spendOff = await report(
+      "qa",
+      { calls: { total: 12, fromRecordings: 0 }, spend: { guardUsd: 0.01, dbUsd: 0.02 } },
+      qaCard,
+    );
+    await expect(buildSummary({ qa: spendOff }, new Date())).rejects.toThrow(
+      /served from recordings/,
+    );
+  });
+
   for (const mode of ["replay", "oracle", "empty"]) {
     it(`a ${mode} report is refused`, async () => {
       const qa = await report("qa", { mode }, qaCard);

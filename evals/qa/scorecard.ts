@@ -4,7 +4,13 @@
  * miss, no usable answer) are listed apart and are in no denominator, never counted as wrong.
  */
 
-import { percentile, type Rate, rateOf } from "../extraction/scorecard.js";
+import {
+  percentile,
+  type Rate,
+  type RecordingUse,
+  rateOf,
+  recordingsNotice,
+} from "../extraction/scorecard.js";
 import { TARGET_ANSWER_MS, TARGET_FIRST_PROGRESS_MS } from "../lib/targets.js";
 import type { QaGrade } from "./grade.js";
 
@@ -179,6 +185,8 @@ export interface QaScorecardMeta {
     parseErrors: string[];
   };
   runnerErrors: string[];
+  /** Model calls (llm_calls rows) and how many of them a recording served (mode `replay`). */
+  calls: RecordingUse;
 }
 
 const pct = (r: Rate) => (r.rate === null ? "-" : `${(r.rate * 100).toFixed(1)} %`);
@@ -216,6 +224,8 @@ export function renderQaScorecardMd(card: QaScorecard, meta: QaScorecardMeta): s
         ? "; nothing ledgered (no live calls)"
         : `; ledgered ${usd(meta.spend.ledgerUsd)}`),
   );
+  const reused = recordingsNotice(meta);
+  if (reused) out.push(`- **${reused}.** Measure with --mode live.`);
   if (meta.runnerErrors.length > 0) {
     out.push(
       `- **Runner errors (${meta.runnerErrors.length})**: ${meta.runnerErrors.map(cell).join("; ")}`,

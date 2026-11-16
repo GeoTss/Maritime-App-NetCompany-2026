@@ -190,23 +190,33 @@ describe("selectCases --offset / --limit (chunks of a split, in split.json order
     );
   });
 
-  // Regression suite (round 3, rr3/d.mts).
-  it("parses a chunked final held-out record pass (arguments only; nothing runs)", () => {
-    expect(
-      parseArgs([
-        "--split",
-        "heldout",
-        "--final",
-        "--mode",
-        "record",
-        "--offset",
-        "120",
-        "--limit",
-        "60",
-        "--label",
-        "ho-2",
-      ]),
-    ).toMatchObject({ split: "heldout", final: true, mode: "record", offset: 120, limit: 60 });
+  // Regression suite (round 3, rr3/d.mts). The final pass is a live measurement: since Ruling 25
+  // record mode is replay-first, so `--final --mode record` is refused (fix wave I2).
+  it("parses a chunked final held-out live pass (arguments only; nothing runs)", () => {
+    const argv = [
+      "--split",
+      "heldout",
+      "--final",
+      "--mode",
+      "live",
+      "--offset",
+      "120",
+      "--limit",
+      "60",
+      "--label",
+      "ho-2",
+    ];
+    expect(parseArgs(argv)).toMatchObject({
+      split: "heldout",
+      final: true,
+      mode: "live",
+      offset: 120,
+      limit: 60,
+    });
+    const record = argv.map((a) => (a === "live" ? "record" : a));
+    expect(() => parseArgs(record)).toThrow(
+      /--final is a live measurement: run it with --mode live/,
+    );
   });
 
   it("refuses a fractional --offset", () => {
@@ -312,6 +322,16 @@ describe("runExtractionEval refusals (before any database, network or spend)", (
     await expect(runEval(await base({ split: "heldout", mode: "replay" }))).rejects.toThrow(
       /--final/,
     );
+  });
+
+  it("refuses a final pass in record mode (record is replay-first, not a measurement)", async () => {
+    const fetch = networkForbidden();
+    await expect(
+      runEval(
+        await base({ split: "heldout", final: true, mode: "record", apiKey: "test-key", fetch }),
+      ),
+    ).rejects.toThrow(/--final is a live measurement/);
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   it("refuses a paid run when the ledger is near the $3 cap, without a call or a ledger row", async () => {
@@ -566,6 +586,41 @@ describe.skipIf(!sql)("extraction runner (database)", () => {
     const { latency: _b, ...replayedCard } = replayed.scorecard;
     expect(replayedCard).toEqual(recordedCard);
     expect(replayed.meta.servedModels).toEqual([HAIKU]);
+  }, 120_000);
+
+  it("a record run over existing recordings counts the reused calls and says it is not a live measurement (I2)", async () => {
+    const ids = [firstOf("eur"), firstOf("not_a_quote")];
+    const recordingsDir = await temp("recordings-reuse");
+    const first = await oracleApi(ids);
+    const fresh = await dry({
+      extractor: "llm",
+      mode: "record",
+      label: "record-fresh",
+      ids,
+      apiKey: "test-key",
+      fetch: first.fetch,
+      recordingsDir,
+      ledgerPath: await tempLedger(0),
+    });
+    expect(fresh.meta.calls).toEqual({ total: 2, fromRecordings: 0 });
+    const freshMd = await readFile(join(fresh.reportDir, "scorecard.md"), "utf8");
+    expect(freshMd).not.toContain("served from recordings");
+
+    const second = await oracleApi(ids);
+    const reused = await dry({
+      extractor: "llm",
+      mode: "record",
+      label: "record-reused",
+      ids,
+      apiKey: "test-key",
+      fetch: second.fetch,
+      recordingsDir,
+      ledgerPath: await tempLedger(0),
+    });
+    expect(second.fetch).not.toHaveBeenCalled();
+    expect(reused.meta.calls).toEqual({ total: 2, fromRecordings: 2 });
+    const md = await readFile(join(reused.reportDir, "scorecard.md"), "utf8");
+    expect(md).toContain("2 of 2 calls served from recordings: not a live measurement");
   }, 120_000);
 
   it("a response served by another model fails the run after the report and ledger row", async () => {

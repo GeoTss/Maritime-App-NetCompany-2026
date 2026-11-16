@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { QaGrade } from "./grade.js";
-import { type QaRun, qaScorecard } from "./scorecard.js";
+import { type QaRun, type QaScorecardMeta, qaScorecard, renderQaScorecardMd } from "./scorecard.js";
 
 const grade = (id: string, category: string, patch: Partial<QaGrade> = {}): QaGrade => ({
   id,
@@ -110,5 +110,46 @@ describe("qaScorecard", () => {
     expect(c.latency.firstProgress.n).toBe(0);
     expect(c.latency.answer.mean).toBe(1000);
     expect(c.cost.totalUsd).toBeCloseTo(0.062, 6);
+  });
+});
+
+describe("renderQaScorecardMd", () => {
+  const meta: QaScorecardMeta = {
+    suite: "qa",
+    split: "dev",
+    label: "t",
+    mode: "record",
+    model: "claude-haiku-5-5",
+    effort: "medium",
+    fallbacks: false,
+    promptVersion: "agent-system/v1",
+    seed: 20261114,
+    anchor: "2026-11-14T08:00:00.000Z",
+    startedAt: "2026-11-14T10:00:00.000Z",
+    finishedAt: "2026-11-14T10:01:00.000Z",
+    selected: 1,
+    offset: 0,
+    limit: null,
+    notRun: [],
+    aborted: null,
+    servedModels: ["claude-haiku-5-5"],
+    spend: { guardUsd: 0.001, dbUsd: 0.003, ledgerUsd: 0.001, parseErrors: [] },
+    runnerErrors: [],
+    calls: { total: 6, fromRecordings: 4 },
+  };
+  const card = qaScorecard([run(grade("lookup-01", "lookup"))]);
+
+  it("says a record run with calls served from recordings is not a live measurement", () => {
+    expect(renderQaScorecardMd(card, meta)).toContain(
+      "- **4 of 6 calls served from recordings: not a live measurement.** Measure with --mode live.",
+    );
+  });
+
+  it("says nothing of recordings for a fully live record run, or for replay", () => {
+    const live = { ...meta, calls: { total: 6, fromRecordings: 0 } };
+    expect(renderQaScorecardMd(card, live)).not.toContain("served from recordings");
+    expect(renderQaScorecardMd(card, { ...meta, mode: "replay" })).not.toContain(
+      "served from recordings",
+    );
   });
 });

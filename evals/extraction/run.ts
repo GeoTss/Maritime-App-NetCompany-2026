@@ -23,6 +23,9 @@
  * Stored quotes: after each case, an `extracted` case must have exactly one stored quote equal to
  * the graded view, any other status none; a disagreement is a runner error that fails the run.
  * `--oracle` and `--empty` make no model calls and need no key. `--split heldout` needs `--final`.
+ * Record mode is replay-first (Ruling 25): it only refreshes recordings, so it is never a
+ * measurement when a call was served from one (meta.calls.fromRecordings, printed), and `--final`
+ * refuses it. Measure with `--mode live`.
  * The key comes from `ANTHROPIC_API_KEY` (via `tsx --env-file-if-exists=.env`) and is never printed.
  */
 import { appendFileSync, writeFileSync } from "node:fs";
@@ -85,7 +88,13 @@ import {
   gradeCase,
   type PipelineStatus,
 } from "./grade.js";
-import { renderScorecardMd, type Scorecard, type ScorecardMeta, scorecard } from "./scorecard.js";
+import {
+  recordingsNotice,
+  renderScorecardMd,
+  type Scorecard,
+  type ScorecardMeta,
+  scorecard,
+} from "./scorecard.js";
 import { GOLDEN_DIR } from "./split.js";
 import { EVAL_ANCHOR, EVAL_SEED, evalExtraRequirements } from "./world.js";
 
@@ -161,6 +170,17 @@ export function assertSplitAllowed(split: SplitName, final: boolean): void {
   }
 }
 
+/**
+ * The final pass is a measurement, and record mode is replay-first (Ruling 25): a call with an
+ * existing recording never reaches the model. So `--final` runs live, never record.
+ */
+export const FINAL_RECORD =
+  "--final is a live measurement: run it with --mode live. --mode record only refreshes recordings (replay-first: existing recordings are reused, not measured).";
+
+export function assertFinalMode(final: boolean, mode: LlmMode): void {
+  if (final && mode === "record") throw new Error(FINAL_RECORD);
+}
+
 const REPEAT_RECORD =
   "--repeat-hard with --mode record would reuse each hard case's recording on every repeat, " +
   "so the repeats would measure nothing. Measure variance with --mode live.";
@@ -228,6 +248,7 @@ export function parseArgs(argv: string[]): RunArgs {
   const repeat = values.get("--repeat-hard");
   const repeatHard = repeat === undefined ? 1 : positiveInt("--repeat-hard", repeat);
   if (repeatHard > 1 && extractor === "llm" && mode === "record") throw new Error(REPEAT_RECORD);
+  assertFinalMode(final, mode);
 
   const label = values.get("--label") ?? (extractor === "llm" ? mode : extractor);
   if (!/^[A-Za-z0-9._-]+$/.test(label)) {
@@ -911,6 +932,7 @@ export async function runExtractionEval(opts: EvalOptions): Promise<EvalResult> 
   if (!Number.isInteger(repeatHard) || repeatHard < 1) throw new Error("repeatHard must be >= 1");
   const llm = opts.extractor === "llm";
   if (llm && opts.mode === "record" && repeatHard > 1) throw new Error(REPEAT_RECORD);
+  assertFinalMode(opts.final ?? false, opts.mode);
   const paid = llm && opts.mode !== "replay";
   const now = opts.now ?? (() => new Date());
   const goldenDir = opts.goldenDir ?? GOLDEN_DIR;
@@ -1131,6 +1153,14 @@ async function runPlan(
       runnerErrors: rows.flatMap((r) =>
         r.runnerErrors.map((e) => `${r.id}${r.run > 1 ? ` #${r.run}` : ""}: ${e}`),
       ),
+      // A record run reuses existing recordings (Ruling 25); those rows are written as `replay`.
+      calls: {
+        total: rows.reduce((a, r) => a + r.calls.length, 0),
+        fromRecordings: rows.reduce(
+          (a, r) => a + r.calls.filter((c) => c.mode === "replay").length,
+          0,
+        ),
+      },
     };
     writeFileSync(
       file("scorecard.json"),
@@ -1230,6 +1260,8 @@ export async function main() {
           ? " (nothing spent or ledgered)"
           : `; ledgered $${meta.spend.ledgerUsd.toFixed(6)}`),
     );
+    const reused = recordingsNotice(meta);
+    if (reused) console.error(`[eval] ${reused}. Measure with --mode live.`);
     const misses = card.errors.filter((e) => e.kind === "replay_miss").length;
     if (misses > 0) {
       console.error(`[eval] ${misses} replay misses: record them with --mode record.`);
