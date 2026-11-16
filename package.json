@@ -18,6 +18,7 @@
     "eval:ledger": "tsx evals/lib/ledger-cli.ts",
     "eval:compare": "tsx --env-file=.env evals/compare/run.ts",
     "eval:publish": "tsx evals/publish.ts",
+    "eval:merge": "tsx evals/merge.ts",
     "eval:golden": "tsx evals/extraction/generate.ts",
     "eval:split": "tsx evals/extraction/split.ts",
     "eval:qa-golden": "tsx evals/qa/generate.ts",
@@ -40,7 +41,8 @@
     "smoke:ais": "tsx --env-file=.env packages/integrations/src/cli/smoke-ais.ts",
     "dev:web": "npm run dev -w @pharos/web",
     "map:basemap": "tsx scripts/build-basemap.ts",
-    "demo:reset": "tsx scripts/demo-reset.ts"
+    "demo:reset": "tsx scripts/demo-reset.ts",
+    "demo:live": "tsx scripts/demo-live.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.7",
