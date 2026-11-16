@@ -22,5 +22,9 @@ npm run record:ais -- --seconds 600 --bbox demo
 refresh, regenerate the Q&A truths (`npm run eval:qa-golden`) and re-record the replays: the
 expected route and congestion answers depend on these files.
 
+Phase 7 kept these files (user decision, 2026-11-16): the AIS capture of 15 Nov ~22:55 UTC and the weather snapshot
+of 15 Nov. Recorded mode rebases both to the pinned clock, and a refresh would move 17 of the 65 Q&A truths and every
+route replay, so the published scores describe the fixtures that ship.
+
 Checks: `npm run smoke:weather` (live and stored weather both parse), `npm run smoke:ais -- --seconds 20`
 (live positions received). First live smoke: 2026-11-15T19:24:56Z, 119 messages, 67 positions, 1 dropped.

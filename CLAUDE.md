@@ -26,8 +26,10 @@ npm run smoke:pdf       # PDF text extraction smoke check
 npm run dev:web         # ops console dev server :5173 (proxies /api to :4000)
 npm run map:basemap     # rebuild the bundled Natural Earth basemap
 npx impeccable detect apps/web/src   # design anti-pattern check (also on a URL)
-docker compose up -d --build   # db :5432, erp :4100, api :4000, web :5173
-npm run demo:reset      # reset the running stack to the clean demo state
+docker compose up -d --build   # db :5432, erp :4100, api :4000, web :5173; comes up as the recorded demo (no key)
+npm run demo:reset      # the one switch back to the recorded demo (pinned clock, recorded sources, reseeded)
+npm run demo:live       # switch to fully live (needs ANTHROPIC_API_KEY and AISSTREAM_API_KEY in .env; paid model calls)
+npm run eval:merge      # combine the reports of an interrupted held-out pass
 npx playwright test     # the six-step demo story (replay); STORY_SCREENSHOTS=docs rewrites docs/screenshots
 ```
 

@@ -470,4 +470,8 @@ You add keys to `.env` yourself; I never handle or print them. When a checkpoint
 
 **2026-11-14, after Phase 2 (user decision):** the eval budget is **$3 for Phase 3** (not $150 for the build), and Claude Haiku 5.5 is the only model for extraction and for the Q&A questions in every eval; the three-model matrix is dropped. Phase 2's live spend (about $0.40) does not count against it.
 
+**2026-11-16, Phase 7 (user decision):** the recorded fixtures of 15 Nov (AIS capture ~22:55 UTC, weather snapshot) are kept for the final measurement; recorded mode rebases them to the pinned 14 Nov clock, and a refresh would move 17 of the 65 Q&A truths and every route replay.
+
+**2026-11-16, Phase 7 (lead ruling):** Docker Compose now defaults to the recorded, pinned demo (`LLM_MODE` replay, `DEMO_ANCHOR` 2026-11-14T08:00:00Z, recorded AIS and weather), so a fresh clone runs with no key; `npm run demo:live` is the explicit switch to live and `npm run demo:reset` the one switch back.
+
 **Sources checked:** [AISStream documentation](https://aisstream.io/documentation) · [Open-Meteo Marine API](https://open-meteo.com/en/docs/marine-weather-api) · [searoute-ts](https://www.pkgstats.com/pkg:searoute-ts) · [@ssroute/typescript](https://www.pkgstats.com/pkg:@ssroute/typescript) · [Eurostat searoute](https://github.com/eurostat/searoute) · [Mediterranean sulphur zone (REMPEC)](https://www.rempec.org/en/news-media/rempec-news/effective-application-of-the-med-sox-emission-control-area-under-marpol-annex-vi)

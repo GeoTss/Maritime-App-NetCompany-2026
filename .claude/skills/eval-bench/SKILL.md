@@ -38,3 +38,13 @@ Cluster failures by field and cause (wrong value / missing / wrong entity / shou
 2. Iterate on **dev only**. Never look at held-out failures.
 3. Keep a change only if dev improves beyond run-to-run noise without regressions in critical fields.
 4. Log: date, change, dev score before → after, cost.
+
+## Final held-out pass
+
+Once per suite, after the user's go-ahead: `npm run eval -- --suite <suite> --split heldout --final --mode live`, run in the background.
+
+- `evals/heldout-passes.jsonl` records every case id that produced a row; a final live pass refuses any id already listed, so held-out runs once. Never re-run a case that has a row.
+- On an early stop (outage, budget cap), fix the cause, then run only the cases with no row: resume with `--offset` past the cases already done. Combine the reports with `npm run eval:merge`.
+- Errors, truncations and refusals are reported separately, never as wrong answers, and they consume the case.
+- Publish with `npm run eval:publish`: it accepts a held-out report only when it is final, live, without runner errors and covers every held-out id at its first run. It replaces only the given (suite, split) entries of `evals/published/summary.json`.
+- Never tune a prompt, grader or truth toward the held-out result.
