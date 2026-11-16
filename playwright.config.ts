@@ -10,8 +10,9 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   retries: 0,
-  // One serial story that includes model-backed steps.
-  timeout: 300_000,
+  // One serial story that includes model-backed steps; a fully live run (four answers of about
+  // 45 s each, live routes and weather) gets twice the room.
+  timeout: process.env.STORY_MODE === "live" ? 600_000 : 300_000,
   expect: { timeout: 60_000 },
   reporter: [["list"]],
   use: {

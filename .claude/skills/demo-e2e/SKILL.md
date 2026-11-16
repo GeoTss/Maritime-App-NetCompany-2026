@@ -10,7 +10,8 @@ Demo story: `docs/MASTER_PLAN.md` §1. Spec: `e2e/demo.spec.ts` (one serial test
 ## Bring up and reset
 
 1. `docker compose build` after any change to `apps/web` or `apps/api` (the web container serves the built app).
-2. `npm run demo:reset` recreates api, erp, worker and web with `DEMO_ANCHOR=2026-11-14T08:00:00Z` (pinned clock 08:05Z), `SEED_ON_BOOT=reset`, `LLM_MODE=${LLM_MODE:-replay}`, recorded AIS and weather, `DEMO_HAZARDS=on`, and waits for readiness.
+2. `npm run demo:reset` recreates api, erp, worker and web with `DEMO_ANCHOR=2026-11-14T08:00:00Z` (pinned clock 08:05Z), `SEED_ON_BOOT=reset`, `LLM_MODE=replay`, recorded AIS and weather, `DEMO_HAZARDS=on`, and waits for readiness.
+   Compose itself also defaults to this recorded, pinned demo (no key needed); `npm run demo:live` is the explicit switch to live and `npm run demo:reset` the one switch back.
 3. Check: `curl -fsS localhost:4000/api/health` shows `llmMode`.
 
 ## Run the story
@@ -19,8 +20,22 @@ Demo story: `docs/MASTER_PLAN.md` §1. Spec: `e2e/demo.spec.ts` (one serial test
 - Always reset first: the story delivers the inbox, plans routes and approves proposals, so it needs a fresh world.
 - Screenshots go to `test-results/story/` by default. `STORY_SCREENSHOTS=docs npx playwright test` writes the committed set `docs/screenshots/phase-6/story-<n>-<name>.png` instead; do that only to refresh it deliberately. Look at the screenshots before reporting success.
 - Per-step timings: `test-results/story-timings.json`. Replay timings are not live latencies: they only show the UI is fast. Judge latency against MASTER_PLAN §6 from live runs (the Q&A and extraction evals).
-- Live rehearsal before a demo (paid, ask first): `LLM_MODE=live npm run demo:reset && npx playwright test`. Answers take about 45 s each; the assertions do not depend on the wording.
+- Per-step timings: `test-results/story-timings.json` is `{ mode, stopAfter, steps: [{ step, ms }] }` (first progress = the turn's status label shows tools called; answer = the gate line, both timed from the click).
+- The test's first action asserts `/api/health` `llmMode` against `STORY_MODE`, so a story never runs against the wrong stack.
 - The test fails on any request to a host other than localhost and on any console error.
+
+## Story modes (`STORY_MODE`)
+
+| Mode | Stack | Model | Cost |
+| --- | --- | --- | --- |
+| `recorded` (default) | `npm run demo:reset` (pinned clock 08:05Z, recorded AIS and weather) | replayed, `llmMode` replay | free |
+| `record` | `LLM_MODE=record npm run demo:reset` | replay-first; a miss calls the model and writes | paid on a miss |
+| `live` | `npm run demo:live` (wall clock, live AIS and weather, live model) | live, `llmMode` live | paid (about $0.01 to $0.03) |
+
+- `recorded` and `record` make the identical requests in the identical order (the determinism rule below).
+- `live` is the same spec with live expectations: two live badges, unpinned clock, a free preflight before step 2 (`/api/hazards` has `synthetic:1`; `POST /api/route-plan` for Aegean Pioneer has a feasible non-baseline option, else it fails with "live conditions block every route: report, not a product fix"), exactly one recommended route that is not row A, and a public ship that is the first named non-fleet ship south of 45N. Screenshots go to `test-results/story-live/`; the Playwright timeout is 10 minutes.
+- `STORY_MODE=live` needs `npm run demo:live` first. Free rehearsal: `LLM_MODE=replay npm run demo:live && STORY_MODE=live STORY_STOP_AFTER=map npx playwright test` (live AIS and weather, replayed model: only the map step can run, unrecorded questions miss). Never run `STORY_MODE=live` or `record` without `STORY_STOP_AFTER=map` unless the spend is approved. Switch back with `npm run demo:reset`.
+- Step 6 reads `/api/eval/summary` and expects one visible `section[data-suite][data-split]` per published entry (two dev entries, four after the held-out run).
 
 ## Determinism rule
 

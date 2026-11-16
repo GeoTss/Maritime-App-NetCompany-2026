@@ -8,10 +8,39 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { expect, type Page, test } from "@playwright/test";
 
+// STORY_MODE: recorded (default, replayed model, pinned clock), record (replay-first, a miss calls
+// the model: paid) or live (live model, AIS and weather, wall clock: paid, needs `npm run demo:live`).
+// STORY_STOP_AFTER=map returns after step 1 (a free dry-run of a live stack).
+type Mode = "recorded" | "record" | "live";
+const MODE = (process.env.STORY_MODE ?? "recorded") as Mode;
+if (!["recorded", "record", "live"].includes(MODE)) {
+  throw new Error(`STORY_MODE must be recorded, record or live (got "${MODE}")`);
+}
+const STOP_AFTER = process.env.STORY_STOP_AFTER ?? "";
+const LIVE = MODE === "live";
+const EXPECTED_LLM_MODE = { recorded: "replay", record: "record", live: "live" }[MODE];
+
 // Screenshots go to test-results/ by default; STORY_SCREENSHOTS=docs refreshes the committed set.
 const SHOTS =
-  process.env.STORY_SCREENSHOTS === "docs" ? "docs/screenshots/phase-6" : "test-results/story";
+  process.env.STORY_SCREENSHOTS === "docs"
+    ? "docs/screenshots/phase-6"
+    : LIVE
+      ? "test-results/story-live"
+      : "test-results/story";
 const timings: { step: string; ms: number }[] = [];
+const notes: Record<string, unknown> = {};
+
+function writeTimings() {
+  mkdirSync("test-results", { recursive: true });
+  writeFileSync(
+    "test-results/story-timings.json",
+    JSON.stringify(
+      { mode: MODE, stopAfter: STOP_AFTER || null, steps: timings, ...notes },
+      null,
+      2,
+    ),
+  );
+}
 
 const BUNKER_Q = "Where should Aegean Pioneer bunker, and who should we buy from?";
 const ROUTE_Q = "What is the best route and speed for Aegean Pioneer to make its berth window?";
@@ -42,16 +71,23 @@ async function ask(page: Page, question: string, label: string) {
   const turns = page.locator('section[aria-label="Question and answer"]');
   const before = await turns.count();
   await box.fill(question);
-  await timed(`${label}: first progress`, async () => {
-    await page.locator('form button[aria-label="Ask"]').click();
-    await expect(turns).toHaveCount(before + 1);
-  });
+  await page.locator('form button[aria-label="Ask"]').click();
+  await expect(turns).toHaveCount(before + 1);
   const turn = turns.last();
-  await timed(`${label}: full answer`, async () => {
-    await expect(turn.getByTestId("gate-line").or(turn.locator('[role="alert"]'))).toBeVisible({
-      timeout: 120_000,
-    });
+  // First progress: the turn's status label shows tools called or sources checked. Both timers
+  // start at the click; the answer time is therefore the whole wait, not a delta.
+  const t0 = Date.now();
+  await expect(
+    turn
+      .getByRole("status")
+      .filter({ hasText: /tools? called|Checked \d+ source/ })
+      .first(),
+  ).toBeVisible({ timeout: 120_000 });
+  timings.push({ step: `${label}: first progress`, ms: Date.now() - t0 });
+  await expect(turn.getByTestId("gate-line").or(turn.locator('[role="alert"]'))).toBeVisible({
+    timeout: 120_000,
   });
+  timings.push({ step: `${label}: answer`, ms: Date.now() - t0 });
   await expect(turn.locator('[role="alert"]')).toHaveCount(0);
   // A withheld answer shows a different gate line: only a fully sourced answer passes.
   await expect(turn.getByTestId("gate-line")).toHaveText(/all numbers sourced/);
@@ -59,6 +95,19 @@ async function ask(page: Page, question: string, label: string) {
 }
 
 test("demo story: six steps", async ({ page }) => {
+  // The first action: the stack's model mode must match the story's, so a recorded story can
+  // never spend money against a live-model stack (and a live story never replays).
+  if (STOP_AFTER !== "map") {
+    const health = (await (await page.request.get("http://localhost:4000/api/health")).json()) as {
+      llmMode?: string;
+    };
+    expect(
+      health.llmMode,
+      `STORY_MODE=${MODE} needs llmMode "${EXPECTED_LLM_MODE}": ${
+        LIVE ? "run npm run demo:live first" : "run npm run demo:reset first"
+      }`,
+    ).toBe(EXPECTED_LLM_MODE);
+  }
   const offOrigin: string[] = [];
   const consoleErrors: string[] = [];
   page.on("request", (r) => {
@@ -79,19 +128,58 @@ test("demo story: six steps", async ({ page }) => {
     const traffic = page.locator('[data-layer="traffic"]');
     await expect(traffic).toContainText(/\d/);
     await expect(traffic).not.toContainText(/^Traffic\s*0$/);
-    await expect(page.locator('[data-source-mode="recorded"]')).toHaveCount(2);
-    await expect(page.locator('[data-source-mode="live"]')).toHaveCount(0);
+    await expect(page.locator(`[data-source-mode="${LIVE ? "live" : "recorded"}"]`)).toHaveCount(2);
+    await expect(page.locator(`[data-source-mode="${LIVE ? "recorded" : "live"}"]`)).toHaveCount(0);
     await expect(page.getByText("AIS", { exact: true })).toBeVisible();
     await expect(page.getByText("Weather", { exact: true }).first()).toBeVisible();
-    const clock = page.locator("time[datetime]").first();
-    await expect(clock).toHaveText("08:05Z");
-    await expect(page.getByText("pinned", { exact: true })).toBeVisible();
+    if (LIVE) {
+      await expect(page.locator('[data-pinned="false"]').first()).toBeAttached();
+      await expect(page.locator('[data-pinned="true"]')).toHaveCount(0);
+    } else {
+      const clock = page.locator("time[datetime]").first();
+      await expect(clock).toHaveText("08:05Z");
+      await expect(page.getByText("pinned", { exact: true })).toBeVisible();
+    }
     await expect(
       page.locator('[data-testid^="hazard-"] [data-kind="synthetic"]').first(),
     ).toBeVisible();
     await expect(page.getByRole("button", { name: "Aegean Pioneer, has an alert" })).toBeVisible();
   });
   await shot(page, 1, "map");
+  if (STOP_AFTER === "map") {
+    writeTimings();
+    return;
+  }
+
+  // Live only: a free preflight, so live conditions that are not product bugs fail early and
+  // clearly, before any paid step. GETs, plus one route plan (never in recorded or record mode,
+  // where a new POST would change the replay keys).
+  if (LIVE) {
+    const hazards = (await (await page.request.get("/api/hazards")).json()) as {
+      items: { id: string }[];
+    };
+    const ids = hazards.items.map((h) => h.id);
+    expect(ids, "the synthetic demo hazard").toContain("synthetic:1");
+    notes.otherHazardIds = ids.filter((id) => id !== "synthetic:1");
+    const res = await page.request.post("/api/route-plan", {
+      data: { vessel: "Aegean Pioneer" },
+    });
+    expect(res.ok(), `preflight route-plan status ${res.status()}`).toBe(true);
+    const plan = (await res.json()) as {
+      result: {
+        options: { candidateId: string; feasible: boolean }[];
+        baseline: { candidateId: string };
+      };
+    };
+    const open = plan.result.options.filter(
+      (o) => o.feasible && o.candidateId !== plan.result.baseline.candidateId,
+    );
+    expect(
+      open.length,
+      "live conditions block every route: report, not a product fix",
+    ).toBeGreaterThan(0);
+    notes.preflightFeasibleRoutes = open.map((o) => o.candidateId);
+  }
 
   // 2. Inbox ----------------------------------------------------------------------------------
   await nav(page, "/inbox");
@@ -166,7 +254,15 @@ test("demo story: six steps", async ({ page }) => {
   await expect(
     page.locator('[data-testid^="route-row-"]:not([data-testid="route-row-baseline"])'),
   ).toHaveCount(3);
-  await expect(page.getByTestId("route-row-B")).toHaveAttribute("data-role", "recommended");
+  if (LIVE) {
+    // Live weather and hazards decide the winner: exactly one recommendation, and not the
+    // infeasible baseline-like row A.
+    const recommended = page.locator('[data-testid^="route-row-"][data-role="recommended"]');
+    await expect(recommended).toHaveCount(1);
+    await expect(recommended).not.toHaveAttribute("data-testid", "route-row-A");
+  } else {
+    await expect(page.getByTestId("route-row-B")).toHaveAttribute("data-role", "recommended");
+  }
   const chipSel = '[data-slot="fact-chip"]';
   await expect(
     page
@@ -176,14 +272,28 @@ test("demo story: six steps", async ({ page }) => {
       .locator(chipSel),
   ).toBeVisible();
   await expect(page.getByRole("columnheader", { name: "FuelEU" })).toBeVisible();
-  await expect(page.getByTestId("route-row-B").locator("td").nth(7).locator(chipSel)).toBeVisible();
+  const recRow = LIVE
+    ? page.locator('[data-testid^="route-row-"][data-role="recommended"]')
+    : page.getByTestId("route-row-B");
+  await expect(recRow.locator("td").nth(7).locator(chipSel)).toBeVisible();
   await shot(page, 4, "route-plan");
 
   // A public AIS ship (first in the recorded list) to Rotterdam.
   const traffic = (await (await page.request.get("/api/traffic")).json()) as {
-    items: { mmsi: string; name: string | null }[];
+    items: { mmsi: string; name: string | null; lat: number }[];
   };
-  const ship = traffic.items.find((s) => s.name) ?? traffic.items[0];
+  let ship = traffic.items.find((s) => s.name) ?? traffic.items[0];
+  if (LIVE) {
+    // Live: the first named ship that is not in the fleet and is not next to Rotterdam.
+    const fleet = (await (await page.request.get("/api/vessels")).json()) as {
+      items: { mmsi: string }[];
+    };
+    const fleetMmsi = new Set(fleet.items.map((v) => v.mmsi));
+    const pick = traffic.items.find((s) => s.name?.trim() && !fleetMmsi.has(s.mmsi) && s.lat < 45);
+    expect(pick, "a named, non-fleet public ship south of 45N").toBeTruthy();
+    ship = pick as (typeof traffic.items)[number];
+    notes.publicShip = { mmsi: ship.mmsi, name: ship.name };
+  }
   await page.keyboard.press("ControlOrMeta+k");
   await page.getByRole("combobox").fill(ship.mmsi);
   await page
@@ -226,15 +336,30 @@ test("demo story: six steps", async ({ page }) => {
   // 6. Evaluation -----------------------------------------------------------------------------
   await nav(page, "/evaluation");
   await expect(page.getByRole("heading", { name: "Evaluation", level: 1 })).toBeVisible();
-  await expect(page.getByText(/\d+ of \d+/).first()).toBeVisible();
-  await expect(page.getByText(/95% interval/).first()).toBeAttached();
-  await expect(page.locator('[data-kind="dev-split"]').first()).toBeVisible();
+  // One visible section per published entry (two dev entries today, four after the held-out run).
+  const summary = (await (await page.request.get("/api/eval/summary")).json()) as {
+    suites: { suite: string; split: "dev" | "heldout" }[];
+  };
+  expect(summary.suites.length, "published eval entries").toBeGreaterThan(0);
+  for (const entry of summary.suites) {
+    const section = page.locator(
+      `section[data-suite="${entry.suite}"][data-split="${entry.split}"]`,
+    );
+    await expect(section, `${entry.suite} ${entry.split} section`).toBeVisible();
+    await expect(section.getByText(/\d+ of \d+/).first()).toBeVisible();
+    await expect(section.getByText(/95% interval/).first()).toBeAttached();
+    await expect(
+      section
+        .locator(`[data-kind="${entry.split === "dev" ? "dev-split" : "heldout-split"}"]`)
+        .first(),
+    ).toBeAttached();
+  }
   await page
     .getByRole("heading", { name: "Evaluation", level: 1 })
     .evaluate((el) => el.scrollIntoView({ block: "start" }));
   await shot(page, 6, "evaluation");
 
-  writeFileSync("test-results/story-timings.json", JSON.stringify(timings, null, 2));
+  writeTimings();
   expect(offOrigin, "requests to other hosts").toEqual([]);
   expect(consoleErrors, "console errors").toEqual([]);
 });
