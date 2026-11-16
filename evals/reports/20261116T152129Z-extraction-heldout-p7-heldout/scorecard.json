@@ -1,0 +1,691 @@
+{
+  "meta": {
+    "suite": "extraction",
+    "split": "heldout",
+    "label": "p7-heldout",
+    "mode": "live",
+    "extractor": "llm",
+    "model": "claude-haiku-5-5",
+    "effort": "medium",
+    "fallbacks": false,
+    "promptVersion": "extract-quote/v2",
+    "seed": 20261114,
+    "anchor": "2026-11-14T08:00:00.000Z",
+    "startedAt": "2026-11-16T15:21:29.085Z",
+    "finishedAt": "2026-11-16T15:40:13.899Z",
+    "selected": 156,
+    "offset": 0,
+    "limit": null,
+    "repeatHard": 3,
+    "notRun": [],
+    "aborted": null,
+    "servedModels": [
+      "claude-haiku-5-5"
+    ],
+    "spend": {
+      "guardUsd": 0.13125011999999997,
+      "dbUsd": 0.13125011999999997,
+      "ledgerUsd": 0.13125011999999997,
+      "parseErrors": []
+    },
+    "runnerErrors": [],
+    "calls": {
+      "total": 184,
+      "fromRecordings": 0
+    },
+    "final": true
+  },
+  "scorecard": {
+    "cases": 156,
+    "graded": 156,
+    "errors": [],
+    "failures": [],
+    "kind": {
+      "quotePrecision": {
+        "k": 126,
+        "n": 126,
+        "rate": 1,
+        "ci95": {
+          "low": 0.9704142355178014,
+          "high": 1
+        }
+      },
+      "quoteRecall": {
+        "k": 126,
+        "n": 127,
+        "rate": 0.9921259842519685,
+        "ci95": {
+          "low": 0.9567459918704178,
+          "high": 0.9986086879585555
+        }
+      },
+      "notAQuotePrecision": {
+        "k": 29,
+        "n": 30,
+        "rate": 0.9666666666666667,
+        "ci95": {
+          "low": 0.8332960900859081,
+          "high": 0.9940914096183874
+        }
+      },
+      "notAQuoteRecall": {
+        "k": 29,
+        "n": 29,
+        "rate": 1,
+        "ci95": {
+          "low": 0.8830302015002593,
+          "high": 1
+        }
+      }
+    },
+    "fields": {
+      "vessel": {
+        "k": 126,
+        "n": 126,
+        "rate": 1,
+        "ci95": {
+          "low": 0.9704142355178014,
+          "high": 1
+        },
+        "wrong": 0,
+        "missing": 0,
+        "critical": true
+      },
+      "port": {
+        "k": 126,
+        "n": 126,
+        "rate": 1,
+        "ci95": {
+          "low": 0.9704142355178014,
+          "high": 1
+        },
+        "wrong": 0,
+        "missing": 0,
+        "critical": true
+      },
+      "supplier": {
+        "k": 126,
+        "n": 126,
+        "rate": 1,
+        "ci95": {
+          "low": 0.9704142355178014,
+          "high": 1
+        },
+        "wrong": 0,
+        "missing": 0,
+        "critical": false
+      },
+      "currency": {
+        "k": 126,
+        "n": 126,
+        "rate": 1,
+        "ci95": {
+          "low": 0.9704142355178014,
+          "high": 1
+        },
+        "wrong": 0,
+        "missing": 0,
+        "critical": true
+      },
+      "validUntil": {
+        "k": 126,
+        "n": 126,
+        "rate": 1,
+        "ci95": {
+          "low": 0.9704142355178014,
+          "high": 1
+        },
+        "wrong": 0,
+        "missing": 0,
+        "critical": true
+      },
+      "deliveryFrom": {
+        "k": 116,
+        "n": 126,
+        "rate": 0.9206349206349206,
+        "ci95": {
+          "low": 0.8600591015126653,
+          "high": 0.9563211283673898
+        },
+        "wrong": 0,
+        "missing": 10,
+        "critical": true
+      },
+      "deliveryTo": {
+        "k": 124,
+        "n": 126,
+        "rate": 0.9841269841269841,
+        "ci95": {
+          "low": 0.9439712362150748,
+          "high": 0.9956361981751771
+        },
+        "wrong": 0,
+        "missing": 2,
+        "critical": true
+      },
+      "bargeFee": {
+        "k": 125,
+        "n": 126,
+        "rate": 0.9920634920634921,
+        "ci95": {
+          "low": 0.9564132000148391,
+          "high": 0.9985976349391876
+        },
+        "wrong": 0,
+        "missing": 1,
+        "critical": false
+      },
+      "grade": {
+        "k": 142,
+        "n": 142,
+        "rate": 1,
+        "ci95": {
+          "low": 0.9736600356869919,
+          "high": 1
+        },
+        "wrong": 0,
+        "missing": 0,
+        "critical": true
+      },
+      "quantity": {
+        "k": 142,
+        "n": 142,
+        "rate": 1,
+        "ci95": {
+          "low": 0.9736600356869919,
+          "high": 1
+        },
+        "wrong": 0,
+        "missing": 0,
+        "critical": true
+      },
+      "price": {
+        "k": 142,
+        "n": 142,
+        "rate": 1,
+        "ci95": {
+          "low": 0.9736600356869919,
+          "high": 1
+        },
+        "wrong": 0,
+        "missing": 0,
+        "critical": true
+      }
+    },
+    "critical": {
+      "k": 1170,
+      "n": 1182,
+      "rate": 0.9898477157360406,
+      "ci95": {
+        "low": 0.9823387371700999,
+        "high": 0.9941830325710405
+      },
+      "wrong": 0,
+      "missing": 12,
+      "cases": 126
+    },
+    "fieldErrors": [
+      {
+        "field": "deliveryFrom",
+        "verdict": "missing",
+        "ids": [
+          "eur-013",
+          "forwarded-003",
+          "forwarded-008",
+          "hard-dot-thousands-qty",
+          "hard-eur-quote-in-band",
+          "hard-spoofed-supplier-name",
+          "hard-volume-m3",
+          "multi-grade-016",
+          "pdf-028",
+          "plain-020"
+        ]
+      },
+      {
+        "field": "deliveryTo",
+        "verdict": "missing",
+        "ids": [
+          "eur-015",
+          "hard-volume-m3"
+        ]
+      },
+      {
+        "field": "bargeFee",
+        "verdict": "missing",
+        "ids": [
+          "html-025"
+        ]
+      }
+    ],
+    "unsafeAutoAccepts": {
+      "k": 0,
+      "n": 156,
+      "rate": 0,
+      "ci95": {
+        "low": 0,
+        "high": 0.02403293143741494
+      },
+      "ids": []
+    },
+    "reviewQueue": {
+      "k": 21,
+      "n": 156,
+      "rate": 0.1346153846153846,
+      "ci95": {
+        "low": 0.08976079347961012,
+        "high": 0.19703250257080845
+      }
+    },
+    "falseReview": {
+      "k": 11,
+      "n": 117,
+      "rate": 0.09401709401709402,
+      "ci95": {
+        "low": 0.05331046193970683,
+        "high": 0.16053550676080316
+      },
+      "ids": [
+        "eur-013",
+        "eur-015",
+        "forwarded-003",
+        "forwarded-008",
+        "hard-eur-quote-in-band",
+        "html-015",
+        "html-018",
+        "html-025",
+        "multi-grade-016",
+        "pdf-028",
+        "plain-020"
+      ]
+    },
+    "needsReviewRecall": {
+      "k": 10,
+      "n": 10,
+      "rate": 1,
+      "ci95": {
+        "low": 0.7224672001371106,
+        "high": 1
+      },
+      "missedIds": []
+    },
+    "reviewCheckMatched": {
+      "k": 10,
+      "n": 10,
+      "rate": 1,
+      "ci95": {
+        "low": 0.7224672001371106,
+        "high": 1
+      },
+      "missedIds": []
+    },
+    "latency": {
+      "endToEnd": {
+        "n": 156,
+        "mean": 6024.721165634621,
+        "p90": 7980.769000000029
+      },
+      "model": {
+        "n": 156,
+        "mean": 5982.427259352562,
+        "p90": 7925.769708000007
+      },
+      "targetMs": 20000
+    },
+    "cost": {
+      "perEmail": {
+        "n": 156,
+        "mean": 0.0007036737179487179,
+        "p90": 0.00097574
+      },
+      "totalUsd": 0.13125011999999997
+    },
+    "variance": {
+      "cases": [
+        {
+          "id": "hard-ambiguous-quantity",
+          "truthStatus": "needs_review",
+          "runs": 3,
+          "statuses": [
+            "needs_review",
+            "needs_review",
+            "needs_review"
+          ],
+          "criticalAgreed": false,
+          "criticalAllCorrect": [
+            true,
+            true,
+            false
+          ],
+          "unsafeRuns": 0,
+          "reviewedRuns": {
+            "k": 3,
+            "n": 3
+          },
+          "reviewCheckMatchedRuns": {
+            "k": 3,
+            "n": 3
+          }
+        },
+        {
+          "id": "hard-barge-per-mt",
+          "truthStatus": "extracted",
+          "runs": 3,
+          "statuses": [
+            "extracted",
+            "extracted",
+            "extracted"
+          ],
+          "criticalAgreed": true,
+          "criticalAllCorrect": [
+            true,
+            true,
+            true
+          ],
+          "unsafeRuns": 0,
+          "reviewedRuns": null,
+          "reviewCheckMatchedRuns": null
+        },
+        {
+          "id": "hard-decimal-comma",
+          "truthStatus": "needs_review",
+          "runs": 3,
+          "statuses": [
+            "needs_review",
+            "needs_review",
+            "needs_review"
+          ],
+          "criticalAgreed": true,
+          "criticalAllCorrect": [
+            true,
+            true,
+            true
+          ],
+          "unsafeRuns": 0,
+          "reviewedRuns": {
+            "k": 3,
+            "n": 3
+          },
+          "reviewCheckMatchedRuns": {
+            "k": 3,
+            "n": 3
+          }
+        },
+        {
+          "id": "hard-dot-thousands-qty",
+          "truthStatus": "needs_review",
+          "runs": 3,
+          "statuses": [
+            "needs_review",
+            "needs_review",
+            "needs_review"
+          ],
+          "criticalAgreed": true,
+          "criticalAllCorrect": [
+            false,
+            false,
+            false
+          ],
+          "unsafeRuns": 0,
+          "reviewedRuns": {
+            "k": 3,
+            "n": 3
+          },
+          "reviewCheckMatchedRuns": {
+            "k": 3,
+            "n": 3
+          }
+        },
+        {
+          "id": "hard-eur-quote-in-band",
+          "truthStatus": "extracted",
+          "runs": 3,
+          "statuses": [
+            "needs_review",
+            "extracted",
+            "extracted"
+          ],
+          "criticalAgreed": false,
+          "criticalAllCorrect": [
+            false,
+            true,
+            true
+          ],
+          "unsafeRuns": 0,
+          "reviewedRuns": null,
+          "reviewCheckMatchedRuns": null
+        },
+        {
+          "id": "hard-expired-validity",
+          "truthStatus": "needs_review",
+          "runs": 3,
+          "statuses": [
+            "needs_review",
+            "needs_review",
+            "needs_review"
+          ],
+          "criticalAgreed": true,
+          "criticalAllCorrect": [
+            true,
+            true,
+            true
+          ],
+          "unsafeRuns": 0,
+          "reviewedRuns": {
+            "k": 3,
+            "n": 3
+          },
+          "reviewCheckMatchedRuns": {
+            "k": 3,
+            "n": 3
+          }
+        },
+        {
+          "id": "hard-missing-currency",
+          "truthStatus": "needs_review",
+          "runs": 3,
+          "statuses": [
+            "needs_review",
+            "needs_review",
+            "needs_review"
+          ],
+          "criticalAgreed": true,
+          "criticalAllCorrect": [
+            true,
+            true,
+            true
+          ],
+          "unsafeRuns": 0,
+          "reviewedRuns": {
+            "k": 3,
+            "n": 3
+          },
+          "reviewCheckMatchedRuns": {
+            "k": 3,
+            "n": 3
+          }
+        },
+        {
+          "id": "hard-multi-grade-unrequired-grade",
+          "truthStatus": "extracted",
+          "runs": 3,
+          "statuses": [
+            "extracted",
+            "extracted",
+            "extracted"
+          ],
+          "criticalAgreed": true,
+          "criticalAllCorrect": [
+            true,
+            true,
+            true
+          ],
+          "unsafeRuns": 0,
+          "reviewedRuns": null,
+          "reviewCheckMatchedRuns": null
+        },
+        {
+          "id": "hard-pdf-image-only",
+          "truthStatus": "needs_review",
+          "runs": 3,
+          "statuses": [
+            "needs_review",
+            "needs_review",
+            "needs_review"
+          ],
+          "criticalAgreed": true,
+          "criticalAllCorrect": [
+            null,
+            null,
+            null
+          ],
+          "unsafeRuns": 0,
+          "reviewedRuns": {
+            "k": 3,
+            "n": 3
+          },
+          "reviewCheckMatchedRuns": {
+            "k": 3,
+            "n": 3
+          }
+        },
+        {
+          "id": "hard-price-typo-out-of-band",
+          "truthStatus": "needs_review",
+          "runs": 3,
+          "statuses": [
+            "needs_review",
+            "needs_review",
+            "needs_review"
+          ],
+          "criticalAgreed": true,
+          "criticalAllCorrect": [
+            true,
+            true,
+            true
+          ],
+          "unsafeRuns": 0,
+          "reviewedRuns": {
+            "k": 3,
+            "n": 3
+          },
+          "reviewCheckMatchedRuns": {
+            "k": 3,
+            "n": 3
+          }
+        },
+        {
+          "id": "hard-qty-over-tank-capacity",
+          "truthStatus": "needs_review",
+          "runs": 3,
+          "statuses": [
+            "needs_review",
+            "needs_review",
+            "needs_review"
+          ],
+          "criticalAgreed": true,
+          "criticalAllCorrect": [
+            true,
+            true,
+            true
+          ],
+          "unsafeRuns": 0,
+          "reviewedRuns": {
+            "k": 3,
+            "n": 3
+          },
+          "reviewCheckMatchedRuns": {
+            "k": 3,
+            "n": 3
+          }
+        },
+        {
+          "id": "hard-quote-in-html-only",
+          "truthStatus": "extracted",
+          "runs": 3,
+          "statuses": [
+            "extracted",
+            "extracted",
+            "extracted"
+          ],
+          "criticalAgreed": true,
+          "criticalAllCorrect": [
+            true,
+            true,
+            true
+          ],
+          "unsafeRuns": 0,
+          "reviewedRuns": null,
+          "reviewCheckMatchedRuns": null
+        },
+        {
+          "id": "hard-spoofed-supplier-name",
+          "truthStatus": "needs_review",
+          "runs": 3,
+          "statuses": [
+            "needs_review",
+            "needs_review",
+            "needs_review"
+          ],
+          "criticalAgreed": true,
+          "criticalAllCorrect": [
+            false,
+            false,
+            false
+          ],
+          "unsafeRuns": 0,
+          "reviewedRuns": {
+            "k": 3,
+            "n": 3
+          },
+          "reviewCheckMatchedRuns": {
+            "k": 3,
+            "n": 3
+          }
+        },
+        {
+          "id": "hard-volume-m3",
+          "truthStatus": "needs_review",
+          "runs": 3,
+          "statuses": [
+            "needs_review",
+            "needs_review",
+            "needs_review"
+          ],
+          "criticalAgreed": false,
+          "criticalAllCorrect": [
+            false,
+            false,
+            false
+          ],
+          "unsafeRuns": 0,
+          "reviewedRuns": {
+            "k": 3,
+            "n": 3
+          },
+          "reviewCheckMatchedRuns": {
+            "k": 3,
+            "n": 3
+          }
+        }
+      ],
+      "needsReviewRecall": {
+        "k": 30,
+        "n": 30,
+        "rate": 1,
+        "ci95": {
+          "low": 0.8864866068260312,
+          "high": 1
+        }
+      },
+      "reviewCheckMatched": {
+        "k": 30,
+        "n": 30,
+        "rate": 1,
+        "ci95": {
+          "low": 0.8864866068260312,
+          "high": 1
+        }
+      }
+    }
+  }
+}
