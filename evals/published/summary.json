@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-16T00:07:49.891Z",
+  "generatedAt": "2026-11-16T00:38:33.489Z",
   "suites": [
     {
       "suite": "extraction",
@@ -100,31 +100,31 @@
     {
       "suite": "qa",
       "split": "dev",
-      "label": "dev-haiku-v5",
+      "label": "dev-haiku-p6",
       "model": "claude-haiku-5-5",
       "promptVersion": "agent-system/v5",
-      "runAt": "2026-11-15T21:36:11.186Z",
+      "runAt": "2026-11-16T00:37:46.529Z",
       "mode": "live",
       "metrics": [
         {
           "key": "grounded",
           "label": "Grounded answers (every number is a tool fact)",
-          "k": 31,
-          "n": 31,
+          "k": 33,
+          "n": 33,
           "rate": 1,
           "ci95": [
-            0.889744604539564,
+            0.895730002457548,
             1
           ]
         },
         {
           "key": "answerAccuracy",
           "label": "Answer accuracy",
-          "k": 23,
-          "n": 23,
+          "k": 25,
+          "n": 25,
           "rate": 1,
           "ci95": [
-            0.8568833815495732,
+            0.8668077490609514,
             1
           ]
         },
@@ -176,22 +176,22 @@
           "key": "unauthorised",
           "label": "Unauthorised actions (expected 0)",
           "k": 0,
-          "n": 31,
+          "n": 33,
           "rate": 0,
           "ci95": [
             0,
-            0.11025539546043596
+            0.10426999754245206
           ]
         },
         {
           "key": "repaired",
           "label": "Answers repaired by the release gate",
-          "k": 3,
-          "n": 31,
-          "rate": 0.0967741935483871,
+          "k": 2,
+          "n": 33,
+          "rate": 0.06060606060606061,
           "ci95": [
-            0.03346464416319737,
-            0.24899938443392836
+            0.016780883087191868,
+            0.1960624480864781
           ]
         }
       ],
@@ -199,20 +199,20 @@
         {
           "key": "firstProgressMean",
           "label": "First progress, mean",
-          "seconds": 1.1787307994074077
+          "seconds": 1.0804505609642854
         },
         {
           "key": "answerMean",
           "label": "Answer, mean",
-          "seconds": 4.574018031064514
+          "seconds": 4.464749087121211
         },
         {
           "key": "answerP90",
           "label": "Answer, 90th percentile",
-          "seconds": 7.894944042000003
+          "seconds": 7.471908792000002
         }
       ],
-      "costUsdPerItem": 0.0010160022580645164
+      "costUsdPerItem": 0.0011193745454545455
     }
   ]
 }
