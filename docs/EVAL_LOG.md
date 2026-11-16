@@ -455,3 +455,39 @@ Demo ask re-recorded (`record-demo-ask`, Haiku 5.5, 3 calls, $0.001541): gate pa
 
 Spend: dev pass $0.036939 + demo ask $0.001541 = $0.038480; Phase 6 ledger $0.038480 of $1.00. Held-out half untouched.
 **Decision:** keep v5; the grounding gate holds on the new numbers.
+
+---
+
+## 2026-11-16 — Phase 7 — held-out pass (pre-registration)
+
+Written and committed **before** any held-out call. Nothing below changes after the run.
+
+**Frozen code:** `27a38c2` (graders, runners, publish, prompts and fixtures as of this commit). Prompts unchanged: `extract-quote/v2`, `agent-system/v5`; extraction schema unchanged. Claude Haiku 5.5 only, effort medium, `LLM_FALLBACKS=off`. Recorded fixtures of 15 Nov kept (Phase 7 R1). Free checks at this commit: held-out oracle extraction 1182/1182 critical fields, Q&A 24/24 accuracy, runner errors 0 in both; held-out empty extraction 5/1182, Q&A 0/24.
+
+**Commands (each run once, in the background, after the user's go-ahead):**
+
+```bash
+npm run eval -- --suite extraction --split heldout --final --mode live --repeat-hard 3 --label p7-heldout
+npm run eval -- --suite qa --split heldout --final --mode live --label p7-heldout
+```
+
+Extraction: 156 held-out cases plus the 14 hard cases twice more (184 runs; estimate $0.184, cap $0.25 per pass). Q&A: 32 held-out questions (estimate $0.128). Budget: Phase 7, $1.00.
+
+**Reported as measured** (k of N, Wilson 95 % interval; headline = first run of each case):
+
+- Extraction: critical-field accuracy, quote precision and recall, not-a-quote precision and recall, unsafe auto-accepts (counted per graded email), review-queue rate, errors; the hard-case variance section (14 cases × 3 runs); latency and cost per email.
+- Q&A: grounded numbers (of released answers), answer accuracy, abstention, injection, no-action, proposed = best, unauthorised actions, repaired, withheld, errors; first-progress and answer latency; cost per question.
+
+**Rules fixed now:**
+
+- Run once; never tuned toward; held-out failures are not used to change anything. Errors (API, truncation, refusal) are listed separately and never counted as wrong answers.
+- Known grader limits (Phase 7 R6), stated rather than fixed: the comparison verdict word is not graded (comparison-02, -04, -05, -08, congestion-03 grade the two cited values, not which side the sentence names), and `statesInstant` matches a date and a time independently (route-speed-04, -07). These 7 answers are read once by hand after the run and the reading is reported beside the score; no grade changes.
+- Abort policy (R8, P17): an error consumes its case; an armed pass stops at its first API error; a stopped pass is resumed once for the cases with no row (`--offset` as printed) and the reports are merged with `npm run eval:merge`; a case that produced a row is never re-run (`evals/heldout-passes.jsonl`).
+- Runner errors (P18): if a live held-out pass ends with runner errors, that suite's held-out result is reported unpublished with the errors listed; it is not re-run.
+
+**Hypotheses (written before the run):**
+
+- **H21:** extraction critical-field accuracy lands inside or above the dev interval (dev 646/651, 98.2–99.7 %).
+- **H22:** 0 unsafe auto-accepts of 156 graded emails (a 95 % upper bound near 2.4 %).
+- **H23:** Q&A grounded numbers 100 % of released answers; 0 unauthorised actions of 32.
+- **H24:** Q&A answer accuracy at most two misses from perfect (dev 25/25), with the risk concentrated in the two-instant question route-speed-04 and the real-ship questions route-speed-07 and compliance-03.
