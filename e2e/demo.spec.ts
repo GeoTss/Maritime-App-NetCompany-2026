@@ -10,7 +10,8 @@ import { expect, type Page, test } from "@playwright/test";
 
 // STORY_MODE: recorded (default, replayed model, pinned clock), record (replay-first, a miss calls
 // the model: paid) or live (live model, AIS and weather, wall clock: paid, needs `npm run demo:live`).
-// STORY_STOP_AFTER=map returns after step 1 (a free dry-run of a live stack).
+// STORY_STOP_AFTER=map returns after step 1 (a free dry-run of a live stack); it skips the
+// llmMode and model check, and still checks for off-origin requests and console errors.
 type Mode = "recorded" | "record" | "live";
 const MODE = (process.env.STORY_MODE ?? "recorded") as Mode;
 if (!["recorded", "record", "live"].includes(MODE)) {
@@ -19,6 +20,8 @@ if (!["recorded", "record", "live"].includes(MODE)) {
 const STOP_AFTER = process.env.STORY_STOP_AFTER ?? "";
 const LIVE = MODE === "live";
 const EXPECTED_LLM_MODE = { recorded: "replay", record: "record", live: "live" }[MODE];
+/** The only model a live or record story may be served by (the stack reports it on /api/health). */
+const HAIKU = "claude-haiku-5-5";
 
 // Screenshots go to test-results/ by default; STORY_SCREENSHOTS=docs refreshes the committed set.
 const SHOTS =
@@ -103,10 +106,13 @@ test("demo story: six steps", async ({ page }) => {
   // Live only: the public ship chosen by the preflight (and proven plannable) for step 4.
   let liveShip: { mmsi: string; name: string | null } | null = null;
   // The first action: the stack's model mode must match the story's, so a recorded story can
-  // never spend money against a live-model stack (and a live story never replays).
+  // never spend money against a live-model stack (and a live story never replays). A paid story
+  // (live, record) also needs both prompts configured for Haiku before its first model call.
   if (STOP_AFTER !== "map") {
     const health = (await (await page.request.get("http://localhost:4000/api/health")).json()) as {
       llmMode?: string;
+      extractModel?: string | null;
+      agentModel?: string | null;
     };
     expect(
       health.llmMode,
@@ -114,9 +120,18 @@ test("demo story: six steps", async ({ page }) => {
         LIVE ? "run npm run demo:live first" : "run npm run demo:reset first"
       }`,
     ).toBe(EXPECTED_LLM_MODE);
+    if (MODE !== "recorded") {
+      expect(health.extractModel, `/api/health extractModel must be ${HAIKU}`).toBe(HAIKU);
+      expect(health.agentModel, `/api/health agentModel must be ${HAIKU}`).toBe(HAIKU);
+    }
   }
   const offOrigin: string[] = [];
   const consoleErrors: string[] = [];
+  /** No request left localhost and nothing logged an error, so far (at every exit point). */
+  const assertCleanPage = (where: string) => {
+    expect(offOrigin, `requests to other hosts (${where})`).toEqual([]);
+    expect(consoleErrors, `console errors (${where})`).toEqual([]);
+  };
   page.on("request", (r) => {
     const u = new URL(r.url());
     if (!["localhost", "127.0.0.1"].includes(u.hostname) && u.protocol.startsWith("http"))
@@ -153,12 +168,33 @@ test("demo story: six steps", async ({ page }) => {
     await expect(page.getByRole("button", { name: "Aegean Pioneer, has an alert" })).toBeVisible();
   });
   await shot(page, 1, "map");
-  if (STOP_AFTER === "map") return;
+  if (STOP_AFTER === "map") {
+    assertCleanPage("after the map");
+    return;
+  }
 
   // Live only: a free preflight, so live conditions that are not product bugs fail early and
   // clearly, before any paid step. GETs, plus one route plan (never in recorded or record mode,
   // where a new POST would change the replay keys).
   if (LIVE) {
+    // Both sources live, and the AIS socket up: a "fully live" story on a dead feed is not one.
+    const sources = (await (await page.request.get("/api/sources")).json()) as {
+      items: { source: string; mode: string; detail: string | null }[];
+    };
+    notes.sources = sources.items.map(({ source, mode, detail }) => ({ source, mode, detail }));
+    for (const name of ["ais", "weather"]) {
+      const row = sources.items.find((s) => s.source === name);
+      expect(
+        row?.mode,
+        `/api/sources ${name} must be live (got ${row?.mode ?? "no row"}): run npm run demo:live`,
+      ).toBe("live");
+    }
+    const aisDetail = sources.items.find((s) => s.source === "ais")?.detail ?? "";
+    expect(
+      aisDetail,
+      "/api/sources says the AIS socket is down: check AISSTREAM_API_KEY, then npm run demo:live",
+    ).not.toMatch(/socket down/i);
+
     const hazards = (await (await page.request.get("/api/hazards")).json()) as {
       items: { id: string }[];
     };
@@ -222,6 +258,7 @@ test("demo story: six steps", async ({ page }) => {
       `no public ship could be planned to Rotterdam (tried ${tried.join(", ") || "none"}): report, not a product fix`,
     ).not.toBeNull();
     notes.publicShip = liveShip;
+    assertCleanPage("after the live preflight");
   }
 
   // 2. Inbox ----------------------------------------------------------------------------------
@@ -405,8 +442,9 @@ test("demo story: six steps", async ({ page }) => {
   await page
     .getByRole("heading", { name: "Evaluation", level: 1 })
     .evaluate((el) => el.scrollIntoView({ block: "start" }));
+  // The step-5 "Approved" toasts would sit over the page header in the shot: let them clear.
+  await expect(page.locator("[data-sonner-toast]")).toHaveCount(0, { timeout: 15_000 });
   await shot(page, 6, "evaluation");
 
-  expect(offOrigin, "requests to other hosts").toEqual([]);
-  expect(consoleErrors, "console errors").toEqual([]);
+  assertCleanPage("at the end");
 });
