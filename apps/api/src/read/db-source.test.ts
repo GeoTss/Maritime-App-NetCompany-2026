@@ -203,6 +203,26 @@ describe.skipIf(!sql)("createDbSource (Postgres)", () => {
     expect(pending.checkResults).toEqual([]);
     expect(detail.error).toBeNull();
     expect(pending.error).toBeNull();
+    // The id is the latest extraction's, the same row the other fields come from.
+    const [latest] = await db<{ id: number }[]>`
+      select id from extractions where document_id = ${kestrelDocId} order by id desc limit 1`;
+    expect(detail.extractionId).toBe(latest?.id);
+    expect(pending.extractionId).toBeGreaterThan(0);
+    expect(pending.extractionId).not.toBe(detail.extractionId);
+  });
+
+  it("returns a null extractionId for a document with no extraction", async () => {
+    const [doc] = await db<{ id: number }[]>`
+      insert into documents (kind, source, sha256, sender, subject, body_text, received_at,
+                             has_unreadable_attachment)
+      values ('email', 'test', 'no-extraction-sha', 'a@b.test', 'bare', 'body', ${NOW.toISOString()}::timestamptz, false)
+      returning id`;
+    try {
+      const bare = InboxItemDetail.parse((await get(app, `/api/inbox/${doc?.id}`)).body);
+      expect(bare).toMatchObject({ extractionId: null, extraction: null, error: null });
+    } finally {
+      await db`delete from documents where id = ${doc?.id ?? 0}`;
+    }
   });
 
   it("returns the stored error of a failed extraction", async () => {

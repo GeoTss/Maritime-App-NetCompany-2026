@@ -19,6 +19,7 @@ import {
   FuelEuCostInput,
   FuelEuCostResult,
   GradeAmounts,
+  InboxItemDetail,
   ListFleetInput,
   ListQuotesInput,
   LlmCall,
@@ -717,6 +718,25 @@ describe("Phase 5 contracts", () => {
 });
 
 describe("Phase 6 contracts", () => {
+  it("InboxItemDetail carries extractionId, nullable and required", () => {
+    const base = {
+      documentId: 1,
+      sender: null,
+      subject: null,
+      receivedAt: "2026-11-15T00:00:00Z",
+      kind: "email",
+      extractionStatus: "failed",
+      bodyText: "",
+      extraction: null,
+      checkResults: [],
+      error: "model refused",
+    };
+    expect(InboxItemDetail.safeParse({ ...base, extractionId: 7 }).success).toBe(true);
+    expect(InboxItemDetail.safeParse({ ...base, extractionId: null }).success).toBe(true);
+    expect(InboxItemDetail.safeParse(base).success).toBe(false);
+    expect(InboxItemDetail.safeParse({ ...base, extractionId: 0 }).success).toBe(false);
+  });
+
   const curve = {
     refSpeedKn: 13,
     refMtPerDay: 30,

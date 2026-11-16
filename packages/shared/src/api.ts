@@ -126,6 +126,8 @@ export const InboxItemDetail = InboxItem.extend({
   checkResults: z.array(CheckResult),
   /** Why the extraction failed, when it did (the message stored on the extraction). */
   error: z.string().nullable(),
+  /** Id of the document's latest extraction (the one the fields above come from); null when it has none. */
+  extractionId: Id.nullable(),
 });
 export type InboxItemDetail = z.infer<typeof InboxItemDetail>;
 

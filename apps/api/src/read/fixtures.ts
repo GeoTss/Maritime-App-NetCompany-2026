@@ -295,6 +295,7 @@ function buildInbox(world: World) {
           : { check: "quantity_unambiguous", passed: true, detail: null },
       ],
       error: null,
+      extractionId: i + 1,
     };
     return { item, detail };
   });

@@ -137,6 +137,7 @@ describe("fixture content", () => {
     expect(qty?.asWritten).toBe("300/350 mt");
     expect(detail.bodyText).toContain(DEMO_SCENARIO.needsReview.qtyAsWritten);
     expect(detail.checkResults.some((c) => !c.passed)).toBe(true);
+    expect(detail.extractionId).toBe(flagged?.documentId);
   });
 
   it("shows no quantity on the needs-review quote; resolved quotes keep theirs", async () => {

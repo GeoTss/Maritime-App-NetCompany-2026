@@ -51,6 +51,7 @@ interface InboxRow {
   raw_output?: unknown;
   check_results?: unknown;
   error?: string | null;
+  extraction_id?: number | null;
   body_text?: string;
 }
 
@@ -69,10 +70,10 @@ function inboxRows(sql: Sql, id?: Id) {
   const detail = id !== undefined;
   return sql<InboxRow[]>`
     select d.id, d.kind, d.sender, d.subject, d.received_at, e.status
-      ${detail ? sql`, d.body_text, e.raw_output, e.check_results, e.error` : sql``}
+      ${detail ? sql`, d.body_text, e.id as extraction_id, e.raw_output, e.check_results, e.error` : sql``}
     from documents d
     left join lateral (
-      select status, raw_output, check_results, error from extractions
+      select id, status, raw_output, check_results, error from extractions
       where document_id = d.id order by id desc limit 1
     ) e on true
     where d.parent_id is null ${detail ? sql`and d.id = ${id}` : sql``}
@@ -90,6 +91,7 @@ async function inboxItem(sql: Sql, id: Id): Promise<InboxItemDetail | null> {
     extraction: extraction.success ? extraction.data : null,
     checkResults: checks.success ? checks.data : [],
     error: row.error ?? null,
+    extractionId: row.extraction_id ?? null,
   };
 }
 
