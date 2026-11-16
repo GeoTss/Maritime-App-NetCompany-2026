@@ -19,7 +19,10 @@ RUN npm ci --include=dev --no-audit --no-fund
 
 COPY . .
 # The ops console is a static bundle, built once into apps/web/dist and served by `vite preview`.
-RUN npm run build -w @pharos/web
+RUN npm run build -w @pharos/web \
+  # vite writes its bundled config under node_modules/.vite-temp at start; the server runs as node.
+  && mkdir -p apps/web/node_modules/.vite-temp \
+  && chown -R node:node apps/web/node_modules
 
 USER node
 CMD ["npm", "run", "start", "-w", "@pharos/api"]
