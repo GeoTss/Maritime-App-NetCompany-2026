@@ -143,7 +143,7 @@ describe("parseArgs", () => {
   it.each([
     [["--oracle", "--empty"], /alternatives/],
     [["--oracle", "--mode", "live"], /makes no model calls/],
-    [["--mode", "record", "--repeat-hard", "3"], /overwrite/],
+    [["--mode", "record", "--repeat-hard", "3"], /reuse each hard case/],
     [["--mode", "paid"], /live, record or replay/],
     [["--suite", "qa"], /only extraction/],
     [["--repeat-hard", "0"], /whole number/],

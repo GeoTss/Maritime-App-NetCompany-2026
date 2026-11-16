@@ -162,8 +162,8 @@ export function assertSplitAllowed(split: SplitName, final: boolean): void {
 }
 
 const REPEAT_RECORD =
-  "--repeat-hard with --mode record would overwrite each hard case's recording with its last run, " +
-  "so replay could not reproduce the first-run headline. Measure variance with --mode live.";
+  "--repeat-hard with --mode record would reuse each hard case's recording on every repeat, " +
+  "so the repeats would measure nothing. Measure variance with --mode live.";
 
 const VALUE_FLAGS = [
   "--suite",

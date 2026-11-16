@@ -8,7 +8,9 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { expect, type Page, test } from "@playwright/test";
 
-const SHOTS = "docs/screenshots/phase-6";
+// Screenshots go to test-results/ by default; STORY_SCREENSHOTS=docs refreshes the committed set.
+const SHOTS =
+  process.env.STORY_SCREENSHOTS === "docs" ? "docs/screenshots/phase-6" : "test-results/story";
 const timings: { step: string; ms: number }[] = [];
 
 const BUNKER_Q = "Where should Aegean Pioneer bunker, and who should we buy from?";
@@ -51,6 +53,8 @@ async function ask(page: Page, question: string, label: string) {
     });
   });
   await expect(turn.locator('[role="alert"]')).toHaveCount(0);
+  // A withheld answer shows a different gate line: only a fully sourced answer passes.
+  await expect(turn.getByTestId("gate-line")).toHaveText(/all numbers sourced/);
   return turn;
 }
 
@@ -82,7 +86,9 @@ test("demo story: six steps", async ({ page }) => {
     const clock = page.locator("time[datetime]").first();
     await expect(clock).toHaveText("08:05Z");
     await expect(page.getByText("pinned", { exact: true })).toBeVisible();
-    await expect(page.locator('[data-testid^="hazard-"] [data-kind="synthetic"]').first()).toBeVisible();
+    await expect(
+      page.locator('[data-testid^="hazard-"] [data-kind="synthetic"]').first(),
+    ).toBeVisible();
     await expect(page.getByRole("button", { name: "Aegean Pioneer, has an alert" })).toBeVisible();
   });
   await shot(page, 1, "map");
@@ -108,11 +114,17 @@ test("demo story: six steps", async ({ page }) => {
   await openEmail(/Marsaxlokk/i);
   const quote = page.getByRole("list", { name: "Extracted quote" });
   await expect(quote).toBeVisible();
-  await quote.getByRole("button", { name: /^Price/ }).first().hover();
+  await quote
+    .getByRole("button", { name: /^Price/ })
+    .first()
+    .hover();
   await expect(page.getByTestId("evidence-mark")).toBeVisible();
   await openEmail(/Gibraltar/i);
   await expect(quote).toBeVisible();
-  await quote.getByRole("button", { name: /^Price/ }).first().hover();
+  await quote
+    .getByRole("button", { name: /^Price/ })
+    .first()
+    .hover();
   await expect(page.getByTestId("evidence-mark")).toBeVisible();
 
   await openEmail(/Algeciras/i);
@@ -132,10 +144,17 @@ test("demo story: six steps", async ({ page }) => {
   const chip = turn1.locator('[data-slot="fact-chip"]').first();
   await expect(chip).toBeVisible();
   await chip.click();
-  await expect(page.getByText(/Database record|Calculation|Supplier email|Derived from other facts|AIS position report|Weather snapshot/)).toBeVisible();
+  const popover = page.locator('[data-slot="popover-content"]');
+  await expect(popover).toBeVisible();
+  await expect(popover).toContainText(
+    /Database record|Calculation|Supplier email|Derived from other facts|AIS position report|Weather snapshot/,
+  );
+  await expect(popover).toHaveCSS("opacity", "1");
   await shot(page, 3, "bunker-answer");
   await page.keyboard.press("Escape");
-  await expect(turn1.getByRole("link", { name: /Proposal \d+ waiting for your decision/ })).toBeVisible();
+  await expect(
+    turn1.getByRole("link", { name: /Proposal \d+ waiting for your decision/ }),
+  ).toBeVisible();
 
   // 4. Route and speed ------------------------------------------------------------------------
   await ask(page, ROUTE_Q, "4 route ask");
@@ -148,8 +167,16 @@ test("demo story: six steps", async ({ page }) => {
     page.locator('[data-testid^="route-row-"]:not([data-testid="route-row-baseline"])'),
   ).toHaveCount(3);
   await expect(page.getByTestId("route-row-B")).toHaveAttribute("data-role", "recommended");
-  await expect(page.getByTestId("plan-load").locator('[data-slot="fact-chip"]').first()).toBeVisible();
-  await expect(page.getByText("FuelEU").first()).toBeVisible();
+  const chipSel = '[data-slot="fact-chip"]';
+  await expect(
+    page
+      .getByTestId("plan-load")
+      .getByText("Load factor")
+      .locator("xpath=following-sibling::dd")
+      .locator(chipSel),
+  ).toBeVisible();
+  await expect(page.getByRole("columnheader", { name: "FuelEU" })).toBeVisible();
+  await expect(page.getByTestId("route-row-B").locator("td").nth(7).locator(chipSel)).toBeVisible();
   await shot(page, 4, "route-plan");
 
   // A public AIS ship (first in the recorded list) to Rotterdam.
@@ -159,12 +186,16 @@ test("demo story: six steps", async ({ page }) => {
   const ship = traffic.items.find((s) => s.name) ?? traffic.items[0];
   await page.keyboard.press("ControlOrMeta+k");
   await page.getByRole("combobox").fill(ship.mmsi);
-  await page.getByRole("option", { name: new RegExp(ship.mmsi) }).first().click();
+  await page
+    .getByRole("option", { name: new RegExp(ship.mmsi) })
+    .first()
+    .click();
   await expect(page.getByLabel("Ship panel", { exact: true })).toBeVisible();
   await page.getByRole("combobox", { name: "Destination port" }).click();
   await page.getByRole("option", { name: /Rotterdam/ }).click();
   await page.getByRole("button", { name: "Plan route", exact: true }).click();
   await expect(page.getByTestId("plan-load")).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByText(/Route options:.*to\s+Rotterdam/i)).toBeVisible();
   await shot(page, 4, "public-ship-route");
 
   await ask(page, INSTRUCT_Q, "4 instruct");
@@ -179,9 +210,11 @@ test("demo story: six steps", async ({ page }) => {
     return card;
   };
   const po = await decide(/purchase order/i, "Approve");
-  await expect(po.getByText(/Purchase order\s+\S+/)).toBeVisible({ timeout: 60_000 });
+  await expect(po.getByText(/Purchase order\s+PO-\S+/)).toBeVisible({ timeout: 60_000 });
   await expect(po.getByText("draft, not sent").first()).toBeVisible();
-  await expect(po.getByRole("region", { name: "Audit trail" }).getByRole("listitem").first()).toBeVisible();
+  await expect(
+    po.getByRole("region", { name: "Audit trail" }).getByRole("listitem").first(),
+  ).toBeVisible();
   await shot(page, 5, "approvals-po");
   const vi = await decide(/voyage instruction/i, "Approve");
   await expect(vi.getByText(/Instruction recorded/)).toBeVisible({ timeout: 60_000 });
@@ -193,6 +226,9 @@ test("demo story: six steps", async ({ page }) => {
   await expect(page.getByText(/\d+ of \d+/).first()).toBeVisible();
   await expect(page.getByText(/95 % interval/).first()).toBeAttached();
   await expect(page.locator('[data-kind="dev-split"]').first()).toBeVisible();
+  await page
+    .getByRole("heading", { name: "Evaluation", level: 1 })
+    .evaluate((el) => el.scrollIntoView({ block: "start" }));
   await shot(page, 6, "evaluation");
 
   writeFileSync("test-results/story-timings.json", JSON.stringify(timings, null, 2));

@@ -78,6 +78,22 @@ async function load(dir: string, expected: Suite) {
       `${dir}: mode "${String(meta.mode)}" is not a live run; only live (or record) reports are published`,
     );
   }
+  if (meta.mode === "record") {
+    // Record mode reuses an existing recording (Ruling 25): the guard counts only calls that
+    // reached the model, the database counts every call. They are equal only when nothing was reused.
+    const spend = meta.spend as { guardUsd?: unknown; dbUsd?: unknown } | undefined;
+    const guard = spend?.guardUsd;
+    const db = spend?.dbUsd;
+    const equal =
+      typeof guard === "number" &&
+      typeof db === "number" &&
+      Math.abs(guard - db) <= 1e-9 + 1e-6 * Math.max(guard, db);
+    if (!equal) {
+      throw new PublishRefusal(
+        `${dir}: a record report whose spend does not match (guard ${String(guard)}, llm_calls ${String(db)}) had calls served from recordings; only fully live reports are published`,
+      );
+    }
+  }
   if (meta.split !== "dev") {
     throw new PublishRefusal(
       `${dir}: split "${String(meta.split)}" is not dev; held-out reports are never published`,

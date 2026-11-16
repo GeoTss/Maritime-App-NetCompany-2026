@@ -56,6 +56,7 @@ async function report(
     model: "claude-haiku-5-5",
     promptVersion: "p/v1",
     finishedAt: "2026-11-15T21:36:11.186Z",
+    spend: { guardUsd: 0.01, dbUsd: 0.01 },
     ...meta,
   };
   await writeFile(join(dir, "scorecard.json"), JSON.stringify({ meta: full, scorecard: card }));
@@ -75,6 +76,24 @@ describe("buildSummary", () => {
     expect(q?.latency.find((x) => x.key === "answerMean")?.seconds).toBe(2);
     expect(q?.costUsdPerItem).toBe(0.001);
     expect(q?.runAt).toBe("2026-11-15T21:36:11.186Z");
+  });
+
+  it("publishes a record report whose guard and database spend match (nothing reused)", async () => {
+    const qa = await report("qa", { spend: { guardUsd: 0.0315, dbUsd: 0.0315 } }, qaCard);
+    const ex = await report("extraction", { spend: { guardUsd: 0.06, dbUsd: 0.06 } }, exCard);
+    await expect(buildSummary({ qa, extraction: ex }, new Date())).resolves.toBeTruthy();
+  });
+
+  it("refuses a record report with a call served from a recording", async () => {
+    const reused = await report("qa", { spend: { guardUsd: 0.01, dbUsd: 0.0315 } }, qaCard);
+    const ex = await report("extraction", { mode: "live" }, exCard);
+    await expect(buildSummary({ qa: reused, extraction: ex }, new Date())).rejects.toThrow(
+      PublishRefusal,
+    );
+    const noSpend = await report("qa", { spend: undefined }, qaCard);
+    await expect(buildSummary({ qa: noSpend, extraction: ex }, new Date())).rejects.toThrow(
+      /served from recordings/,
+    );
   });
 
   for (const mode of ["replay", "oracle", "empty"]) {

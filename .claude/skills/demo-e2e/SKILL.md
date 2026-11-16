@@ -17,7 +17,9 @@ Demo story: `docs/MASTER_PLAN.md` §1. Spec: `e2e/demo.spec.ts` (one serial test
 
 - `npm run demo:reset && npx playwright test` (replay: free, offline, about 1 minute).
 - Always reset first: the story delivers the inbox, plans routes and approves proposals, so it needs a fresh world.
-- Screenshots: `docs/screenshots/phase-6/story-<n>-<name>.png`. Per-step timings: `test-results/story-timings.json` (compare with the latency targets in MASTER_PLAN §6). Look at the screenshots before reporting success.
+- Screenshots go to `test-results/story/` by default. `STORY_SCREENSHOTS=docs npx playwright test` writes the committed set `docs/screenshots/phase-6/story-<n>-<name>.png` instead; do that only to refresh it deliberately. Look at the screenshots before reporting success.
+- Per-step timings: `test-results/story-timings.json`. Replay timings are not live latencies: they only show the UI is fast. Judge latency against MASTER_PLAN §6 from live runs (the Q&A and extraction evals).
+- Live rehearsal before a demo (paid, ask first): `LLM_MODE=live npm run demo:reset && npx playwright test`. Answers take about 45 s each; the assertions do not depend on the wording.
 - The test fails on any request to a host other than localhost and on any console error.
 
 ## Determinism rule
@@ -32,7 +34,7 @@ Recordings live in `fixtures/llm-recordings/` (api container bind-mounts it). On
 
 1. Budget check: `npm run eval:ledger total` (the story costs about $0.01 to $0.03 on Haiku).
 2. `LLM_MODE=record npm run demo:reset && npx playwright test`. Record mode is replay-first: a request whose recording exists is served from it (free, never overwritten), and only a miss calls the model and writes. Recordings shared by several flows (the demo ask and the story send a byte-identical first request) therefore survive. To force a fresh sample, delete that recording file first. Fix spec bugs using replay (free).
-3. Sum `costUsd` from `GET /api/llm-calls` and ledger it: `npm run eval:ledger add -- --run demo-story-record --label phase6-story --cost <usd>`.
+3. Sum `costUsd` of the rows with mode `record` only (rows served from a recording show mode `replay` and a notional cost) from `GET /api/llm-calls` and ledger it: `npm run eval:ledger add -- --run demo-story-record --label phase6-story --cost <usd>`.
 4. `npm run demo:reset && npx playwright test` twice: both must pass with no `replay miss` in `docker compose logs api`.
 5. Leave the stack in replay (`npm run demo:reset`), commit new recordings.
 

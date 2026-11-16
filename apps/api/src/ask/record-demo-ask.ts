@@ -26,6 +26,14 @@ export const ASK_RECORDING_CONFIG: AgentConfig = {
 
 const MAX_RUN_USD = 0.25;
 
+/**
+ * The spend to ledger: only calls that reached the model. Record mode reuses an existing
+ * recording (mode "replay" in the row, with its recorded usage), which cost nothing this run.
+ */
+export function ledgerableCostUsd(calls: { mode: string; cost_usd: number }[]): number {
+  return calls.filter((c) => c.mode === "record").reduce((sum, c) => sum + c.cost_usd, 0);
+}
+
 async function main() {
   if (process.env.LLM_MODE !== "record") {
     throw new Error("Run with LLM_MODE=record (this script only records).");
@@ -66,6 +74,7 @@ async function main() {
       {
         request_key: string;
         model: string;
+        mode: string;
         input_tokens: number;
         output_tokens: number;
         cache_read_tokens: number;
@@ -74,7 +83,7 @@ async function main() {
         cost_usd: number;
         stop_reason: string | null;
       }[]
-    >`select request_key, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
+    >`select request_key, model, mode, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
              latency_ms, cost_usd, stop_reason
       from llm_calls order by id`;
     let total = 0;
@@ -84,6 +93,7 @@ async function main() {
         [
           `key=${m.request_key.slice(0, 12)}`,
           m.model,
+          `mode=${m.mode}`,
           `in=${m.input_tokens}`,
           `out=${m.output_tokens}`,
           `cacheRead=${m.cache_read_tokens}`,
@@ -95,12 +105,14 @@ async function main() {
       );
     }
     console.log(`total costUsd=${total.toFixed(6)} for ${calls.length} calls`);
-    if (total > 0) {
+    const spent = ledgerableCostUsd(calls);
+    console.log(`ledgered costUsd=${spent.toFixed(6)} (calls that reached the model)`);
+    if (spent > 0) {
       appendSpend({
         at: new Date().toISOString(),
         run: "record-demo-ask",
         label: "ask-recording",
-        costUsd: total,
+        costUsd: spent,
       });
     }
     if (!res) throw failure;
@@ -108,8 +120,8 @@ async function main() {
       `gate=${JSON.stringify(res.gate)} recommendations=${res.recommendationIds.join(",")}`,
     );
     console.log(`answer=${JSON.stringify(res.answer)}`);
-    if (total > MAX_RUN_USD) {
-      throw new Error(`Run cost ${total.toFixed(4)} USD exceeds ${MAX_RUN_USD} USD.`);
+    if (spent > MAX_RUN_USD) {
+      throw new Error(`Run cost ${spent.toFixed(4)} USD exceeds ${MAX_RUN_USD} USD.`);
     }
   } finally {
     await sql.end();
