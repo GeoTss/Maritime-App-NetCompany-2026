@@ -90,6 +90,20 @@ describe("EvaluationPage", () => {
     expect(document.getElementById("extraction-dev-title")).not.toBeNull();
   });
 
+  it("the header copy is neutral: true with dev entries only, it claims no held-out run", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => json(summary)),
+    );
+    renderPage();
+    await waitFor(() => expect(document.querySelectorAll("section[data-suite]").length).toBe(1));
+    const intro = document.querySelector("header p");
+    expect(intro?.textContent).toBe(
+      "Measured accuracy of extraction and answers, from published live runs; each section names its split.",
+    );
+    expect(intro?.textContent).not.toMatch(/held-out|run once/i);
+  });
+
   it('shows "held-out pending" only for a suite with no held-out entry', async () => {
     vi.stubGlobal(
       "fetch",

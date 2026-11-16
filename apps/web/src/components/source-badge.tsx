@@ -139,13 +139,13 @@ const TAG: Record<DataKind, { text: string; title: string; tone: string }> = {
   },
   "dev-split": {
     text: "dev split",
-    title: "Measured on the development half of the golden set, used for iteration.",
+    title: "Measured on the development part of the golden set, used for iteration.",
     tone: "border-line-strong text-text-2",
   },
   "heldout-split": {
     text: "held-out, run once",
     title:
-      "Measured once on the half of the golden set kept out of development; never tuned toward.",
+      "Measured once on the part of the golden set kept out of development; never tuned toward.",
     tone: "border-line-strong text-text-1",
   },
   draft: {

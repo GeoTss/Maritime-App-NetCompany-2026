@@ -8,7 +8,7 @@ import { createRouter } from "@/routes";
 
 /**
  * Root of the ops console: server state, tooltips, routes and the one toaster. Toasts sit at the
- * top right, under the 36 px status strip, so they never cover the assistant's composer.
+ * top center, under the 36 px status strip, so they never cover the assistant's composer.
  */
 export function App() {
   const [queryClient] = useState(createQueryClient);

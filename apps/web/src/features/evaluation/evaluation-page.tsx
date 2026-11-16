@@ -237,8 +237,8 @@ export function EvaluationPage() {
       <header className="mb-4 max-w-[60ch]">
         <h1 className="text-lg font-medium text-text-1">Evaluation</h1>
         <p className="text-xs/relaxed text-text-2">
-          Measured accuracy of extraction and answers, from published live runs: the held-out split,
-          run once, beside the development split used for iteration.
+          Measured accuracy of extraction and answers, from published live runs; each section names
+          its split.
         </p>
       </header>
       {body}
