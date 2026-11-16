@@ -18,3 +18,4 @@
 {"phase":6,"at":"2026-11-16T00:38:16.708Z","run":"record-demo-ask","label":"ask-recording","costUsd":0.0015407800000000003}
 {"phase":6,"at":"2026-11-16T01:02:23.227Z","run":"demo-story-record","label":"phase6-story","costUsd":0.0165}
 {"phase":6,"at":"2026-11-16T01:08:17.392Z","run":"demo-story-record","label":"phase6-story-final","costUsd":0.007762}
+{"phase":7,"at":"2026-11-16T14:47:58.754Z","run":"live-console","label":"p7-unattributed-live-question","costUsd":0.0047}
