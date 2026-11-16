@@ -132,7 +132,7 @@ limits.
 - **Held-out once, pre-registered.** The commands, metrics, grader limits, abort and runner-error
   policy and four hypotheses were committed before any held-out call. Each suite then ran once,
   live. The guard file `evals/heldout-passes.jsonl` lists every held-out case run (216 rows:
-  extraction 156 + 14 + 14, Q&A 32; no id twice), and the runner refuses a listed case. Nothing was
+  extraction 156 + 14 + 14, Q&A 32; every case and run number once), and the runner refuses a listed case. Nothing was
   changed in response to the results. The two passes cost $0.162785.
 - **Errors apart.** API errors, truncations and refusals are listed separately and never counted as
   wrong answers. Neither held-out pass had any.
@@ -203,7 +203,7 @@ limits.
 - **Multi-turn caveats.** Earlier turns' tool results are not carried into later turns, so in a live
   multi-turn conversation a later answer can add a caveat disowning figures from an earlier one
   ("Please treat those figures as unverified until I re-run the bunker plan", in the live run's
-  `story-6-evaluation.png`). Seen in both live story runs; not changed, because the agent code was
+  `story-6-evaluation.png`). Seen in the live story run; not changed, because the agent code was
   frozen for the measurement.
 - **The first live story attempt failed** at step 4 ($0.006576). In live AIS mode the fleet's
   simulated vessels also appear as AIS traffic; clicking the flagged vessel's marker selected its

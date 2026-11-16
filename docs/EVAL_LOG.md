@@ -495,7 +495,7 @@ Extraction: 156 held-out cases plus the 14 hard cases twice more (184 runs; esti
 ### Results (held-out, run once — Task 9)
 
 Runs on frozen code 27a38c2, after the user's go-ahead ("Run both"), each once, live, in the background:
-extraction `evals/reports/20261116T152129Z-extraction-heldout-p7-heldout` (184 runs: 156 cases + 14 hard cases ×2 more), Q&A `evals/reports/20261116T154031Z-qa-heldout-p7-heldout` (32 questions). Both complete: `aborted` null, `notRun` empty, runner errors 0, API errors 0, served model Claude Haiku 5.5 only, every call live (0 from recordings). `evals/heldout-passes.jsonl` holds 216 rows (extraction 156 + 14 + 14, Q&A 32), no id twice. Published to `evals/published/summary.json` beside the dev entries.
+extraction `evals/reports/20261116T152129Z-extraction-heldout-p7-heldout` (184 runs: 156 cases + 14 hard cases ×2 more), Q&A `evals/reports/20261116T154031Z-qa-heldout-p7-heldout` (32 questions). Both complete: `aborted` null, `notRun` empty, runner errors 0, API errors 0, served model Claude Haiku 5.5 only, every call live (0 from recordings). `evals/heldout-passes.jsonl` holds 216 rows (extraction 156 + 14 + 14, Q&A 32), every case and run number once. Published to `evals/published/summary.json` beside the dev entries.
 
 **Extraction (held-out, first run of each case)**
 
