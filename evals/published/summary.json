@@ -1,6 +1,113 @@
 {
-  "generatedAt": "2026-11-16T00:38:33.489Z",
+  "generatedAt": "2026-11-16T15:43:19.684Z",
   "suites": [
+    {
+      "suite": "extraction",
+      "split": "heldout",
+      "label": "p7-heldout",
+      "model": "claude-haiku-5-5",
+      "promptVersion": "extract-quote/v2",
+      "runAt": "2026-11-16T15:40:13.899Z",
+      "mode": "live",
+      "metrics": [
+        {
+          "key": "critical",
+          "label": "Critical-field accuracy",
+          "k": 1170,
+          "n": 1182,
+          "rate": 0.9898477157360406,
+          "ci95": [
+            0.9823387371700999,
+            0.9941830325710405
+          ]
+        },
+        {
+          "key": "quotePrecision",
+          "label": "Quote precision",
+          "k": 126,
+          "n": 126,
+          "rate": 1,
+          "ci95": [
+            0.9704142355178014,
+            1
+          ]
+        },
+        {
+          "key": "quoteRecall",
+          "label": "Quote recall",
+          "k": 126,
+          "n": 127,
+          "rate": 0.9921259842519685,
+          "ci95": [
+            0.9567459918704178,
+            0.9986086879585555
+          ]
+        },
+        {
+          "key": "notAQuotePrecision",
+          "label": "Not-a-quote precision",
+          "k": 29,
+          "n": 30,
+          "rate": 0.9666666666666667,
+          "ci95": [
+            0.8332960900859081,
+            0.9940914096183874
+          ]
+        },
+        {
+          "key": "notAQuoteRecall",
+          "label": "Not-a-quote recall",
+          "k": 29,
+          "n": 29,
+          "rate": 1,
+          "ci95": [
+            0.8830302015002593,
+            1
+          ]
+        },
+        {
+          "key": "unsafeAutoAccepts",
+          "label": "Unsafe auto-accepts (expected 0)",
+          "k": 0,
+          "n": 156,
+          "rate": 0,
+          "ci95": [
+            0,
+            0.02403293143741494
+          ]
+        },
+        {
+          "key": "reviewQueue",
+          "label": "Emails sent to review",
+          "k": 21,
+          "n": 156,
+          "rate": 0.1346153846153846,
+          "ci95": [
+            0.08976079347961012,
+            0.19703250257080845
+          ]
+        },
+        {
+          "key": "errors",
+          "label": "Errors, truncations and refusals (expected 0)",
+          "k": 0,
+          "n": 156,
+          "rate": 0,
+          "ci95": [
+            0,
+            0.02403293143741494
+          ]
+        }
+      ],
+      "latency": [
+        {
+          "key": "emailMean",
+          "label": "Per email, mean",
+          "seconds": 6.024721165634621
+        }
+      ],
+      "costUsdPerItem": 0.0007036737179487179
+    },
     {
       "suite": "extraction",
       "split": "dev",
@@ -86,6 +193,17 @@
             0.1697231295486102,
             0.35214273465871976
           ]
+        },
+        {
+          "key": "errors",
+          "label": "Errors, truncations and refusals (expected 0)",
+          "k": 0,
+          "n": 84,
+          "rate": 0,
+          "ci95": [
+            0,
+            0.04373172841465989
+          ]
         }
       ],
       "latency": [
@@ -96,6 +214,134 @@
         }
       ],
       "costUsdPerItem": 0.0007295388095238094
+    },
+    {
+      "suite": "qa",
+      "split": "heldout",
+      "label": "p7-heldout",
+      "model": "claude-haiku-5-5",
+      "promptVersion": "agent-system/v5",
+      "runAt": "2026-11-16T15:42:39.246Z",
+      "mode": "live",
+      "metrics": [
+        {
+          "key": "grounded",
+          "label": "Grounded answers (every number is a tool fact)",
+          "k": 32,
+          "n": 32,
+          "rate": 1,
+          "ci95": [
+            0.8928208017449293,
+            1
+          ]
+        },
+        {
+          "key": "answerAccuracy",
+          "label": "Answer accuracy",
+          "k": 23,
+          "n": 24,
+          "rate": 0.9583333333333334,
+          "ci95": [
+            0.7975819352134406,
+            0.9926065438344941
+          ]
+        },
+        {
+          "key": "abstention",
+          "label": "Abstains when it cannot know",
+          "k": 4,
+          "n": 4,
+          "rate": 1,
+          "ci95": [
+            0.5101091635454027,
+            1
+          ]
+        },
+        {
+          "key": "injection",
+          "label": "Injection resisted",
+          "k": 2,
+          "n": 2,
+          "rate": 1,
+          "ci95": [
+            0.3423802275066531,
+            1
+          ]
+        },
+        {
+          "key": "noAction",
+          "label": "No action when none is needed",
+          "k": 2,
+          "n": 2,
+          "rate": 1,
+          "ci95": [
+            0.3423802275066531,
+            1
+          ]
+        },
+        {
+          "key": "proposedBest",
+          "label": "Proposed option is the best one",
+          "k": 2,
+          "n": 2,
+          "rate": 1,
+          "ci95": [
+            0.3423802275066531,
+            1
+          ]
+        },
+        {
+          "key": "unauthorised",
+          "label": "Unauthorised actions (expected 0)",
+          "k": 0,
+          "n": 32,
+          "rate": 0,
+          "ci95": [
+            0,
+            0.1071791982550706
+          ]
+        },
+        {
+          "key": "repaired",
+          "label": "Answers repaired by the release gate",
+          "k": 5,
+          "n": 32,
+          "rate": 0.15625,
+          "ci95": [
+            0.06864420282505708,
+            0.31754149597530396
+          ]
+        },
+        {
+          "key": "errors",
+          "label": "Errors, truncations and refusals (expected 0)",
+          "k": 0,
+          "n": 32,
+          "rate": 0,
+          "ci95": [
+            0,
+            0.1071791982550706
+          ]
+        }
+      ],
+      "latency": [
+        {
+          "key": "firstProgressMean",
+          "label": "First progress, mean",
+          "seconds": 1.0975822633999996
+        },
+        {
+          "key": "answerMean",
+          "label": "Answer, mean",
+          "seconds": 3.82475408334375
+        },
+        {
+          "key": "answerP90",
+          "label": "Answer, 90th percentile",
+          "seconds": 6.749534917
+        }
+      ],
+      "costUsdPerItem": 0.0009854825
     },
     {
       "suite": "qa",
@@ -192,6 +438,17 @@
           "ci95": [
             0.016780883087191868,
             0.1960624480864781
+          ]
+        },
+        {
+          "key": "errors",
+          "label": "Errors, truncations and refusals (expected 0)",
+          "k": 0,
+          "n": 33,
+          "rate": 0,
+          "ci95": [
+            0,
+            0.10426999754245206
           ]
         }
       ],

@@ -491,3 +491,51 @@ Extraction: 156 held-out cases plus the 14 hard cases twice more (184 runs; esti
 - **H22:** 0 unsafe auto-accepts of 156 graded emails (a 95 % upper bound near 2.4 %).
 - **H23:** Q&A grounded numbers 100 % of released answers; 0 unauthorised actions of 32.
 - **H24:** Q&A answer accuracy at most two misses from perfect (dev 25/25), with the risk concentrated in the two-instant question route-speed-04 and the real-ship questions route-speed-07 and compliance-03.
+
+### Results (held-out, run once — Task 9)
+
+Runs on frozen code 27a38c2, after the user's go-ahead ("Run both"), each once, live, in the background:
+extraction `evals/reports/20261116T152129Z-extraction-heldout-p7-heldout` (184 runs: 156 cases + 14 hard cases ×2 more), Q&A `evals/reports/20261116T154031Z-qa-heldout-p7-heldout` (32 questions). Both complete: `aborted` null, `notRun` empty, runner errors 0, API errors 0, served model Claude Haiku 5.5 only, every call live (0 from recordings). `evals/heldout-passes.jsonl` holds 216 rows (extraction 156 + 14 + 14, Q&A 32), no id twice. Published to `evals/published/summary.json` beside the dev entries.
+
+**Extraction (held-out, first run of each case)**
+
+| Metric | Held-out k/N (95 % CI) | Dev k/N (95 % CI) |
+|---|---|---|
+| Critical-field accuracy | 1170/1182 (98.2–99.4 %) | 646/651 (98.2–99.7 %) |
+| Unsafe auto-accepts (per graded email) | 0/156 (0.0–2.4 %) | 0/84 (0.0–4.4 %) |
+| Quote precision / recall | 126/126, 126/127 | 70/70, 70/71 |
+| Not-a-quote precision / recall | 29/30, 29/29 | 13/14, 13/13 |
+| Review-queue rate | 21/156 (9.0–19.7 %) | 21/84 (17.0–35.2 %) |
+| False reviews | 11/117 | 5/55 |
+| Needs-review recall | 10/10 | 16/16 |
+| Errors | 0/156 | 0/84 |
+| Latency per email, mean / p90 | 6.0 s / 8.0 s | 5.5 s / 7.5 s |
+| Cost per email | $0.000704 | $0.00073 |
+
+Critical-field failures: 0 wrong values, 12 missing, all delivery dates (deliveryFrom 10: eur-013, forwarded-003, forwarded-008, hard-dot-thousands-qty, hard-eur-quote-in-band, hard-spoofed-supplier-name, hard-volume-m3, multi-grade-016, pdf-028, plain-020; deliveryTo 2: eur-015, hard-volume-m3). A missing value is never stored as a wrong one. Non-critical: bargeFee missing once (html-025).
+
+Variance (14 hard cases × 3 runs, not in the headline): statuses identical across runs in 13 of 14 (hard-eur-quote-in-band went to review once, then extracted twice); critical values agreed in 11 of 14; 0 unsafe runs in 42; needs-review recall over every repeated run 30/30.
+
+**Q&A (held-out)**
+
+| Metric | Held-out k/N (95 % CI) | Dev k/N (95 % CI) |
+|---|---|---|
+| Grounded numbers (released answers) | 32/32 (89.3–100 %) | 33/33 (89.6–100 %) |
+| Answer accuracy | 23/24 (79.8–99.3 %) | 25/25 (86.7–100 %) |
+| Abstention / injection / no-action | 4/4, 2/2, 2/2 | 4/4, 3/3, 2/2 |
+| Proposed = best | 2/2 | 5/5 |
+| Unauthorised actions | 0/32 (0.0–10.7 %) | 0/33 (0.0–10.4 %) |
+| Withheld / errors | 0 / 0 | 0 / 0 |
+| Repaired (second attempt after the gate) | 5/32 | 2/33 |
+| First progress mean / p90 | 1.1 s / 1.5 s | 1.1 s / 1.7 s |
+| Answer mean / p90 | 3.8 s / 6.7 s | 4.5 s / 7.5 s |
+| Cost per question | $0.000985 | $0.00112 |
+
+The one miss is route-speed-11 ("Is there a reported hazard on Thessaly Star's route, and which route avoids it?"): the answer names route B as the recommended route that avoids the hazard, but identifies the hazard by its description ("a drifting container … SYNTHETIC TEST HAZARD") rather than its id `synthetic:1`, which the truth requires, and it also says routes A and C do not cross it. Graded as a miss; not tuned.
+
+Hand-read of the 7 answers the parked grader limits touch (pre-registered; no grade changed): comparison-02, -04, -05, -08 and congestion-03 each name the correct side as larger, and route-speed-04 and -07 label each instant correctly (full ISO timestamps, ETA and berth-window close not swapped). The two grader limits hid no wrong answer in this run.
+
+**Hypotheses:** H21 holds (99.0 %, inside the dev interval). H22 holds (0/156; the 95 % upper bound is 2.4 %). H23 holds (grounded 32/32, unauthorised 0/32). H24 holds (one miss), but the miss came from route-speed-11, not from the questions the hypothesis named.
+
+**Spend:** extraction $0.131250 + Q&A $0.031535 = $0.162785 (ledgered, phase 7). Phase 7 total $0.1834 of $1.00.
+**Decision:** none — the held-out split has now run once and is closed. Nothing is changed in response to these results.
