@@ -13,7 +13,7 @@ import { ErrorState } from "@/components/error-state";
 import { DataTag } from "@/components/source-badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api, isApiFailure } from "@/lib/api";
-import { formatNumber, formatUtc } from "@/lib/format";
+import { formatNumber, formatUtcFull } from "@/lib/format";
 import { queryKeys } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 
@@ -104,19 +104,36 @@ function MetricRow({ metric }: { metric: Metric }) {
   );
 }
 
+const SUITE_ORDER: Suite["suite"][] = ["extraction", "qa"];
+
+/** Display order only: suites in a fixed order, the held-out entry before the dev entry. */
+const ordered = (suites: Suite[]) =>
+  [...suites].sort(
+    (a, b) =>
+      SUITE_ORDER.indexOf(a.suite) - SUITE_ORDER.indexOf(b.suite) ||
+      (a.split === b.split ? 0 : a.split === "heldout" ? -1 : 1),
+  );
+
 const seconds = (s: number) => `${s.toFixed(1)} s`;
 const costPerItem = (usd: number) => `USD ${usd.toFixed(4)}`;
 
-function SuiteSection({ suite }: { suite: Suite }) {
-  const heading = `suite-${suite.suite}`;
+function SuiteSection({ suite, heldoutPending }: { suite: Suite; heldoutPending: boolean }) {
+  const id = `${suite.suite}-${suite.split}`;
+  const heading = `${id}-title`;
   return (
-    <section aria-labelledby={heading} className="flex flex-col gap-3">
+    <section
+      id={id}
+      data-suite={suite.suite}
+      data-split={suite.split}
+      aria-labelledby={heading}
+      className="flex flex-col gap-3"
+    >
       <div className="flex flex-wrap items-center gap-2">
         <h2 id={heading} className="text-sm font-medium text-text-1">
           {SUITE_TITLE[suite.suite]}
         </h2>
-        <DataTag kind="dev-split" />
-        <span className="text-2xs text-text-3">held-out pending</span>
+        <DataTag kind={suite.split === "heldout" ? "heldout-split" : "dev-split"} />
+        {heldoutPending ? <span className="text-2xs text-text-3">held-out pending</span> : null}
       </div>
       <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs sm:grid-cols-4">
         <div className="min-w-0">
@@ -131,7 +148,7 @@ function SuiteSection({ suite }: { suite: Suite }) {
           <dt className="text-2xs text-text-3">Run date</dt>
           <dd className="flex flex-wrap items-center gap-1.5 text-text-1">
             <time dateTime={suite.runAt} className="font-mono">
-              {formatUtc(suite.runAt)}
+              {formatUtcFull(suite.runAt)}
             </time>
             {suite.mode === "live" ? <DataTag kind="live-run" /> : null}
           </dd>
@@ -197,12 +214,19 @@ export function EvaluationPage() {
   } else {
     body = (
       <div className="flex max-w-4xl flex-col gap-8">
-        {summary.data.suites.map((s) => (
-          <SuiteSection key={s.suite} suite={s} />
+        {ordered(summary.data.suites).map((s) => (
+          <SuiteSection
+            key={`${s.suite}-${s.split}`}
+            suite={s}
+            heldoutPending={
+              s.split === "dev" &&
+              !summary.data.suites.some((o) => o.suite === s.suite && o.split === "heldout")
+            }
+          />
         ))}
         <p className="text-2xs text-text-3">
-          Published {formatUtc(summary.data.generatedAt)} from live runs. Rates and intervals are
-          shown as published.
+          Published {formatUtcFull(summary.data.generatedAt)} from live runs. Rates and intervals
+          are shown as published.
         </p>
       </div>
     );
@@ -213,8 +237,8 @@ export function EvaluationPage() {
       <header className="mb-4 max-w-[60ch]">
         <h1 className="text-lg font-medium text-text-1">Evaluation</h1>
         <p className="text-xs/relaxed text-text-2">
-          Measured accuracy of extraction and answers, from published live runs on the development
-          split of the golden set.
+          Measured accuracy of extraction and answers, from published live runs: the held-out split,
+          run once, beside the development split used for iteration.
         </p>
       </header>
       {body}

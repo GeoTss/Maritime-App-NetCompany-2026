@@ -17,7 +17,7 @@ export function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider delayDuration={300}>
         <RouterProvider router={router} />
-        <Toaster position="top-right" offset={{ top: 44, right: 12 }} mobileOffset={{ top: 44 }} />
+        <Toaster position="top-center" offset={{ top: 44 }} mobileOffset={{ top: 44 }} />
       </TooltipProvider>
     </QueryClientProvider>
   );

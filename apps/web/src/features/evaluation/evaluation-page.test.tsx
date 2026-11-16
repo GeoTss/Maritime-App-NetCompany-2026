@@ -55,7 +55,68 @@ function renderPage() {
   );
 }
 
+const heldout = {
+  ...summary.suites[0],
+  split: "heldout",
+  label: "held-x",
+  runAt: "2026-11-17T09:10:11.000Z",
+};
+const qaDev = { ...summary.suites[0], suite: "qa", label: "qa-dev" };
+const both = { ...summary, suites: [summary.suites[0], heldout, qaDev] };
+
 describe("EvaluationPage", () => {
+  it("renders one section per (suite, split), held-out before dev, each with its own tag", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => json(both)),
+    );
+    renderPage();
+    await waitFor(() => expect(document.querySelectorAll("section[data-suite]").length).toBe(3));
+    const secs = [...document.querySelectorAll("section[data-suite]")];
+    expect(secs.map((s) => s.id)).toEqual(["extraction-heldout", "extraction-dev", "qa-dev"]);
+    expect(new Set(secs.map((s) => s.id)).size).toBe(3);
+    expect(secs[0]?.getAttribute("data-split")).toBe("heldout");
+    expect(
+      within(secs[0] as HTMLElement)
+        .getByText("held-out, run once")
+        .getAttribute("data-kind"),
+    ).toBe("heldout-split");
+    expect(
+      within(secs[1] as HTMLElement)
+        .getByText("dev split")
+        .getAttribute("data-kind"),
+    ).toBe("dev-split");
+    expect(secs[0]?.getAttribute("aria-labelledby")).toBe("extraction-heldout-title");
+    expect(document.getElementById("extraction-dev-title")).not.toBeNull();
+  });
+
+  it('shows "held-out pending" only for a suite with no held-out entry', async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => json(both)),
+    );
+    renderPage();
+    await waitFor(() => expect(document.querySelectorAll("section[data-suite]").length).toBe(3));
+    const pending = screen.getAllByText("held-out pending");
+    expect(pending).toHaveLength(1);
+    expect(pending[0]?.closest("section")?.id).toBe("qa-dev");
+  });
+
+  it("the run date includes the year", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => json(summary)),
+    );
+    renderPage();
+    const t = await waitFor(() => {
+      const el = document.querySelector("section time");
+      expect(el).not.toBeNull();
+      return el as HTMLElement;
+    });
+    expect(t.textContent).toBe("2026-11-15 03:39:24Z");
+    expect(document.body.textContent).toContain("Published 2026-11-16 00:38:33Z");
+  });
+
   it("intervals and counts are shown as published", async () => {
     vi.stubGlobal(
       "fetch",
@@ -83,6 +144,7 @@ describe("EvaluationPage", () => {
     expect(screen.getByText("USD 0.0007").className).not.toMatch(/font-mono/);
     // "dev split" once per suite (the tag), and the run's live mode as a tag, not "(live)".
     expect(screen.getAllByText("dev split")).toHaveLength(1);
+    expect(screen.queryByText("held-out, run once")).toBeNull();
     expect(screen.getByText("live run").getAttribute("data-kind")).toBe("live-run");
     expect(document.body.textContent).not.toMatch(/\(live\)|95 %/);
   });

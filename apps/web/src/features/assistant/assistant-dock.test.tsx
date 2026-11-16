@@ -223,7 +223,7 @@ describe("AssistantDock", () => {
     await ask("Who is cheapest?");
     const row = await screen.findByRole("alert");
     expect(row.textContent).toContain(
-      "This question has no recorded answer in the demo. Ask one of the suggested questions.",
+      "This question has no recorded reply. Start a new conversation and pick a suggested question.",
     );
     expect(row.textContent).not.toMatch(/replay_miss|request key|llm-recordings|LLM_MODE/);
 
@@ -232,7 +232,7 @@ describe("AssistantDock", () => {
       fireEvent.click(screen.getByRole("button", { name: "Try again" }));
     });
     const again = await screen.findByRole("alert");
-    expect(again.textContent).toContain("has no recorded answer in the demo");
+    expect(again.textContent).toContain("has no recorded reply");
     expect(again.textContent).not.toMatch(/3fa9|LLM_MODE/);
   });
 

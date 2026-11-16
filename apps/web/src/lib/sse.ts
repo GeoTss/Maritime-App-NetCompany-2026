@@ -14,7 +14,7 @@ const isAbort = (err: unknown, signal: AbortSignal) =>
  * the request key and the recording path: developer text, so the operator gets a sentence instead.
  */
 export const REPLAY_MISS_MESSAGE =
-  "This question has no recorded answer in the demo. Ask one of the suggested questions.";
+  "This question has no recorded reply. Start a new conversation and pick a suggested question.";
 
 const isReplayMiss = (text: string) => /^replay_miss\b/.test(text);
 
