@@ -89,6 +89,15 @@ const clearOffset = (inset: MapViewProps["inset"]): [number, number] => [
   (inset.top - inset.bottom) / 2,
 ];
 
+/** The ship a canvas click selects. A click inside an HTML marker (the fleet button) is the
+ * marker's own: the click bubbles to the map, but must not select what is drawn underneath. */
+export function pickShipMmsi(e: MapLayerMouseEvent): string | null {
+  const target = e.originalEvent?.target as Element | null | undefined;
+  if (target?.closest?.(".maplibregl-marker")) return null;
+  const mmsi = e.features?.find((f) => typeof f.properties?.mmsi === "string")?.properties?.mmsi;
+  return typeof mmsi === "string" ? mmsi : null;
+}
+
 export function MapView(props: MapViewProps) {
   const {
     layers,
@@ -199,9 +208,8 @@ export function MapView(props: MapViewProps) {
 
   const onClick = useCallback(
     (e: MapLayerMouseEvent) => {
-      const mmsi = e.features?.find((f) => typeof f.properties?.mmsi === "string")?.properties
-        ?.mmsi;
-      if (typeof mmsi === "string") onSelectShip(mmsi);
+      const mmsi = pickShipMmsi(e);
+      if (mmsi) onSelectShip(mmsi);
     },
     [onSelectShip],
   );

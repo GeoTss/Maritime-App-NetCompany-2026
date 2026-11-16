@@ -54,7 +54,13 @@ function json(body: unknown, status = 200) {
   });
 }
 
-function stubApi({ weather = "ok" as "ok" | "none", failing = [] as string[] } = {}) {
+function withTwin() {
+  const first = TRAFFIC.items[0];
+  if (!first) throw new Error("fixture needs a ship");
+  return { items: [{ ...first, mmsi: VESSELS[0]?.mmsi ?? "999000001" }, ...TRAFFIC.items] };
+}
+
+function stubApi({ weather = "ok" as "ok" | "none", failing = [] as string[], twin = false } = {}) {
   calls = [];
   vi.stubGlobal(
     "fetch",
@@ -76,7 +82,7 @@ function stubApi({ weather = "ok" as "ok" | "none", failing = [] as string[] } =
       if (path === "/api/vessels") return json({ items: VESSELS });
       if (path === "/api/vessels/1") return json(VESSEL_DETAIL);
       if (path === "/api/voyages/1") return json(VOYAGE);
-      if (path === "/api/traffic") return json(TRAFFIC);
+      if (path === "/api/traffic") return json(twin ? withTwin() : TRAFFIC);
       if (path === "/api/hazards") return json(HAZARDS);
       if (path === "/api/congestion") return json(CONGESTION);
       if (path === "/api/ports") return json(PORTS);
@@ -207,5 +213,18 @@ describe("MapPage", () => {
       true,
     );
     expect(calls.filter((c) => c.method !== "GET")).toEqual([]);
+  });
+});
+
+describe("fleet twins in AIS traffic", () => {
+  it("are not counted as public traffic", async () => {
+    stubApi({ twin: true });
+    renderPage();
+    const toggle = await waitFor(() => {
+      const el = document.querySelector('[data-layer="traffic"]');
+      expect(el?.textContent).toMatch(/\d/);
+      return el as Element;
+    });
+    expect(toggle.textContent).toMatch(new RegExp(`${TRAFFIC.items.length}\\s*$`));
   });
 });

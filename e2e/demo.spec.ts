@@ -169,6 +169,11 @@ test("demo story: six steps", async ({ page }) => {
   });
   await shot(page, 1, "map");
   if (STOP_AFTER === "map") {
+    // The fleet marker must open the vessel panel (a live AIS twin of the vessel sits under it).
+    await page.getByRole("button", { name: "Aegean Pioneer, has an alert" }).click();
+    await expect(page).toHaveURL(/vessel=\d+/);
+    expect(page.url()).not.toContain("mmsi=");
+    await expect(page.getByText("Public AIS ship")).toHaveCount(0);
     assertCleanPage("after the map");
     return;
   }

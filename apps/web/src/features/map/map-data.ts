@@ -93,3 +93,13 @@ export function usePlanRoute() {
       api.post("/api/route-plan", PlanRouteSpeedInput.parse(input), RoutePlanResponse),
   });
 }
+
+/** AIS traffic without our own fleet: the simulator writes fleet vessels into `ais_traffic` with
+ * their fleet MMSIs, and the fleet layer already draws them. */
+export function publicShips(
+  items: AisTrafficList["items"],
+  fleet: readonly { mmsi: string }[],
+): AisTrafficList["items"] {
+  const own = new Set(fleet.map((v) => v.mmsi));
+  return items.filter((s) => !own.has(s.mmsi));
+}

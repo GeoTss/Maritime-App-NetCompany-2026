@@ -21,6 +21,7 @@ import {
   type WeatherStatus,
 } from "./layer-toggles";
 import {
+  publicShips,
   useCongestion,
   useHazards,
   usePlanRoute,
@@ -75,7 +76,10 @@ export function MapPage() {
   const selectedMmsi = selectedVesselId === null ? params.get("mmsi") : null;
 
   const vesselItems = vessels.data?.items ?? EMPTY;
-  const trafficItems = traffic.data?.items ?? EMPTY;
+  const trafficItems = useMemo(
+    () => publicShips(traffic.data?.items ?? EMPTY, vesselItems),
+    [traffic.data, vesselItems],
+  );
   const portItems = ports.data?.items ?? EMPTY;
   const vessel = vesselItems.find((v) => v.id === selectedVesselId) ?? null;
   const ship = trafficItems.find((s) => s.mmsi === selectedMmsi) ?? null;
