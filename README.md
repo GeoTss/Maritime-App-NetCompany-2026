@@ -24,8 +24,8 @@ docker compose up --build
 Open the console at http://localhost:5173. The API is on :4000, the ERP simulator on :4100, Postgres on :5432.
 
 With no `.env`, the stack comes up as the **recorded demo**: recorded model replies, recorded AIS and
-weather, the clock pinned to 14 Nov 2026 08:00 UTC. The 397 recorded replies in `fixtures/llm-recordings/`
-cover the three scripted demo questions only (see `docs/DEMO_SCRIPT.md`); any other question
+weather, the clock pinned to 14 Nov 2026 08:00 UTC. The recorded model replies answer only the
+scripted demo questions and the demo emails (see `docs/DEMO_SCRIPT.md`); any other question
 shows a "no recorded reply" message.
 
 ## Run the demo story
@@ -38,7 +38,7 @@ npx playwright install chromium
 npm run demo:reset && npx playwright test
 ```
 
-This is the recorded story: free, about 15 seconds. `npm run demo:reset` recreates the api, erp, worker and
+This is the recorded story: free, about 15 seconds. `npm run demo:reset` (ready in about 15 seconds when measured; it waits up to 3 minutes) recreates the api, erp, worker and
 web containers pinned, reseeded and on recorded sources, and waits until they are ready.
 
 ## Go live

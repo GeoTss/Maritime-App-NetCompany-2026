@@ -18,7 +18,7 @@ On the day:
 - [ ] Start the stack: `docker compose up -d`
 - [ ] Pick the mode. Recorded (free, deterministic): `npm run demo:reset`. Live: `npm run demo:live` (waits until the model, unpinned clock, live AIS and live weather are all confirmed).
 - [ ] Open the console. The map strip shows AIS and Weather badges: "recorded" or "live". In recorded mode the clock shows 08:05Z and "pinned".
-- [ ] `npm run demo:reset` is the one switch back to the recorded demo, in under a minute, at any point.
+- [ ] `npm run demo:reset` is the one switch back to the recorded demo, normally ready in about 15 seconds (it waits up to 3 minutes), at any point.
 
 In live mode each question costs about $0.001 and each delivered email about $0.0007. Free rehearsal of the live
 data sources with a replayed model: `LLM_MODE=replay npm run demo:live`.
@@ -45,10 +45,10 @@ is on the map; it is demo data, not an observation. Click the Aegean Pioneer ale
 
 ### 2. Inbox
 
-Go to Inbox. Click "Deliver next email" three times: Kestrel (Marsaxlokk, plain text), Straitline (Gibraltar, PDF attached), Nordwind (Algeciras, HTML table).
+Go to Inbox. Click "Deliver next email" three times: Kestrel (Marsaxlokk, plain text), Straitline (Gibraltar; plain text: the subject says "PDF attached" but there is no attachment, so do not say "open the PDF"), Nordwind (Algeciras, HTML table).
 Open the Kestrel and Straitline emails and hover a price: the sentence it came from is highlighted. Say: every value points at its source text.
 Open the Nordwind email: it is held for review. The quantity reads "300/350 mt", which is ambiguous, so Pharos does not guess.
-Enter quantity 300 and price 690, click Accept, then "Save corrected quote". Say: one click from a person, not a model guess.
+Enter quantity 300 and price 690, click "Accept correction", then "Save corrected quote". Say: one click from a person, not a model guess.
 
 ### 3. Ask: where to bunker
 
