@@ -7,7 +7,6 @@ import {
   Analytics01Icon,
   CheckListIcon,
   InboxIcon,
-  MapsIcon,
   Search01Icon,
 } from "@hugeicons/core-free-icons";
 import type { IconSvgElement } from "@hugeicons/react";
@@ -15,6 +14,7 @@ import { createBrowserRouter, Link, type RouteObject } from "react-router";
 import { AppShell } from "@/components/app-shell";
 import { EmptyState } from "@/components/empty-state";
 import { KitPage } from "@/features/dev/kit-page";
+import { MapPage } from "@/features/map/map-page";
 
 function ScreenPlaceholder({
   title,
@@ -55,13 +55,7 @@ export const routes: RouteObject[] = [
     children: [
       {
         index: true,
-        element: (
-          <ScreenPlaceholder
-            title="Map"
-            icon={MapsIcon}
-            description="Ships on AIS, the managed fleet, weather, hazards and port queues."
-          />
-        ),
+        element: <MapPage />,
       },
       {
         path: "inbox",

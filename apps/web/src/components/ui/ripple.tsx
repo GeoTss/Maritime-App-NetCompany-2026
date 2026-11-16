@@ -6,12 +6,18 @@ interface RippleProps extends ComponentPropsWithoutRef<"div"> {
   mainCircleSize?: number;
   mainCircleOpacity?: number;
   numCircles?: number;
+  /** Size added per ring, px (70 for a page backdrop, a few for a map marker). */
+  spacing?: number;
+  /** Ring colour: any CSS colour, normally a token variable. */
+  color?: string;
 }
 
 export const Ripple = React.memo(function Ripple({
   mainCircleSize = 210,
   mainCircleOpacity = 0.24,
   numCircles = 8,
+  spacing = 70,
+  color = "var(--foreground)",
   className,
   ...props
 }: RippleProps) {
@@ -24,7 +30,7 @@ export const Ripple = React.memo(function Ripple({
       {...props}
     >
       {Array.from({ length: numCircles }, (_, i) => {
-        const size = mainCircleSize + i * 70;
+        const size = mainCircleSize + i * spacing;
         const opacity = mainCircleOpacity - i * 0.03;
         const animationDelay = `${i * 0.06}s`;
         const borderStyle = "solid";
@@ -32,7 +38,7 @@ export const Ripple = React.memo(function Ripple({
         return (
           <div
             key={i}
-            className={`animate-ripple bg-foreground/25 absolute rounded-full border shadow-xl`}
+            className={`animate-ripple motion-reduce:animate-none absolute rounded-full border`}
             style={
               {
                 "--i": i,
@@ -42,7 +48,7 @@ export const Ripple = React.memo(function Ripple({
                 animationDelay,
                 borderStyle,
                 borderWidth: "1px",
-                borderColor: `var(--foreground)`,
+                borderColor: color,
                 top: "50%",
                 left: "50%",
                 transform: "translate(-50%, -50%) scale(1)",

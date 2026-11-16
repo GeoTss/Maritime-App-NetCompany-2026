@@ -39,11 +39,18 @@ function DrawerOverlay({
 function DrawerContent({
   className,
   children,
+  container,
+  overlay = true,
   ...props
-}: React.ComponentProps<typeof DrawerPrimitive.Content>) {
+}: React.ComponentProps<typeof DrawerPrimitive.Content> & {
+  /** Portal into this element instead of the body (a drawer scoped to one screen's canvas). */
+  container?: HTMLElement | null;
+  /** False for a non-modal drawer that leaves what is behind it usable. */
+  overlay?: boolean;
+}) {
   return (
-    <DrawerPortal data-slot="drawer-portal">
-      <DrawerOverlay />
+    <DrawerPortal data-slot="drawer-portal" container={container ?? undefined}>
+      {overlay ? <DrawerOverlay /> : null}
       <DrawerPrimitive.Content
         data-slot="drawer-content"
         className={cn(
