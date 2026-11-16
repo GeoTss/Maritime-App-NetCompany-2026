@@ -1,0 +1,218 @@
+{
+  "generatedAt": "2026-11-16T00:07:49.891Z",
+  "suites": [
+    {
+      "suite": "extraction",
+      "split": "dev",
+      "label": "dev-haiku-gate-final",
+      "model": "claude-haiku-5-5",
+      "promptVersion": "extract-quote/v2",
+      "runAt": "2026-11-15T03:39:24.789Z",
+      "mode": "live",
+      "metrics": [
+        {
+          "key": "critical",
+          "label": "Critical-field accuracy",
+          "k": 646,
+          "n": 651,
+          "rate": 0.9923195084485407,
+          "ci95": [
+            0.9821478653857676,
+            0.9967150202268489
+          ]
+        },
+        {
+          "key": "quotePrecision",
+          "label": "Quote precision",
+          "k": 70,
+          "n": 70,
+          "rate": 1,
+          "ci95": [
+            0.947976937589733,
+            1
+          ]
+        },
+        {
+          "key": "quoteRecall",
+          "label": "Quote recall",
+          "k": 70,
+          "n": 71,
+          "rate": 0.9859154929577465,
+          "ci95": [
+            0.92443949479751,
+            0.9975093967294558
+          ]
+        },
+        {
+          "key": "notAQuotePrecision",
+          "label": "Not-a-quote precision",
+          "k": 13,
+          "n": 14,
+          "rate": 0.9285714285714286,
+          "ci95": [
+            0.6853129557584889,
+            0.9872777847521091
+          ]
+        },
+        {
+          "key": "notAQuoteRecall",
+          "label": "Not-a-quote recall",
+          "k": 13,
+          "n": 13,
+          "rate": 1,
+          "ci95": [
+            0.7719046276458015,
+            1
+          ]
+        },
+        {
+          "key": "unsafeAutoAccepts",
+          "label": "Unsafe auto-accepts (expected 0)",
+          "k": 0,
+          "n": 84,
+          "rate": 0,
+          "ci95": [
+            0,
+            0.04373172841465989
+          ]
+        },
+        {
+          "key": "reviewQueue",
+          "label": "Emails sent to review",
+          "k": 21,
+          "n": 84,
+          "rate": 0.25,
+          "ci95": [
+            0.1697231295486102,
+            0.35214273465871976
+          ]
+        }
+      ],
+      "latency": [
+        {
+          "key": "emailMean",
+          "label": "Per email, mean",
+          "seconds": 5.4519278987738105
+        }
+      ],
+      "costUsdPerItem": 0.0007295388095238094
+    },
+    {
+      "suite": "qa",
+      "split": "dev",
+      "label": "dev-haiku-v5",
+      "model": "claude-haiku-5-5",
+      "promptVersion": "agent-system/v5",
+      "runAt": "2026-11-15T21:36:11.186Z",
+      "mode": "live",
+      "metrics": [
+        {
+          "key": "grounded",
+          "label": "Grounded answers (every number is a tool fact)",
+          "k": 31,
+          "n": 31,
+          "rate": 1,
+          "ci95": [
+            0.889744604539564,
+            1
+          ]
+        },
+        {
+          "key": "answerAccuracy",
+          "label": "Answer accuracy",
+          "k": 23,
+          "n": 23,
+          "rate": 1,
+          "ci95": [
+            0.8568833815495732,
+            1
+          ]
+        },
+        {
+          "key": "abstention",
+          "label": "Abstains when it cannot know",
+          "k": 4,
+          "n": 4,
+          "rate": 1,
+          "ci95": [
+            0.5101091635454027,
+            1
+          ]
+        },
+        {
+          "key": "injection",
+          "label": "Injection resisted",
+          "k": 3,
+          "n": 3,
+          "rate": 1,
+          "ci95": [
+            0.4385029682449545,
+            1
+          ]
+        },
+        {
+          "key": "noAction",
+          "label": "No action when none is needed",
+          "k": 2,
+          "n": 2,
+          "rate": 1,
+          "ci95": [
+            0.3423802275066531,
+            1
+          ]
+        },
+        {
+          "key": "proposedBest",
+          "label": "Proposed option is the best one",
+          "k": 5,
+          "n": 5,
+          "rate": 1,
+          "ci95": [
+            0.5655175352168252,
+            1
+          ]
+        },
+        {
+          "key": "unauthorised",
+          "label": "Unauthorised actions (expected 0)",
+          "k": 0,
+          "n": 31,
+          "rate": 0,
+          "ci95": [
+            0,
+            0.11025539546043596
+          ]
+        },
+        {
+          "key": "repaired",
+          "label": "Answers repaired by the release gate",
+          "k": 3,
+          "n": 31,
+          "rate": 0.0967741935483871,
+          "ci95": [
+            0.03346464416319737,
+            0.24899938443392836
+          ]
+        }
+      ],
+      "latency": [
+        {
+          "key": "firstProgressMean",
+          "label": "First progress, mean",
+          "seconds": 1.1787307994074077
+        },
+        {
+          "key": "answerMean",
+          "label": "Answer, mean",
+          "seconds": 4.574018031064514
+        },
+        {
+          "key": "answerP90",
+          "label": "Answer, 90th percentile",
+          "seconds": 7.894944042000003
+        }
+      ],
+      "costUsdPerItem": 0.0010160022580645164
+    }
+  ]
+}
