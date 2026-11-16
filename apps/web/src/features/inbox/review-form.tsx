@@ -100,6 +100,23 @@ export function buildCorrection(
   return parsed.success ? parsed.data : null;
 }
 
+/** Which required fields are still empty, by name, so the reviewer knows what to fill. */
+export function missingFields(form: FormState): string[] {
+  const out: string[] = [];
+  if (!form.vesselId) out.push("Vessel");
+  if (!form.portId) out.push("Port");
+  if (!form.supplierId) out.push("Supplier");
+  if (!form.currency) out.push("Currency");
+  if (num(form.bargeFee) === null) out.push("Barge fee");
+  form.lines.forEach((l, i) => {
+    const n = form.lines.length > 1 ? `, line ${i + 1}` : "";
+    if (!l.grade) out.push(`Grade${n}`);
+    if (num(l.qty) === null) out.push(`Quantity${n}`);
+    if (num(l.price) === null) out.push(`Price${n}`);
+  });
+  return out;
+}
+
 const squash = (s: string | null | undefined) => (s ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
 
 /** Written → corrected rows. `changed` is a comparison of the two, not a computed number. */
@@ -420,7 +437,11 @@ export function ReviewForm({
           Reject quote
         </Button>
         {correction ? null : (
-          <span className="text-xs text-text-3">Fill every field above to accept.</span>
+          <span data-testid="missing-fields" className="text-xs text-text-3">
+            {missingFields(form).length > 0
+              ? `Still needed: ${missingFields(form).join(", ")}.`
+              : "Check the values: one is not valid."}
+          </span>
         )}
       </div>
 

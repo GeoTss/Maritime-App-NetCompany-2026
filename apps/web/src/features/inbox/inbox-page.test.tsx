@@ -112,6 +112,7 @@ function detailFor(
     ...item(id, status),
     bodyText: BODY,
     extraction: extraction(),
+    extractionId: 41,
     checkResults: [
       { check: "price_positive", passed: true, detail: null },
       { check: "quantity_known", passed: false, detail: "Quantity is ambiguous" },
@@ -240,14 +241,18 @@ describe("InboxPage", () => {
   it("a failed extraction is shown with its reason and a Retry that needs the extraction id", async () => {
     state.items = [item(3, "failed")];
     state.detail = {
-      "3": detailFor(3, "failed", { extraction: null, error: "replay_miss: no recording" }),
+      "3": detailFor(3, "failed", {
+        extraction: null,
+        error: "replay_miss: no recording",
+        extractionId: null,
+      }),
     };
     renderPage("/inbox?document=3");
     expect(await screen.findByText("No quote could be read from this email")).toBeTruthy();
     expect(screen.getByText("replay_miss: no recording")).toBeTruthy();
     const retry = screen.getByRole("button", { name: /Retry extraction/ });
     expect(retry.hasAttribute("disabled")).toBe(true);
-    expect(screen.getByText(/does not say which extraction failed/)).toBeTruthy();
+    expect(screen.getByText(/no extraction to retry/)).toBeTruthy();
   });
 
   it("Retry posts to the failed extraction when the API names it", async () => {
@@ -262,6 +267,28 @@ describe("InboxPage", () => {
     expect(post?.method).toBe("POST");
     expect(post?.type).toBe("application/json");
     expect(post?.body).toBe("{}");
+  });
+});
+
+describe("polling", () => {
+  it("refetches while pending and stops once extracted", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      state.items = [item(1, "pending")];
+      state.detail = { "1": detailFor(1, "pending", { extraction: null }) };
+      renderPage("/inbox?document=1");
+      await screen.findByText(/Reading the email/);
+      const count = () => calls.filter((c) => c.path === "/api/inbox/1").length;
+      state.items = [item(1, "extracted")];
+      state.detail = { "1": detailFor(1, "extracted") };
+      await vi.advanceTimersByTimeAsync(3000);
+      await screen.findByRole("list", { name: "Extracted quote" });
+      const settled = count();
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(count()).toBe(settled);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
@@ -316,6 +343,15 @@ describe("upload", () => {
 });
 
 describe("review", () => {
+  it("an empty barge fee is named as missing, never invented", async () => {
+    REVIEW.normalised.bargeFee = null as unknown as number;
+    renderPage("/inbox?document=1");
+    await screen.findByRole("button", { name: "Accept correction" });
+    expect(screen.getByTestId("missing-fields").textContent).toMatch(/Barge fee/);
+    expect((screen.getByLabelText("Barge fee") as HTMLInputElement).value).toBe("");
+    REVIEW.normalised.bargeFee = 0;
+  });
+
   it("a correction posts exactly the ReviewCorrection shape", async () => {
     renderPage("/inbox?document=1");
     const accept = await screen.findByRole("button", { name: "Accept correction" });

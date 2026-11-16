@@ -20,7 +20,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 import { toast } from "sonner";
-import { z } from "zod";
 import { type CommandGroupDef, useRegisterCommands } from "@/components/command-menu";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
@@ -38,14 +37,6 @@ import { UploadDrop } from "./upload-drop";
 
 const InboxItems = listOf(InboxItem);
 const ReviewItems = listOf(ReviewItem);
-
-/**
- * The detail as the API sends it, plus the id of the extraction when the API names it (a retry
- * needs it; the shared contract does not carry it yet).
- */
-const DetailWithExtraction = InboxItemDetail.extend({
-  extractionId: z.number().int().positive().nullable().optional(),
-});
 
 const POLL_MS = 2500;
 
@@ -84,7 +75,7 @@ export function InboxPage() {
   const detail = useQuery({
     queryKey: queryKeys.inboxItem(selected ?? 0),
     enabled: selected !== null,
-    queryFn: ({ signal }) => api.get(`/api/inbox/${selected}`, DetailWithExtraction, { signal }),
+    queryFn: ({ signal }) => api.get(`/api/inbox/${selected}`, InboxItemDetail, { signal }),
     refetchInterval: (q) => (q.state.data?.extractionStatus === "pending" ? POLL_MS : false),
   });
   const needsReview = detail.data?.extractionStatus === "needs_review";
@@ -281,7 +272,7 @@ export function InboxPage() {
   );
 }
 
-type DetailData = z.infer<typeof DetailWithExtraction>;
+type DetailData = InboxItemDetail;
 
 function DetailView({
   detail,
@@ -311,7 +302,7 @@ function DetailView({
   onRetry: (extractionId: number) => void;
 }) {
   const status = detail.extractionStatus;
-  const extractionId = detail.extractionId ?? null;
+  const extractionId = detail.extractionId;
   return (
     <div className="flex min-h-full flex-col">
       <div className="flex items-center gap-2 border-b border-line px-3 py-2">
@@ -357,9 +348,7 @@ function DetailView({
                 Retry extraction
               </Button>
               {extractionId === null ? (
-                <p className="text-text-3">
-                  Retry is unavailable: the inbox does not say which extraction failed.
-                </p>
+                <p className="text-text-3">There is no extraction to retry for this email.</p>
               ) : null}
             </div>
           ) : status === "pending" ? (
