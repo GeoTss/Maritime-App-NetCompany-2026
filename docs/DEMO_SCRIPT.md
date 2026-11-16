@@ -37,6 +37,10 @@ In recorded mode any other question shows "This question has no recorded reply. 
 
 Do them in this order; the recorded replies depend on the same actions in the same order.
 
+In recorded mode the replies depend on the exact sequence of actions, route plans included. Click "Plan route" exactly once for
+Aegean Pioneer and once for the public ship FRANKA DEYMANN (MMSI 211121690, the first named ship in the recorded traffic), only
+after question 2. An extra or failed plan makes the next recorded reply miss: run `npm run demo:reset` and restart from step 1.
+
 ### 1. Map
 
 Click nothing yet. Say: ships moving on AIS with a wave and wind overlay; the badges say whether each source is live or recorded.
@@ -54,13 +58,13 @@ Enter quantity 300 and price 690, click "Accept correction", then "Save correcte
 
 Go back to the map and ask question 1. Wait for the answer; the gate line reads "all numbers sourced". Click a fact chip to show its source
 (a database record, a calculation, a supplier email). Say: the cheapest headline price is not the best option once barge fee, deviation, delay and carbon are counted.
-A proposal appears: "Proposal waiting for your decision".
+A proposal appears: "Proposal N waiting for your decision" (N is the proposal's number).
 
 ### 4. Route and speed
 
-Ask question 2. Click the Aegean Pioneer marker, then "Plan route". Three candidate routes appear with fuel, CO2, cost and ETA; route B is recommended against the baseline in the recorded demo (live weather decides the winner in live mode, so name the recommended row, not "B").
+Ask question 2. Click the button "Aegean Pioneer, has an alert" (the vessel's marker on the map), then "Plan route". Three candidate routes appear with fuel, CO2, cost and ETA; route B is recommended against the baseline in the recorded demo (live weather decides the winner in live mode, so name the recommended row, not "B").
 Say: the recommended route avoids the labelled synthetic hazard. Point at the load factor and the FuelEU column; each number has a fact chip.
-Then open the command palette (Ctrl+K or Cmd+K), pick a public ship, choose Rotterdam as destination and plan its route: the same question works for any ship on the map.
+Then open the command palette (Ctrl+K or Cmd+K), pick a public ship (in recorded mode FRANKA DEYMANN: type 211121690), choose Rotterdam as destination and plan its route: the same question works for any ship on the map.
 Ask question 3 to draft the voyage instruction.
 
 ### 5. Approvals
@@ -80,7 +84,8 @@ The approach and numbers are in `docs/APPROACH.md`.
 | --- | --- | --- |
 | AIS feed down or key missing | AIS badge reads "recorded"; the map still shows the recorded traffic | Carry on; say the feed fell back to the recorded capture. Or `npm run demo:reset` |
 | Weather service down | Weather badge reads "recorded" | Carry on on the stored snapshot. Or `npm run demo:reset` |
-| Model slow or `ANTHROPIC_API_KEY` missing | Answer is slow, or the API refuses to start in live mode and names the variable | `npm run demo:reset`: recorded replies answer the three scripted questions at once |
+| Model slow or `ANTHROPIC_API_KEY` missing | Answer is slow, or the API refuses to start in live mode and names the variable | `npm run demo:reset`, then redo steps 1 and 2 (a reset empties the inbox) before the questions; the recorded replies then answer the three scripted questions at once |
+| A recorded reply misses after an extra or failed "Plan route" | "This question has no recorded reply. …" on a scripted question | `npm run demo:reset` and restart from step 1 |
 | A question outside the three, in recorded mode | "This question has no recorded reply. Start a new conversation and pick a suggested question." | Start a new conversation and click a suggested question |
 | Anything else (stuck container, odd state) | Varies | `npm run demo:reset` recreates api, erp, worker and web, reseeds, and waits for readiness; no image build |
 
