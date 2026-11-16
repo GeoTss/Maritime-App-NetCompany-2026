@@ -3,7 +3,7 @@
 `npm run eval:smoke [-- --label <name>]` drives the running API over HTTP (`API_URL`, default
 `http://localhost:4000`; no key needed, the API holds it):
 
-1. `/api/health` must report `llmMode: live` (else exit 2: "start the API with LLM_MODE=live"),
+1. `/api/health` must report `llmMode: live` (else exit 2: "start the API with LLM_MODE=live"; compose defaults to `replay`, so run `npm run demo:live` or set `LLM_MODE=live`),
    and `extractModel` and `agentModel` must both be `claude-haiku-5-5`. Otherwise the run stops
    with exit 1 before it delivers anything, so it makes no paid call. An API image built before
    `/api/health` reported its models also stops there: rebuild it (`docker compose up -d --build`).

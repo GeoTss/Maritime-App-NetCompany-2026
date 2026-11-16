@@ -57,15 +57,6 @@ export function missing(s: Snapshot): string[] {
   return out;
 }
 
-async function getJson(url: string): Promise<unknown> {
-  try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(5_000) });
-    return res.ok ? await res.json() : null;
-  } catch {
-    return null;
-  }
-}
-
 async function snapshot(): Promise<Snapshot> {
   const [health, clock, sources, traffic, webUp] = await Promise.all([
     getJson(`${API_URL}/api/health`),
@@ -80,11 +71,25 @@ async function snapshot(): Promise<Snapshot> {
   return { health, clock, sources, traffic, webUp };
 }
 
-export async function waitReady(timeoutMs = WAIT_TIMEOUT_MS, intervalMs = 2_000): Promise<void> {
+export async function getJson(url: string): Promise<unknown> {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(5_000) });
+    return res.ok ? await res.json() : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Polls `check` (what is still missing; empty = ready) until it is empty or the timeout passes. */
+export async function waitReady(
+  check: () => Promise<string[]> = async () => missing(await snapshot()),
+  timeoutMs = WAIT_TIMEOUT_MS,
+  intervalMs = 2_000,
+): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   let last: string[] = [];
   for (;;) {
-    last = missing(await snapshot());
+    last = await check();
     if (last.length === 0) return;
     if (Date.now() >= deadline) {
       throw new Error(

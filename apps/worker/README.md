@@ -12,6 +12,8 @@ Long-running process that keeps the live-data tables fresh.
 | `AISSTREAM_API_KEY` | AISStream key (trimmed; whitespace only counts as unset); `AIS_MODE=live` without it logs one line and runs `replay` | unset |
 | `DEMO_HAZARDS` | `on` also loads the labelled synthetic demo hazard with live AIS; `replay` always loads it, `off` AIS never does | `off` |
 
+In Docker Compose the stack defaults to the recorded, pinned demo (`AIS_MODE=replay`, `WEATHER_MODE=recorded`, `DEMO_HAZARDS=on`, `DEMO_ANCHOR` 2026-11-14T08:00:00Z). `npm run demo:live` switches it to live AIS and weather on the wall clock; `npm run demo:reset` switches back.
+
 Keys are never logged.
 
 ## What it writes
