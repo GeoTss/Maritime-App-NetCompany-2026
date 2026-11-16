@@ -3,17 +3,13 @@
  * `/` map (Task 10), `/inbox` (Task 11), `/approvals` (Task 12), `/evaluation` (Task 13).
  * Deep links: `/inbox?document=<id>` opens one email (fact chips with a document source link here).
  */
-import {
-  Analytics01Icon,
-  CheckListIcon,
-  InboxIcon,
-  Search01Icon,
-} from "@hugeicons/core-free-icons";
+import { Analytics01Icon, CheckListIcon, Search01Icon } from "@hugeicons/core-free-icons";
 import type { IconSvgElement } from "@hugeicons/react";
 import { createBrowserRouter, Link, type RouteObject } from "react-router";
 import { AppShell } from "@/components/app-shell";
 import { EmptyState } from "@/components/empty-state";
 import { KitPage } from "@/features/dev/kit-page";
+import { InboxPage } from "@/features/inbox/inbox-page";
 import { MapPage } from "@/features/map/map-page";
 
 function ScreenPlaceholder({
@@ -59,13 +55,7 @@ export const routes: RouteObject[] = [
       },
       {
         path: "inbox",
-        element: (
-          <ScreenPlaceholder
-            title="Inbox"
-            icon={InboxIcon}
-            description="Supplier quote emails beside the structured quote read from each."
-          />
-        ),
+        element: <InboxPage />,
       },
       {
         path: "approvals",
