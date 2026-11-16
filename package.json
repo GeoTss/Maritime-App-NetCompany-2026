@@ -39,7 +39,8 @@
     "record:ais": "tsx --env-file=.env packages/integrations/src/cli/record-ais.ts",
     "smoke:ais": "tsx --env-file=.env packages/integrations/src/cli/smoke-ais.ts",
     "dev:web": "npm run dev -w @pharos/web",
-    "map:basemap": "tsx scripts/build-basemap.ts"
+    "map:basemap": "tsx scripts/build-basemap.ts",
+    "demo:reset": "tsx scripts/demo-reset.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.7",

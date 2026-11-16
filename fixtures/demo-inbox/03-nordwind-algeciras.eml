@@ -1,0 +1,20 @@
+From: Nordwind Bunker Services <quotes@nordwind-bunker.example>
+To: Bunker Desk <bunker-desk@pharos-demo.example>
+Subject: Offer Algeciras - MV Aegean Pioneer
+Date: Sat, 14 Nov 2026 05:00:00 +0000
+Message-ID: <03-nordwind-algeciras@nordwind-bunker.example>
+MIME-Version: 1.0
+Content-Type: text/html; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+<html><body>
+<p>Dear Bunker Desk,</p>
+<p>Vessel: MV Aegean Pioneer (IMO 9480019)</p>
+<p>Port: Algeciras</p>
+<table>
+<tr><th>Grade</th><th>Quantity</th><th>Price</th></tr>
+<tr><td>LSMGO</td><td>300/350 mt</td><td>EUR 690 / mt</td></tr>
+</table>
+<p>Barge fee: EUR 3,000 lump sum</p>
+<p>Nordwind Bunker Services</p>
+</body></html>

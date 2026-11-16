@@ -395,6 +395,16 @@ export async function runSmoke(opts: SmokeOptions): Promise<SmokeResult> {
       );
     }
 
+    // The demo inbox holds more emails than this run delivers (the third waits for review), so a
+    // 409 no longer says "already delivered": a non-empty inbox does, and it is checked before any
+    // paid delivery.
+    const existing = await parsed(
+      await call("GET", "/api/inbox"),
+      z.object({ items: z.array(z.unknown()) }),
+      "GET /api/inbox",
+    );
+    if (existing.items.length > 0) throw new Stop(INBOX_ALREADY_DELIVERED);
+
     // 1. Deliver both demo emails; time deliver -> extraction leaves pending.
     for (const [i, email] of EXPECTED_EMAILS.entries()) {
       const name = i === 0 ? "email-1" : "email-2";
