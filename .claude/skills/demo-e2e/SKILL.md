@@ -16,7 +16,7 @@ Demo story: `docs/MASTER_PLAN.md` §1. Spec: `e2e/demo.spec.ts` (one serial test
 
 ## Run the story
 
-- `npm run demo:reset && npx playwright test` (replay: free, offline, about 13 seconds for the story).
+- `npm run demo:reset && npx playwright test` (replay: free, offline, about 20 seconds for the story: 17 to 20 s measured, including up to 15 s of waiting for the toasts to clear before step 6).
 - Always reset first: the story delivers the inbox, plans routes and approves proposals, so it needs a fresh world.
 - Screenshots go to `test-results/story/` by default. `STORY_SCREENSHOTS=docs npx playwright test` writes the committed set `docs/screenshots/phase-6/story-<n>-<name>.png` instead; do that only to refresh it deliberately. Look at the screenshots before reporting success. Before the step-6 shot the story waits (up to 15 s) for the step-5 toasts to clear.
 - Per-step timings: `test-results/story-timings.json` is `{ mode, stopAfter, steps: [{ step, ms }], ...notes }` (first progress = the turn's status label shows tools called; answer = the gate line, both timed from the click), written pass or fail. Replay timings are not live latencies: they only show the UI is fast. Judge latency against MASTER_PLAN §6 from live runs: the live story's timings file and the Q&A and extraction evals.
