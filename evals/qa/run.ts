@@ -28,7 +28,10 @@
  * to start when a selected question is already in `evals/heldout-passes.jsonl` (or the label is
  * empty), and appends one row there per question row it writes, before that row (errors
  * included); it handles SIGINT, SIGTERM and SIGHUP alike; oracle, empty and replay passes never
- * touch that file; `npm run eval:merge` joins the reports of a pass that stopped early.
+ * touch that file; `npm run eval:merge` joins the reports of a pass that stopped early. Such a
+ * pass stops at its first API error (Ruling P17; the spend cap's reason wins). After every
+ * question the scorecard so far is written ("did not finish (no final scorecard)"), replaced by
+ * the end-of-run write; every stop, abort and fault line names `resume with --offset <n>`.
  */
 import { appendFileSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
@@ -47,11 +50,13 @@ import { citedFactIds } from "../../apps/api/src/ai/release-gate.js";
 import { ASK_FIXTURE_NOW, prepareAskFixture } from "../../apps/api/src/ask/demo-fixture.js";
 import { DEFAULT_RECORDINGS_DIR } from "../../apps/api/src/config.js";
 import {
+  apiErrorStop,
   assertFinalMode,
   assertPassLabel,
   assertSplitAllowed,
   capturing,
   createReportDir,
+  DID_NOT_FINISH,
   type Exchange,
   heldoutPassesPath,
   INTERRUPT_EXIT,
@@ -59,8 +64,10 @@ import {
   type InterruptSignal,
   passOutcome,
   requireApiKey,
+  resumeHint,
   type SignalSource,
   type SplitName,
+  splitOrder,
   withRunLock,
   writeFaultReport,
 } from "../extraction/run.js";
@@ -572,6 +579,7 @@ export async function runQaEval(opts: EvalOptions): Promise<EvalResult> {
   const passesPath = heldoutPassesPath({ ...opts, model: llm });
   assertPassLabel(passesPath, opts.label);
   if (passesPath !== null) assertNotRun("qa", ids, passesPath);
+  const order = await splitOrder(opts.split, goldenDir);
   const truths = await Promise.all(ids.map((id) => loadTruth(goldenDir, id)));
   if (llm && !opts.sql) throw new Error("the llm answerer needs a database");
 
@@ -644,6 +652,7 @@ export async function runQaEval(opts: EvalOptions): Promise<EvalResult> {
         ledgered: () => appended,
         settle,
         passesPath,
+        order,
       });
     return llm && opts.sql ? await withRunLock(opts.sql, body) : await body();
   } finally {
@@ -662,6 +671,8 @@ interface PlanContext {
   settle: () => void;
   /** The held-out passes file this run appends to, or null (see `heldoutPassesPath`). */
   passesPath: string | null;
+  /** The split's ids in split.json order (`resumeHint`). */
+  order: readonly string[];
 }
 
 async function runPlan(
@@ -752,10 +763,19 @@ async function runPlan(
     writeFileSync(file("scorecard.md"), `${renderQaScorecardMd(card, meta)}\n`);
     return { card, meta };
   };
-  run.state.writePartial = (aborted) => writeScorecard(aborted, remaining());
+  /** The line every stop, abort and fault logs: what stopped the pass and where it resumes. */
+  const stopLine = (reason: string, rest: readonly string[]) =>
+    `[eval] stopped before ${rest[0] ?? "(none)"}: ${reason}; ${resumeHint(run.order, rest)}`;
+  run.state.writePartial = (aborted) => {
+    const rest = remaining();
+    writeScorecard(aborted, rest);
+    log(stopLine(aborted, rest));
+  };
 
   let aborted: string | null = null;
   let notRun: string[] = [];
+  /** Set by an armed pass's API-error row (Ruling P17); checked after the spend guard. */
+  let outage: string | null = null;
   for (const truth of truths) {
     const overCap = guard?.overCap() ?? null;
     const trip = guard?.trip() ?? null;
@@ -764,14 +784,14 @@ async function runPlan(
       (overCap !== null
         ? `spend cap: ${overCap}`
         : trip === null
-          ? null
+          ? outage
           : trip.source === "model"
             ? trip.reason
             : `spend cap: ${trip.reason}`);
     if (stop !== null) {
       aborted = stop;
       notRun = remaining();
-      log(`[eval] stopped before ${notRun[0]}: ${aborted}`);
+      log(stopLine(aborted, notRun));
       break;
     }
     let row: QaRow;
@@ -802,16 +822,20 @@ async function runPlan(
       appendFileSync(file("rows.jsonl"), `${JSON.stringify(row)}\n`);
       rows.push(row);
       appendFileSync(file("transcripts.jsonl"), `${JSON.stringify(result.transcript)}\n`);
+      // A kill with no handler still leaves a mergeable report; the end-of-run write replaces it.
+      writeScorecard(DID_NOT_FINISH, remaining());
     } catch (err) {
       // A runner fault (not a model outcome) fails the run. The report so far gets its scorecard
       // first, so the questions not run can run once more and the reports be merged.
       const reason = `runner fault: ${err instanceof Error ? err.message : String(err)}`;
       writeFaultReport(run, () => writeScorecard(reason, remaining()), reason);
+      log(stopLine(reason, remaining()));
       throw err;
     }
     log(
       `[eval] ${row.id}: ${row.error ? `error ${row.error.kind}` : row.grade?.withheld ? "withheld" : "answered"} ${(row.latencyMs / 1000).toFixed(1)}s $${row.costUsd.toFixed(5)}`,
     );
+    if (run.passesPath !== null && row.error?.kind === "api_error") outage = apiErrorStop(row.id);
   }
   run.settle();
   const { card, meta } = writeScorecard(aborted, notRun);
@@ -880,7 +904,8 @@ export async function main(argv: string[]): Promise<void> {
       process.exitCode = 1;
     }
     if (meta.aborted) {
-      console.error(`[eval] stopped early: ${meta.aborted}`);
+      const order = await splitOrder(args.split, QA_GOLDEN_DIR);
+      console.error(`[eval] stopped early: ${meta.aborted}; ${resumeHint(order, meta.notRun)}`);
       process.exitCode = 1;
     }
   } finally {

@@ -22,6 +22,7 @@ import {
   assertPassEstimate,
   capturing,
   classifyExtractError,
+  DID_NOT_FINISH,
   EMPTY_EXTRACTION,
   ESTIMATE_PER_CASE_RUN_USD,
   EVAL_RUN_LOCK,
@@ -31,6 +32,7 @@ import {
   LEDGER_RUN,
   parseArgs,
   RUN_CAP_USD,
+  resumeHint,
   runExtractionEval,
   selectCases,
 } from "./run.js";
@@ -183,6 +185,35 @@ const networkForbidden = () =>
   vi.fn<LlmFetch>(async () => {
     throw new Error("the network was used");
   });
+/** An API outage: a 529 the SDK does not retry (x-should-retry: false), so it surfaces at once. */
+const overloaded = () =>
+  new Response(
+    JSON.stringify({ type: "error", error: { type: "overloaded_error", message: "Overloaded" } }),
+    { status: 529, headers: { "content-type": "application/json", "x-should-retry": "false" } },
+  );
+/** Request 1 meets an outage; later requests are answered from `script`, in order. */
+const outageFirst = (script: unknown[]) => {
+  const served = scriptedFetch(script);
+  let calls = 0;
+  const fetch: LlmFetch = async (url, init) =>
+    ++calls === 1 ? overloaded() : served.fetch(url, init);
+  return { fetch, calls: () => calls };
+};
+const emptyReply = (n: number) => textReply(n, JSON.stringify({ extraction: EMPTY_EXTRACTION }));
+
+describe("resumeHint (every stop names where to resume)", () => {
+  const order = ["a-1", "a-2", "a-3", "a-4"];
+  it("is the split.json index of the first case not run, as --offset", () => {
+    expect(resumeHint(order, ["a-3", "a-4"])).toBe("resume with --offset 2");
+    expect(resumeHint(order, ["a-1"])).toBe("resume with --offset 0");
+  });
+  it("a hard-case repeat names its case's first-run index", () => {
+    expect(resumeHint(order, ["a-2#2", "a-2#3"])).toBe("resume with --offset 1");
+  });
+  it("says so when nothing is left to run", () => {
+    expect(resumeHint(order, [])).toBe("nothing left to run");
+  });
+});
 
 describe("parseArgs", () => {
   it("defaults to the dev split, replay, label = mode", () => {
@@ -1237,6 +1268,142 @@ describe.skipIf(!sql)("extraction runner (database)", () => {
         const md = await readFile(join(r.reportDir, "scorecard.md"), "utf8");
         expect(md.includes("- Final pass (--final)")).toBe(want);
       }
+    }, 120_000);
+  });
+
+  describe("an outage stops a held-out pass; a crash leaves a scorecard; stops name the resume offset", () => {
+    it("an armed pass stops after its first API error: that case keeps its row and pass row, the rest are not run (P17)", async () => {
+      const ids = [heldoutId(0), heldoutId(1), heldoutId(2)];
+      const passesPath = await tempPasses();
+      const lines: string[] = [];
+      const api = outageFirst([emptyReply(2), emptyReply(3)]);
+      const r = await dry({
+        ...STAND_IN_FINAL,
+        extractor: "llm",
+        mode: "live",
+        label: "outage",
+        ids,
+        apiKey: "test-key",
+        fetch: api.fetch,
+        ledgerPath: await tempLedger(0),
+        passesPath,
+        log: (line) => lines.push(line),
+      });
+      const reason = `API error on ${ids[0]}: stopped so an outage cannot consume the remaining cases`;
+      expect(api.calls()).toBe(1);
+      expect(r.rows.map((x) => [x.id, x.errorKind])).toEqual([[ids[0], "api_error"]]);
+      expect(r.meta).toMatchObject({ aborted: reason, notRun: [ids[1], ids[2]], final: true });
+      expect(readPasses(passesPath).map((p) => [p.id, p.outcome])).toEqual([
+        [ids[0], "error:api_error"],
+      ]);
+      const json = JSON.parse(await readFile(join(r.reportDir, "scorecard.json"), "utf8"));
+      expect(json.meta).toMatchObject({ aborted: reason, notRun: [ids[1], ids[2]] });
+      expect(json.scorecard.cases).toBe(1);
+      expect(lines).toContain(`[eval] stopped before ${ids[1]}: ${reason}; resume with --offset 1`);
+    }, 120_000);
+
+    it("an unarmed pass (dev, not final) carries on past an API error, as before", async () => {
+      const ids = [firstOf("eur"), firstOf("plain"), firstOf("not_a_quote")];
+      const api = outageFirst([emptyReply(2), emptyReply(3)]);
+      const r = await dry({
+        extractor: "llm",
+        mode: "live",
+        label: "outage-dev",
+        ids,
+        apiKey: "test-key",
+        fetch: api.fetch,
+        ledgerPath: await tempLedger(0),
+      });
+      expect(api.calls()).toBe(3);
+      expect(r.rows.map((x) => [x.id, x.errorKind])).toEqual([
+        [ids[0], "api_error"],
+        [ids[1], null],
+        [ids[2], null],
+      ]);
+      expect(r.meta).toMatchObject({ aborted: null, notRun: [] });
+    }, 120_000);
+
+    it("after each case the report holds a readable scorecard of the rows so far, marked did not finish (a SIGKILL leaves it)", async () => {
+      const hard = firstOf("hard");
+      const ids = [hard, firstOf("eur"), firstOf("plain")];
+      const reportsDir = await temp("reports");
+      const seen: { aborted: unknown; notRun: unknown; cases: unknown }[] = [];
+      const r = await dry({
+        label: "crash-safe",
+        ids,
+        repeatHard: 2,
+        reportsDir,
+        log: (line) => {
+          // Each case's log line comes after its rows, transcript and scorecard writes.
+          if (!/: (extracted|needs_review|not_a_quote|failed) /.test(line)) return;
+          const [name = ""] = readdirSync(reportsDir);
+          const json = JSON.parse(readFileSync(join(reportsDir, name, "scorecard.json"), "utf8"));
+          seen.push({
+            aborted: json.meta.aborted,
+            notRun: json.meta.notRun,
+            cases: json.scorecard.cases,
+          });
+        },
+      });
+      expect(DID_NOT_FINISH).toBe("did not finish (no final scorecard)");
+      expect(seen).toEqual([
+        { aborted: DID_NOT_FINISH, notRun: [ids[1], ids[2], `${hard}#2`], cases: 1 },
+        { aborted: DID_NOT_FINISH, notRun: [ids[2], `${hard}#2`], cases: 2 },
+        { aborted: DID_NOT_FINISH, notRun: [`${hard}#2`], cases: 3 },
+        { aborted: DID_NOT_FINISH, notRun: [], cases: 3 },
+      ]);
+      // The end-of-run write replaces it: a finished pass reads as finished.
+      const json = JSON.parse(await readFile(join(r.reportDir, "scorecard.json"), "utf8"));
+      expect(json.meta).toMatchObject({ aborted: null, notRun: [] });
+      expect(await readFile(join(r.reportDir, "scorecard.md"), "utf8")).not.toContain(
+        DID_NOT_FINISH,
+      );
+    }, 120_000);
+
+    it("an interrupted chunk names the resume offset in split.json order, not in the chunk", async () => {
+      const at = 10;
+      const signals = new EventEmitter();
+      const lines: string[] = [];
+      let sent = false;
+      const r = await dry({
+        label: "resume",
+        ids: undefined,
+        offset: at,
+        limit: 3,
+        signals,
+        exit: () => {},
+        log: (line) => {
+          lines.push(line);
+          if (!sent && line.startsWith(`[eval] ${SPLIT.dev[at]}:`)) {
+            sent = true;
+            signals.emit("SIGINT");
+          }
+        },
+      });
+      expect(r.meta.notRun).toEqual(SPLIT.dev.slice(at + 1, at + 3));
+      const stops = lines.filter((l) => l.includes("interrupted by SIGINT"));
+      expect(stops.length).toBeGreaterThan(0);
+      for (const l of stops) expect(l).toContain(`resume with --offset ${at + 1}`);
+    }, 120_000);
+
+    it("a runner fault's stop line names the resume offset of the faulted case", async () => {
+      const ids = [heldoutId(0), heldoutId(1)];
+      const lines: string[] = [];
+      await db`create or replace function eval_test_fault_first() returns trigger as $$
+               begin raise exception 'eval test: injected first-case fault'; end $$ language plpgsql`;
+      await db`create trigger eval_test_fault_first before insert on documents
+               for each row execute function eval_test_fault_first()`;
+      try {
+        await expect(
+          dry({ ...STAND_IN_FINAL, label: "fault-line", ids, log: (l) => lines.push(l) }),
+        ).rejects.toThrow(/injected first-case fault/);
+      } finally {
+        await db`drop trigger if exists eval_test_fault_first on documents`;
+        await db`drop function if exists eval_test_fault_first()`;
+      }
+      const stop = lines.find((l) => l.includes("runner fault"));
+      expect(stop).toMatch(new RegExp(`^\\[eval\\] stopped before ${ids[0]}: runner fault: `));
+      expect(stop).toMatch(/; resume with --offset 0$/);
     }, 120_000);
   });
 });

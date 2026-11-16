@@ -67,15 +67,22 @@ async function report(
   return dir;
 }
 
-/** A held-out report plus a split.json holding `ids` as its held-out half. */
+/**
+ * A held-out report plus a split.json holding `ids` as its held-out half. Its scorecard counts
+ * (cases / questions) are the run-1 rows unless `count` says otherwise.
+ */
 async function heldReport(
   suite: "qa" | "extraction",
   ids: string[],
   o: {
     meta?: Record<string, unknown>;
     rows?: Record<string, unknown>[];
+    count?: number;
   },
 ): Promise<{ dir: string; splitDir: string }> {
+  const rows = o.rows ?? ids.map((id) => ({ id, run: 1 }));
+  const firstRuns = rows.filter((r) => r.run === undefined || r.run === 1).length;
+  const count = o.count ?? firstRuns;
   const dir = await report(
     suite,
     {
@@ -86,11 +93,11 @@ async function heldReport(
       aborted: null,
       notRun: [],
       runnerErrors: [],
+      servedModels: ["claude-haiku-5-5"],
       ...o.meta,
     },
-    suite === "qa" ? qaCard : exCard,
+    suite === "qa" ? { ...qaCard, questions: count } : { ...exCard, cases: count },
   );
-  const rows = o.rows ?? ids.map((id) => ({ id, run: 1 }));
   await writeFile(join(dir, "rows.jsonl"), rows.map((r) => JSON.stringify(r)).join("\n"));
   const splitDir = await mkdtemp(join(tmpdir(), "split-"));
   await mkdir(join(splitDir, suite), { recursive: true });
@@ -161,6 +168,36 @@ describe("held-out reports", () => {
     await expect(build(await heldReport("extraction", ids, { rows }))).rejects.toThrow(
       /more than one|twice|h-2/,
     );
+  });
+
+  it("refuses when meta.servedModels is not a subset of [meta.model] (missing reads as not)", async () => {
+    await expect(
+      build(
+        await heldReport("extraction", ids, {
+          meta: { servedModels: ["claude-haiku-5-5", "claude-sonnet-5-5"] },
+        }),
+      ),
+    ).rejects.toThrow(/servedModels.*claude-sonnet-5-5/);
+    await expect(
+      build(await heldReport("extraction", ids, { meta: { servedModels: undefined } })),
+    ).rejects.toThrow(/servedModels/);
+    // No served model at all (every call failed) is a subset: coverage and errors decide then.
+    await expect(
+      build(await heldReport("extraction", ids, { meta: { servedModels: [] } })),
+    ).resolves.toBeTruthy();
+  });
+
+  it("refuses when the scorecard's cases / questions differ from the run-1 rows", async () => {
+    await expect(build(await heldReport("extraction", ids, { count: 4 }))).rejects.toThrow(
+      /scorecard counts 4 cases .* 3 run-1 rows/,
+    );
+    const qa = await heldReport("qa", ids, { count: 2 });
+    await expect(buildSummary({ qa: qa.dir }, new Date(), undefined, qa.splitDir)).rejects.toThrow(
+      /scorecard counts 2 questions .* 3 run-1 rows/,
+    );
+    // Hard-case repeats are not run-1 rows: three first runs and a repeat match cases 3.
+    const rows = [...ids.map((id) => ({ id, run: 1 })), { id: "h-1", run: 2 }];
+    await expect(build(await heldReport("extraction", ids, { rows }))).resolves.toBeTruthy();
   });
 });
 

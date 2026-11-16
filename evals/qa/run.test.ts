@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { connectTestDb, testDbLabel } from "@pharos/db/testing";
 import type { Fact } from "@pharos/shared";
 import { afterAll, describe, expect, it, vi } from "vitest";
+import type { LlmFetch } from "../../apps/api/src/ai/llm.js";
 import {
   lastToolResult,
   type ScriptedRequest,
@@ -15,7 +16,7 @@ import {
   toolCall,
 } from "../../apps/api/src/ai/scripted-llm.js";
 import { prepareAskFixture } from "../../apps/api/src/ask/demo-fixture.js";
-import { INTERRUPT_EXIT } from "../extraction/run.js";
+import { DID_NOT_FINISH, INTERRUPT_EXIT } from "../extraction/run.js";
 import { readLedger } from "../lib/budget.js";
 import { appendPass, HeldoutRerunError, readPasses } from "../lib/heldout-passes.js";
 import {
@@ -80,6 +81,20 @@ const fileText = (path: string) => {
   } catch {
     return null;
   }
+};
+/** An API outage: a 529 the SDK does not retry (x-should-retry: false), so it surfaces at once. */
+const overloaded = () =>
+  new Response(
+    JSON.stringify({ type: "error", error: { type: "overloaded_error", message: "Overloaded" } }),
+    { status: 529, headers: { "content-type": "application/json", "x-should-retry": "false" } },
+  );
+/** Request 1 meets an outage; later requests are answered from `script`, in order. */
+const outageFirst = (script: unknown[]) => {
+  const served = scriptedFetch(script);
+  let calls = 0;
+  const fetch: LlmFetch = async (url, init) =>
+    ++calls === 1 ? overloaded() : served.fetch(url, init);
+  return { fetch, calls: () => calls };
 };
 
 describe("the per-question estimate", () => {
@@ -335,6 +350,70 @@ describe("dry runs (no model, no database)", () => {
     });
     expect(r.meta).toMatchObject({ aborted: "interrupted by SIGHUP", notRun: ids.slice(1) });
     expect(signals.eventNames()).toEqual([]);
+  });
+
+  it("after each question the report holds a readable scorecard of the rows so far, marked did not finish (a SIGKILL leaves it)", async () => {
+    const ids = split.dev.slice(0, 3);
+    const reportsDir = await dir();
+    const seen: { aborted: unknown; notRun: unknown; questions: unknown }[] = [];
+    const r = await runQaEval({
+      split: "dev",
+      mode: "replay",
+      answerer: "oracle",
+      label: "crash-safe",
+      ids,
+      reportsDir,
+      log: (line) => {
+        // Each question's log line comes after its row, transcript and scorecard writes.
+        if (!/: (answered|withheld|error \S+) /.test(line)) return;
+        const [name = ""] = readdirSync(reportsDir);
+        const json = JSON.parse(readFileSync(join(reportsDir, name, "scorecard.json"), "utf8"));
+        seen.push({
+          aborted: json.meta.aborted,
+          notRun: json.meta.notRun,
+          questions: json.scorecard.questions,
+        });
+      },
+    });
+    expect(DID_NOT_FINISH).toBe("did not finish (no final scorecard)");
+    expect(seen).toEqual([
+      { aborted: DID_NOT_FINISH, notRun: ids.slice(1), questions: 1 },
+      { aborted: DID_NOT_FINISH, notRun: ids.slice(2), questions: 2 },
+      { aborted: DID_NOT_FINISH, notRun: [], questions: 3 },
+    ]);
+    // The end-of-run write replaces it: a finished pass reads as finished.
+    const json = JSON.parse(await readFile(join(r.reportDir, "scorecard.json"), "utf8"));
+    expect(json.meta).toMatchObject({ aborted: null, notRun: [] });
+    expect(await readFile(join(r.reportDir, "scorecard.md"), "utf8")).not.toContain(DID_NOT_FINISH);
+  });
+
+  it("an interrupted chunk names the resume offset in split.json order, not in the chunk", async () => {
+    const at = 5;
+    const signals = new EventEmitter();
+    const lines: string[] = [];
+    let sent = false;
+    const r = await runQaEval({
+      split: "dev",
+      mode: "replay",
+      answerer: "oracle",
+      label: "resume",
+      offset: at,
+      limit: 3,
+      reportsDir: await dir(),
+      signals,
+      exit: () => {},
+      log: (line) => {
+        lines.push(line);
+        if (!sent && line.startsWith(`[eval] ${split.dev[at]}:`)) {
+          sent = true;
+          signals.emit("SIGHUP");
+        }
+      },
+    });
+    expect(r.meta.notRun).toEqual(split.dev.slice(at + 1, at + 3));
+    const stops = lines.filter((l) => l.includes("interrupted by SIGHUP"));
+    expect(stops.length).toBeGreaterThan(0);
+    for (const l of stops) expect(l).toContain(`resume with --offset ${at + 1}`);
   });
 });
 
@@ -732,6 +811,137 @@ describe.skipIf(!sql)("Q&A runner on a database", () => {
         log: () => {},
       });
       expect(fileText(absent)).toBeNull();
+    });
+
+    it("an armed pass stops after its first API error: that question keeps its row and pass row, the rest are not run (P17)", async () => {
+      const ids = [heldoutId(0), heldoutId(1), heldoutId(2)];
+      const passesPath = await tempPasses();
+      const lines: string[] = [];
+      const api = outageFirst([
+        textReply(2, "There is nothing to add."),
+        textReply(3, "There is nothing to add."),
+      ]);
+      const r = await runQaEval({
+        ...STAND_IN_FINAL,
+        sql,
+        mode: "live",
+        answerer: "llm",
+        label: "outage",
+        ids,
+        apiKey: "test-key",
+        fetch: api.fetch,
+        ledgerPath: join(await dir(), "ledger.jsonl"),
+        budgetPath: await budget(1),
+        passesPath,
+        reportsDir: await dir(),
+        log: (line) => lines.push(line),
+      });
+      const reason = `API error on ${ids[0]}: stopped so an outage cannot consume the remaining cases`;
+      expect(api.calls()).toBe(1);
+      expect(r.rows.map((x) => [x.id, x.error?.kind ?? null])).toEqual([[ids[0], "api_error"]]);
+      expect(r.meta).toMatchObject({ aborted: reason, notRun: [ids[1], ids[2]], final: true });
+      expect(readPasses(passesPath).map((p) => [p.id, p.outcome])).toEqual([
+        [ids[0], "error:api_error"],
+      ]);
+      const json = JSON.parse(await readFile(join(r.reportDir, "scorecard.json"), "utf8"));
+      expect(json.meta).toMatchObject({ aborted: reason, notRun: [ids[1], ids[2]] });
+      expect(json.scorecard.questions).toBe(1);
+      expect(lines).toContain(`[eval] stopped before ${ids[1]}: ${reason}; resume with --offset 1`);
+    });
+
+    it("the spend-cap reason wins over the API error the guard's refusal causes", async () => {
+      const ids = [heldoutId(0), heldoutId(1), heldoutId(2)];
+      const passesPath = await tempPasses();
+      // The first response alone costs more than the $0.013 the budget leaves, so the guard
+      // refuses the agent's second request (a 400: an API error on that question).
+      const costly = {
+        ...toolCall(1, "get_vessel_status", { vessel: "Aegean Pioneer" }),
+        usage: { input_tokens: 1000, output_tokens: 100_000 },
+      };
+      const { fetch, requests } = scriptedFetch([costly, textReply(2, "unused")]);
+      const r = await runQaEval({
+        ...STAND_IN_FINAL,
+        sql,
+        mode: "live",
+        answerer: "llm",
+        label: "cap-first",
+        ids,
+        apiKey: "test-key",
+        fetch,
+        ledgerPath: join(await dir(), "ledger.jsonl"),
+        budgetPath: await budget(0.013),
+        passesPath,
+        reportsDir: await dir(),
+        log: () => {},
+      });
+      expect(requests).toHaveLength(1);
+      expect(r.rows.map((x) => [x.id, x.error?.kind ?? null])).toEqual([[ids[0], "api_error"]]);
+      expect(r.meta.aborted).toMatch(/^spend cap: per-request guard/);
+      expect(r.meta.notRun).toEqual([ids[1], ids[2]]);
+      expect(readPasses(passesPath).map((p) => p.id)).toEqual([ids[0]]);
+    });
+
+    it("an unarmed pass (dev, not final) carries on past an API error, as before", async () => {
+      const ids = split.dev.slice(0, 3);
+      const api = outageFirst([
+        textReply(2, "There is nothing to add."),
+        textReply(3, "There is nothing to add."),
+      ]);
+      const r = await runQaEval({
+        sql,
+        split: "dev",
+        mode: "live",
+        answerer: "llm",
+        label: "outage-dev",
+        ids,
+        apiKey: "test-key",
+        fetch: api.fetch,
+        ledgerPath: join(await dir(), "ledger.jsonl"),
+        budgetPath: await budget(1),
+        reportsDir: await dir(),
+        log: () => {},
+      });
+      expect(api.calls()).toBe(3);
+      expect(r.rows.map((x) => [x.id, x.error?.kind ?? null])).toEqual([
+        [ids[0], "api_error"],
+        [ids[1], null],
+        [ids[2], null],
+      ]);
+      expect(r.meta).toMatchObject({ aborted: null, notRun: [] });
+    });
+
+    it("a runner fault's stop line names the resume offset of the faulted question", async () => {
+      const ids = [heldoutId(0), heldoutId(1), heldoutId(2)];
+      const lines: string[] = [];
+      const { fetch } = scriptedFetch([
+        textReply(1, "There is nothing to add."),
+        textReply(2, "There is nothing to add."),
+      ]);
+      const restore = await faultOnThirdQuestion();
+      try {
+        await expect(
+          runQaEval({
+            ...STAND_IN_FINAL,
+            sql,
+            mode: "live",
+            answerer: "llm",
+            label: "fault-line",
+            ids,
+            apiKey: "test-key",
+            fetch,
+            ledgerPath: join(await dir(), "ledger.jsonl"),
+            budgetPath: await budget(1),
+            passesPath: await tempPasses(),
+            reportsDir: await dir(),
+            log: (l) => lines.push(l),
+          }),
+        ).rejects.toThrow(/eval test: injected runner fault/);
+      } finally {
+        await restore();
+      }
+      const stop = lines.find((l) => l.includes("runner fault"));
+      expect(stop).toMatch(new RegExp(`^\\[eval\\] stopped before ${ids[2]}: runner fault: `));
+      expect(stop).toMatch(/; resume with --offset 2$/);
     });
   });
 });

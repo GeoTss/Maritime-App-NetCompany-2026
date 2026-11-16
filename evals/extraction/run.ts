@@ -31,7 +31,12 @@
  * per case row it writes, before that row (errors included). Oracle, empty and replay passes never
  * touch that file. A pass that stops
  * early keeps its rows and scorecard; the cases not run may run once more, then
- * `npm run eval:merge` joins the reports.
+ * `npm run eval:merge` joins the reports. Such a pass also stops at its first API error, so an
+ * outage cannot consume the remaining cases (Ruling P17; the spend cap's reason wins).
+ * After every case the scorecard of the rows so far is written with aborted "did not finish (no
+ * final scorecard)" and replaced by the end-of-run write, so a kill with no handler (SIGKILL, power
+ * loss) still leaves a mergeable report. Every stop, abort and fault line names
+ * `resume with --offset <n>` (split.json order).
  * The key comes from `ANTHROPIC_API_KEY` (via `tsx --env-file-if-exists=.env`) and is never printed.
  */
 import { appendFileSync, writeFileSync } from "node:fs";
@@ -342,6 +347,37 @@ export async function selectCases(
   }
   return pool.slice(offset, opts.limit ? offset + opts.limit : undefined);
 }
+
+/** The split's ids in split.json order: the order `--offset` counts in. */
+export async function splitOrder(split: SplitName, goldenDir: string): Promise<string[]> {
+  const file = SplitFile.parse(JSON.parse(await readFile(join(goldenDir, "split.json"), "utf8")));
+  return split === "dev" ? file.dev : file.heldout;
+}
+
+/**
+ * Where a stopped pass resumes: the `--offset` of notRun[0]'s case (its first-run id, without a
+ * hard-case repeat's `#n`) in split.json order. Every stop, abort and fault line names it.
+ */
+export function resumeHint(order: readonly string[], notRun: readonly string[]): string {
+  const next = notRun[0];
+  if (next === undefined) return "nothing left to run";
+  const at = order.indexOf(next.replace(/#\d+$/, ""));
+  return at < 0 ? `${next} is not in the split's order` : `resume with --offset ${at}`;
+}
+
+/**
+ * The `aborted` of the scorecard written after every case and replaced by the end-of-run write: a
+ * run killed with no handler (SIGKILL, power loss) still leaves a scorecard of its rows so far,
+ * with the cases not run in `notRun`, so its report can be merged.
+ */
+export const DID_NOT_FINISH = "did not finish (no final scorecard)";
+
+/**
+ * Ruling P17: an armed held-out pass stops at its first API error, so an outage cannot consume
+ * the remaining cases. The case that met it keeps its row and pass row (R8: errors consume it).
+ */
+export const apiErrorStop = (name: string): string =>
+  `API error on ${name}: stopped so an outage cannot consume the remaining cases`;
 
 async function loadCase(dir: string, id: string, withOracle: boolean): Promise<GoldenCase> {
   const truth = ExtractionTruth.parse(
@@ -1043,6 +1079,8 @@ interface RunContext {
   writePartial: ((aborted: string) => void) | null;
   /** The held-out passes file this run appends to, or null (see `heldoutPassesPath`). */
   passesPath: string | null;
+  /** The split's ids in split.json order (`resumeHint`). */
+  order: readonly string[];
   now: () => Date;
 }
 
@@ -1068,6 +1106,7 @@ export async function runExtractionEval(opts: EvalOptions): Promise<EvalResult> 
   const passesPath = heldoutPassesPath({ ...opts, model: llm });
   assertPassLabel(passesPath, opts.label);
   if (passesPath !== null) assertNotRun("extraction", ids, passesPath);
+  const order = await splitOrder(opts.split, goldenDir);
   const cases = await Promise.all(
     ids.map((id) => loadCase(goldenDir, id, opts.extractor === "oracle")),
   );
@@ -1120,6 +1159,7 @@ export async function runExtractionEval(opts: EvalOptions): Promise<EvalResult> 
     interrupted: { reason: null },
     writePartial: null,
     passesPath,
+    order,
     now,
   };
 
@@ -1272,12 +1312,22 @@ async function runPlan(
     writeFileSync(file("scorecard.md"), `${renderScorecardMd(card, meta)}\n`);
     return { card, meta };
   };
-  run.writePartial = (aborted) => writeScorecard(aborted, remaining());
+  /** The line every stop, abort and fault logs: what stopped the pass and where it resumes. */
+  const stopLine = (reason: string, rest: readonly string[]) =>
+    `[eval] stopped before ${rest[0] ?? "(none)"}: ${reason}; ${resumeHint(run.order, rest)}`;
+  run.writePartial = (aborted) => {
+    const rest = remaining();
+    writeScorecard(aborted, rest);
+    log(stopLine(aborted, rest));
+  };
 
   let aborted: string | null = null;
   let notRun: string[] = [];
+  /** Set by an armed pass's API-error row (Ruling P17); checked after the spend guard. */
+  let outage: string | null = null;
   for (const step of plan) {
-    // An interrupt, the spend cap, or (live, record) a response served by a model other than Haiku.
+    // An interrupt, the spend cap, (live, record) a response served by a model other than Haiku,
+    // or (an armed held-out pass) the API error of the case before.
     const overCap = guard?.overCap() ?? null;
     const trip = guard?.trip() ?? null;
     const stop =
@@ -1285,14 +1335,14 @@ async function runPlan(
       (overCap !== null
         ? `spend cap: ${overCap}`
         : trip === null
-          ? null
+          ? outage
           : trip.source === "model"
             ? trip.reason
             : `spend cap: ${trip.reason}`);
     if (stop !== null) {
       aborted = stop;
       notRun = remaining();
-      log(`[eval] stopped before ${notRun[0]}: ${aborted}`);
+      log(stopLine(aborted, notRun));
       break;
     }
     let row: CaseRow;
@@ -1319,17 +1369,23 @@ async function runPlan(
       rows.push(row);
       done++;
       appendFileSync(file("transcripts.jsonl"), `${JSON.stringify(result.transcript)}\n`);
+      // A kill with no handler still leaves a mergeable report; the end-of-run write replaces it.
+      writeScorecard(DID_NOT_FINISH, remaining());
     } catch (err) {
       // A runner fault (not a model outcome) fails the run. The report so far gets its scorecard
       // first, so the cases not run can run once more and the reports be merged.
       const reason = `runner fault: ${err instanceof Error ? err.message : String(err)}`;
       writeFaultReport(run, () => writeScorecard(reason, remaining()), reason);
+      log(stopLine(reason, remaining()));
       throw err;
     }
     const what = row.errorKind ? `error ${row.errorKind}` : row.status;
     log(
       `[eval] ${row.id}${step.run > 1 ? ` #${step.run}` : ""}: ${what} ${(row.latencyMs / 1000).toFixed(1)}s $${row.costUsd.toFixed(5)}`,
     );
+    if (run.passesPath !== null && row.errorKind === "api_error") {
+      outage = apiErrorStop(step.run > 1 ? `${row.id}#${step.run}` : row.id);
+    }
   }
   run.settle();
   const { card, meta } = writeScorecard(aborted, notRun);
@@ -1401,7 +1457,8 @@ export async function main() {
       process.exitCode = 1;
     }
     if (meta.aborted) {
-      console.error(`[eval] stopped early: ${meta.aborted}`);
+      const order = await splitOrder(args.split, GOLDEN_DIR);
+      console.error(`[eval] stopped early: ${meta.aborted}; ${resumeHint(order, meta.notRun)}`);
       process.exitCode = 1;
     }
   } finally {

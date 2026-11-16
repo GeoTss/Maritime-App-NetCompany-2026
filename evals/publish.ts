@@ -3,8 +3,9 @@
  * the file GET /api/eval/summary serves. A dev report is accepted when live (or record, a live
  * run that also writes recordings) and a record report has no call served from a recording
  * (record is replay-first). A held-out report is accepted only when it is a complete `--final`
- * live pass: meta.final, mode live, no runnerErrors, and exactly one first-run row for every id
- * of the held-out split. Replay, oracle and empty reports are refused. Rates and intervals are
+ * live pass: meta.final, mode live, no runnerErrors, served only by meta.model, exactly one
+ * first-run row for every id of the held-out split, and a scorecard whose cases (extraction) or
+ * questions (Q&A) equal those run-1 rows. Replay, oracle and empty reports are refused. Rates and intervals are
  * the scorecard's own (the errors metric's interval is the same Wilson interval); the entries a
  * run does not touch are kept from the existing summary.
  *
@@ -139,7 +140,7 @@ async function load(dir: string, expected: Suite, goldenRoot: string) {
   if (meta.split !== "dev" && meta.split !== "heldout") {
     throw new PublishRefusal(`${dir}: split "${String(meta.split)}" is neither dev nor heldout`);
   }
-  if (meta.split === "heldout") await checkHeldOut(dir, expected, meta, goldenRoot);
+  if (meta.split === "heldout") await checkHeldOut(dir, expected, meta, scorecard, goldenRoot);
   for (const f of ["label", "model", "promptVersion", "finishedAt"] as const) {
     if (typeof meta[f] !== "string" || meta[f] === "")
       throw new PublishRefusal(`${dir}: meta.${f} missing`);
@@ -151,11 +152,16 @@ async function load(dir: string, expected: Suite, goldenRoot: string) {
   };
 }
 
-/** Ruling P7: a held-out report is publishable only as a complete, final, live pass. */
+/**
+ * Ruling P7: a held-out report is publishable only as a complete, final, live pass. Ruling P19
+ * (M1): every model that served it is the model it names, and its scorecard counts exactly its
+ * run-1 rows (a scorecard not computed from these rows describes another run).
+ */
 async function checkHeldOut(
   dir: string,
   suite: Suite,
   meta: Record<string, unknown>,
+  scorecard: unknown,
   goldenRoot: string,
 ): Promise<void> {
   if (meta.final !== true) {
@@ -172,6 +178,16 @@ async function checkHeldOut(
   if (!Array.isArray(runnerErrors) || runnerErrors.length > 0) {
     throw new PublishRefusal(
       `${dir}: held-out report has meta.runnerErrors (${Array.isArray(runnerErrors) ? runnerErrors.length : "missing"}); the run failed`,
+    );
+  }
+  const served = meta.servedModels;
+  if (!Array.isArray(served)) {
+    throw new PublishRefusal(`${dir}: held-out report has no meta.servedModels list`);
+  }
+  const others = served.filter((m) => m !== meta.model);
+  if (others.length > 0) {
+    throw new PublishRefusal(
+      `${dir}: held-out report has meta.servedModels ${others.map(String).join(", ")} beside meta.model ${String(meta.model)}; only a pass served by the model it names is published`,
     );
   }
   let expected: string[];
@@ -215,6 +231,14 @@ async function checkHeldOut(
     ].filter(Boolean);
     throw new PublishRefusal(
       `${dir}: held-out first-run rows do not cover the split exactly once each (${parts.join("; ")})`,
+    );
+  }
+  const countKey = suite === "qa" ? "questions" : "cases";
+  const counted = at(scorecard, countKey);
+  const firstRunRows = [...firstRuns.values()].reduce((a, c) => a + c, 0);
+  if (counted !== firstRunRows) {
+    throw new PublishRefusal(
+      `${dir}: held-out scorecard counts ${String(counted)} ${countKey} but rows.jsonl has ${firstRunRows} run-1 rows; the scorecard is not this report's`,
     );
   }
 }
