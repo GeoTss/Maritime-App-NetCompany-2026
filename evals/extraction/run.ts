@@ -16,7 +16,7 @@
  * before the first call; in live and record the guard refuses every request after the first
  * response served by another model and the run stops there; every served model is checked after
  * the run, and a non-Haiku model fails it.
- * Spend (live and record): the estimate (case runs x $0.002) must fit the $0.25 per-pass cap and
+ * Spend (live and record): the estimate (case runs x $0.001) must fit the $0.25 per-pass cap and
  * `assertBudget` before the first call, a per-request guard capped at min($0.25, what the
  * current phase's budget has left), and the guard's summed cost appended to the ledger afterwards, also when the
  * run fails or stops early.
@@ -26,11 +26,16 @@
  * Record mode is replay-first (Ruling 25): it only refreshes recordings, so it is never a
  * measurement when a call was served from one (meta.calls.fromRecordings, printed), and `--final`
  * refuses it. Measure with `--mode live`.
+ * Held-out runs once (Ruling R8): a final live held-out pass refuses to start when a selected case
+ * is already in `evals/heldout-passes.jsonl`, and appends one row there per case row it writes
+ * (errors included). Oracle, empty and replay passes never touch that file. A pass that stops
+ * early keeps its rows and scorecard; the cases not run may run once more, then
+ * `npm run eval:merge` joins the reports.
  * The key comes from `ANTHROPIC_API_KEY` (via `tsx --env-file-if-exists=.env`) and is never printed.
  */
 import { appendFileSync, writeFileSync } from "node:fs";
 import { mkdir, readFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { APIError } from "@anthropic-ai/sdk";
 import {
@@ -79,6 +84,7 @@ import {
   HAIKU,
   type SpendGuard,
 } from "../lib/budget.js";
+import { appendPass, assertNotRun, HELDOUT_PASSES_PATH } from "../lib/heldout-passes.js";
 import {
   type CaseGrade,
   type CaseOutcome,
@@ -89,6 +95,7 @@ import {
   type PipelineStatus,
 } from "./grade.js";
 import {
+  type GradedRun,
   recordingsNotice,
   renderScorecardMd,
   type Scorecard,
@@ -104,10 +111,28 @@ const REPO_ROOT = fileURLToPath(new URL("../..", import.meta.url));
 export const EVAL_DB = "eval_extraction";
 /** `run` of this runner's ledger rows. */
 export const LEDGER_RUN = "eval-extraction";
-/** Budget estimate per case run (one extraction is about $0.0005-0.0015 on Haiku 5.5). */
-export const ESTIMATE_PER_CASE_RUN_USD = 0.002;
-/** A dev pass must stay at or below this. */
+/**
+ * Budget estimate per case run: Phase 3 measured $0.00073 per email over the 84 dev emails on
+ * Haiku 5.5 (Ruling R7). The held-out pass (156 cases + 28 hard repeats = 184 runs) estimates
+ * $0.184, one pass.
+ */
+export const ESTIMATE_PER_CASE_RUN_USD = 0.001;
+/** A pass must stay at or below this. */
 export const RUN_CAP_USD = 0.25;
+
+/**
+ * The pre-run estimate of a paid pass of `caseRuns` case runs (repeats included). Throws
+ * BudgetError when it is over the per-pass cap.
+ */
+export function assertPassEstimate(caseRuns: number): number {
+  const estimate = caseRuns * ESTIMATE_PER_CASE_RUN_USD;
+  if (estimate > RUN_CAP_USD) {
+    throw new BudgetError(
+      `estimate $${estimate.toFixed(3)} (${caseRuns} case runs x $${ESTIMATE_PER_CASE_RUN_USD}) exceeds the $${RUN_CAP_USD.toFixed(2)} per-pass cap: run the split in chunks with --offset and --limit (each chunk is its own pass)`,
+    );
+  }
+  return estimate;
+}
 /** The one extractor configuration live, record and replay runs use (fixed; not from env). */
 export const EVAL_EXTRACTOR_CONFIG: ExtractorConfig = {
   extractModel: HAIKU,
@@ -557,6 +582,40 @@ export interface CaseRow {
   runnerErrors: string[];
 }
 
+/** What the scorecard reads of each row. */
+export const gradedRuns = (rows: readonly CaseRow[]): GradedRun[] =>
+  rows.map((r) => ({
+    run: r.run,
+    grade: r.grade,
+    latencyMs: r.latencyMs,
+    llmLatencyMs: r.llmLatencyMs,
+    costUsd: r.costUsd,
+  }));
+
+/** The meta fields a report derives from its rows (the runner and eval:merge share them). */
+export function metaOfRows(
+  rows: readonly CaseRow[],
+): Pick<ScorecardMeta, "servedModels" | "runnerErrors" | "calls"> {
+  return {
+    servedModels: [...new Set(rows.flatMap((r) => r.servedModels))].sort(),
+    runnerErrors: rows.flatMap((r) =>
+      r.runnerErrors.map((e) => `${r.id}${r.run > 1 ? ` #${r.run}` : ""}: ${e}`),
+    ),
+    // A record run reuses existing recordings (Ruling 25); those rows are written as `replay`.
+    calls: {
+      total: rows.reduce((a, r) => a + r.calls.length, 0),
+      fromRecordings: rows.reduce(
+        (a, r) => a + r.calls.filter((c) => c.mode === "replay").length,
+        0,
+      ),
+    },
+  };
+}
+
+/** The passes-file outcome of a row: "graded", or "error:<kind>" for an error that is not graded. */
+export const passOutcome = (errorKind: string | null): string =>
+  errorKind === null ? "graded" : `error:${errorKind}`;
+
 /** One line of transcripts.jsonl. */
 export interface Transcript {
   id: string;
@@ -874,6 +933,11 @@ export interface EvalOptions {
   ledgerPath?: string;
   /** Budget config path (tests use a temp file); default evals/budget.json. */
   budgetPath?: string;
+  /**
+   * The held-out passes file. Used only by a final live held-out pass of the model; with no path
+   * the guard is off. Only the CLI `main()` passes `HELDOUT_PASSES_PATH`; tests use temp files.
+   */
+  passesPath?: string;
   now?: () => Date;
   log?: (line: string) => void;
   /** Interrupt signals; default `process`. */
@@ -887,6 +951,21 @@ export interface EvalResult {
   meta: ScorecardMeta;
   scorecard: Scorecard;
   rows: CaseRow[];
+}
+
+/**
+ * The passes file a run reads and appends to: only a final live held-out pass of the model, and
+ * only when a path is given. Every other pass (dev, oracle, empty, replay) never touches it.
+ */
+export function heldoutPassesPath(o: {
+  split: SplitName;
+  final?: boolean | undefined;
+  mode: LlmMode;
+  model: boolean;
+  passesPath?: string | undefined;
+}): string | null {
+  const armed = o.model && o.final === true && o.split === "heldout" && o.mode === "live";
+  return armed && o.passesPath ? o.passesPath : null;
 }
 
 const stamp = (d: Date) =>
@@ -910,6 +989,28 @@ export async function createReportDir(reportsDir: string, name: string): Promise
   throw new Error(`no free report directory for ${name} in ${reportsDir}`);
 }
 
+/**
+ * After a runner fault, before the fault is rethrown: ledgers the spend (once; the run's own
+ * `finally` then appends nothing) and writes the report for the rows so far, so the cases not run
+ * can run once more and the reports be merged. Never throws over the fault.
+ */
+export function writeFaultReport(
+  run: { settle: () => void },
+  writeReport: () => void,
+  reason: string,
+): void {
+  try {
+    run.settle();
+  } catch (err) {
+    console.error(`[eval] ${reason}: could not ledger the spend: ${(err as Error).message}`);
+  }
+  try {
+    writeReport();
+  } catch (err) {
+    console.error(`[eval] ${reason}: could not write the report: ${(err as Error).message}`);
+  }
+}
+
 /** What a run shares with its interrupt handler and its ledger. */
 interface RunContext {
   guard: SpendGuard | null;
@@ -923,6 +1024,8 @@ interface RunContext {
   interrupted: { reason: string | null };
   /** Writes the report for the rows so far, synchronously; set once the report directory exists. */
   writePartial: ((aborted: string) => void) | null;
+  /** The held-out passes file this run appends to, or null (see `heldoutPassesPath`). */
+  passesPath: string | null;
   now: () => Date;
 }
 
@@ -943,6 +1046,10 @@ export async function runExtractionEval(opts: EvalOptions): Promise<EvalResult> 
     offset: opts.offset,
     goldenDir,
   });
+  // A held-out case runs once: before any call, ledger row or report, refuse a final live pass
+  // that selects a case already in the passes file.
+  const passesPath = heldoutPassesPath({ ...opts, model: llm });
+  if (passesPath !== null) assertNotRun("extraction", ids, passesPath);
   const cases = await Promise.all(
     ids.map((id) => loadCase(goldenDir, id, opts.extractor === "oracle")),
   );
@@ -957,12 +1064,7 @@ export async function runExtractionEval(opts: EvalOptions): Promise<EvalResult> 
   if (llm) assertHaikuOnly([EVAL_EXTRACTOR_CONFIG.extractModel]);
   let guard: SpendGuard | null = null;
   if (paid) {
-    const estimate = plan.length * ESTIMATE_PER_CASE_RUN_USD;
-    if (estimate > RUN_CAP_USD) {
-      throw new BudgetError(
-        `estimate $${estimate.toFixed(3)} (${plan.length} case runs x $${ESTIMATE_PER_CASE_RUN_USD}) exceeds the $${RUN_CAP_USD.toFixed(2)} per-pass cap: run the split in chunks with --offset and --limit (each chunk is its own pass)`,
-      );
-    }
+    const estimate = assertPassEstimate(plan.length);
     if (!opts.apiKey) throw new Error("ANTHROPIC_API_KEY is not set (add it to .env).");
     assertBudget(estimate, opts.ledgerPath, undefined, opts.budgetPath);
     const { remainingUsd: remaining } = budgetRemaining(
@@ -999,6 +1101,7 @@ export async function runExtractionEval(opts: EvalOptions): Promise<EvalResult> 
     ledgered: () => appended,
     interrupted: { reason: null },
     writePartial: null,
+    passesPath,
     now,
   };
 
@@ -1114,15 +1217,8 @@ async function runPlan(
 
   /** Scores the rows so far and writes scorecard.json and scorecard.md (synchronously). */
   const writeScorecard = (aborted: string | null, notRun: string[]) => {
-    const card = scorecard(
-      rows.map((r) => ({
-        run: r.run,
-        grade: r.grade,
-        latencyMs: r.latencyMs,
-        llmLatencyMs: r.llmLatencyMs,
-        costUsd: r.costUsd,
-      })),
-    );
+    const card = scorecard(gradedRuns(rows));
+    const fromRows = metaOfRows(rows);
     const meta: ScorecardMeta = {
       suite: "extraction",
       split: opts.split,
@@ -1143,24 +1239,16 @@ async function runPlan(
       repeatHard: opts.repeatHard ?? 1,
       notRun,
       aborted,
-      servedModels: [...new Set(rows.flatMap((r) => r.servedModels))].sort(),
+      servedModels: fromRows.servedModels,
       spend: {
         guardUsd: guard ? guard.spentUsd() : null,
         dbUsd: card.cost.totalUsd,
         ledgerUsd: run.ledgered(),
         parseErrors: guard ? [...guard.parseErrors] : [],
       },
-      runnerErrors: rows.flatMap((r) =>
-        r.runnerErrors.map((e) => `${r.id}${r.run > 1 ? ` #${r.run}` : ""}: ${e}`),
-      ),
-      // A record run reuses existing recordings (Ruling 25); those rows are written as `replay`.
-      calls: {
-        total: rows.reduce((a, r) => a + r.calls.length, 0),
-        fromRecordings: rows.reduce(
-          (a, r) => a + r.calls.filter((c) => c.mode === "replay").length,
-          0,
-        ),
-      },
+      runnerErrors: fromRows.runnerErrors,
+      calls: fromRows.calls,
+      final: opts.final ?? false,
     };
     writeFileSync(
       file("scorecard.json"),
@@ -1192,9 +1280,34 @@ async function runPlan(
       log(`[eval] stopped before ${notRun[0]}: ${aborted}`);
       break;
     }
-    const { row, transcript } = await runCase(ctx, step.c, step.run);
+    let result: Awaited<ReturnType<typeof runCase>>;
+    try {
+      result = await runCase(ctx, step.c, step.run);
+    } catch (err) {
+      // A runner fault (not a model outcome) fails the run. The report so far gets its scorecard
+      // first, so the cases not run can run once more and the reports be merged.
+      const reason = `runner fault: ${err instanceof Error ? err.message : String(err)}`;
+      writeFaultReport(run, () => writeScorecard(reason, remaining()), reason);
+      throw err;
+    }
+    const { row, transcript } = result;
     rows.push(row);
     appendFileSync(file("rows.jsonl"), `${JSON.stringify(row)}\n`);
+    // Next to its row, so a pass that fails or is stopped later still lists every case it ran.
+    if (run.passesPath !== null) {
+      appendPass(
+        {
+          suite: "extraction",
+          id: row.id,
+          run: row.run,
+          at: now().toISOString(),
+          label: opts.label,
+          report: basename(reportDir),
+          outcome: passOutcome(row.errorKind),
+        },
+        run.passesPath,
+      );
+    }
     appendFileSync(file("transcripts.jsonl"), `${JSON.stringify(transcript)}\n`);
     done++;
     const what = row.errorKind ? `error ${row.errorKind}` : row.status;
@@ -1251,6 +1364,8 @@ export async function main() {
       final: args.final,
       apiKey,
       reportsDir: resolve(REPO_ROOT, "evals", "reports"),
+      // The only place the tracked passes file is named (a final live held-out pass uses it).
+      passesPath: HELDOUT_PASSES_PATH,
     });
     console.log(`critical-field accuracy ${fmt(card.critical)}`);
     console.log(`unsafe auto-accepts ${fmt(card.unsafeAutoAccepts)}`);

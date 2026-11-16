@@ -26,12 +26,19 @@ npm run eval -- --suite extraction --split dev --empty     # an all-null quote: 
 npm run eval -- --suite extraction --split dev --mode record --label <name>
 
 # Paid, for run-to-run variance only: each hard case run twice (the first run is the headline).
-# On the 84-case dev split (26 hard) that is 110 case runs, a $0.22 estimate, inside one pass.
+# On the 84-case dev split (26 hard) that is 110 case runs, a $0.11 estimate, inside one pass.
 npm run eval -- --suite extraction --split dev --mode live --repeat-hard 2 --label <name>
 
 # Paid, a split too big for one $0.25 pass: consecutive chunks, each its own pass and ledger row
 npm run eval -- --suite extraction --split dev --mode record --offset 0 --limit 60 --label <name>-1
 npm run eval -- --suite extraction --split dev --mode record --offset 60 --limit 60 --label <name>-2
+
+# The final held-out pass: once, in Phase 7, live. 156 cases, each of the 14 hard ones 3 times:
+# 184 case runs, a $0.184 estimate, one pass.
+npm run eval -- --suite extraction --split heldout --final --mode live --repeat-hard 3 --label <name>
+
+# Merge the reports of one pass that stopped early (any mode, as long as every report shares it)
+npm run eval:merge -- --suite extraction --label <name> <report dir> <report dir>
 ```
 
 Options: `--label x` (letters, digits, `.`, `_`, `-`; default: the mode, or `oracle` / `empty`),
@@ -42,15 +49,37 @@ Options: `--label x` (letters, digits, `.`, `_`, `-`; default: the mode, or `ora
 The runner refuses:
 
 - `--split heldout` without `--final`. The held-out split runs once, in Phase 7.
-- `--repeat-hard` with `--mode record`, because the last repeat would overwrite the recording that
-  replay needs. Use `--mode live` to measure variance.
+- `--final` with `--mode record`: the final pass is a live measurement, and record mode is
+  replay-first (Ruling 25).
+- `--repeat-hard` with `--mode record`, because record mode is replay-first: every repeat would be
+  served the hard case's existing recording, so the repeats would measure nothing. Use
+  `--mode live` to measure variance.
 - `--oracle` or `--empty` with `--mode live|record` (they make no calls), both together, unknown
   flags, and a second run on the same database while one is running (advisory lock).
-- A live or record pass whose estimate (case runs × $0.002, repeats included) is over the $0.25
-  per-pass cap, before any call. Run the split in consecutive chunks with `--offset` and
-  `--limit` instead; each chunk is checked against the cap and ledgered on its own. `--repeat-hard
-  3` on the 84-case dev split is 136 case runs ($0.272) and is refused; `--repeat-hard 2` is 110
-  ($0.22). An `--offset` that leaves no case is refused too.
+- A live or record pass whose estimate (case runs × $0.001, repeats included; Phase 3 measured
+  $0.00073 per email) is over the $0.25 per-pass cap, before any call. Run the split in
+  consecutive chunks with `--offset` and `--limit` instead; each chunk is checked against the cap
+  and ledgered on its own. `--repeat-hard 7` on the 84-case dev split is 240 case runs ($0.24);
+  `--repeat-hard 8` is 266 ($0.266) and is refused. An `--offset` that leaves no case is refused
+  too.
+- A final live held-out pass (`--split heldout --final --mode live`) that selects a case already
+  listed in `evals/heldout-passes.jsonl`, before any call, ledger row or report.
+
+**Held-out runs once (Ruling R8).** A final live held-out pass appends one row to the tracked
+`evals/heldout-passes.jsonl` next to each `rows.jsonl` row it writes, errors included:
+`{suite, id, run, at, label, report, outcome}`, with `outcome` `graded` or `error:<kind>`. Oracle,
+empty and replay passes never touch the file. If a pass stops early (spend cap, interrupt, a
+runner fault), its report keeps its rows and a scorecard listing what was not run; the cases with
+no row then run once, with `--offset`, and `npm run eval:merge` joins the reports. A case that
+produced a row is never run again. Only the CLI names the real file; tests pass temp paths.
+
+**Merging (`npm run eval:merge`).** Only the reports of one pass merge: they must share suite,
+split, mode (any of live, record, replay, oracle, empty), model, effort, fallbacks, prompt version,
+seed, anchor and `final` (a report without `final` reads as false); chunks may differ in
+`--repeat-hard`; a case with a first run in two reports is refused. The rows are put in the
+runner's order (first runs in `split.json` order, then the repeats), scored as one run's rows are,
+and written as a new report with `meta.mergedFrom`. When the reports cover every selected case,
+`aborted` is null and `notRun` empty.
 
 The exit code is 1 when the run stopped at the spend cap, failed (a non-Haiku model, an unreadable
 response body, a runner error), or was a replay run with misses. After Ctrl-C (SIGINT) or SIGTERM
@@ -91,7 +120,8 @@ purchase orders stay.
 call; if the name exists, `-2`, `-3`, ... is added, so a report is never overwritten. Each case's
 lines are appended to `rows.jsonl` and `transcripts.jsonl` as it finishes, so a run that fails
 or is stopped part way keeps what it paid for. The scorecard files are written at the end, or on an
-interrupt for the rows so far.
+interrupt or a runner fault for the rows so far (`meta.aborted` says why, `meta.notRun` what is
+left). `meta.final` is true for a `--final` pass.
 
 - `rows.jsonl`: one line per case run, with the pipeline status, kind, error and error kind,
   failed checks, normalised view, full grade, latency, every `llm_calls` row, and the served models.

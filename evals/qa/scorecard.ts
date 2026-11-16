@@ -6,6 +6,7 @@
 
 import {
   percentile,
+  provenanceLines,
   type Rate,
   type RecordingUse,
   rateOf,
@@ -187,6 +188,10 @@ export interface QaScorecardMeta {
   runnerErrors: string[];
   /** Model calls (llm_calls rows) and how many of them a recording served (mode `replay`). */
   calls: RecordingUse;
+  /** A `--final` pass. A report written before this field existed reads as false. */
+  final: boolean;
+  /** Set by `npm run eval:merge`: the names of the report directories merged into this one. */
+  mergedFrom?: string[];
 }
 
 const pct = (r: Rate) => (r.rate === null ? "-" : `${(r.rate * 100).toFixed(1)} %`);
@@ -209,6 +214,7 @@ export function renderQaScorecardMd(card: QaScorecard, meta: QaScorecardMeta): s
   out.push(`- Prompt version: ${meta.promptVersion ?? "n/a"}`);
   out.push(`- World: seed ${meta.seed}, anchor ${meta.anchor}`);
   out.push(`- Started ${meta.startedAt}, finished ${meta.finishedAt}`);
+  out.push(...provenanceLines(meta));
   out.push(
     `- Questions: ${meta.selected} selected` +
       (meta.offset > 0 || meta.limit !== null

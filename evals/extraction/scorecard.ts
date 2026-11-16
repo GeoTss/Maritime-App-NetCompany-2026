@@ -370,6 +370,10 @@ export interface ScorecardMeta {
   runnerErrors: string[];
   /** Model calls (llm_calls rows) and how many of them a recording served (mode `replay`). */
   calls: RecordingUse;
+  /** A `--final` pass. A report written before this field existed reads as false. */
+  final: boolean;
+  /** Set by `npm run eval:merge`: the names of the report directories merged into this one. */
+  mergedFrom?: string[];
 }
 
 /**
@@ -386,6 +390,16 @@ export interface RecordingUse {
 export function recordingsNotice(meta: { mode: string; calls: RecordingUse }): string | null {
   if (meta.mode !== "record" || meta.calls.fromRecordings === 0) return null;
   return `${meta.calls.fromRecordings} of ${meta.calls.total} calls served from recordings: not a live measurement`;
+}
+
+/** The report-header lines for a `--final` pass and for a merged report (none otherwise). */
+export function provenanceLines(meta: { final?: boolean; mergedFrom?: string[] }): string[] {
+  const out: string[] = [];
+  if (meta.final === true) out.push("- Final pass (--final)");
+  if (meta.mergedFrom && meta.mergedFrom.length > 0) {
+    out.push(`- Merged from ${meta.mergedFrom.length} reports: ${meta.mergedFrom.join(", ")}`);
+  }
+  return out;
 }
 
 const pct = (x: number) => (x * 100).toFixed(1);
@@ -414,6 +428,7 @@ export function renderScorecardMd(card: Scorecard, meta: ScorecardMeta): string 
   out.push(`- Prompt version: ${meta.promptVersion}`);
   out.push(`- World: seed ${meta.seed}, anchor ${meta.anchor}`);
   out.push(`- Started ${meta.startedAt}, finished ${meta.finishedAt}`);
+  out.push(...provenanceLines(meta));
   out.push(
     `- Cases: ${meta.selected} selected` +
       (meta.offset > 0 || meta.limit !== null

@@ -383,6 +383,7 @@ const META: ScorecardMeta = {
   spend: { guardUsd: null, dbUsd: 0.002, ledgerUsd: null, parseErrors: [] },
   runnerErrors: [],
   calls: { total: 3, fromRecordings: 3 },
+  final: false,
 };
 
 describe("renderScorecardMd", () => {

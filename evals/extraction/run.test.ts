@@ -1,7 +1,7 @@
 /** The extraction runner: argument refusals, spend refusals and dry runs on a real database. */
 import { EventEmitter } from "node:events";
 import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { mkdir, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setFlagsFromString } from "node:v8";
@@ -14,11 +14,15 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { ExtractionError, renderEmailDocument } from "../../apps/api/src/ai/extract.js";
 import { type LlmFetch, ReplayMissError } from "../../apps/api/src/ai/llm.js";
 import { costUsd, promptTokensOf } from "../../apps/api/src/ai/pricing.js";
+import { scriptedFetch, scriptedMessage, textReply } from "../../apps/api/src/ai/scripted-llm.js";
 import { parseEmail } from "../../apps/api/src/ingest/parse-email.js";
 import { BudgetError, HAIKU, ModelNotAllowedError, readLedger } from "../lib/budget.js";
+import { appendPass, HeldoutRerunError, readPasses } from "../lib/heldout-passes.js";
 import {
+  assertPassEstimate,
   capturing,
   classifyExtractError,
+  EMPTY_EXTRACTION,
   ESTIMATE_PER_CASE_RUN_USD,
   EVAL_RUN_LOCK,
   type EvalOptions,
@@ -26,6 +30,7 @@ import {
   INTERRUPT_EXIT,
   LEDGER_RUN,
   parseArgs,
+  RUN_CAP_USD,
   runExtractionEval,
   selectCases,
 } from "./run.js";
@@ -39,6 +44,47 @@ const FILE_LOCK = 2026111411;
 // Cases and expectations come from the golden files on disk, never from copies of their content.
 const SPLIT = JSON.parse(await readFile(join(GOLDEN_DIR, "split.json"), "utf8")) as {
   dev: string[];
+  heldout: string[];
+};
+/**
+ * The held-out split's size and hard count, for the per-pass estimate of the planned final pass
+ * (only the split and each truth's tags are read; no held-out case is run by this file).
+ */
+const HELDOUT = SPLIT.heldout;
+const HELDOUT_HARD = (
+  await Promise.all(
+    HELDOUT.map(async (id) =>
+      ExtractionTruth.parse(
+        JSON.parse(await readFile(join(GOLDEN_DIR, `${id}.truth.json`), "utf8")),
+      ),
+    ),
+  )
+).filter((t) => t.tags[0] === "hard").length;
+/** A passes file in a temp directory, with these rows already in it (or none: no file yet). */
+const tempPasses = async (ids: string[] = []) => {
+  const path = join(await mkdtemp(join(tmpdir(), "eval-extraction-passes-")), "passes.jsonl");
+  for (const id of ids) {
+    appendPass(
+      {
+        suite: "extraction",
+        id,
+        run: 1,
+        at: "2026-11-16T10:00:00.000Z",
+        label: "earlier",
+        report: "20261116T100000Z-extraction-heldout-earlier",
+        outcome: "graded",
+      },
+      path,
+    );
+  }
+  return path;
+};
+const fileText = (path: string) => {
+  try {
+    return readFileSync(path, "utf8");
+  } catch {
+    return null;
+  }
 };
 const TRUTH = new Map<string, ExtractionTruth>();
 for (const id of SPLIT.dev) {
@@ -64,6 +110,29 @@ const firstOf = (stratum: string): string => {
 /** A truth-needs_review dev case (a hard one if there is one). */
 const REVIEW_CASE =
   SPLIT.dev.find((id) => truthOf(id).expected.status === "needs_review") ?? firstOf("hard");
+
+/**
+ * A stand-in golden directory whose "heldout" split is three dev cases (their files copied): the
+ * passes-file tests run the final held-out path without running a real held-out case.
+ */
+const STAND_IN = await (async () => {
+  const dir = await mkdtemp(join(tmpdir(), "eval-extraction-golden-"));
+  const ids = [firstOf("eur"), firstOf("plain"), firstOf("not_a_quote")];
+  for (const id of ids) {
+    for (const ext of [".truth.json", ".eml", ".oracle.json"]) {
+      await copyFile(join(GOLDEN_DIR, `${id}${ext}`), join(dir, `${id}${ext}`));
+    }
+  }
+  await writeFile(join(dir, "split.json"), JSON.stringify({ dev: [], heldout: ids }));
+  return { dir, ids };
+})();
+const heldoutId = (i: number): string => {
+  const id = STAND_IN.ids[i];
+  if (!id) throw new Error(`no stand-in held-out case at ${i}`);
+  return id;
+};
+/** A final pass of the stand-in held-out split. */
+const STAND_IN_FINAL = { split: "heldout" as const, final: true, goldenDir: STAND_IN.dir };
 
 /** Ten dev cases round-robin across the strata, hard first, so hard cases appear twice. */
 const TEN_DEV: string[] = (() => {
@@ -345,7 +414,7 @@ describe("runExtractionEval refusals (before any database, network or spend)", (
   });
 
   it("refuses a paid pass whose estimate exceeds the $0.25 per-pass cap, before any call (M5)", async () => {
-    // 64 dev cases plus 6 hard cases x 29 repeats: 238 case runs x $0.002 > $0.25.
+    // 84 dev cases plus 26 hard cases x 29 repeats: 838 case runs x $0.001 > $0.25.
     const ledgerPath = await tempLedger(0);
     const fetch = networkForbidden();
     const run = runEval(
@@ -364,13 +433,67 @@ describe("runExtractionEval refusals (before any database, network or spend)", (
     );
   });
 
-  it("the 84-case dev variance pass: --repeat-hard 2 fits one pass, --repeat-hard 3 is refused", async () => {
+  it("the dev variance pass: the largest --repeat-hard under the cap fits one pass, one more is refused", async () => {
     const all = { ids: undefined, apiKey: undefined, ledgerPath: await tempLedger(0) };
-    // 2: under the cap, so it reaches the key check; 3: over the cap, refused first.
-    await expect(runEval(await base({ ...all, repeatHard: 2 }))).rejects.toThrow(
+    const hard = STRATA.get("hard")?.length ?? 0;
+    const runs = (r: number) => SPLIT.dev.length + hard * (r - 1);
+    let fits = 1;
+    while (runs(fits + 1) * ESTIMATE_PER_CASE_RUN_USD <= RUN_CAP_USD) fits++;
+    expect(fits).toBeGreaterThan(2);
+    // Under the cap, so it reaches the key check; one more repeat is over the cap, refused first.
+    await expect(runEval(await base({ ...all, repeatHard: fits }))).rejects.toThrow(
       /ANTHROPIC_API_KEY/,
     );
-    await expect(runEval(await base({ ...all, repeatHard: 3 }))).rejects.toThrow(/per-pass cap/);
+    await expect(runEval(await base({ ...all, repeatHard: fits + 1 }))).rejects.toThrow(
+      new RegExp(`${runs(fits + 1)} case runs .*per-pass cap`),
+    );
+  });
+
+  it("184 case runs fit one pass at $0.001; 251 are refused", async () => {
+    expect(ESTIMATE_PER_CASE_RUN_USD).toBe(0.001);
+    expect(assertPassEstimate(184)).toBeCloseTo(0.184, 12);
+    expect(assertPassEstimate(250)).toBeCloseTo(0.25, 12);
+    expect(() => assertPassEstimate(251)).toThrow(BudgetError);
+    expect(() => assertPassEstimate(251)).toThrow(/\$0\.251 \(251 case runs .*per-pass cap/);
+    // The held-out pass as planned: every case once, each hard case 3 times (--repeat-hard 3).
+    expect(HELDOUT.length + 2 * HELDOUT_HARD).toBe(184);
+    const heldout = {
+      split: "heldout" as const,
+      final: true,
+      ids: undefined,
+      apiKey: undefined,
+      ledgerPath: await tempLedger(0),
+    };
+    // 184 runs fit, so it reaches the key check; --repeat-hard 8 is over the cap, refused first.
+    await expect(runEval(await base({ ...heldout, repeatHard: 3 }))).rejects.toThrow(
+      /ANTHROPIC_API_KEY/,
+    );
+    await expect(runEval(await base({ ...heldout, repeatHard: 8 }))).rejects.toThrow(
+      new RegExp(`${HELDOUT.length + 7 * HELDOUT_HARD} case runs .*per-pass cap`),
+    );
+  });
+
+  it("a final live held-out pass refuses to start when a selected id is in the passes file, before any call or ledger row", async () => {
+    const ids = [heldoutId(0), heldoutId(1), heldoutId(2)];
+    const passesPath = await tempPasses([heldoutId(1)]);
+    const before = fileText(passesPath);
+    const ledgerPath = await tempLedger(0);
+    const reportsDir = await temp("reports");
+    const fetch = networkForbidden();
+    const heldout = { ...STAND_IN_FINAL, passesPath };
+    const run = runEval(
+      await base({ ...heldout, ids, apiKey: "test-key", fetch, ledgerPath, reportsDir }),
+    );
+    await expect(run).rejects.toBeInstanceOf(HeldoutRerunError);
+    await expect(run).rejects.toThrow(new RegExp(`: ${heldoutId(1)}\\b`));
+    expect(fetch).not.toHaveBeenCalled();
+    expect(readLedger(ledgerPath)).toHaveLength(1);
+    expect(await readdir(reportsDir)).toEqual([]);
+    expect(fileText(passesPath)).toBe(before);
+    // Without the listed id the same pass gets as far as the key check.
+    await expect(runEval(await base({ ...heldout, ids: [heldoutId(0)] }))).rejects.toThrow(
+      /ANTHROPIC_API_KEY/,
+    );
   });
 
   it("refuses a paid run without a key, naming the variable", async () => {
@@ -856,4 +979,131 @@ describe.skipIf(!sql)("extraction runner (database)", () => {
     expect(r.scorecard.cases).toBe(1);
     expect(readLedger(ledgerPath).at(-1)?.costUsd).toBeCloseTo(api.costPerCall, 12);
   }, 120_000);
+
+  describe("the held-out passes file", () => {
+    /** Makes the third `documents` insert from now on raise: a runner fault after two rows. */
+    const faultOnThirdDocument = async () => {
+      await db`create sequence eval_test_fault_seq`;
+      await db`create or replace function eval_test_fault() returns trigger as $$
+               begin
+                 if nextval('eval_test_fault_seq') >= 3 then
+                   raise exception 'eval test: injected runner fault';
+                 end if;
+                 return new;
+               end $$ language plpgsql`;
+      await db`create trigger eval_test_fault before insert on documents
+               for each row execute function eval_test_fault()`;
+      return async () => {
+        await db`drop trigger if exists eval_test_fault on documents`;
+        await db`drop function if exists eval_test_fault()`;
+        await db`drop sequence if exists eval_test_fault_seq`;
+      };
+    };
+
+    it("appends one pass row per case row, errors included", async () => {
+      const ids = [heldoutId(0), heldoutId(1), heldoutId(2)];
+      const passesPath = await tempPasses();
+      const reportsDir = await temp("reports");
+      // Case 1 is answered (an all-null quote: graded, whatever the grade), case 2 is refused (an
+      // error), and case 3 fails at its document insert, a runner fault after two rows.
+      const { fetch, requests } = scriptedFetch([
+        textReply(1, JSON.stringify({ extraction: EMPTY_EXTRACTION })),
+        scriptedMessage(2, [{ type: "text", text: "I can't help with that." }], "refusal"),
+      ]);
+      const restore = await faultOnThirdDocument();
+      try {
+        await expect(
+          dry({
+            ...STAND_IN_FINAL,
+            extractor: "llm",
+            mode: "live",
+            label: "passes",
+            ids,
+            apiKey: "test-key",
+            fetch,
+            ledgerPath: await tempLedger(0),
+            passesPath,
+            reportsDir,
+          }),
+        ).rejects.toThrow(/eval test: injected runner fault/);
+      } finally {
+        await restore();
+      }
+      expect(requests).toHaveLength(2);
+      const [dir = ""] = await readdir(reportsDir);
+      const rows = (await readFile(join(reportsDir, dir, "rows.jsonl"), "utf8"))
+        .trim()
+        .split("\n")
+        .map((l) => JSON.parse(l) as { id: string; run: number; errorKind: string | null });
+      expect(rows.map((r) => [r.id, r.run, r.errorKind])).toEqual([
+        [ids[0], 1, null],
+        [ids[1], 1, "refusal"],
+      ]);
+      const passes = readPasses(passesPath);
+      expect(passes.map((p) => [p.suite, p.id, p.run, p.outcome])).toEqual([
+        ["extraction", ids[0], 1, "graded"],
+        ["extraction", ids[1], 1, "error:refusal"],
+      ]);
+      for (const p of passes) expect(p).toMatchObject({ label: "passes", report: dir });
+      // The report so far has its scorecard: the rest can run once, and the reports be merged.
+      const json = JSON.parse(await readFile(join(reportsDir, dir, "scorecard.json"), "utf8"));
+      expect(json.meta).toMatchObject({ final: true, notRun: [ids[2]] });
+      expect(json.meta.aborted).toMatch(/^runner fault: .*eval test: injected runner fault/);
+      expect(json.scorecard.cases).toBe(2);
+      // A case with a row never runs again; the case without one still may.
+      await expect(
+        dry({
+          ...STAND_IN_FINAL,
+          extractor: "llm",
+          mode: "live",
+          ids: [heldoutId(1), heldoutId(2)],
+          apiKey: "test-key",
+          fetch: networkForbidden(),
+          ledgerPath: await tempLedger(0),
+          passesPath,
+        }),
+      ).rejects.toThrow(HeldoutRerunError);
+    }, 120_000);
+
+    it("oracle, empty and replay passes never touch the passes file", async () => {
+      const ids = [heldoutId(0), heldoutId(1)];
+      // Both ids are listed: an armed guard would refuse these passes.
+      const passesPath = await tempPasses(ids);
+      const before = fileText(passesPath);
+      const passes: Partial<EvalOptions>[] = [
+        { extractor: "oracle" },
+        { extractor: "empty" },
+        { extractor: "llm", mode: "replay", recordingsDir: await temp("no-recordings") },
+        // The guard keys on a live model pass, not on the mode flag alone.
+        { extractor: "oracle", mode: "live" },
+      ];
+      for (const over of passes) {
+        const r = await dry({ ...STAND_IN_FINAL, ids, passesPath, ...over });
+        expect(r.rows).toHaveLength(2);
+        expect(r.meta.final).toBe(true);
+      }
+      expect(fileText(passesPath)).toBe(before);
+      const absent = join(await temp("passes-absent"), "passes.jsonl");
+      await dry({ ...STAND_IN_FINAL, ids, passesPath: absent, extractor: "empty" });
+      expect(fileText(absent)).toBeNull();
+    }, 120_000);
+
+    it("meta.final is true only with --final", async () => {
+      expect(parseArgs(["--oracle"]).final).toBe(false);
+      expect(parseArgs(["--oracle", "--final"]).final).toBe(true);
+      const plain = await dry({ ids: [firstOf("eur")], label: "not-final" });
+      const final = await dry({ ids: [firstOf("eur")], label: "final", final: true });
+      expect(plain.meta.final).toBe(false);
+      expect(final.meta.final).toBe(true);
+      for (const [r, want] of [
+        [plain, false],
+        [final, true],
+      ] as const) {
+        const json = JSON.parse(await readFile(join(r.reportDir, "scorecard.json"), "utf8"));
+        expect(json.meta.final).toBe(want);
+        const md = await readFile(join(r.reportDir, "scorecard.md"), "utf8");
+        expect(md.includes("- Final pass (--final)")).toBe(want);
+      }
+    }, 120_000);
+  });
 });

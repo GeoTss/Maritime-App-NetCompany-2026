@@ -136,6 +136,7 @@ describe("renderQaScorecardMd", () => {
     spend: { guardUsd: 0.001, dbUsd: 0.003, ledgerUsd: 0.001, parseErrors: [] },
     runnerErrors: [],
     calls: { total: 6, fromRecordings: 4 },
+    final: false,
   };
   const card = qaScorecard([run(grade("lookup-01", "lookup"))]);
 

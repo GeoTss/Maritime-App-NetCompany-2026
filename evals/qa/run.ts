@@ -15,18 +15,23 @@
  * env). In live and record the spend guard refuses every request after the first response served
  * by another model; every served and requested model is checked after the run.
  * Spend (live and record), the same rules as the extraction runner: the estimate (questions x
- * $0.01) must fit the $0.25 per-pass cap and `assertBudget` before the first call; a per-request
- * guard capped at min($0.25, what the phase budget has left); the guard's cost is appended to the
- * ledger afterwards, also when the run fails, stops early or is interrupted.
+ * $0.004, `ESTIMATE_PER_QUESTION_USD`) must fit the $0.25 per-pass cap and `assertBudget` before
+ * the first call; a per-request guard capped at min($0.25, what the phase budget has left); the
+ * guard's cost is appended to the ledger afterwards, also when the run fails, stops early or is
+ * interrupted.
  * `--oracle` answers from the truth's reference facts and `--empty` answers nothing: neither
  * makes a model call or touches the database, and both need no key. `--split heldout` needs
  * `--final`. Record mode is replay-first (Ruling 25): it only refreshes recordings, so a record run
  * with a call served from one is not a measurement (meta.calls.fromRecordings, printed), and
  * `--final` refuses it. Measure with `--mode live`.
+ * Held-out runs once (Ruling R8), as in the extraction runner: a final live held-out pass refuses
+ * to start when a selected question is already in `evals/heldout-passes.jsonl`, and appends one
+ * row there per question row it writes (errors included); oracle, empty and replay passes never
+ * touch that file; `npm run eval:merge` joins the reports of a pass that stopped early.
  */
 import { appendFileSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { APIError } from "@anthropic-ai/sdk";
 import type { Sql } from "@pharos/db";
@@ -46,11 +51,14 @@ import {
   capturing,
   createReportDir,
   type Exchange,
+  heldoutPassesPath,
   INTERRUPT_EXIT,
+  passOutcome,
   requireApiKey,
   type SignalSource,
   type SplitName,
   withRunLock,
+  writeFaultReport,
 } from "../extraction/run.js";
 import { recordingsNotice } from "../extraction/scorecard.js";
 import { EVAL_ANCHOR, EVAL_SEED } from "../extraction/world.js";
@@ -64,6 +72,7 @@ import {
   HAIKU,
   type SpendGuard,
 } from "../lib/budget.js";
+import { appendPass, assertNotRun, HELDOUT_PASSES_PATH } from "../lib/heldout-passes.js";
 import { gradeQa, type QaGrade, type QaOutcome, type RecommendationType } from "./grade.js";
 import { emptyOutcome, oracleOutcome } from "./oracle.js";
 import { insertInjectedShip } from "./reference.js";
@@ -292,6 +301,21 @@ export interface QaRow extends QaRun {
   runnerErrors: string[];
 }
 
+/** The meta fields a report derives from its rows (the runner and eval:merge share them). */
+export function metaOfQaRows(
+  rows: readonly QaRow[],
+): Pick<QaScorecardMeta, "servedModels" | "runnerErrors" | "calls"> {
+  return {
+    servedModels: [...new Set(rows.flatMap((r) => r.models))].sort(),
+    runnerErrors: rows.flatMap((r) => r.runnerErrors.map((e) => `${r.id}: ${e}`)),
+    // A record run reuses existing recordings (Ruling 25); those rows are written as `replay`.
+    calls: {
+      total: rows.reduce((a, r) => a + r.calls, 0),
+      fromRecordings: rows.reduce((a, r) => a + r.callsFromRecordings, 0),
+    },
+  };
+}
+
 export interface QaTranscript {
   id: string;
   question: string;
@@ -502,6 +526,11 @@ export interface EvalOptions {
   fetch?: LlmFetch;
   ledgerPath?: string;
   budgetPath?: string;
+  /**
+   * The held-out passes file. Used only by a final live held-out pass of the model; with no path
+   * the guard is off. Only the CLI `main()` passes `HELDOUT_PASSES_PATH`; tests use temp files.
+   */
+  passesPath?: string;
   now?: () => Date;
   log?: (line: string) => void;
   signals?: SignalSource;
@@ -534,6 +563,10 @@ export async function runQaEval(opts: EvalOptions): Promise<EvalResult> {
     offset: opts.offset,
     goldenDir,
   });
+  // A held-out question runs once: before any call, ledger row or report, refuse a final live
+  // pass that selects a question already in the passes file.
+  const passesPath = heldoutPassesPath({ ...opts, model: llm });
+  if (passesPath !== null) assertNotRun("qa", ids, passesPath);
   const truths = await Promise.all(ids.map((id) => loadTruth(goldenDir, id)));
   if (llm && !opts.sql) throw new Error("the llm answerer needs a database");
 
@@ -607,6 +640,7 @@ export async function runQaEval(opts: EvalOptions): Promise<EvalResult> {
         state,
         ledgered: () => appended,
         settle,
+        passesPath,
       });
     return llm && opts.sql ? await withRunLock(opts.sql, body) : await body();
   } finally {
@@ -624,6 +658,8 @@ interface PlanContext {
   state: { interrupted: string | null; writePartial: ((r: string) => void) | null };
   ledgered: () => number | null;
   settle: () => void;
+  /** The held-out passes file this run appends to, or null (see `heldoutPassesPath`). */
+  passesPath: string | null;
 }
 
 async function runPlan(
@@ -677,6 +713,7 @@ async function runPlan(
 
   const writeScorecard = (aborted: string | null, notRun: string[]) => {
     const card = qaScorecard(rows);
+    const fromRows = metaOfQaRows(rows);
     const meta: QaScorecardMeta = {
       suite: "qa",
       split: opts.split,
@@ -695,19 +732,16 @@ async function runPlan(
       limit: opts.ids ? null : (opts.limit ?? null),
       notRun,
       aborted,
-      servedModels: [...new Set(rows.flatMap((r) => r.models))].sort(),
+      servedModels: fromRows.servedModels,
       spend: {
         guardUsd: guard ? guard.spentUsd() : null,
         dbUsd: card.cost.totalUsd,
         ledgerUsd: run.ledgered(),
         parseErrors: guard ? [...guard.parseErrors] : [],
       },
-      runnerErrors: rows.flatMap((r) => r.runnerErrors.map((e) => `${r.id}: ${e}`)),
-      // A record run reuses existing recordings (Ruling 25); those rows are written as `replay`.
-      calls: {
-        total: rows.reduce((a, r) => a + r.calls, 0),
-        fromRecordings: rows.reduce((a, r) => a + r.callsFromRecordings, 0),
-      },
+      runnerErrors: fromRows.runnerErrors,
+      calls: fromRows.calls,
+      final: opts.final ?? false,
     };
     writeFileSync(
       file("scorecard.json"),
@@ -738,14 +772,39 @@ async function runPlan(
       log(`[eval] stopped before ${notRun[0]}: ${aborted}`);
       break;
     }
-    const { row, transcript } = llm
-      ? await runQuestion(
-          { sql: opts.sql as Sql, guard, exchanges, llm: client, mode, slot },
-          truth,
-        )
-      : runFixed(truth, opts.answerer as "oracle" | "empty");
+    let result: { row: QaRow; transcript: QaTranscript };
+    try {
+      result = llm
+        ? await runQuestion(
+            { sql: opts.sql as Sql, guard, exchanges, llm: client, mode, slot },
+            truth,
+          )
+        : runFixed(truth, opts.answerer as "oracle" | "empty");
+    } catch (err) {
+      // A runner fault (not a model outcome) fails the run. The report so far gets its scorecard
+      // first, so the questions not run can run once more and the reports be merged.
+      const reason = `runner fault: ${err instanceof Error ? err.message : String(err)}`;
+      writeFaultReport(run, () => writeScorecard(reason, remaining()), reason);
+      throw err;
+    }
+    const { row, transcript } = result;
     rows.push(row);
     appendFileSync(file("rows.jsonl"), `${JSON.stringify(row)}\n`);
+    // Next to its row, so a pass that fails or is stopped later still lists every question it ran.
+    if (run.passesPath !== null) {
+      appendPass(
+        {
+          suite: "qa",
+          id: row.id,
+          run: 1,
+          at: now().toISOString(),
+          label: opts.label,
+          report: basename(reportDir),
+          outcome: passOutcome(row.error?.kind ?? null),
+        },
+        run.passesPath,
+      );
+    }
     appendFileSync(file("transcripts.jsonl"), `${JSON.stringify(transcript)}\n`);
     log(
       `[eval] ${row.id}: ${row.error ? `error ${row.error.kind}` : row.grade?.withheld ? "withheld" : "answered"} ${(row.latencyMs / 1000).toFixed(1)}s $${row.costUsd.toFixed(5)}`,
@@ -794,6 +853,8 @@ export async function main(argv: string[]): Promise<void> {
       final: args.final,
       apiKey,
       reportsDir: resolve(REPO_ROOT, "evals", "reports"),
+      // The only place the tracked passes file is named (a final live held-out pass uses it).
+      passesPath: HELDOUT_PASSES_PATH,
     });
     console.log(`answer accuracy ${fmt(card.answerAccuracy)}`);
     console.log(`grounded numbers ${fmt(card.grounded)}`);

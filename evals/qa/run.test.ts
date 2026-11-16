@@ -1,5 +1,6 @@
 /** The Q&A runner: argument refusals, the oracle and empty dry runs, and runs on a real database. */
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { readFileSync } from "node:fs";
+import { copyFile, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { connectTestDb, testDbLabel } from "@pharos/db/testing";
@@ -14,6 +15,7 @@ import {
 } from "../../apps/api/src/ai/scripted-llm.js";
 import { prepareAskFixture } from "../../apps/api/src/ask/demo-fixture.js";
 import { readLedger } from "../lib/budget.js";
+import { appendPass, HeldoutRerunError, readPasses } from "../lib/heldout-passes.js";
 import {
   changedTables,
   ESTIMATE_PER_QUESTION_USD,
@@ -24,12 +26,59 @@ import {
   runQaEval,
   selectQuestions,
 } from "./run.js";
-import { readQaTruths } from "./split.js";
+import { QA_GOLDEN_DIR, readQaTruths } from "./split.js";
 
 const dir = () => mkdtemp(join(tmpdir(), "qa-run-"));
 const split = JSON.parse(
   await readFile(new URL("../golden/qa/split.json", import.meta.url), "utf8"),
 ) as { dev: string[]; heldout: string[] };
+/**
+ * A stand-in golden directory whose "heldout" split is three dev questions (their truth files
+ * copied): the passes-file tests run the final held-out path without running a real held-out
+ * question.
+ */
+const STAND_IN = await (async () => {
+  const golden = await dir();
+  const ids = split.dev.slice(0, 3);
+  for (const id of ids) {
+    await copyFile(join(QA_GOLDEN_DIR, `${id}.truth.json`), join(golden, `${id}.truth.json`));
+  }
+  await writeFile(join(golden, "split.json"), JSON.stringify({ dev: [], heldout: ids }));
+  return { dir: golden, ids };
+})();
+const heldoutId = (i: number): string => {
+  const id = STAND_IN.ids[i];
+  if (!id) throw new Error(`no stand-in held-out question at ${i}`);
+  return id;
+};
+/** A final pass of the stand-in held-out split. */
+const STAND_IN_FINAL = { split: "heldout" as const, final: true, goldenDir: STAND_IN.dir };
+/** A passes file in a temp directory, with these rows already in it (or none: no file yet). */
+const tempPasses = async (ids: string[] = []) => {
+  const path = join(await dir(), "passes.jsonl");
+  for (const id of ids) {
+    appendPass(
+      {
+        suite: "qa",
+        id,
+        run: 1,
+        at: "2026-11-16T10:00:00.000Z",
+        label: "earlier",
+        report: "20261116T100000Z-qa-heldout-earlier",
+        outcome: "graded",
+      },
+      path,
+    );
+  }
+  return path;
+};
+const fileText = (path: string) => {
+  try {
+    return readFileSync(path, "utf8");
+  } catch {
+    return null;
+  }
+};
 
 describe("the per-question estimate", () => {
   it("is $0.004: the 33 dev questions estimate $0.132, under the $0.25 pass cap", () => {
@@ -166,6 +215,59 @@ describe("dry runs (no model, no database)", () => {
         log: () => {},
       }),
     ).rejects.toThrow(/--final/);
+  });
+
+  it("a final live held-out pass refuses to start when a selected id is in the passes file, before any call or ledger row", async () => {
+    const ids = [heldoutId(0), heldoutId(1), heldoutId(2)];
+    const passesPath = await tempPasses([heldoutId(1)]);
+    const before = fileText(passesPath);
+    const ledgerPath = join(await dir(), "ledger.jsonl");
+    const reportsDir = await dir();
+    const { fetch, requests } = scriptedFetch([textReply(1, "x")]);
+    const run = runQaEval({
+      ...STAND_IN_FINAL,
+      mode: "live",
+      answerer: "llm",
+      label: "rerun",
+      ids,
+      apiKey: "test-key",
+      fetch,
+      ledgerPath,
+      passesPath,
+      reportsDir,
+      log: () => {},
+    });
+    await expect(run).rejects.toBeInstanceOf(HeldoutRerunError);
+    await expect(run).rejects.toThrow(new RegExp(`: ${heldoutId(1)}\\b`));
+    expect(requests).toHaveLength(0);
+    expect(readLedger(ledgerPath)).toEqual([]);
+    expect(await readdir(reportsDir)).toEqual([]);
+    expect(fileText(passesPath)).toBe(before);
+  });
+
+  it("meta.final is true only with --final", async () => {
+    expect(parseArgs(["--suite", "qa", "--oracle"]).final).toBe(false);
+    expect(parseArgs(["--suite", "qa", "--oracle", "--final"]).final).toBe(true);
+    const oracle = { mode: "replay" as const, answerer: "oracle" as const, log: () => {} };
+    const plain = await runQaEval({ ...oracle, split: "dev", label: "t", reportsDir: await dir() });
+    const final = await runQaEval({
+      ...oracle,
+      split: "dev",
+      final: true,
+      label: "t",
+      reportsDir: await dir(),
+    });
+    expect(plain.meta.final).toBe(false);
+    expect(final.meta.final).toBe(true);
+    for (const [r, want] of [
+      [plain, false],
+      [final, true],
+    ] as const) {
+      const json = JSON.parse(await readFile(join(r.reportDir, "scorecard.json"), "utf8"));
+      expect(json.meta.final).toBe(want);
+      const md = await readFile(join(r.reportDir, "scorecard.md"), "utf8");
+      expect(md.includes("- Final pass (--final)")).toBe(want);
+    }
   });
 });
 
@@ -405,5 +507,123 @@ describe.skipIf(!sql)("Q&A runner on a database", () => {
       values (${rec?.id ?? 0}, (select min(id) from voyages), ${calc?.id ?? 0}, 'B', 11, now(),
               '[]'::jsonb, now())`;
     expect(changedTables(before, await guardedFingerprints(sql))).toEqual(["voyage_instructions"]);
+  });
+
+  describe("the held-out passes file", () => {
+    /** Makes the third `conversations` insert from now on raise: a runner fault after two rows. */
+    const faultOnThirdQuestion = async () => {
+      if (!sql) throw new Error("setup");
+      await sql`create sequence eval_qa_test_fault_seq`;
+      await sql`create or replace function eval_qa_test_fault() returns trigger as $$
+                begin
+                  if nextval('eval_qa_test_fault_seq') >= 3 then
+                    raise exception 'eval test: injected runner fault';
+                  end if;
+                  return new;
+                end $$ language plpgsql`;
+      await sql`create trigger eval_qa_test_fault before insert on conversations
+                for each row execute function eval_qa_test_fault()`;
+      return async () => {
+        await sql`drop trigger if exists eval_qa_test_fault on conversations`;
+        await sql`drop function if exists eval_qa_test_fault()`;
+        await sql`drop sequence if exists eval_qa_test_fault_seq`;
+      };
+    };
+
+    it("appends one pass row per case row, errors included", async () => {
+      const ids = [heldoutId(0), heldoutId(1), heldoutId(2)];
+      const passesPath = await tempPasses();
+      const reportsDir = await dir();
+      // Question 1 is answered (graded, whatever the grade), question 2 is refused (an error), and
+      // question 3 fails at its conversation insert, a runner fault after two rows.
+      const { fetch, requests } = scriptedFetch([
+        textReply(1, "There is nothing to add."),
+        { ...textReply(2, "x"), stop_reason: "refusal" },
+      ]);
+      const restore = await faultOnThirdQuestion();
+      try {
+        await expect(
+          runQaEval({
+            ...STAND_IN_FINAL,
+            sql,
+            mode: "live",
+            answerer: "llm",
+            label: "passes",
+            ids,
+            apiKey: "test-key",
+            fetch,
+            ledgerPath: join(await dir(), "ledger.jsonl"),
+            budgetPath: await budget(1),
+            passesPath,
+            reportsDir,
+            log: () => {},
+          }),
+        ).rejects.toThrow(/eval test: injected runner fault/);
+      } finally {
+        await restore();
+      }
+      expect(requests).toHaveLength(2);
+      const [name = ""] = await readdir(reportsDir);
+      const rows = (await readFile(join(reportsDir, name, "rows.jsonl"), "utf8"))
+        .trim()
+        .split("\n")
+        .map((l) => JSON.parse(l) as { id: string; error: { kind: string } | null });
+      expect(rows.map((r) => [r.id, r.error?.kind ?? null])).toEqual([
+        [ids[0], null],
+        [ids[1], "refusal"],
+      ]);
+      const passes = readPasses(passesPath);
+      expect(passes.map((p) => [p.suite, p.id, p.run, p.outcome])).toEqual([
+        ["qa", ids[0], 1, "graded"],
+        ["qa", ids[1], 1, "error:refusal"],
+      ]);
+      for (const p of passes) expect(p).toMatchObject({ label: "passes", report: name });
+      // The report so far has its scorecard: the rest can run once, and the reports be merged.
+      const json = JSON.parse(await readFile(join(reportsDir, name, "scorecard.json"), "utf8"));
+      expect(json.meta).toMatchObject({ final: true, notRun: [ids[2]] });
+      expect(json.meta.aborted).toMatch(/^runner fault: .*eval test: injected runner fault/);
+      expect(json.scorecard.questions).toBe(2);
+    });
+
+    it("oracle, empty and replay passes never touch the passes file", async () => {
+      const ids = [heldoutId(0), heldoutId(1)];
+      // Both ids are listed: an armed guard would refuse these passes.
+      const passesPath = await tempPasses(ids);
+      const before = fileText(passesPath);
+      const runs = [
+        { answerer: "oracle" as const, mode: "replay" as const },
+        { answerer: "empty" as const, mode: "replay" as const },
+        { answerer: "llm" as const, mode: "replay" as const, recordingsDir: await dir() },
+        // The guard keys on a live model pass, not on the mode flag alone.
+        { answerer: "oracle" as const, mode: "live" as const },
+      ];
+      for (const over of runs) {
+        const r = await runQaEval({
+          ...STAND_IN_FINAL,
+          sql,
+          label: "untouched",
+          ids,
+          passesPath,
+          reportsDir: await dir(),
+          log: () => {},
+          ...over,
+        });
+        expect(r.rows).toHaveLength(2);
+        expect(r.meta.final).toBe(true);
+      }
+      expect(fileText(passesPath)).toBe(before);
+      const absent = join(await dir(), "passes.jsonl");
+      await runQaEval({
+        ...STAND_IN_FINAL,
+        mode: "replay",
+        answerer: "empty",
+        label: "untouched",
+        ids,
+        passesPath: absent,
+        reportsDir: await dir(),
+        log: () => {},
+      });
+      expect(fileText(absent)).toBeNull();
+    });
   });
 });
