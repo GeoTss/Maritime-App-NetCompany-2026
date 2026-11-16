@@ -50,22 +50,26 @@ services:
       # The API migrates, then reseeds the synthetic world anchored to boot time (reset|if-empty|off).
       SEED_ON_BOOT: ${SEED_ON_BOOT:-reset}
       WORLD_SEED: ${WORLD_SEED:-20261114}
-      # Pin the demo world to this instant and freeze the request clock at anchor + 5 min (recorded demo). Blank = boot time.
-      DEMO_ANCHOR: ${DEMO_ANCHOR:-}
+      # Recorded by default: the demo world is pinned to this instant and the request clock frozen at
+      # anchor + 5 min, so recorded model replies replay. An explicitly empty DEMO_ANCHOR (npm run demo:live) = wall clock.
+      DEMO_ANCHOR: ${DEMO_ANCHOR-2026-11-14T08:00:00Z}
       # Model per prompt (default Claude Haiku 5.5), effort, refusal fallbacks (on|off). Blank = app default.
       EXTRACT_MODEL: ${EXTRACT_MODEL:-}
       AGENT_MODEL: ${AGENT_MODEL:-}
       EXTRACT_EFFORT: ${EXTRACT_EFFORT:-}
       AGENT_EFFORT: ${AGENT_EFFORT:-}
       LLM_FALLBACKS: ${LLM_FALLBACKS:-}
-      # Live by default; the API refuses to start without a key in live/record mode.
-      LLM_MODE: ${LLM_MODE:-live}
+      # Recorded model replies by default (no key needed). npm run demo:live switches to live; the API
+      # refuses to start without ANTHROPIC_API_KEY in live/record mode. npm run demo:reset switches back.
+      LLM_MODE: ${LLM_MODE:-replay}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     ports:
       - "4000:4000"
     volumes:
       # Model replays are read from (and, with LLM_MODE=record, written to) the repo's folder.
       - ./fixtures/llm-recordings:/app/fixtures/llm-recordings
+      # The published evaluation summary is read from the repo, so a new publish needs no image rebuild.
+      - ./evals/published:/app/evals/published:ro
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4000/api/health"]
       interval: 5s
@@ -82,10 +86,11 @@ services:
       DATABASE_URL: postgres://pharos:pharos@db:5432/pharos
       AIS_MODE: ${AIS_MODE:-replay}
       WEATHER_MODE: ${WEATHER_MODE:-recorded}
-      # The labelled synthetic demo hazard: always loaded in replay mode; with live AIS only when on.
-      DEMO_HAZARDS: ${DEMO_HAZARDS:-off}
-      # With a pinned anchor the worker loads the recorded sources once at that instant (no real-time replay).
-      DEMO_ANCHOR: ${DEMO_ANCHOR:-}
+      # The labelled synthetic demo hazard: always loaded in replay mode; with live AIS only when on (default on).
+      DEMO_HAZARDS: ${DEMO_HAZARDS:-on}
+      # Pinned by default (recorded demo): the worker loads the recorded sources once at that instant and ignores
+      # AIS_MODE / WEATHER_MODE. An explicitly empty DEMO_ANCHOR (npm run demo:live) = wall clock and the modes above.
+      DEMO_ANCHOR: ${DEMO_ANCHOR-2026-11-14T08:00:00Z}
       AISSTREAM_API_KEY: ${AISSTREAM_API_KEY:-}
 
   web:
