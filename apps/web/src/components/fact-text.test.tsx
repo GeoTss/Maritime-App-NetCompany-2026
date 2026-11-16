@@ -2,6 +2,7 @@ import type { Fact } from "@pharos/shared";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { FactChip } from "@/components/fact-chip";
 import { FactText, parseFactText } from "@/components/fact-text";
 
 afterEach(cleanup);
@@ -41,6 +42,7 @@ const renderText = (text: string, facts: Fact[], onUnknownIds?: (ids: string[]) 
   );
 
 describe("FactText", () => {
+  // Untouched except for the one documented display form: ISO instants (next test).
   it("FactText leaves the written number untouched and attaches the chip", () => {
     const { container } = renderText(
       "Buy 1,500 mt [f_req_vlsfo] at $612.50/mt [f_q1_price] from Aegean Bunkers.",
@@ -51,6 +53,64 @@ describe("FactText", () => {
     const chips = screen.getAllByRole("button");
     expect(chips.map((c) => c.textContent)).toEqual(["1,500 mt", "$612.50/mt"]);
     expect(chips[1]?.getAttribute("data-fact-id")).toBe("f_q1_price");
+  });
+
+  // The one documented display form (Ruling 27): an ISO instant is one whole chip, shown in the
+  // desk's short UTC form, with the full value in its popover. Every other number stays as written.
+  it("an ISO instant is one chip, shown as 26 Nov 15:01Z, with the full value in the popover", () => {
+    const eta: Fact = {
+      id: "f_plan_route_speed_5_options.1.eta",
+      label: "MV Aegean Pioneer, route B: ETA at Rotterdam (UTC)",
+      value: "2026-11-26T15:01:46.466Z",
+      unit: null,
+      provenance: {
+        source: "calculation",
+        calculationId: 5,
+        calculator: "route_speed",
+        path: "options[1].eta",
+      },
+    };
+    const { container } = renderText(
+      "arrives at Rotterdam at 2026-11-26T15:01:46.466Z [f_plan_route_speed_5_options.1.eta]",
+      [eta],
+    );
+    expect(container.textContent).toBe("arrives at Rotterdam at 26 Nov 15:01Z");
+    const chips = screen.getAllByRole("button");
+    expect(chips.map((c) => c.textContent)).toEqual(["26 Nov 15:01Z"]);
+    fireEvent.click(chips[0] as HTMLElement);
+    expect(screen.getByRole("dialog").textContent).toContain("2026-11-26T15:01:46.466Z");
+    const { parts } = parseFactText(
+      "arrives at Rotterdam at 2026-11-26T15:01:46.466Z [f_plan_route_speed_5_options.1.eta]",
+      [eta],
+    );
+    expect(parts).toEqual([
+      { kind: "text", text: "arrives at Rotterdam at " },
+      { kind: "fact", written: "2026-11-26T15:01:46.466Z", facts: [eta], unknownIds: [] },
+    ]);
+  });
+
+  it("a chip whose fact value is an ISO instant shows the short form, and the popover the full one", () => {
+    const eta: Fact = {
+      id: "f_eta",
+      label: "ETA at Rotterdam (UTC)",
+      value: "2026-11-26T15:01:46.466Z",
+      unit: null,
+      provenance: {
+        source: "calculation",
+        calculationId: 5,
+        calculator: "route_speed",
+        path: "eta",
+      },
+    };
+    render(
+      <MemoryRouter>
+        <FactChip fact={eta} />
+      </MemoryRouter>,
+    );
+    const chip = screen.getByRole("button");
+    expect(chip.textContent).toBe("26 Nov 15:01Z");
+    fireEvent.click(chip);
+    expect(screen.getByRole("dialog").textContent).toContain("2026-11-26T15:01:46.466Z");
   });
 
   it("opens the chip's source: label, value and unit as returned, and the database row", () => {

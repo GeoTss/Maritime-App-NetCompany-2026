@@ -6,7 +6,10 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { createQueryClient } from "@/lib/queries";
 import { createRouter } from "@/routes";
 
-/** Root of the ops console: server state, tooltips, routes and the one toaster. */
+/**
+ * Root of the ops console: server state, tooltips, routes and the one toaster. Toasts sit at the
+ * top right, under the 36 px status strip, so they never cover the assistant's composer.
+ */
 export function App() {
   const [queryClient] = useState(createQueryClient);
   const [router] = useState(createRouter);
@@ -14,7 +17,7 @@ export function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider delayDuration={300}>
         <RouterProvider router={router} />
-        <Toaster position="bottom-right" />
+        <Toaster position="top-right" offset={{ top: 44, right: 12 }} mobileOffset={{ top: 44 }} />
       </TooltipProvider>
     </QueryClientProvider>
   );

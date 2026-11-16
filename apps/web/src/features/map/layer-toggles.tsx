@@ -1,9 +1,10 @@
 /**
- * Layer switches and the weather forecast slider. Weather is off, and says why, when the API has
- * no snapshot (404). Counts are animated metrics; the forecast time is a UTC label.
+ * Layer switches and the weather forecast slider. Weather is on from the start (the demo's first
+ * step shows the wave and wind overlay); it is off, and says why, when the API has no snapshot
+ * (404). Counts are animated metrics; the forecast time is a UTC label.
  */
 import type { WeatherView } from "@pharos/shared";
-import { useState } from "react";
+import { type Ref, useState } from "react";
 import { MetricNumber } from "@/components/metric-number";
 import { Slider } from "@/components/ui/slider";
 import { Toggle } from "@/components/ui/toggle";
@@ -16,7 +17,7 @@ export type LayerState = Record<LayerKey, boolean>;
 export const DEFAULT_LAYERS: LayerState = {
   traffic: true,
   fleet: true,
-  weather: false,
+  weather: true,
   hazards: true,
   congestion: true,
 };
@@ -47,7 +48,9 @@ export function LayerToggles({
   step,
   onStepCommit,
   className,
+  ref,
 }: {
+  ref?: Ref<HTMLElement>;
   layers: LayerState;
   onToggle: (key: LayerKey, on: boolean) => void;
   trafficCount: number | null;
@@ -62,6 +65,7 @@ export function LayerToggles({
   const weatherOff = weatherStatus === "none";
   return (
     <section
+      ref={ref}
       aria-label="Map layers"
       className={cn(
         "flex w-fit max-w-full flex-col gap-1.5 rounded-sm border border-line bg-ink-900 p-1.5",

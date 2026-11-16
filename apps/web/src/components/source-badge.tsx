@@ -5,7 +5,7 @@
  */
 import type { SourceStatusView } from "@pharos/shared";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { formatUtcFull } from "@/lib/format";
+import { formatUtc } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 const SOURCE_NAME: Record<SourceStatusView["source"], string> = { ais: "AIS", weather: "Weather" };
@@ -49,13 +49,76 @@ export function SourceBadge({
         {status.detail ? (
           <span className="font-mono text-2xs text-text-2">{status.detail}</span>
         ) : null}
-        <span className="text-text-2">Updated {formatUtcFull(status.updatedAt)}</span>
+        <span className="text-text-2">Updated {formatUtc(status.updatedAt)}</span>
       </TooltipContent>
     </Tooltip>
   );
 }
 
-export type DataKind = "simulated" | "synthetic" | "unverified" | "dev-split" | "draft" | "sample";
+/**
+ * The phone form of the source badges, where the strip has room for one: a dot and the mode word
+ * per distinct mode ("recorded", or "live" and "recorded" when they differ). It names every
+ * source and its mode to assistive technology and in its tooltip, so no source's mode is hidden.
+ */
+export function SourceSummary({
+  items,
+  className,
+}: {
+  items: SourceStatusView[];
+  className?: string;
+}) {
+  const modes = [...new Set(items.map((s) => s.mode))].sort();
+  const spoken = items.map((s) => `${SOURCE_NAME[s.source]} ${s.mode}`).join(", ");
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          // biome-ignore lint/a11y/noNoninteractiveTabindex: the tooltip names each source on focus.
+          tabIndex={0}
+          role="img"
+          aria-label={`Data sources: ${spoken}`}
+          data-source-summary={modes.join(" ")}
+          className={cn(
+            "inline-flex h-6 items-center gap-2 rounded-sm px-1.5 text-xs outline-none",
+            "focus-visible:ring-2 focus-visible:ring-beacon/40",
+            className,
+          )}
+        >
+          {modes.map((mode) => (
+            <span key={mode} className="inline-flex items-center gap-1.5">
+              <span
+                aria-hidden
+                className={cn(
+                  "size-1.5 shrink-0 rounded-full",
+                  mode === "live" ? "bg-go" : "bg-caution",
+                )}
+              />
+              <span className={mode === "live" ? "text-go" : "text-caution"}>{mode}</span>
+            </span>
+          ))}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="bottom" className="flex-col items-start gap-0.5">
+        {items.map((s) => (
+          <span key={s.source}>
+            {SOURCE_NAME[s.source]}: {MODE_EXPLAINED[s.mode]}
+          </span>
+        ))}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+export type DataKind =
+  | "simulated"
+  | "synthetic"
+  | "unverified"
+  | "dev-split"
+  | "draft"
+  | "sample"
+  | "live-run"
+  | "model-recorded"
+  | "model-live";
 
 const TAG: Record<DataKind, { text: string; title: string; tone: string }> = {
   simulated: {
@@ -87,6 +150,22 @@ const TAG: Record<DataKind, { text: string; title: string; tone: string }> = {
     text: "kit sample",
     title: "Example values for the design kit, not data from the API.",
     tone: "border-line-strong text-text-3",
+  },
+  "live-run": {
+    text: "live run",
+    title: "Measured with live model calls, not replayed from recordings.",
+    tone: "border-line-strong text-text-2",
+  },
+  "model-recorded": {
+    text: "model: recorded",
+    title:
+      "Answers are replayed from recordings of earlier model calls, so the demo runs offline. Only questions that were recorded have answers.",
+    tone: "border-caution/50 text-caution",
+  },
+  "model-live": {
+    text: "model: live",
+    title: "Each question is answered by a live model call.",
+    tone: "border-go/50 text-go",
   },
 };
 

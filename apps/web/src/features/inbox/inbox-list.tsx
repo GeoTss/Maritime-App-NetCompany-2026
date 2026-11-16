@@ -6,11 +6,15 @@ import { cn } from "@/lib/utils";
 
 type Status = InboxItem["extractionStatus"];
 
+/**
+ * Each status in words and its hue. "Accepted" is a quote a person fixed before accepting it: it
+ * keeps the review hue (caution) with a tinted border, so it never reads as a clean extraction.
+ */
 export const STATUS_LABEL: Record<Status, { label: string; tone: string }> = {
-  pending: { label: "Reading", tone: "text-beacon" },
+  pending: { label: "Reading", tone: "text-text-2" },
   extracted: { label: "Extracted", tone: "text-go" },
   needs_review: { label: "Needs review", tone: "text-caution" },
-  accepted: { label: "Accepted", tone: "text-go" },
+  accepted: { label: "Accepted after fix", tone: "border-caution/50 text-caution" },
   not_a_quote: { label: "Not a quote", tone: "text-text-2" },
   failed: { label: "Extraction failed", tone: "text-alarm" },
   rejected: { label: "Rejected", tone: "text-text-2" },
@@ -46,7 +50,7 @@ export function InboxList({
             className={cn(
               "flex w-full flex-col items-start gap-1 px-3 py-2 text-left outline-none",
               "hover:bg-ink-850 focus-visible:bg-ink-850 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60",
-              selected === item.documentId && "bg-ink-850 shadow-[inset_2px_0_0_var(--beacon)]",
+              selected === item.documentId && "bg-ink-850 shadow-[inset_1px_0_0_var(--beacon)]",
             )}
           >
             <span className="w-full truncate text-xs font-medium text-text-1">

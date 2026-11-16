@@ -87,6 +87,14 @@ export function formatNumber(value: number, unit: string | null): string {
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const pad = (n: number) => String(n).padStart(2, "0");
 
+/** An ISO-8601 instant with a time and a zone, e.g. "2026-11-26T15:01:46.466Z". */
+export const ISO_INSTANT_SOURCE = String.raw`\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})`;
+const ISO_INSTANT = new RegExp(`^${ISO_INSTANT_SOURCE}$`);
+
+/** Whether a value is an ISO instant (shown as `formatUtc`, the full value in the source). */
+export const isIsoInstant = (value: unknown): value is string =>
+  typeof value === "string" && ISO_INSTANT.test(value) && !Number.isNaN(Date.parse(value));
+
 /** "14 Nov 08:05Z": an instant in UTC, as the desk reads times. */
 export function formatUtc(iso: string): string {
   const d = new Date(iso);

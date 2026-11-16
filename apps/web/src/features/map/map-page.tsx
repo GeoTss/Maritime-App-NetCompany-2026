@@ -11,6 +11,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
 import { type CommandGroupDef, useRegisterCommands } from "@/components/command-menu";
 import { useMediaQuery } from "@/lib/motion";
+import { useSourceStatus } from "@/lib/queries";
 import {
   DEFAULT_LAYERS,
   LAYER_LABEL,
@@ -37,6 +38,20 @@ import { VesselPanel } from "./vessel-panel";
 const EMPTY: never[] = [];
 const PANEL_WIDTH_PX = 332;
 
+/** The element's rendered height, kept current (the layer switches wrap and grow). */
+function useElementHeight(el: HTMLElement | null): number {
+  const [height, setHeight] = useState(0);
+  useEffect(() => {
+    if (!el) return;
+    setHeight(el.offsetHeight);
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => setHeight(el.offsetHeight));
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [el]);
+  return height;
+}
+
 export function MapPage() {
   const [params, setParams] = useSearchParams();
   const wide = useMediaQuery("(min-width: 768px)", true);
@@ -44,6 +59,7 @@ export function MapPage() {
   const [step, setStep] = useState(0);
   const [focus, setFocus] = useState<MapFocus | null>(null);
   const [container, setContainer] = useState<HTMLElement | null>(null);
+  const [toggles, setToggles] = useState<HTMLElement | null>(null);
   const [snap, setSnap] = useState<number | string | null>(TRAY_SNAPS[1]);
 
   const vessels = useVessels();
@@ -155,11 +171,19 @@ export function MapPage() {
   const containerHeight = container?.clientHeight ?? 0;
   const hasPanel = vessel !== null || ship !== null;
   const showPanel = hasPanel && (wide || !plan);
+  // A failed read is said out loud: a failed hazard load must not read as "no hazards".
   const failed = [
     vessels.isError ? "the fleet" : null,
     traffic.isError ? "AIS traffic" : null,
     ports.isError ? "ports" : null,
+    hazards.isError ? "hazards" : null,
+    congestion.isError ? "port queues" : null,
   ].filter((x): x is string => x !== null);
+  const sources = useSourceStatus();
+  const aisMode = sources.data?.items.find((s) => s.source === "ais")?.mode ?? null;
+  const togglesHeight = useElementHeight(toggles);
+  // On a phone the panel covers the lower part of the map (at most 55 %).
+  const phonePanel = !wide && showPanel ? containerHeight * 0.55 : 0;
 
   const panelClass = wide
     ? "pointer-events-auto absolute top-2 right-2 z-10 w-[332px] max-w-[calc(100%-1rem)]"
@@ -183,15 +207,19 @@ export function MapPage() {
         selectedMmsi={selectedMmsi}
         focus={focus}
         inset={{
-          bottom: trayFraction * containerHeight,
+          bottom: Math.max(trayFraction * containerHeight, phonePanel),
           right: wide && showPanel ? PANEL_WIDTH_PX : 0,
+          top: togglesHeight + 8,
         }}
+        ready={(vessels.isSuccess || vessels.isError) && (hazards.isSuccess || hazards.isError)}
+        aisMode={aisMode}
         onSelectVessel={(v) => selectVessel(v.id)}
         onSelectShip={(mmsi) => selectShip(mmsi)}
       />
 
       <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-start gap-1.5 p-2">
         <LayerToggles
+          ref={setToggles}
           className="pointer-events-auto"
           layers={layers}
           onToggle={toggleLayer}

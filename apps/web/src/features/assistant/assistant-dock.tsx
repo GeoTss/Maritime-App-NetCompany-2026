@@ -3,23 +3,35 @@
  * number a fact chip) and the composer. No answer text streams before the release gate passes it.
  * The dock proposes nothing by itself: a proposal it makes is decided on the approvals screen.
  */
-import { AiChat02Icon, Refresh01Icon } from "@hugeicons/core-free-icons";
+import { AiChat02Icon, Alert02Icon, Refresh01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { DataTag } from "@/components/source-badge";
 import { Button } from "@/components/ui/button";
-import { queryKeys } from "@/lib/queries";
+import { queryKeys, useHealth } from "@/lib/queries";
 import { AnswerMessage } from "./answer-message";
 import { ask, isRunning, resetAssistant, retry, type Turn, useAssistant } from "./assistant-store";
 import { Composer } from "./composer";
 import { ProgressTrace } from "./progress-trace";
 
+/**
+ * The demo story's three questions, word for word and in story order (e2e/demo.spec.ts), so in
+ * replay every suggestion has a recorded answer.
+ */
 export const SUGGESTED_QUESTIONS = [
   "Where should Aegean Pioneer bunker, and who should we buy from?",
-  "What is the best route and speed to make the berth window in this weather?",
-  "How long is the queue at Rotterdam?",
+  "What is the best route and speed for Aegean Pioneer to make its berth window?",
+  "Instruct the master of Aegean Pioneer to sail the recommended route at the recommended speed.",
 ];
+
+/** How the API answers: replayed recordings (offline demo) or live model calls. */
+function ModelMode() {
+  const health = useHealth();
+  const mode = health.data?.llmMode;
+  if (!mode) return null;
+  return <DataTag kind={mode === "replay" ? "model-recorded" : "model-live"} />;
+}
 
 function TurnView({ turn, onRetry }: { turn: Turn; onRetry: () => void }) {
   const routeAnswer = turn.progress.some((p) => p.tool === "plan_route_speed");
@@ -31,15 +43,20 @@ function TurnView({ turn, onRetry }: { turn: Turn; onRetry: () => void }) {
       <p className="max-w-[60ch] text-sm font-medium text-text-1">{turn.question}</p>
       <ProgressTrace turn={turn} />
       {turn.status === "failed" ? (
-        <div
-          role="alert"
-          className="flex flex-col items-start gap-1.5 border-l-2 border-alarm pl-3"
-        >
-          <p className="text-xs/relaxed text-text-1">{turn.error}</p>
-          <Button variant="outline" size="sm" onClick={onRetry}>
-            <HugeiconsIcon icon={Refresh01Icon} strokeWidth={2} data-icon="inline-start" />
-            Try again
-          </Button>
+        <div role="alert" className="flex items-start gap-2">
+          <HugeiconsIcon
+            icon={Alert02Icon}
+            strokeWidth={2}
+            aria-hidden
+            className="mt-0.5 size-3.5 shrink-0 text-alarm"
+          />
+          <div className="flex flex-col items-start gap-1.5">
+            <p className="max-w-[60ch] text-xs/relaxed text-text-1">{turn.error}</p>
+            <Button variant="outline" size="sm" onClick={onRetry}>
+              <HugeiconsIcon icon={Refresh01Icon} strokeWidth={2} data-icon="inline-start" />
+              Try again
+            </Button>
+          </div>
         </div>
       ) : null}
       {turn.response ? <AnswerMessage response={turn.response} routeAnswer={routeAnswer} /> : null}
@@ -68,9 +85,10 @@ export function AssistantDock() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex h-9 shrink-0 items-center gap-2 border-b border-line px-3">
+      <div className="flex min-h-9 shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b border-line px-3 py-1">
         <h2 className="text-xs font-medium text-text-2 font-label">Assistant</h2>
         <DataTag kind="simulated" />
+        <ModelMode />
         {state.turns.length > 0 ? (
           <Button
             variant="ghost"

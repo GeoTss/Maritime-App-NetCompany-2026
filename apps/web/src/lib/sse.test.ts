@@ -1,6 +1,6 @@
 import type { AskEvent, AskResponse } from "@pharos/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { askStream } from "@/lib/sse";
+import { askStream, operatorAskError, REPLAY_MISS_MESSAGE } from "@/lib/sse";
 
 const response: AskResponse = {
   conversationId: 1,
@@ -90,6 +90,31 @@ describe("askStream", () => {
     const events: AskEvent[] = [];
     await askStream(request, (e) => events.push(e), new AbortController().signal);
     expect(events).toEqual([{ type: "error", message: "question: Required" }]);
+  });
+
+  it("a replay miss (stream event or HTTP code) becomes an operator sentence with no key or path", async () => {
+    const developer =
+      "replay_miss: LLM replay miss: no recording for request key 9f2c at /app/fixtures/llm-recordings/9f2c.json. Re-record it with LLM_MODE=record.";
+    mockStream([frame({ type: "error", message: developer })]);
+    const streamed: AskEvent[] = [];
+    await askStream(request, (e) => streamed.push(e), new AbortController().signal);
+    expect(streamed).toEqual([{ type: "error", message: REPLAY_MISS_MESSAGE }]);
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ error: "replay_miss", message: developer.slice(13) }), {
+            status: 500,
+          }),
+      ),
+    );
+    const http: AskEvent[] = [];
+    await askStream(request, (e) => http.push(e), new AbortController().signal);
+    expect(http).toEqual([{ type: "error", message: REPLAY_MISS_MESSAGE }]);
+    expect(REPLAY_MISS_MESSAGE).not.toMatch(/replay_miss|key|\/|LLM_MODE/);
+    // Other errors keep the API's own sentence.
+    expect(operatorAskError("Conversation 9 not found.")).toBe("Conversation 9 not found.");
   });
 
   it("an aborted ask ends quietly", async () => {

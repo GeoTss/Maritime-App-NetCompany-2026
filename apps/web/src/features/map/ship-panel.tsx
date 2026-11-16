@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/select";
 import { UntrustedText } from "@/components/untrusted-text";
 import { describeFailure } from "@/lib/api";
-import { formatUtcFull } from "@/lib/format";
+import { formatUtc } from "@/lib/format";
 import { Field, PanelFrame, Section } from "./panel-frame";
 import { loadFacts } from "./route-facts";
 import { FactCell } from "./route-tray";
@@ -114,7 +114,7 @@ export function ShipPanel({
               {ship.lat.toFixed(3)}, {ship.lon.toFixed(3)}
             </span>
           </Field>
-          <Field label="Reported at">{formatUtcFull(ship.updatedAt)}</Field>
+          <Field label="Reported at">{formatUtc(ship.updatedAt)}</Field>
         </dl>
       </Section>
 

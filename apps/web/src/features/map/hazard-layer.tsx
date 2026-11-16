@@ -1,6 +1,8 @@
 /**
  * Hazard zones in chart magenta, drawn with the radius the API returned (`zoneRadiusNm`). The
- * label is untrusted text; the demo hazard says it is synthetic.
+ * label is untrusted text; the demo hazard says it is synthetic. The callout sits above the
+ * hazard, clear of the port labels drawn to the right of their ports, and moves left or below
+ * near the edges of the visible map so the "synthetic" tag is never clipped.
  */
 
 import type { HazardZoneList } from "@pharos/shared";
@@ -9,7 +11,9 @@ import { useMemo } from "react";
 import { Layer, Marker, Source } from "react-map-gl/maplibre";
 import { DataTag } from "@/components/source-badge";
 import { UntrustedText } from "@/components/untrusted-text";
+import { cn } from "@/lib/utils";
 import type { MapColors } from "./basemap-style";
+import { LABEL_PRIORITY, useFlipLabel } from "./map-labels";
 
 const KIND_TEXT: Record<string, string> = {
   distress_beacon: "Distress beacon",
@@ -18,6 +22,41 @@ const KIND_TEXT: Record<string, string> = {
   safety_message: "Safety message",
   synthetic: "Hazard",
 };
+
+type Hazard = HazardZoneList["items"][number];
+
+function HazardCallout({ hazard }: { hazard: Hazard }) {
+  const { ref, flip, below } = useFlipLabel<HTMLDivElement>(hazard.lon, hazard.lat);
+  return (
+    <Marker longitude={hazard.lon} latitude={hazard.lat} anchor="center">
+      <div className="relative size-0">
+        <div
+          ref={ref}
+          data-testid={`hazard-${hazard.id}`}
+          data-map-label={LABEL_PRIORITY.hazard}
+          data-label-side={`${below ? "below" : "above"}-${flip ? "left" : "right"}`}
+          className={cn(
+            "absolute flex w-max max-w-44 flex-col items-start gap-0.5 rounded-sm border border-chart-magenta/60 bg-ink-950/85 px-1.5 py-1 text-xs",
+            below ? "top-2" : "bottom-2",
+            flip ? "right-2" : "left-2",
+          )}
+        >
+          <span className="flex items-center gap-1.5 text-chart-magenta">
+            {KIND_TEXT[hazard.kind] ?? hazard.kind}
+            {hazard.source === "synthetic" || hazard.kind === "synthetic" ? (
+              <DataTag kind="synthetic" />
+            ) : null}
+          </span>
+          <UntrustedText
+            text={hazard.label}
+            className="line-clamp-3 text-text-2"
+            title={hazard.label}
+          />
+        </div>
+      </div>
+    </Marker>
+  );
+}
 
 export function HazardLayer({
   hazards,
@@ -73,20 +112,7 @@ export function HazardLayer({
         />
       </Source>
       {hazards.map((h) => (
-        <Marker key={h.id} longitude={h.lon} latitude={h.lat} anchor="top-left">
-          <div
-            data-testid={`hazard-${h.id}`}
-            className="relative ml-2 flex max-w-56 flex-col items-start gap-0.5 rounded-sm border border-chart-magenta/60 bg-ink-950/85 px-1.5 py-1 text-xs"
-          >
-            <span className="flex items-center gap-1.5 text-chart-magenta">
-              {KIND_TEXT[h.kind] ?? h.kind}
-              {h.source === "synthetic" || h.kind === "synthetic" ? (
-                <DataTag kind="synthetic" />
-              ) : null}
-            </span>
-            <UntrustedText text={h.label} className="line-clamp-2 text-text-2" title={h.label} />
-          </div>
-        </Marker>
+        <HazardCallout key={h.id} hazard={h} />
       ))}
     </>
   );

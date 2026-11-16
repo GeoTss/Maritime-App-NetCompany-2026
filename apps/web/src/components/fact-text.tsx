@@ -4,10 +4,14 @@
  * becomes a `FactChip`, keeping the model's digits exactly as written. A marker whose id is not in
  * the answer's facts stays visible as plain text and is counted (the release gate should make that
  * impossible; if it happens, the operator sees it rather than a silent chip).
+ *
+ * The one documented display form: a written ISO instant ("2026-11-26T15:01:46.466Z") is one whole
+ * chip, shown in the desk's short UTC form ("26 Nov 15:01Z"); its popover shows the full value.
  */
 import type { Fact } from "@pharos/shared";
 import { Fragment, useEffect, useMemo } from "react";
 import { FactChip, FactLedgerProvider } from "@/components/fact-chip";
+import { formatUtc, ISO_INSTANT_SOURCE, isIsoInstant } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 /** Same shape as the release gate's: `[f_a]` or `[f_a, f_b]`. */
@@ -55,6 +59,8 @@ const NUMBER = String.raw`(?:(?:USD|EUR|US\$|[$€£])[  ]?)?[-−+]?\d{1,3}(?:
 const NUMBER_AT_END = new RegExp(`${NUMBER}${UNIT}?(?![A-Za-z0-9])$`, "u");
 /** Any number in a stretch of text (the fallback when the unit after it is not one we know). */
 const ANY_NUMBER = new RegExp(NUMBER, "gu");
+/** An ISO instant that ends a stretch of text: the whole token is the written value. */
+const INSTANT_AT_END = new RegExp(`${ISO_INSTANT_SOURCE}$`, "u");
 
 export type FactTextPart =
   | { kind: "text"; text: string }
@@ -73,6 +79,8 @@ interface Split {
 /** Finds the written number a citation belongs to at the end of the text before it. */
 function splitWritten(segment: string): Split {
   const trimmed = segment.replace(/\s+$/u, "");
+  const instant = INSTANT_AT_END.exec(trimmed);
+  if (instant) return { before: trimmed.slice(0, instant.index), written: instant[0], after: "" };
   const atEnd = NUMBER_AT_END.exec(trimmed);
   if (atEnd) return { before: trimmed.slice(0, atEnd.index), written: atEnd[0], after: "" };
   // A short word we do not know as a unit sits between the number and the marker ("12 boxes").
@@ -168,7 +176,9 @@ export function FactText({
           return (
             <Fragment key={key}>
               {part.written ? (
-                <FactChip fact={first}>{part.written}</FactChip>
+                <FactChip fact={first} written={part.written}>
+                  {isIsoInstant(part.written) ? formatUtc(part.written) : part.written}
+                </FactChip>
               ) : (
                 <FactChip fact={first} iconOnly />
               )}

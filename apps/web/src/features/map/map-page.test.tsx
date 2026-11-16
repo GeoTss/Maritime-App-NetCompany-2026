@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CommandMenuProvider } from "@/components/command-menu";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { createQueryClient } from "@/lib/queries";
+import { CongestionLayer, congestionSourceText } from "./congestion-layer";
 import {
   CONGESTION,
   HAZARDS,
@@ -36,6 +37,7 @@ vi.mock("react-map-gl/maplibre", () => ({
   ),
   Layer: ({ id }: { id: string }) => <div data-testid={`layer-${id}`} />,
   NavigationControl: () => null,
+  useMap: () => ({ current: undefined }),
 }));
 
 interface Call {
@@ -52,13 +54,25 @@ function json(body: unknown, status = 200) {
   });
 }
 
-function stubApi({ weather = "ok" as "ok" | "none" } = {}) {
+function stubApi({ weather = "ok" as "ok" | "none", failing = [] as string[] } = {}) {
   calls = [];
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: string, init?: RequestInit) => {
       const path = String(input);
       calls.push({ method: init?.method ?? "GET", path, body: (init?.body as string) ?? null });
+      if (failing.includes(path)) return json({ error: "db_down" }, 503);
+      if (path === "/api/sources")
+        return json({
+          items: [
+            {
+              source: "ais",
+              mode: "recorded",
+              detail: null,
+              updatedAt: "2026-11-14T08:00:00.000Z",
+            },
+          ],
+        });
       if (path === "/api/vessels") return json({ items: VESSELS });
       if (path === "/api/vessels/1") return json(VESSEL_DETAIL);
       if (path === "/api/voyages/1") return json(VOYAGE);
@@ -104,13 +118,47 @@ describe("MapPage", () => {
     expect(screen.queryByTestId("layer-weather-points")).toBeNull();
   });
 
-  it("draws the weather layer when a snapshot exists and the layer is switched on", async () => {
+  it("draws the weather layer from the start when a snapshot exists; the switch hides it", async () => {
     renderPage();
     const toggle = await screen.findByRole("button", { name: /weather/i });
     await waitFor(() => expect(toggle.hasAttribute("disabled")).toBe(false));
-    fireEvent.click(toggle);
+    expect(toggle.getAttribute("aria-pressed")).toBe("true");
     expect(await screen.findByTestId("layer-weather-points")).toBeTruthy();
     expect(screen.getByTestId("forecast-time").textContent).toMatch(/14 Nov 08:00Z/);
+    fireEvent.click(toggle);
+    await waitFor(() => expect(screen.queryByTestId("layer-weather-points")).toBeNull());
+  });
+
+  it("a failed hazard or port-queue load is said out loud, not drawn as none", async () => {
+    stubApi({ failing: ["/api/hazards", "/api/congestion"] });
+    renderPage();
+    // 5xx reads are retried twice before they count as failed.
+    await waitFor(
+      () => {
+        const alert = screen.getByRole("alert");
+        expect(alert.textContent).toMatch(/hazards/);
+        expect(alert.textContent).toMatch(/port queues/);
+      },
+      { timeout: 8000 },
+    );
+  }, 10_000);
+
+  it("port figures say what they are: simulated, or the AIS source's mode", () => {
+    render(
+      <CongestionLayer
+        congestion={CONGESTION.items}
+        ports={PORTS.items}
+        compact={false}
+        aisMode="recorded"
+      />,
+    );
+    const words = screen.getAllByTestId("congestion-source").map((el) => el.textContent);
+    expect(words).toContain("simulated");
+    expect(words).toContain("recorded");
+    expect(words).not.toContain("seed");
+    expect(words).not.toContain("ais");
+    expect(congestionSourceText("ais", null)).toBe("AIS");
+    expect(congestionSourceText("ais", "live")).toBe("live");
   });
 
   it("selecting a vessel sends no POST", async () => {

@@ -9,6 +9,7 @@ import type {
   PortCongestionList,
   PortList,
   RoutePlanResponse,
+  SourceMode,
   VesselSummary,
   WeatherView,
 } from "@pharos/shared";
@@ -34,6 +35,7 @@ import { CongestionLayer } from "./congestion-layer";
 import { FleetLayer } from "./fleet-layer";
 import { HazardLayer } from "./hazard-layer";
 import type { LayerState } from "./layer-toggles";
+import { declutterLabels, MapInsetContext } from "./map-labels";
 import { planBounds, RouteLayer } from "./route-layer";
 import { drawShipArrow, SHIP_ARROW_IMAGE, TRAFFIC_LAYER_IDS, TrafficLayer } from "./traffic-layer";
 import { WeatherLayer } from "./weather-layer";
@@ -65,11 +67,27 @@ export interface MapViewProps {
   selectedVesselId: number | null;
   selectedMmsi: string | null;
   focus: MapFocus | null;
-  /** Screen pixels the overlays take at the bottom and right, so framing leaves them clear. */
-  inset: { bottom: number; right: number };
+  /** Screen pixels the overlays take (panel right, tray or phone panel bottom, layer switches
+   * top), so framing and labels leave them clear. */
+  inset: { bottom: number; right: number; top: number };
+  /** The fleet and hazard reads have settled: the first view can be framed. */
+  ready: boolean;
+  /** The AIS source's mode, for port figures counted from AIS. */
+  aisMode: SourceMode | null;
   onSelectVessel: (vessel: VesselSummary) => void;
   onSelectShip: (mmsi: string) => void;
 }
+
+/** Below this canvas width the demo view cuts off the fleet, so the first view frames it. */
+const NARROW_CANVAS_PX = 640;
+/** A selection closer than this to an overlay or the edge counts as hidden. */
+const EDGE_MARGIN_PX = 32;
+
+/** Where to put `center` so it lands in the middle of the part of the canvas no overlay covers. */
+const clearOffset = (inset: MapViewProps["inset"]): [number, number] => [
+  -inset.right / 2,
+  (inset.top - inset.bottom) / 2,
+];
 
 export function MapView(props: MapViewProps) {
   const {
@@ -86,6 +104,8 @@ export function MapView(props: MapViewProps) {
     selectedMmsi,
     focus,
     inset,
+    ready,
+    aisMode,
     onSelectVessel,
     onSelectShip,
   } = props;
@@ -98,13 +118,84 @@ export function MapView(props: MapViewProps) {
   );
   const [cursor, setCursor] = useState("");
   const [zoom, setZoom] = useState<number>(DEMO_VIEW.zoom);
+  const [loaded, setLoaded] = useState(false);
 
   const onLoad = useCallback(() => {
+    setLoaded(true);
     const map = ref.current?.getMap();
     if (!map || map.hasImage(SHIP_ARROW_IMAGE)) return;
     const image = drawShipArrow();
     if (image) map.addImage(SHIP_ARROW_IMAGE, image, { sdf: true });
   }, []);
+
+  // The first view: on a narrow canvas the demo view cuts off the flagged vessel and the hazard,
+  // so frame them (clear of the layer switches): the vessels with an alert (all vessels when none
+  // has one) and the hazards. Framing the whole fleet would zoom out to where every label
+  // collides. A selection or a plan frames itself instead.
+  const framedFirst = useRef(false);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: framed once, when the data is in.
+  useEffect(() => {
+    const map = ref.current;
+    if (framedFirst.current || !loaded || !ready || !map) return;
+    framedFirst.current = true;
+    if (selectedVesselId !== null || selectedMmsi !== null || plan) return;
+    if (map.getContainer().clientWidth >= NARROW_CANVAS_PX) return;
+    const alerted = vessels.filter((v) => v.alerts.length > 0);
+    const points: [number, number][] = [
+      ...(alerted.length > 0 ? alerted : vessels).flatMap((v) =>
+        v.position ? [[v.position.lon, v.position.lat] as const] : [],
+      ),
+      ...hazards.map((h) => [h.lon, h.lat] as const),
+    ].map(([lon, lat]) => [lon, lat]);
+    if (points.length === 0) return;
+    const lons = points.map((p) => p[0]);
+    const lats = points.map((p) => p[1]);
+    map.fitBounds(
+      [
+        [Math.min(...lons), Math.min(...lats)],
+        [Math.max(...lons), Math.max(...lats)],
+      ],
+      {
+        padding: { top: inset.top + 24, left: 24, right: 24, bottom: inset.bottom + 32 },
+        duration: 0,
+        maxZoom: DEMO_VIEW.zoom,
+      },
+    );
+  }, [loaded, ready]);
+
+  // A selection (address, click or ⌘K) under the panel, the tray or off the canvas is brought
+  // into the clear part of the map. One that is already visible stays where it is.
+  const selectionKey =
+    selectedVesselId !== null ? `v${selectedVesselId}` : selectedMmsi ? `s${selectedMmsi}` : null;
+  const selectedVessel = vessels.find((v) => v.id === selectedVesselId);
+  const selectedShip = selectedMmsi ? traffic.find((s) => s.mmsi === selectedMmsi) : undefined;
+  const target = selectedVessel?.position ?? selectedShip ?? null;
+  const framedSelection = useRef<string | null>(null);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: once per selection, when it can be placed.
+  useEffect(() => {
+    if (selectionKey === null) {
+      framedSelection.current = null;
+      return;
+    }
+    const map = ref.current;
+    if (!loaded || !map || !target || framedSelection.current === selectionKey) return;
+    framedSelection.current = selectionKey;
+    // ⌘K flies to its own selection (see below).
+    if (focus?.key.startsWith(`${selectionKey}-`)) return;
+    const { x, y } = map.project([target.lon, target.lat]);
+    const el = map.getContainer();
+    const hidden =
+      x < EDGE_MARGIN_PX ||
+      y < inset.top + EDGE_MARGIN_PX ||
+      x > el.clientWidth - inset.right - EDGE_MARGIN_PX ||
+      y > el.clientHeight - inset.bottom - EDGE_MARGIN_PX;
+    if (!hidden) return;
+    map.easeTo({
+      center: [target.lon, target.lat],
+      offset: clearOffset(inset),
+      duration: reduce ? 0 : 500,
+    });
+  }, [selectionKey, loaded, target?.lat, target?.lon]);
 
   const onClick = useCallback(
     (e: MapLayerMouseEvent) => {
@@ -128,52 +219,97 @@ export function MapView(props: MapViewProps) {
     });
   }, [planId]);
 
-  // Fly to a selection made from the command menu.
+  // Fly to a selection made from the command menu, into the part of the map no panel covers.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: fly once per focus, not on inset changes.
   useEffect(() => {
     if (!focus) return;
     ref.current?.easeTo({
       center: [focus.lon, focus.lat],
       zoom: Math.max(ref.current?.getZoom() ?? 0, 5),
+      offset: clearOffset(inset),
       duration: reduce ? 0 : 500,
     });
   }, [focus, reduce]);
 
+  // Labels that would overlap a more important one hide until zoomed apart. Run after the labels
+  // have re-rendered (two frames) whenever the view or what is drawn changes.
+  const declutter = useCallback(() => {
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        const el = ref.current?.getContainer?.();
+        if (el) declutterLabels(el);
+      }),
+    );
+  }, []);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: re-run when anything drawn changes.
+  useEffect(declutter, [
+    declutter,
+    loaded,
+    vessels,
+    ports,
+    congestion,
+    hazards,
+    layers,
+    zoom,
+    inset.right,
+    inset.top,
+    selectedVesselId,
+  ]);
+  useEffect(() => {
+    const map = loaded ? ref.current?.getMap() : undefined;
+    if (!map) return;
+    map.on("resize", declutter);
+    return () => {
+      map.off("resize", declutter);
+    };
+  }, [loaded, declutter]);
+
   const interactive = layers.traffic ? [...TRAFFIC_LAYER_IDS] : [];
+  const insetValue = useMemo(
+    () => ({ right: inset.right, bottom: inset.bottom, top: inset.top }),
+    [inset.right, inset.bottom, inset.top],
+  );
   return (
-    <MapGL
-      ref={ref}
-      initialViewState={DEMO_VIEW}
-      mapStyle={style}
-      attributionControl={false}
-      minZoom={2.5}
-      maxZoom={11}
-      dragRotate={false}
-      touchPitch={false}
-      interactiveLayerIds={interactive}
-      cursor={cursor}
-      onLoad={onLoad}
-      onMoveEnd={(e) => setZoom(e.viewState.zoom)}
-      onClick={onClick}
-      onMouseMove={(e) => setCursor(e.features && e.features.length > 0 ? "pointer" : "")}
-      style={{ width: "100%", height: "100%" }}
-    >
-      <NavigationControl position="bottom-left" showCompass={false} />
-      {layers.weather && weather ? <WeatherLayer weather={weather} colors={colors} /> : null}
-      {layers.hazards ? <HazardLayer hazards={hazards} colors={colors} /> : null}
-      <RouteLayer plan={plan} track={track} colors={colors} />
-      {layers.traffic ? (
-        <TrafficLayer traffic={traffic} colors={colors} selectedMmsi={selectedMmsi} />
-      ) : null}
-      {layers.congestion ? (
-        <CongestionLayer
-          congestion={congestion}
-          ports={ports}
-          compact={zoom < COMPACT_BELOW_ZOOM}
-        />
-      ) : null}
-      {layers.fleet ? (
-        <FleetLayer vessels={vessels} selectedId={selectedVesselId} onSelect={onSelectVessel} />
-      ) : null}
-    </MapGL>
+    <MapInsetContext.Provider value={insetValue}>
+      <MapGL
+        ref={ref}
+        initialViewState={DEMO_VIEW}
+        mapStyle={style}
+        attributionControl={false}
+        minZoom={2.5}
+        maxZoom={11}
+        dragRotate={false}
+        touchPitch={false}
+        interactiveLayerIds={interactive}
+        cursor={cursor}
+        onLoad={onLoad}
+        onMoveEnd={(e) => {
+          setZoom(e.viewState.zoom);
+          declutter();
+        }}
+        onClick={onClick}
+        onMouseMove={(e) => setCursor(e.features && e.features.length > 0 ? "pointer" : "")}
+        style={{ width: "100%", height: "100%" }}
+      >
+        <NavigationControl position="bottom-left" showCompass={false} />
+        {layers.weather && weather ? <WeatherLayer weather={weather} colors={colors} /> : null}
+        {layers.hazards ? <HazardLayer hazards={hazards} colors={colors} /> : null}
+        <RouteLayer plan={plan} track={track} colors={colors} />
+        {layers.traffic ? (
+          <TrafficLayer traffic={traffic} colors={colors} selectedMmsi={selectedMmsi} />
+        ) : null}
+        {layers.congestion ? (
+          <CongestionLayer
+            congestion={congestion}
+            ports={ports}
+            compact={zoom < COMPACT_BELOW_ZOOM}
+            aisMode={aisMode}
+          />
+        ) : null}
+        {layers.fleet ? (
+          <FleetLayer vessels={vessels} selectedId={selectedVesselId} onSelect={onSelectVessel} />
+        ) : null}
+      </MapGL>
+    </MapInsetContext.Provider>
   );
 }

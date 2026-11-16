@@ -6,6 +6,13 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { createQueryClient } from "@/lib/queries";
 import { ApprovalsPage } from "./approvals-page";
 
+// The border beam reads motion's reduced-motion preference; the tests set it.
+const motion = vi.hoisted(() => ({ reduce: false }));
+vi.mock("motion/react", async (original) => ({
+  ...(await original<typeof import("motion/react")>()),
+  useReducedMotion: () => motion.reduce,
+}));
+
 const NOW = "2026-11-14T08:05:00.000Z";
 const fact = (id: string, label: string, value: number, unit: string) => ({
   id,
@@ -83,6 +90,15 @@ beforeEach(() => {
       const m = /^\/api\/recommendations\/(\d+)\/(approve|reject)$/.exec(path);
       if (m && method === "POST") return decide(Number(m[1]), m[2] as string);
       if (/\/drafts$/.test(path)) return json({ items: drafts });
+      if (path === "/api/review/reference")
+        return json({
+          vessels: [],
+          ports: [{ id: 3, unlocode: "MTMLA", name: "Marsaxlokk" }],
+          suppliers: [
+            { id: 1, name: "Kestrel Marine Fuels" },
+            { id: 3, name: "Strait Line Fuels" },
+          ],
+        });
       if (path.startsWith("/api/audit"))
         return json({
           items: [
@@ -120,7 +136,8 @@ function renderPage(initial = "/approvals") {
 const posts = () => calls.filter((c) => c.method === "POST");
 
 describe("ApprovalsPage", () => {
-  it("lists pending proposals first; only the top pending card carries the focal effect", async () => {
+  it("lists pending proposals first; exactly the top pending card carries the focal beam", async () => {
+    motion.reduce = false;
     items = [rec(3, { status: "rejected" }), rec(1), rec(2)];
     renderPage();
     const cards = await screen.findAllByRole("article");
@@ -129,10 +146,122 @@ describe("ApprovalsPage", () => {
       "pending",
       "rejected",
     ]);
-    expect(
-      cards.filter((c) => c.querySelector("[data-slot=border-beam], .border-beam")).length,
-    ).toBeLessThanOrEqual(1);
+    const beams = cards.map((c) => c.querySelectorAll("[data-slot=border-beam]").length);
+    expect(beams).toEqual([1, 0, 0]);
     expect(posts()).toEqual([]);
+  });
+
+  it("no beam under reduced motion", async () => {
+    motion.reduce = true;
+    items = [rec(1), rec(2)];
+    renderPage();
+    await screen.findAllByRole("article");
+    expect(document.querySelectorAll("[data-slot=border-beam]")).toHaveLength(0);
+  });
+
+  it("splits awaiting from decided, each under its own heading", async () => {
+    items = [rec(3, { status: "rejected" }), rec(1)];
+    renderPage();
+    const awaiting = await screen.findByRole("region", { name: /Awaiting your decision/ });
+    const decided = screen.getByRole("region", { name: /Decided/ });
+    expect(
+      within(awaiting)
+        .getAllByRole("article")
+        .map((a) => a.dataset.status),
+    ).toEqual(["pending"]);
+    expect(
+      within(decided)
+        .getAllByRole("article")
+        .map((a) => a.dataset.status),
+    ).toEqual(["rejected"]);
+  });
+
+  it("matches the saving chip by its provenance path and unit, never by value", async () => {
+    const calc = (id: string, label: string, value: number, path: string) => ({
+      id,
+      label,
+      value,
+      unit: "USD",
+      provenance: { source: "calculation", calculationId: 1, calculator: "planBunkers", path },
+    });
+    items = [
+      rec(1, {
+        expectedSavingUsd: 18250,
+        facts: [
+          // Same value, but not the saving: it must not become the saving's chip.
+          calc("f_other", "Barge fee", 18250, "options[0].bargeFeeUsd"),
+          calc("f_saving", "Saving", 18250, "savingVsCheapestHeadlineUsd"),
+        ],
+      }),
+    ];
+    renderPage();
+    const [card] = await screen.findAllByRole("article");
+    const saving = within(card as HTMLElement)
+      .getByText("Expected saving")
+      .parentElement?.querySelector("[data-slot=fact-chip]");
+    expect(saving?.getAttribute("data-fact-id")).toBe("f_saving");
+    expect(saving?.textContent).toBe("+USD 18,250");
+  });
+
+  it("names an option id beside its fact, without changing the value", async () => {
+    items = [
+      rec(1, {
+        status: "rejected",
+        facts: [
+          {
+            id: "f_best",
+            label: "Best option (lowest total cost, feasible)",
+            value: "MTMLA-kestrel",
+            unit: null,
+            provenance: {
+              source: "calculation",
+              calculationId: 1,
+              calculator: "planBunkers",
+              path: "bestOptionId",
+            },
+          },
+        ],
+      }),
+      rec(2, {
+        type: "voyage_instruction",
+        status: "rejected",
+        facts: [
+          {
+            id: "f_desc",
+            label: "MV Aegean Pioneer, route B: description",
+            value: "Shortest sea route",
+            unit: null,
+            provenance: { source: "db", table: "calculations", rowId: 5, field: "label" },
+          },
+          {
+            id: "f_route",
+            label: "MV Aegean Pioneer: recommended route",
+            value: "B",
+            unit: null,
+            provenance: {
+              source: "calculation",
+              calculationId: 5,
+              calculator: "route_speed",
+              path: "bestCandidateId",
+            },
+          },
+        ],
+      }),
+    ];
+    renderPage();
+    for (const trigger of await screen.findAllByRole("button", { name: /Facts and audit trail/ }))
+      fireEvent.click(trigger);
+    const best = (await screen.findByText("MTMLA-kestrel")).closest("li") as HTMLElement;
+    await waitFor(() =>
+      expect(within(best).getByTestId("option-name").textContent).toBe(
+        "Kestrel Marine Fuels at Marsaxlokk",
+      ),
+    );
+    const route = screen.getByText("MV Aegean Pioneer: recommended route").closest("li");
+    expect(within(route as HTMLElement).getByTestId("option-name").textContent).toBe(
+      "Shortest sea route",
+    );
+    expect(within(route as HTMLElement).getByRole("button").textContent).toBe("B");
   });
 
   it("shows a signed saving, as returned, and the gate and data tags", async () => {
@@ -239,8 +368,18 @@ describe("ApprovalsPage", () => {
     renderPage();
     expect(await screen.findByText(/PO-100234/)).toBeTruthy();
     expect(screen.getByText(/ERP sync: synced/)).toBeTruthy();
+    // Folded: the facts, drafts and audit trail open from one disclosure.
+    expect(screen.queryByText("Confirmation of order")).toBeNull();
+    const trigger = screen.getByRole("button", { name: /Facts, drafted messages and audit trail/ });
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(trigger);
     expect(await screen.findByText("Confirmation of order")).toBeTruthy();
     expect(await screen.findByText("recommendation.approved")).toBeTruthy();
+    // The audit detail reads as labelled pairs, not JSON.
+    const audit = screen.getByRole("region", { name: "Audit trail" });
+    expect(within(audit).getByText("ERP PO number")).toBeTruthy();
+    expect(within(audit).getByText("PO-1")).toBeTruthy();
+    expect(audit.textContent).not.toMatch(/[{}"]/);
   });
 
   it("a failed ERP sync reads not synced, will retry", async () => {
@@ -277,6 +416,9 @@ describe("ApprovalsPage", () => {
     ];
     drafts = [DRAFT];
     renderPage();
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Facts, drafted messages and audit trail/ }),
+    );
     expect(await screen.findByText("Confirmation of order")).toBeTruthy();
     expect(screen.getByText("draft, not sent")).toBeTruthy();
     expect(screen.queryAllByRole("button", { name: /send/i })).toEqual([]);

@@ -9,9 +9,24 @@ import { AskEvent, type AskRequest } from "@pharos/shared";
 const isAbort = (err: unknown, signal: AbortSignal) =>
   signal.aborted || (err instanceof DOMException && err.name === "AbortError");
 
+/**
+ * In replay (the offline demo) a question nobody recorded has no answer. The API's message names
+ * the request key and the recording path: developer text, so the operator gets a sentence instead.
+ */
+export const REPLAY_MISS_MESSAGE =
+  "This question has no recorded answer in the demo. Ask one of the suggested questions.";
+
+const isReplayMiss = (text: string) => /^replay_miss\b/.test(text);
+
+/** The error text the dock shows: the API's message, except a replay miss. */
+export function operatorAskError(message: string): string {
+  return isReplayMiss(message) ? REPLAY_MISS_MESSAGE : message;
+}
+
 async function httpErrorMessage(res: Response): Promise<string> {
   try {
     const body = (await res.json()) as { message?: unknown; error?: unknown };
+    if (typeof body.error === "string" && isReplayMiss(body.error)) return REPLAY_MISS_MESSAGE;
     if (typeof body.message === "string" && body.message) return body.message;
     if (typeof body.error === "string" && body.error) return body.error;
   } catch {
@@ -36,7 +51,7 @@ export async function askStream(
   const emit = (e: AskEvent) => {
     if (ended) return;
     if (e.type !== "progress") ended = true;
-    onEvent(e);
+    onEvent(e.type === "error" ? { ...e, message: operatorAskError(e.message) } : e);
   };
   const fail = (message: string) => emit({ type: "error", message });
 

@@ -2,7 +2,7 @@
  * Server state: one QueryClient, the query keys every screen shares, and the shell's own reads.
  * Queries are GETs only; a POST never runs from a query (it is an explicit user action).
  */
-import { SimClockView, SourceStatusList } from "@pharos/shared";
+import { HealthResponse, SimClockView, SourceStatusList } from "@pharos/shared";
 import { QueryClient, useQuery } from "@tanstack/react-query";
 import { api, isApiFailure } from "@/lib/api";
 
@@ -23,6 +23,7 @@ export function createQueryClient(): QueryClient {
 
 /** Query keys, so screens invalidate each other's data by name. */
 export const queryKeys = {
+  health: ["health"] as const,
   clock: ["clock"] as const,
   sources: ["sources"] as const,
   vessels: ["vessels"] as const,
@@ -49,6 +50,16 @@ export function useSimClock() {
     queryKey: queryKeys.clock,
     queryFn: ({ signal }) => api.get("/api/clock", SimClockView, { signal }),
     refetchInterval: (q) => (q.state.data?.pinned ? 60_000 : 15_000),
+    retry: false,
+  });
+}
+
+/** `GET /api/health`: how the API talks to the model (live, record or replay). Read once a minute. */
+export function useHealth() {
+  return useQuery({
+    queryKey: queryKeys.health,
+    queryFn: ({ signal }) => api.get("/api/health", HealthResponse, { signal }),
+    refetchInterval: 60_000,
     retry: false,
   });
 }

@@ -4,7 +4,7 @@ import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { createQueryClient } from "@/lib/queries";
-import { AssistantDock } from "./assistant-dock";
+import { AssistantDock, SUGGESTED_QUESTIONS } from "./assistant-dock";
 import { resetAssistant } from "./assistant-store";
 
 const gate = { passed: true, repaired: false, ungroundedCount: 0, attempts: [] };
@@ -52,10 +52,12 @@ interface Call {
 }
 let calls: Call[];
 let askReply: () => Response;
+let health: { llmMode: "live" | "record" | "replay" } | null;
 
 beforeEach(() => {
   resetAssistant();
   calls = [];
+  health = null;
   askReply = () => sse([frame({ type: "answer", response: response() })]);
   vi.stubGlobal(
     "fetch",
@@ -67,6 +69,16 @@ beforeEach(() => {
         body: typeof init?.body === "string" ? init.body : null,
       });
       if (path === "/api/ask/stream") return askReply();
+      if (path === "/api/health")
+        return health
+          ? json({
+              status: "ok",
+              db: "up",
+              extractModel: "claude-haiku-5-5",
+              agentModel: "claude-haiku-5-5",
+              ...health,
+            })
+          : json({ error: "unavailable" }, 503);
       if (path === "/api/vessels")
         return json({
           items: [
@@ -203,13 +215,49 @@ describe("AssistantDock", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
-  it("a replay miss (HTTP 500) shows as an error row", async () => {
-    askReply = () =>
-      json({ error: "replay_miss", message: "No recording for this question." }, 500);
+  it("a replay miss (HTTP 500 or stream event) shows an operator sentence, never the key or path", async () => {
+    const developer =
+      "LLM replay miss: no recording for request key 3fa9 at /app/fixtures/llm-recordings/3fa9.json. Re-record it with LLM_MODE=record.";
+    askReply = () => json({ error: "replay_miss", message: developer }, 500);
     renderDock();
     await ask("Who is cheapest?");
     const row = await screen.findByRole("alert");
-    expect(row.textContent).toMatch(/No recording for this question/);
+    expect(row.textContent).toContain(
+      "This question has no recorded answer in the demo. Ask one of the suggested questions.",
+    );
+    expect(row.textContent).not.toMatch(/replay_miss|request key|llm-recordings|LLM_MODE/);
+
+    askReply = () => sse([frame({ type: "error", message: `replay_miss: ${developer}` })]);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    });
+    const again = await screen.findByRole("alert");
+    expect(again.textContent).toContain("has no recorded answer in the demo");
+    expect(again.textContent).not.toMatch(/3fa9|LLM_MODE/);
+  });
+
+  it("offers exactly the suggested questions (the story's, see suggested-questions.test.ts)", () => {
+    renderDock();
+    const buttons = screen.getAllByRole("listitem").map((li) => li.textContent);
+    expect(buttons).toEqual(SUGGESTED_QUESTIONS);
+  });
+
+  it("says the model is recorded when the API replays recordings", async () => {
+    health = { llmMode: "replay" };
+    renderDock();
+    const tag = await screen.findByText("model: recorded");
+    expect(tag.getAttribute("data-kind")).toBe("model-recorded");
+  });
+
+  it("says the model is live when the API calls it, and nothing while health is unknown", async () => {
+    health = null;
+    const { unmount } = renderDock();
+    await waitFor(() => expect(calls.some((c) => c.path === "/api/health")).toBe(true));
+    expect(screen.queryByText(/^model:/)).toBeNull();
+    unmount();
+    health = { llmMode: "live" };
+    renderDock();
+    expect(await screen.findByText("model: live")).toBeTruthy();
   });
 
   it("a route answer offers Show on map, which only navigates", async () => {

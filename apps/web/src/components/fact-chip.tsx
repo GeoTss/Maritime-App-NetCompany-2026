@@ -18,7 +18,7 @@ import { createContext, type ReactNode, useContext, useMemo } from "react";
 import { Link } from "react-router";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { UntrustedText } from "@/components/untrusted-text";
-import { formatNumber, formatUtcFull } from "@/lib/format";
+import { formatNumber, formatUtc, formatUtcFull, isIsoInstant } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 const LedgerContext = createContext<ReadonlyMap<string, Fact>>(new Map());
@@ -59,10 +59,14 @@ const OPERATION: Record<DerivedOperation, string> = {
   max: "Largest of",
 };
 
-/** The fact's value for display when no text was written for it. */
+/**
+ * The fact's value for display when no text was written for it. An ISO instant reads in the desk's
+ * short UTC form ("26 Nov 15:01Z"); the popover shows the full value as returned.
+ */
 export function factDisplay(fact: Fact): string {
   if (typeof fact.value === "number") return formatNumber(fact.value, fact.unit);
   if (typeof fact.value === "boolean") return fact.value ? "yes" : "no";
+  if (isIsoInstant(fact.value)) return formatUtc(fact.value);
   return fact.unit ? `${fact.value} ${fact.unit}` : fact.value;
 }
 
@@ -197,12 +201,18 @@ function ProvenanceDetail({ provenance, depth }: { provenance: Provenance; depth
 export function FactChip({
   fact,
   children,
+  written,
   iconOnly = false,
   className,
 }: {
   fact: Fact;
   /** The number as the answer wrote it. Omitted, the chip shows the fact's value. */
   children?: ReactNode;
+  /**
+   * The answer's own text when the chip shows it in another form (an ISO instant shown as
+   * "26 Nov 15:01Z"); the popover then repeats it if it is not the fact's value.
+   */
+  written?: string;
   /** A citation with no written number before it (e.g. "route B [f_…]"): a small source mark. */
   iconOnly?: boolean;
   className?: string;
@@ -210,6 +220,10 @@ export function FactChip({
   const depth = useContext(DepthContext);
   const kind = PROVENANCE_KIND[fact.provenance.source];
   const label = children ?? factDisplay(fact);
+  const writtenOther =
+    written !== undefined && written !== String(fact.value) && written !== children
+      ? written
+      : null;
 
   return (
     <Popover>
@@ -237,10 +251,15 @@ export function FactChip({
         <DepthContext.Provider value={depth + 1}>
           <div className="flex flex-col gap-0.5">
             <span className="text-text-2">{fact.label}</span>
-            <span className="text-base text-text-1 tabular-nums">
+            <span className="text-base text-text-1 tabular-nums [overflow-wrap:anywhere]">
               {String(fact.value)}
               {fact.unit ? <span className="text-text-2"> {fact.unit}</span> : null}
             </span>
+            {writtenOther ? (
+              <span className="text-text-2">
+                Written in the answer as <span className="font-mono text-2xs">{writtenOther}</span>
+              </span>
+            ) : null}
           </div>
           <div className="flex flex-col gap-2 border-t border-line pt-2">
             <span className="flex items-center gap-1.5 text-text-2 font-label">

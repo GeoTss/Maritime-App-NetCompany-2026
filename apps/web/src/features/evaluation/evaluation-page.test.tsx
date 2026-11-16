@@ -67,14 +67,24 @@ describe("EvaluationPage", () => {
       expect(el).not.toBeNull();
       return el as HTMLElement;
     });
-    expect(within(row).getByText("646 of 651")).toBeTruthy();
+    // k of N in the readout voice (Archivo at 75 % width), the rest in Archivo too.
+    const kOfN = within(row).getByTestId("k-of-n");
+    expect(kOfN.textContent).toBe("646 of 651");
+    expect(kOfN.className).toMatch(/font-readout/);
+    expect(kOfN.className).not.toMatch(/font-mono/);
     expect(within(row).getByText("99.2%")).toBeTruthy();
-    expect(within(row).getByText("95 % interval 98.2% to 99.7%")).toBeTruthy();
-    expect(screen.getByText("claude-haiku-5-5")).toBeTruthy();
-    expect(screen.getByText("extract-quote/v2")).toBeTruthy();
-    expect(screen.getByText("5.5 s")).toBeTruthy();
-    expect(screen.getByText("USD 0.0007")).toBeTruthy();
-    expect(screen.getByText("dev split")).toBeTruthy();
+    // One percent style, sentence-consistent: "95%" like "99.2%".
+    expect(within(row).getByText("95% interval 98.2% to 99.7%")).toBeTruthy();
+    expect(row.querySelector(".font-mono")).toBeNull();
+    // Mono only for what you would copy: model id, prompt version, run time.
+    expect(screen.getByText("claude-haiku-5-5").className).toMatch(/font-mono/);
+    expect(screen.getByText("extract-quote/v2").className).toMatch(/font-mono/);
+    expect(screen.getByText("5.5 s").className).not.toMatch(/font-mono/);
+    expect(screen.getByText("USD 0.0007").className).not.toMatch(/font-mono/);
+    // "dev split" once per suite (the tag), and the run's live mode as a tag, not "(live)".
+    expect(screen.getAllByText("dev split")).toHaveLength(1);
+    expect(screen.getByText("live run").getAttribute("data-kind")).toBe("live-run");
+    expect(document.body.textContent).not.toMatch(/\(live\)|95 %/);
   });
 
   it("an expected-0 metric reads as a count of failures, not a success rate", async () => {
@@ -88,10 +98,10 @@ describe("EvaluationPage", () => {
       expect(el).not.toBeNull();
       return el as HTMLElement;
     });
-    expect(within(row).getByText("0 of 84")).toBeTruthy();
+    expect(within(row).getByTestId("k-of-n").textContent).toBe("0 of 84");
     expect(within(row).getByText("Target is 0; lower is better")).toBeTruthy();
     expect(row.textContent).toContain("none observed");
-    expect(row.textContent).toContain("95 % upper bound 4.4%");
+    expect(row.textContent).toContain("95% upper bound 4.4%");
     expect(row.textContent).not.toContain("0.0%");
     expect(row.textContent).not.toContain("(expected 0)");
   });

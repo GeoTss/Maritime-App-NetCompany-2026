@@ -3,6 +3,8 @@
  * fuel-on-board projection and the Plan route button. Fleet records carry no `facts[]`, so their
  * numbers are animated metrics, labelled as simulated data; only a plan's numbers are fact chips.
  */
+import { Alert02Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import type { FobProjection, RoutePlanResponse, VesselSummary } from "@pharos/shared";
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import { ErrorState } from "@/components/error-state";
@@ -17,7 +19,8 @@ import {
 } from "@/components/ui/chart";
 import { Skeleton } from "@/components/ui/skeleton";
 import { describeFailure } from "@/lib/api";
-import { formatNumber, formatUtc, formatUtcFull } from "@/lib/format";
+import { formatNumber, formatUtc } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import { useVesselDetail, useVoyage } from "./map-data";
 import { Field, PanelFrame, Section } from "./panel-frame";
 import { loadFacts } from "./route-facts";
@@ -35,11 +38,16 @@ export function alertText(flag: string): string {
   return ALERT_TEXT[flag] ?? flag.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
 }
 
+/**
+ * Beacon is for what you can act on, so no series uses it. LSMGO, the grade the alert is about,
+ * keeps the caution hue; VLSFO is slate; HSFO is hint text drawn dashed so it stays apart.
+ */
 const chartConfig = {
   LSMGO: { label: "LSMGO", color: "var(--chart-4)" },
-  VLSFO: { label: "VLSFO", color: "var(--chart-3)" },
-  HSFO: { label: "HSFO", color: "var(--chart-2)" },
+  VLSFO: { label: "VLSFO", color: "var(--plan)" },
+  HSFO: { label: "HSFO", color: "var(--text-3)" },
 } satisfies ChartConfig;
+const DASHED: Partial<Record<(typeof GRADES)[number], string>> = { HSFO: "4 3" };
 
 /** Fuel on board after each leg, as the projection returned it; no value is derived here. */
 function FobChart({ rob, projection }: { rob: VesselSummary["robMt"]; projection: FobProjection }) {
@@ -64,6 +72,7 @@ function FobChart({ rob, projection }: { rob: VesselSummary["robMt"]; projection
               type="linear"
               stroke={`var(--color-${g})`}
               strokeWidth={1.5}
+              strokeDasharray={DASHED[g]}
               dot={false}
               isAnimationActive={false}
             />
@@ -75,7 +84,7 @@ function FobChart({ rob, projection }: { rob: VesselSummary["robMt"]; projection
           <li key={g} className="flex items-center gap-1.5">
             <span
               aria-hidden
-              className="inline-block w-3 border-t-2"
+              className={cn("inline-block w-3 border-t-2", DASHED[g] && "border-dashed")}
               style={{ borderColor: `var(--color-${g})` }}
             />
             {g}
@@ -159,8 +168,14 @@ export function VesselPanel({
         <Section title="Alerts">
           <ul className="flex flex-col gap-1" data-testid="vessel-alerts">
             {vessel.alerts.map((a) => (
-              <li key={a} className="border-l-2 border-caution pl-2 text-text-1">
-                {alertText(a)}
+              <li key={a} className="flex items-start gap-1.5 text-text-1">
+                <HugeiconsIcon
+                  icon={Alert02Icon}
+                  strokeWidth={2}
+                  aria-hidden
+                  className="mt-0.5 size-3.5 shrink-0 text-caution"
+                />
+                <span>{alertText(a)}</span>
               </li>
             ))}
           </ul>
@@ -192,7 +207,7 @@ export function VesselPanel({
             )}
           </Field>
           <Field label="Reported at">
-            {vessel.positionAt ? formatUtcFull(vessel.positionAt) : "—"}
+            {vessel.positionAt ? formatUtc(vessel.positionAt) : "—"}
           </Field>
           {voyage.data ? (
             <>

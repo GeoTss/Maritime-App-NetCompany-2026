@@ -1,11 +1,12 @@
 /**
- * The approvals queue. Pending proposals first; the top one carries the page's single focal
- * effect. Approve and Reject are the only actions here and each asks first. A decision is one
+ * The approvals queue, in two parts: proposals awaiting a decision (the top one carries the page's
+ * single focal effect), then decided ones, folded to their outcome. Approve and Reject are the
+ * only actions here and each asks first. A decision is one
  * POST at a time; if the proposal was already decided (409) the card shows the status the API
  * now holds, read from a refetch, never guessed.
  */
 import { CheckListIcon } from "@hugeicons/core-free-icons";
-import { DecisionResult, listOf, RecommendationView } from "@pharos/shared";
+import { DecisionResult, listOf, RecommendationView, ReviewReference } from "@pharos/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router";
@@ -18,6 +19,7 @@ import { api, describeFailure, isApiFailure } from "@/lib/api";
 import { queryKeys } from "@/lib/queries";
 import { RecommendationCard } from "./approval-card";
 import { auditKey } from "./audit-trail";
+import { hasOptionFact } from "./option-name";
 
 const Recommendations = listOf(RecommendationView);
 
@@ -78,15 +80,18 @@ export function ApprovalsPage() {
   });
 
   const items = list.data?.items;
-  const ordered = useMemo(() => {
-    if (!items) return [];
-    return [
-      ...items.filter((r) => r.status === "pending"),
-      ...items.filter((r) => r.status !== "pending"),
-    ];
-  }, [items]);
-  const firstPending = ordered.find((r) => r.status === "pending")?.id ?? null;
-  const pendingCount = ordered.filter((r) => r.status === "pending").length;
+  const awaiting = useMemo(() => (items ?? []).filter((r) => r.status === "pending"), [items]);
+  const decided = useMemo(() => (items ?? []).filter((r) => r.status !== "pending"), [items]);
+  const ordered = useMemo(() => [...awaiting, ...decided], [awaiting, decided]);
+  const firstPending = awaiting[0]?.id ?? null;
+
+  // Port and supplier names, to name an option id ("MTMLA-kestrel") beside its fact.
+  const reference = useQuery({
+    queryKey: queryKeys.reviewReference,
+    enabled: (items ?? []).some((r) => hasOptionFact(r.facts)),
+    queryFn: ({ signal }) => api.get("/api/review/reference", ReviewReference, { signal }),
+  });
+  const names = reference.data ?? null;
 
   // Arriving from an assistant link: bring that proposal into view once it is listed.
   const present = linked !== null && ordered.some((r) => r.id === linked);
@@ -100,9 +105,6 @@ export function ApprovalsPage() {
     <div className="flex flex-col gap-3 p-3">
       <header className="flex items-baseline gap-3">
         <h1 className="text-lg text-text-1 font-title">Approvals</h1>
-        {items ? (
-          <span className="text-xs text-text-3">{pendingCount} awaiting a decision</span>
-        ) : null}
       </header>
       <p className="max-w-[64ch] text-xs/relaxed text-text-2">
         The assistant only proposes. Nothing changes until you approve or reject, and nothing is
@@ -135,21 +137,51 @@ export function ApprovalsPage() {
           }
         />
       ) : (
-        <div className="flex max-w-[860px] flex-col gap-3">
-          {ordered.map((rec) => (
-            <RecommendationCard
-              key={rec.id}
-              rec={rec}
-              focal={rec.id === firstPending}
-              linked={rec.id === linked}
-              pending={inFlight?.id === rec.id ? inFlight.decision : null}
-              locked={decide.isPending}
-              conflict={conflicts[rec.id] ?? null}
-              onDecide={(decision) =>
-                decide.mutateAsync({ id: rec.id, decision }).catch(() => undefined)
-              }
-            />
-          ))}
+        <div className="flex max-w-[860px] flex-col gap-6">
+          {[
+            {
+              id: "awaiting",
+              title: "Awaiting your decision",
+              recs: awaiting,
+              empty: "Nothing is awaiting a decision.",
+            },
+            { id: "decided", title: "Decided", recs: decided, empty: null },
+          ].map((group) =>
+            group.recs.length === 0 && group.empty === null ? null : (
+              <section
+                key={group.id}
+                aria-labelledby={`approvals-${group.id}`}
+                className="flex flex-col gap-3"
+              >
+                <h2
+                  id={`approvals-${group.id}`}
+                  className="flex items-baseline gap-2 text-xs font-medium text-text-2 font-label"
+                >
+                  {group.title}
+                  <span className="font-normal text-text-1 tabular-nums">{group.recs.length}</span>
+                </h2>
+                {group.recs.length === 0 ? (
+                  <p className="text-xs text-text-2">{group.empty}</p>
+                ) : (
+                  group.recs.map((rec) => (
+                    <RecommendationCard
+                      key={rec.id}
+                      rec={rec}
+                      focal={rec.id === firstPending}
+                      linked={rec.id === linked}
+                      pending={inFlight?.id === rec.id ? inFlight.decision : null}
+                      locked={decide.isPending}
+                      conflict={conflicts[rec.id] ?? null}
+                      names={names}
+                      onDecide={(decision) =>
+                        decide.mutateAsync({ id: rec.id, decision }).catch(() => undefined)
+                      }
+                    />
+                  ))
+                )}
+              </section>
+            ),
+          )}
         </div>
       )}
     </div>

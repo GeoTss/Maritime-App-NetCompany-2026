@@ -1,8 +1,9 @@
 /**
  * The evaluation page: the measured accuracy of extraction and answers, exactly as published.
- * Counts are "k of N", the interval is the published 95 % interval; nothing is recomputed here
- * and nothing animates. Metrics whose label ends "(expected 0)" read as counts of failures
- * (0 is good), never as a success percentage.
+ * Counts are "k of N" in the readout voice, the interval is the published 95% interval; nothing
+ * is recomputed here and nothing animates. Metrics whose label ends "(expected 0)" read as counts
+ * of failures (0 is good), never as a success percentage. Measurements set in Archivo with
+ * tabular figures; B612 Mono only for what you would copy: model ids, prompt versions, run times.
  */
 import { Analytics01Icon } from "@hugeicons/core-free-icons";
 import { EvalSummary } from "@pharos/shared";
@@ -28,7 +29,10 @@ const EXPECTED_ZERO = /\s*\(expected 0\)\s*$/i;
 
 const pct = (rate: number) => formatNumber(rate * 100, "%");
 
-/** A thin interval on a 0 to 100 % track, drawn from the published ci95; the tick is the published rate. */
+/**
+ * A thin interval on a 0 to 100% track, drawn from the published ci95; the tick is the published
+ * rate. Slate, not beacon: the bar is a reading, not something to act on.
+ */
 function IntervalBar({ metric }: { metric: Metric }) {
   if (!metric.ci95) return <span className="text-2xs text-text-3">no interval</span>;
   const [lo, hi] = metric.ci95;
@@ -37,10 +41,10 @@ function IntervalBar({ metric }: { metric: Metric }) {
   return (
     <span
       role="img"
-      aria-label={`95 % interval ${pct(lo)} to ${pct(hi)}`}
+      aria-label={`95% interval ${pct(lo)} to ${pct(hi)}`}
       className="relative block h-2 w-full min-w-24 rounded-sm bg-ink-800"
     >
-      <span className="absolute inset-y-0 rounded-sm bg-beacon/60" style={{ left, width }} />
+      <span className="absolute inset-y-0 rounded-sm bg-plan/60" style={{ left, width }} />
       {metric.rate !== null ? (
         <span
           className="absolute -inset-y-0.5 w-px bg-text-1"
@@ -58,7 +62,7 @@ function MetricRow({ metric }: { metric: Metric }) {
   return (
     <li
       data-metric={metric.key}
-      className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 border-b border-line py-2 md:grid-cols-[minmax(0,1.4fr)_9rem_minmax(0,1.6fr)]"
+      className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 border-b border-line py-2 md:grid-cols-[minmax(0,1.4fr)_11rem_minmax(0,1.6fr)]"
     >
       <div className="min-w-0">
         <div className="text-xs text-text-1">{label}</div>
@@ -66,28 +70,31 @@ function MetricRow({ metric }: { metric: Metric }) {
           <div className="text-2xs text-text-3">Target is 0; lower is better</div>
         ) : null}
       </div>
-      <div className="text-right md:text-left">
-        <span className={cn("font-mono text-sm tabular-nums", bad ? "text-alarm" : "text-text-1")}>
-          {metric.k} of {metric.n}
+      <div className="flex items-baseline justify-end gap-2 md:justify-start">
+        <span
+          data-testid="k-of-n"
+          className={cn("text-2xl font-readout tabular-nums", bad ? "text-alarm" : "text-text-1")}
+        >
+          {metric.k}
+          <span className="text-xs text-text-2 font-stretch-normal"> of </span>
+          {metric.n}
         </span>
         {metric.rate !== null && !expectedZero ? (
-          <span className="ml-2 font-mono text-2xs text-text-2 tabular-nums">
-            {pct(metric.rate)}
-          </span>
+          <span className="text-xs text-text-2 tabular-nums">{pct(metric.rate)}</span>
         ) : null}
       </div>
       <div className="col-span-2 flex flex-col gap-1 md:col-span-1">
         {expectedZero ? (
-          <span className="font-mono text-2xs text-text-2 tabular-nums">
+          <span className="text-xs text-text-2 tabular-nums">
             {metric.k === 0 ? "none observed; " : ""}
-            {metric.ci95 ? `95 % upper bound ${pct(metric.ci95[1])}` : "no interval"}
+            {metric.ci95 ? `95% upper bound ${pct(metric.ci95[1])}` : "no interval"}
           </span>
         ) : (
           <>
             <IntervalBar metric={metric} />
             {metric.ci95 ? (
-              <span className="font-mono text-2xs text-text-3 tabular-nums">
-                95 % interval {pct(metric.ci95[0])} to {pct(metric.ci95[1])}
+              <span className="text-xs text-text-3 tabular-nums">
+                95% interval {pct(metric.ci95[0])} to {pct(metric.ci95[1])}
               </span>
             ) : null}
           </>
@@ -109,20 +116,30 @@ function SuiteSection({ suite }: { suite: Suite }) {
           {SUITE_TITLE[suite.suite]}
         </h2>
         <DataTag kind="dev-split" />
-        <span className="text-2xs text-text-3">dev split, held-out pending</span>
+        <span className="text-2xs text-text-3">held-out pending</span>
       </div>
       <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs sm:grid-cols-4">
-        {[
-          ["Model", suite.model],
-          ["Prompt version", suite.promptVersion],
-          ["Run date", `${formatUtc(suite.runAt)} (${suite.mode})`],
-          ["Cost per item", costPerItem(suite.costUsdPerItem)],
-        ].map(([term, value]) => (
-          <div key={term} className="min-w-0">
-            <dt className="text-2xs text-text-3">{term}</dt>
-            <dd className="font-mono text-text-1 [overflow-wrap:anywhere]">{value}</dd>
-          </div>
-        ))}
+        <div className="min-w-0">
+          <dt className="text-2xs text-text-3">Model</dt>
+          <dd className="font-mono text-text-1 [overflow-wrap:anywhere]">{suite.model}</dd>
+        </div>
+        <div className="min-w-0">
+          <dt className="text-2xs text-text-3">Prompt version</dt>
+          <dd className="font-mono text-text-1 [overflow-wrap:anywhere]">{suite.promptVersion}</dd>
+        </div>
+        <div className="min-w-0">
+          <dt className="text-2xs text-text-3">Run date</dt>
+          <dd className="flex flex-wrap items-center gap-1.5 text-text-1">
+            <time dateTime={suite.runAt} className="font-mono">
+              {formatUtc(suite.runAt)}
+            </time>
+            {suite.mode === "live" ? <DataTag kind="live-run" /> : null}
+          </dd>
+        </div>
+        <div className="min-w-0">
+          <dt className="text-2xs text-text-3">Cost per item</dt>
+          <dd className="text-text-1 tabular-nums">{costPerItem(suite.costUsdPerItem)}</dd>
+        </div>
       </dl>
       <ul className="border-t border-line">
         {suite.metrics.map((m) => (
@@ -136,7 +153,7 @@ function SuiteSection({ suite }: { suite: Suite }) {
             {suite.latency.map((l) => (
               <li key={l.key} className="flex items-baseline gap-2">
                 <span className="text-text-2">{l.label}</span>
-                <span className="font-mono text-text-1 tabular-nums">{seconds(l.seconds)}</span>
+                <span className="text-text-1 tabular-nums">{seconds(l.seconds)}</span>
               </li>
             ))}
           </ul>
