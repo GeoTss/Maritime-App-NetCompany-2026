@@ -3,11 +3,13 @@
  * `/` map (Task 10), `/inbox` (Task 11), `/approvals` (Task 12), `/evaluation` (Task 13).
  * Deep links: `/inbox?document=<id>` opens one email (fact chips with a document source link here).
  */
-import { Analytics01Icon, CheckListIcon, Search01Icon } from "@hugeicons/core-free-icons";
+import { Analytics01Icon, Search01Icon } from "@hugeicons/core-free-icons";
 import type { IconSvgElement } from "@hugeicons/react";
 import { createBrowserRouter, Link, type RouteObject } from "react-router";
 import { AppShell } from "@/components/app-shell";
 import { EmptyState } from "@/components/empty-state";
+import { ApprovalsPage } from "@/features/approvals/approvals-page";
+import { AssistantDock } from "@/features/assistant/assistant-dock";
 import { KitPage } from "@/features/dev/kit-page";
 import { InboxPage } from "@/features/inbox/inbox-page";
 import { MapPage } from "@/features/map/map-page";
@@ -47,7 +49,7 @@ function NotFound() {
 
 export const routes: RouteObject[] = [
   {
-    element: <AppShell />,
+    element: <AppShell dock={<AssistantDock />} />,
     children: [
       {
         index: true,
@@ -59,13 +61,7 @@ export const routes: RouteObject[] = [
       },
       {
         path: "approvals",
-        element: (
-          <ScreenPlaceholder
-            title="Approvals"
-            icon={CheckListIcon}
-            description="Purchase orders and voyage instructions waiting for a decision."
-          />
-        ),
+        element: <ApprovalsPage />,
       },
       {
         path: "evaluation",
