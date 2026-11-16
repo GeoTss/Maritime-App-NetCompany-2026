@@ -313,6 +313,20 @@ export function makePlan(opts: { omitFact?: (fact: Fact) => boolean } = {}): Rou
     unit: null,
     provenance: { source: "db", table: "calculations", rowId: 1, field: "inputs.loadFactor" },
   });
+  facts.push({
+    id: "f_plan_loadCondition",
+    label: "MV Aegean Pioneer: load condition",
+    value: "partial",
+    unit: null,
+    provenance: { source: "db", table: "calculations", rowId: 1, field: "inputs.loadCondition" },
+  });
+  facts.push({
+    id: "f_plan_aisDraught",
+    label: "MMSI 211121690: AIS draught",
+    value: 8.2,
+    unit: "m",
+    provenance: { source: "ais", mmsi: "211121690", ts: "2026-11-14T07:59:59.666Z" },
+  });
   const kept = opts.omitFact ? facts.filter((f) => !opts.omitFact?.(f)) : facts;
   return {
     calculationId: 1,

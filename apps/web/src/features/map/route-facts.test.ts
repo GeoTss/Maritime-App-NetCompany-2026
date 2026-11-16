@@ -20,7 +20,26 @@ describe("route facts", () => {
     const loads = loadFacts(makePlan().facts);
     expect(loads.displacement?.value).toBe(65000);
     expect(loads.loadFactor?.value).toBe(0.96);
-    expect(loads.loadCondition).toBeUndefined();
+    expect(loads.loadCondition?.value).toBe("partial");
+    expect(loads.aisDraught?.value).toBe(8.2);
+  });
+
+  it("matches load facts by provenance, so a relabel changes nothing", () => {
+    const facts = makePlan().facts.map((f) => ({ ...f, label: "renamed" }));
+    const loads = loadFacts(facts);
+    expect(loads.loadCondition?.id).toBe("f_plan_loadCondition");
+    expect(loads.aisDraught?.id).toBe("f_plan_aisDraught");
+    expect(loads.displacement?.id).toBe("f_plan_displacement");
+  });
+
+  it("does not take a similarly named field for a load fact", () => {
+    const facts = makePlan({ omitFact: (f) => f.id === "f_plan_loadFactor" }).facts.map((f) =>
+      f.id === "f_plan_displacement"
+        ? { ...f, provenance: { ...f.provenance, field: "x.loadFactor" } as typeof f.provenance }
+        : f,
+    );
+    expect(loadFacts(facts).loadFactor).toBeUndefined();
+    expect(loadFacts(facts).displacement).toBeUndefined();
   });
 
   it("reads the saving fact", () => {

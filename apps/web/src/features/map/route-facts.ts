@@ -46,28 +46,26 @@ export interface LoadFacts {
   aisDraught?: Fact;
 }
 
-const dbField = (f: Fact) => (f.provenance.source === "db" ? f.provenance.field : "");
-
 /**
- * Load facts, shown only once a plan exists. Displacement and load factor are calculation inputs
- * (matched by the field they cite); an AIS ship's draught and load condition carry no path, so
- * those two are matched by the end of their label ("MMSI <n>: AIS draught").
+ * Provenance keys of the load facts. Copied from the API's fact builder
+ * (apps/api/src/routing/facts.ts: DISPLACEMENT_PATH, LOAD_FACTOR_PATH, LOAD_CONDITION_PATH);
+ * this app never imports backend code. The AIS draught is recognised by its `ais` provenance.
  */
+export const DISPLACEMENT_FIELD = "inputs.optimiser.curve.load.displacementMt";
+export const LOAD_FACTOR_FIELD = "inputs.loadFactor";
+export const LOAD_CONDITION_FIELD = "inputs.loadCondition";
+
+const dbFact = (facts: readonly Fact[], field: string) =>
+  facts.find((f) => f.provenance.source === "db" && f.provenance.field === field);
+
+/** Load facts, shown only once a plan exists. Matched by what each fact cites, never by label. */
 export function loadFacts(facts: readonly Fact[]): LoadFacts {
-  const out: LoadFacts = {};
-  for (const f of facts) {
-    const field = dbField(f);
-    if (field.endsWith("load.displacementMt") || field.endsWith("displacementMt")) {
-      out.displacement ??= f;
-    } else if (field.endsWith("loadFactor")) {
-      out.loadFactor ??= f;
-    } else if (/: AIS draught$/.test(f.label)) {
-      out.aisDraught ??= f;
-    } else if (/: load condition$/.test(f.label)) {
-      out.loadCondition ??= f;
-    }
-  }
-  return out;
+  return {
+    displacement: dbFact(facts, DISPLACEMENT_FIELD),
+    loadFactor: dbFact(facts, LOAD_FACTOR_FIELD),
+    loadCondition: dbFact(facts, LOAD_CONDITION_FIELD),
+    aisDraught: facts.find((f) => f.provenance.source === "ais"),
+  };
 }
 
 export type InfeasibleReason = RouteOptionResult["reasons"][number];

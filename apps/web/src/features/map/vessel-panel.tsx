@@ -217,6 +217,9 @@ export function VesselPanel({
             <Field label="Load factor">
               <FactCell fact={load.loadFactor} />
             </Field>
+            <Field label="Load condition">
+              <FactCell fact={load.loadCondition} />
+            </Field>
           </dl>
         ) : (
           <p className="text-text-2">Shown, with its source, once you plan a route.</p>
