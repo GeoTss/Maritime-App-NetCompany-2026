@@ -27,6 +27,8 @@ npm run dev:web         # ops console dev server :5173 (proxies /api to :4000)
 npm run map:basemap     # rebuild the bundled Natural Earth basemap
 npx impeccable detect apps/web/src   # design anti-pattern check (also on a URL)
 docker compose up -d --build   # db :5432, erp :4100, api :4000, web :5173
+npm run demo:reset      # reset the running stack to the clean demo state
+npx playwright test     # the six-step demo story (replay); STORY_SCREENSHOTS=docs rewrites docs/screenshots
 ```
 
 **npm cache on this machine:** `~/.npm` contains root-owned files, so install with a repo-local cache: `npm_config_cache=$PWD/.npm-cache npm install …` (`.npm-cache/` is gitignored). Only the lead session changes dependencies (one shared lockfile; hook-enforced for subagents).

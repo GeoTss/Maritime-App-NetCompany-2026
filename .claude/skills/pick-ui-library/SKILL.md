@@ -23,18 +23,18 @@ Settle the library for every need **before** writing feature code, then compose.
 | Bottom sheet, draggable drawer, mobile panel | **vaul** via shadcn `drawer` | `components/ui/` |
 | Cmd+K palette, searchable command list | **cmdk** via shadcn `command` | `components/ui/` |
 | A number that changes state (counts, waits, fuel on board) | **@number-flow/react** through the `MetricNumber` wrapper | `src/components/metric-number.tsx` |
-| Agent progress (thinking, tool calls) | Beautiful UI `thinking-state`, `tool-chips` | `src/components/primitives/` |
-| An agent proposal awaiting approval | Beautiful UI `approval-card` (restyled to the tokens) | `components/primitives/` |
-| Before/after or written/corrected comparison | Beautiful UI `diff-table` | `components/primitives/` |
+| Agent progress (thinking, tool calls) | `ThinkingState`, `ToolChips`: composed from shadcn primitives in `components/primitives` (Beautiful UI pattern) | `src/components/primitives/` |
+| An agent proposal awaiting approval | `ApprovalCard` + `DecisionButtons`: composed from shadcn primitives in `components/primitives` (Beautiful UI pattern) | `components/primitives/` |
+| Before/after or written/corrected comparison | `DiffTable`: composed from shadcn `table` in `components/primitives` (Beautiful UI pattern) | `components/primitives/` |
 | Charts | shadcn `chart` (Recharts) | `components/ui/` |
-| Map, layers, markers | MapLibre GL via `react-map-gl/maplibre`, basemap `public/basemap.generated.geojson` | `src/features/map/` |
+| Map, layers, markers | MapLibre GL via `react-map-gl/maplibre`, basemap `public/basemap.generated.geojson`; no tiles, glyphs or sprites; labels are HTML markers | `src/features/map/` |
 | Icons | `@hugeicons/react` + `@hugeicons/core-free-icons` | — |
 | Server state, routing | TanStack Query, react-router | `src/lib/`, `src/routes.tsx` |
 | One animated focal effect | Magic UI `ripple` (map: the flagged vessel) or `border-beam` (approvals: the top pending card) | `components/ui/` |
 
 If a need is not in the table, take the first that fits, in this order: an installed shadcn
-item → a shadcn registry item → a Beautiful UI item → compose from installed primitives. Say
-which you chose and why in your report. Aceternity UI and 21st.dev are not used (licence
+item → a shadcn registry item → compose from installed primitives. Say which you chose and why
+in your report. Aceternity UI and 21st.dev are not used (licence
 terms could not be verified as open), and nothing loads from a CDN: the demo runs offline.
 
 ## 2. Install what is missing (lead only)
@@ -46,7 +46,6 @@ command. The lead runs, from the repo root, with the repo-local npm cache:
 ```bash
 npm_config_cache=$PWD/.npm-cache npx shadcn@4.23.0 add <item> -y -c apps/web
 npm_config_cache=$PWD/.npm-cache npx shadcn@4.23.0 add @magicui/<item> -y -c apps/web
-npm_config_cache=$PWD/.npm-cache npx shadcn@4.23.0 add https://www.beautifului.dev/r/<item>.json -y -c apps/web
 ```
 
 Installed code lives in the repo and is meant to be read and edited there. Restyle it to the

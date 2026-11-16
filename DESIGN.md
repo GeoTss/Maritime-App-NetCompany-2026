@@ -132,7 +132,11 @@ components:
 <!-- Written by /impeccable document (scan mode) from the code shipped in Phase 6 Task 9:
      apps/web/src/styles/globals.css, components/ui/*, components/*, features/dev/kit-page.tsx.
      The qualitative language comes from the approved design deliverables (2026-11-16); no
-     separate interview was run. -->
+     separate interview was run. Updated in the Phase 6 fix wave (Task 15) from the shipped code.
+
+     Direction seed: none (pinned). No catalog world was rolled: the user pinned the direction in
+     their own words, a "Palantir Foundry ship-tracking look", "dark, dense, data-first"
+     (PRODUCT.md, Brand Commitments), and approved these tokens and fonts on 2026-11-16. -->
 
 ## Overview
 
@@ -149,7 +153,8 @@ The density is that of an instrument panel, not a dashboard: 28 px controls and 
 padding, hairline borders, tabular numerals everywhere a number appears. Every cited number is a
 fact chip that opens to its source, so the interface is built around evidence rather than
 emphasis. Inspiration is the dark, data-first look of commercial ship-tracking tools; none of any
-product's name, logo or assets.
+product's name, logo or assets. The direction is pinned by the user ("Palantir Foundry
+ship-tracking look", "dark, dense, data-first"); it is not open to a redesign roll.
 
 **Key Characteristics:**
 - Dark only; one token set on `:root`, `color-scheme: dark`.
@@ -210,7 +215,8 @@ legend of a chart; at full width it carries prose. B612 Mono marks things you wo
 up (MMSI, IMO, UN/LOCODE, fact ids, coordinates, the simulation clock).
 
 ### Hierarchy
-- **Readout** (400, 32 px, 36 px, 75 % width): large metric readouts on a panel.
+- **Readout** (400, 32 px, 36 px, 75 % width): large metric readouts on a panel; the "k of N"
+  counts on the evaluation page ("of" at 13 px in label text).
 - **Headline** (500, 24 px, 28 px, 88 %): screen titles.
 - **Title** (500, 15 to 18 px, 88 %): panel and section titles, an answer's lead.
 - **Body** (400, 13 px, 18 px): answers, emails, summaries; prose is held to 60 to 72 ch.
@@ -223,7 +229,11 @@ up (MMSI, IMO, UN/LOCODE, fact ids, coordinates, the simulation clock).
 on the body), so columns of figures align and changing values do not jitter.
 
 **The Mono-Means-Identifier Rule.** B612 Mono never sets prose, labels or decoration. If you would
-not copy it into a search box, it is not mono.
+not copy it into a search box, it is not mono. Measurements (counts, rates, intervals, latency,
+cost) are Archivo with tabular figures; mono is for model ids, prompt versions and timestamps.
+
+**One time and percent style.** Times read "16 Nov 15:45Z" everywhere (a fact's popover keeps the
+full ISO value it was returned with); percentages sit tight to the number ("95%", "99.2%").
 
 ## Layout
 
@@ -272,9 +282,15 @@ live or recorded mark beside a source) and vessel markers on the map.
   returned, the provenance by kind (database row, calculation, email sentence with a link to the
   inbox, AIS MMSI and time, weather snapshot, derived operands as nested chips) and the fact id.
 - **Data tag:** 20 px, 1 px corners, 11 px text: "simulated data" (neutral), "synthetic"
-  (magenta), "unverified" (amber), "dev split", "draft, not sent".
+  (magenta), "unverified" (amber), "dev split", "draft, not sent", "live run" (neutral, an
+  evaluation measured with live calls), "model: recorded" (amber) or "model: live" (green) in the
+  assistant's header, from the API's health.
 - **Source badge:** a status dot, the source name in label text, the mode in its hue (live green,
-  recorded amber); a tooltip explains the mode and when it last updated.
+  recorded amber); a tooltip explains the mode and when it last updated. Below 768 px the strip
+  keeps one dot and mode word per distinct mode ("recorded"), naming every source in its tooltip
+  and to assistive technology, so no source's mode leaves the screen.
+- **Status tag:** an inbox status in its hue; "Accepted after fix" (a quote a person corrected)
+  keeps the review hue with a caution border, never the green of a clean extraction.
 
 ### Cards / Containers
 - **Corner Style:** 0 to 2 px.
@@ -285,6 +301,21 @@ live or recorded mark beside a source) and vessel markers on the map.
 - **Approval card:** kind in label text and status in its hue in the header, a balanced title,
   the summary as fact text, then Approve (commit) and Reject (outline). The top pending card may
   carry the page's one focal effect, a caution border beam, which stops under reduced motion.
+  The queue is split under two headings, "Awaiting your decision" and "Decided"; a decided card
+  folds to header, title, saving and outcome, with its facts, drafts and audit trail behind one
+  disclosure. Audit details read as labelled pairs; an option id ("B", "MTMLA-kestrel") carries
+  its human name beside the chip.
+- **Callouts:** a 1 px hairline box or a leading status icon in its hue; never a coloured side
+  stripe.
+
+### Map labels
+- HTML markers (the basemap has no glyphs). A vessel's dot is its marker, centred on the position;
+  its name sits beside it, clear of an alerted vessel's ripple. Labels flip left at the right edge
+  of the visible map (the canvas, or the panel drawn over it), and the hazard callout sits above
+  its point (below near the top). Where labels would overlap, the lower one hides until zoomed
+  apart, in this order: hazard callout (always shown), flagged or selected vessel, vessel, port.
+- On a narrow canvas the first view frames the flagged vessel and the hazard; selecting a vessel
+  or ship that the panel, the tray or the edge would hide pans it into the clear part of the map.
 
 ### Inputs / Fields
 - **Style:** 28 px, strong-hairline border, panel-ink ground, 2 px corners; caret in beacon.
