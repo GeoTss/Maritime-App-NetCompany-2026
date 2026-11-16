@@ -201,7 +201,11 @@ describe("createLlmExtractor in replay mode", () => {
     expect(DEMO_RECORDING_CONFIG).toEqual(HAIKU);
     const extractor = createLlmExtractor(llm, DEMO_RECORDING_CONFIG);
     const files = (await readdir(inbox)).filter((f) => f.endsWith(".eml")).sort();
-    expect(files).toEqual(["01-kestrel-marsaxlokk.eml", "02-straitline-gibraltar.eml"]);
+    expect(files).toEqual([
+      "01-kestrel-marsaxlokk.eml",
+      "02-straitline-gibraltar.eml",
+      "03-nordwind-algeciras.eml",
+    ]);
     for (const file of files) {
       const email = await parseEmail(new Uint8Array(await readFile(new URL(file, inbox))));
       const { output, metrics } = await extractor.extract(email);

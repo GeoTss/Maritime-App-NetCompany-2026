@@ -16,3 +16,5 @@
 {"phase":5,"at":"2026-11-15T21:36:11.183Z","run":"eval-qa","label":"dev-haiku-v5","costUsd":0.03149607}
 {"phase":6,"at":"2026-11-16T00:37:46.527Z","run":"eval-qa","label":"dev-haiku-p6","costUsd":0.03693935999999999}
 {"phase":6,"at":"2026-11-16T00:38:16.708Z","run":"record-demo-ask","label":"ask-recording","costUsd":0.0015407800000000003}
+{"phase":6,"at":"2026-11-16T01:02:23.227Z","run":"demo-story-record","label":"phase6-story","costUsd":0.0165}
+{"phase":6,"at":"2026-11-16T01:08:17.392Z","run":"demo-story-record","label":"phase6-story-final","costUsd":0.007762}
