@@ -916,7 +916,7 @@ describe("Phase 6 contracts", () => {
     expect(() => DecisionBody.parse({ approve: true })).toThrow();
   });
 
-  it("EvalSummary accepts only live dev runs and k <= n", () => {
+  it("EvalSummary accepts only live runs and k <= n", () => {
     const suite = {
       suite: "qa",
       split: "dev",
@@ -934,8 +934,48 @@ describe("Phase 6 contracts", () => {
     const ok = { generatedAt: "2026-11-16T10:05:00.000Z", suites: [suite] };
     expect(EvalSummary.parse(ok)).toEqual(ok);
     expect(() => EvalSummary.parse({ ...ok, suites: [{ ...suite, mode: "replay" }] })).toThrow();
-    expect(() => EvalSummary.parse({ ...ok, suites: [{ ...suite, split: "heldout" }] })).toThrow();
+    const held = { ...suite, split: "heldout", label: "heldout-final" };
+    expect(EvalSummary.parse({ ...ok, suites: [held, suite] }).suites).toHaveLength(2);
+    expect(() => EvalSummary.parse({ ...ok, suites: [{ ...suite, split: "train" }] })).toThrow();
     const bad = { ...suite, metrics: [{ ...suite.metrics[0], k: 34 }] };
     expect(() => EvalSummary.parse({ ...ok, suites: [bad] })).toThrow();
+  });
+
+  it("EvalSummary accepts a held-out entry", () => {
+    const suite = {
+      suite: "extraction",
+      split: "heldout",
+      label: "heldout-final",
+      model: "claude-haiku-5-5",
+      promptVersion: "extract/v3",
+      runAt: "2026-11-16T10:00:00.000Z",
+      mode: "live",
+      metrics: [{ key: "errors", label: "Errors", k: 0, n: 156, rate: 0, ci95: [0, 0.02] }],
+      latency: [],
+      costUsdPerItem: 0.001,
+    };
+    const ok = { generatedAt: "2026-11-16T10:05:00.000Z", suites: [suite] };
+    expect(EvalSummary.parse(ok)).toEqual(ok);
+  });
+
+  it("EvalSummary rejects two entries with the same suite and split", () => {
+    const suite = {
+      suite: "qa",
+      split: "dev",
+      label: "a",
+      model: "m",
+      promptVersion: "p",
+      runAt: "2026-11-16T10:00:00.000Z",
+      mode: "live",
+      metrics: [],
+      latency: [],
+      costUsdPerItem: 0,
+    };
+    const at = "2026-11-16T10:05:00.000Z";
+    expect(() => EvalSummary.parse({ generatedAt: at, suites: [suite, suite] })).toThrow(
+      /duplicate/,
+    );
+    const other = { ...suite, split: "heldout" };
+    expect(EvalSummary.parse({ generatedAt: at, suites: [other, suite] })).toBeTruthy();
   });
 });

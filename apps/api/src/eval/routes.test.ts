@@ -59,6 +59,24 @@ describe("GET /api/eval/summary", () => {
     expect(res.headers.get("x-pharos-data")).toBeNull();
   });
 
+  it("serves a summary with a held-out entry next to the dev one", async () => {
+    const path = join(dir, "both.json");
+    const both: EvalSummary = {
+      ...SUMMARY,
+      suites: [
+        { ...SUMMARY.suites[0], split: "heldout", label: "Q&A (held-out)" },
+        ...SUMMARY.suites,
+      ].filter((x): x is EvalSummary["suites"][number] => x !== undefined),
+    };
+    await writeFile(path, JSON.stringify(both));
+    const res = await appAt(path).request("/api/eval/summary");
+    expect(res.status).toBe(200);
+    expect(EvalSummary.parse(await res.json()).suites.map((x) => x.split)).toEqual([
+      "heldout",
+      "dev",
+    ]);
+  });
+
   it("404s with no_published_summary when nothing is published", async () => {
     const res = await appAt(join(dir, "absent.json")).request("/api/eval/summary");
     expect(res.status).toBe(404);

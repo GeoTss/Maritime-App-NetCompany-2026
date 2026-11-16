@@ -486,46 +486,57 @@ export type DecisionBody = z.infer<typeof DecisionBody>;
 
 const Ci95 = z.tuple([z.number().min(0).max(1), z.number().min(0).max(1)]);
 
-/** `GET /api/eval/summary`: published live-run scorecards (dev split) for the evaluation page. */
+/** `GET /api/eval/summary`: published live-run scorecards (dev and held-out, one entry per suite and split) for the evaluation page. */
 export const EvalSummary = z
   .object({
     generatedAt: IsoDateTime,
-    suites: z.array(
-      z
-        .object({
-          suite: z.enum(["extraction", "qa"]),
-          split: z.literal("dev"),
-          label: z.string().min(1),
-          model: z.string().min(1),
-          promptVersion: z.string().min(1),
-          runAt: IsoDateTime,
-          mode: z.literal("live"),
-          metrics: z.array(
-            z
-              .object({
-                key: z.string().min(1),
-                label: z.string().min(1),
-                k: z.number().int().nonnegative(),
-                n: z.number().int().nonnegative(),
-                rate: z.number().min(0).max(1).nullable(),
-                ci95: Ci95.nullable(),
-              })
-              .strict()
-              .refine((m) => m.k <= m.n, { message: "k must not exceed n" }),
-          ),
-          latency: z.array(
-            z
-              .object({
-                key: z.string().min(1),
-                label: z.string().min(1),
-                seconds: z.number().nonnegative(),
-              })
-              .strict(),
-          ),
-          costUsdPerItem: z.number().nonnegative(),
-        })
-        .strict(),
-    ),
+    suites: z
+      .array(
+        z
+          .object({
+            suite: z.enum(["extraction", "qa"]),
+            split: z.enum(["dev", "heldout"]),
+            label: z.string().min(1),
+            model: z.string().min(1),
+            promptVersion: z.string().min(1),
+            runAt: IsoDateTime,
+            mode: z.literal("live"),
+            metrics: z.array(
+              z
+                .object({
+                  key: z.string().min(1),
+                  label: z.string().min(1),
+                  k: z.number().int().nonnegative(),
+                  n: z.number().int().nonnegative(),
+                  rate: z.number().min(0).max(1).nullable(),
+                  ci95: Ci95.nullable(),
+                })
+                .strict()
+                .refine((m) => m.k <= m.n, { message: "k must not exceed n" }),
+            ),
+            latency: z.array(
+              z
+                .object({
+                  key: z.string().min(1),
+                  label: z.string().min(1),
+                  seconds: z.number().nonnegative(),
+                })
+                .strict(),
+            ),
+            costUsdPerItem: z.number().nonnegative(),
+          })
+          .strict(),
+      )
+      .superRefine((suites, ctx) => {
+        const seen = new Set<string>();
+        for (const [i, s] of suites.entries()) {
+          const key = `${s.suite}/${s.split}`;
+          if (seen.has(key)) {
+            ctx.addIssue({ code: "custom", path: [i], message: `duplicate entry for ${key}` });
+          }
+          seen.add(key);
+        }
+      }),
   })
   .strict();
 export type EvalSummary = z.infer<typeof EvalSummary>;

@@ -1,16 +1,20 @@
 /**
- * Publish the measured accuracy: live dev reports -> evals/published/summary.json (`EvalSummary`),
- * the file GET /api/eval/summary serves. Only live (or record, a live run that also writes
- * recordings) dev reports are accepted; replay, oracle, empty and held-out reports are refused,
- * and so is a record report with any call served from a recording (record is replay-first).
- * Rates and intervals are the scorecard's own; nothing is recomputed.
+ * Publish the measured accuracy: live reports -> evals/published/summary.json (`EvalSummary`),
+ * the file GET /api/eval/summary serves. A dev report is accepted when live (or record, a live
+ * run that also writes recordings) and a record report has no call served from a recording
+ * (record is replay-first). A held-out report is accepted only when it is a complete `--final`
+ * live pass: meta.final, mode live, no runnerErrors, and exactly one first-run row for every id
+ * of the held-out split. Replay, oracle and empty reports are refused. Rates and intervals are
+ * the scorecard's own (the errors metric's interval is the same Wilson interval); the entries a
+ * run does not touch are kept from the existing summary.
  *
- *   npm run eval:publish -- --extraction <report dir> --qa <report dir>
+ *   npm run eval:publish -- [--extraction <dir>] [--qa <dir>] [--out <file>]
  */
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { EvalSummary } from "@pharos/shared";
+import { wilson } from "./extraction/scorecard.js";
 
 export class PublishRefusal extends Error {
   override name = "PublishRefusal";
@@ -26,7 +30,10 @@ interface Rated {
   ci95: { low: number; high: number } | null;
 }
 
-const OUT = join(dirname(fileURLToPath(import.meta.url)), "published", "summary.json");
+const HERE = dirname(fileURLToPath(import.meta.url));
+const OUT = join(HERE, "published", "summary.json");
+const GOLDEN = join(HERE, "golden");
+const ERRORS_LABEL = "Errors, truncations and refusals (expected 0)";
 
 function at(o: unknown, path: string): unknown {
   let cur: unknown = o;
@@ -52,6 +59,26 @@ function metric(card: unknown, path: string, key: string, label: string): Metric
   };
 }
 
+/** k = scorecard.errors.length over the cases (extraction) or questions (Q&A) run. */
+function errorsMetric(card: unknown, countPath: "cases" | "questions"): Metric {
+  const errors = at(card, "errors");
+  const n = at(card, countPath);
+  if (!Array.isArray(errors) || typeof n !== "number" || !Number.isInteger(n)) {
+    throw new PublishRefusal(`scorecard has no errors list or no ${countPath} count`);
+  }
+  const k = errors.length;
+  if (k > n) throw new PublishRefusal(`scorecard lists ${k} errors over ${n} ${countPath}`);
+  const ci = wilson(k, n);
+  return {
+    key: "errors",
+    label: ERRORS_LABEL,
+    k,
+    n,
+    rate: n === 0 ? null : k / n,
+    ci95: ci ? [ci.low, ci.high] : null,
+  };
+}
+
 function dist(card: unknown, path: string, stat: "mean" | "p90", key: string, label: string) {
   const ms = at(card, `${path}.${stat}`);
   if (typeof ms !== "number")
@@ -59,7 +86,7 @@ function dist(card: unknown, path: string, stat: "mean" | "p90", key: string, la
   return { key, label, seconds: ms / 1000 };
 }
 
-async function load(dir: string, expected: Suite) {
+async function load(dir: string, expected: Suite, goldenRoot: string) {
   let raw: string;
   try {
     raw = await readFile(join(resolve(dir), "scorecard.json"), "utf8");
@@ -109,23 +136,94 @@ async function load(dir: string, expected: Suite) {
       );
     }
   }
-  if (meta.split !== "dev") {
-    throw new PublishRefusal(
-      `${dir}: split "${String(meta.split)}" is not dev; held-out reports are never published`,
-    );
+  if (meta.split !== "dev" && meta.split !== "heldout") {
+    throw new PublishRefusal(`${dir}: split "${String(meta.split)}" is neither dev nor heldout`);
   }
+  if (meta.split === "heldout") await checkHeldOut(dir, expected, meta, goldenRoot);
   for (const f of ["label", "model", "promptVersion", "finishedAt"] as const) {
     if (typeof meta[f] !== "string" || meta[f] === "")
       throw new PublishRefusal(`${dir}: meta.${f} missing`);
   }
-  return { meta: meta as Record<string, string>, scorecard };
+  return {
+    meta: meta as Record<string, string>,
+    scorecard,
+    split: meta.split as "dev" | "heldout",
+  };
 }
 
-async function qaSuite(dir: string): Promise<EvalSummary["suites"][number]> {
-  const { meta, scorecard: c } = await load(dir, "qa");
+/** Ruling P7: a held-out report is publishable only as a complete, final, live pass. */
+async function checkHeldOut(
+  dir: string,
+  suite: Suite,
+  meta: Record<string, unknown>,
+  goldenRoot: string,
+): Promise<void> {
+  if (meta.final !== true) {
+    throw new PublishRefusal(
+      `${dir}: held-out report is not a --final pass (meta.final is not true)`,
+    );
+  }
+  if (meta.mode !== "live") {
+    throw new PublishRefusal(
+      `${dir}: held-out report has mode "${String(meta.mode)}"; a held-out pass is published only when live`,
+    );
+  }
+  const runnerErrors = meta.runnerErrors;
+  if (!Array.isArray(runnerErrors) || runnerErrors.length > 0) {
+    throw new PublishRefusal(
+      `${dir}: held-out report has meta.runnerErrors (${Array.isArray(runnerErrors) ? runnerErrors.length : "missing"}); the run failed`,
+    );
+  }
+  let expected: string[];
+  try {
+    const split = JSON.parse(await readFile(join(goldenRoot, suite, "split.json"), "utf8")) as {
+      heldout?: unknown;
+    };
+    if (!Array.isArray(split.heldout) || !split.heldout.every((x) => typeof x === "string")) {
+      throw new Error("no heldout id list");
+    }
+    expected = split.heldout as string[];
+  } catch (e) {
+    throw new PublishRefusal(
+      `${dir}: cannot read the held-out ids of ${suite}/split.json (${e instanceof Error ? e.message : String(e)})`,
+    );
+  }
+  let text: string;
+  try {
+    text = await readFile(join(resolve(dir), "rows.jsonl"), "utf8");
+  } catch {
+    throw new PublishRefusal(`${dir}: held-out report has no readable rows.jsonl`);
+  }
+  const firstRuns = new Map<string, number>();
+  for (const line of text.split("\n")) {
+    if (line.trim() === "") continue;
+    const row = JSON.parse(line) as { id?: unknown; run?: unknown };
+    if (typeof row.id !== "string") throw new PublishRefusal(`${dir}: a rows.jsonl row has no id`);
+    if (row.run === undefined || row.run === 1) {
+      firstRuns.set(row.id, (firstRuns.get(row.id) ?? 0) + 1);
+    }
+  }
+  const want = new Set(expected);
+  const missing = expected.filter((id) => !firstRuns.has(id));
+  const extra = [...firstRuns.keys()].filter((id) => !want.has(id));
+  const twice = [...firstRuns].filter(([, c]) => c > 1).map(([id]) => id);
+  if (missing.length > 0 || extra.length > 0 || twice.length > 0) {
+    const parts = [
+      missing.length > 0 ? `no first-run row for ${missing.slice(0, 5).join(", ")}` : "",
+      extra.length > 0 ? `rows outside the held-out split: ${extra.slice(0, 5).join(", ")}` : "",
+      twice.length > 0 ? `more than one first-run row for ${twice.slice(0, 5).join(", ")}` : "",
+    ].filter(Boolean);
+    throw new PublishRefusal(
+      `${dir}: held-out first-run rows do not cover the split exactly once each (${parts.join("; ")})`,
+    );
+  }
+}
+
+async function qaSuite(dir: string, goldenRoot: string): Promise<EvalSummary["suites"][number]> {
+  const { meta, scorecard: c, split } = await load(dir, "qa", goldenRoot);
   return {
     suite: "qa",
-    split: "dev",
+    split,
     label: meta.label as string,
     model: meta.model as string,
     promptVersion: meta.promptVersion as string,
@@ -140,6 +238,7 @@ async function qaSuite(dir: string): Promise<EvalSummary["suites"][number]> {
       metric(c, "proposedBest", "proposedBest", "Proposed option is the best one"),
       metric(c, "unauthorised", "unauthorised", "Unauthorised actions (expected 0)"),
       metric(c, "repaired", "repaired", "Answers repaired by the release gate"),
+      errorsMetric(c, "questions"),
     ],
     latency: [
       dist(c, "latency.firstProgress", "mean", "firstProgressMean", "First progress, mean"),
@@ -150,11 +249,14 @@ async function qaSuite(dir: string): Promise<EvalSummary["suites"][number]> {
   };
 }
 
-async function extractionSuite(dir: string): Promise<EvalSummary["suites"][number]> {
-  const { meta, scorecard: c } = await load(dir, "extraction");
+async function extractionSuite(
+  dir: string,
+  goldenRoot: string,
+): Promise<EvalSummary["suites"][number]> {
+  const { meta, scorecard: c, split } = await load(dir, "extraction", goldenRoot);
   return {
     suite: "extraction",
-    split: "dev",
+    split,
     label: meta.label as string,
     model: meta.model as string,
     promptVersion: meta.promptVersion as string,
@@ -168,21 +270,32 @@ async function extractionSuite(dir: string): Promise<EvalSummary["suites"][numbe
       metric(c, "kind.notAQuoteRecall", "notAQuoteRecall", "Not-a-quote recall"),
       metric(c, "unsafeAutoAccepts", "unsafeAutoAccepts", "Unsafe auto-accepts (expected 0)"),
       metric(c, "reviewQueue", "reviewQueue", "Emails sent to review"),
+      errorsMetric(c, "cases"),
     ],
     latency: [dist(c, "latency.endToEnd", "mean", "emailMean", "Per email, mean")],
     costUsdPerItem: at(c, "cost.perEmail.mean") as number,
   };
 }
 
+/** Held-out before dev within a suite; suites in the order extraction, qa. */
+function order(e: EvalSummary["suites"][number]): number {
+  return (e.suite === "extraction" ? 0 : 2) + (e.split === "heldout" ? 0 : 1);
+}
+
 export async function buildSummary(
   dirs: { extraction?: string; qa?: string },
   now: Date,
+  previous?: EvalSummary,
+  goldenRoot: string = GOLDEN,
 ): Promise<EvalSummary> {
-  const suites: EvalSummary["suites"] = [];
-  if (dirs.extraction) suites.push(await extractionSuite(dirs.extraction));
-  if (dirs.qa) suites.push(await qaSuite(dirs.qa));
-  if (suites.length === 0)
+  const fresh: EvalSummary["suites"] = [];
+  if (dirs.extraction) fresh.push(await extractionSuite(dirs.extraction, goldenRoot));
+  if (dirs.qa) fresh.push(await qaSuite(dirs.qa, goldenRoot));
+  if (fresh.length === 0)
     throw new PublishRefusal("give --extraction and/or --qa a report directory");
+  const replaced = new Set(fresh.map((e) => `${e.suite}/${e.split}`));
+  const kept = (previous?.suites ?? []).filter((e) => !replaced.has(`${e.suite}/${e.split}`));
+  const suites = [...kept, ...fresh].sort((x, y) => order(x) - order(y));
   const parsed = EvalSummary.safeParse({ generatedAt: now.toISOString(), suites });
   if (!parsed.success)
     throw new PublishRefusal(`summary failed validation: ${parsed.error.message}`);
@@ -190,19 +303,34 @@ export async function buildSummary(
 }
 
 async function main(argv: string[]): Promise<void> {
+  const usage = "usage: eval:publish [--extraction <dir>] [--qa <dir>] [--out <file>]";
   const dirs: { extraction?: string; qa?: string } = {};
+  let out = OUT;
   for (let i = 0; i < argv.length; i += 2) {
     const flag = argv[i];
     const value = argv[i + 1];
-    if ((flag !== "--extraction" && flag !== "--qa") || !value) {
-      throw new PublishRefusal("usage: eval:publish --extraction <dir> --qa <dir>");
+    if ((flag !== "--extraction" && flag !== "--qa" && flag !== "--out") || !value) {
+      throw new PublishRefusal(usage);
     }
-    dirs[flag === "--qa" ? "qa" : "extraction"] = value;
+    if (flag === "--out") out = resolve(value);
+    else dirs[flag === "--qa" ? "qa" : "extraction"] = value;
   }
-  const summary = await buildSummary(dirs, new Date());
-  await mkdir(dirname(OUT), { recursive: true });
-  await writeFile(OUT, `${JSON.stringify(summary, null, 2)}\n`);
-  console.log(`published ${summary.suites.map((s) => s.suite).join(" + ")} -> ${OUT}`);
+  let previous: EvalSummary | undefined;
+  try {
+    previous = EvalSummary.parse(JSON.parse(await readFile(out, "utf8")));
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== "ENOENT") {
+      throw new PublishRefusal(
+        `${out} exists but is not a valid summary: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+  }
+  const summary = await buildSummary(dirs, new Date(), previous);
+  await mkdir(dirname(out), { recursive: true });
+  await writeFile(out, `${JSON.stringify(summary, null, 2)}\n`);
+  console.log(
+    `published ${summary.suites.map((s) => `${s.suite}/${s.split}`).join(" + ")} -> ${out}`,
+  );
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
