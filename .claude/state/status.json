@@ -1,37 +1,35 @@
 {
   "phase": 7,
-  "phaseName": "Final measurement & demo hardening",
+  "phaseName": "Complete — all phases gated (prototype done)",
   "lastGate": {
-    "phase": 6,
+    "phase": 7,
     "result": "PASS",
     "at": "2026-11-16",
-    "note": "verify green (139 files / 2953 tests, DB tests ran, lint 0 errors, purity OK); web build with CSP default-src 'self'; demo story (npm run demo:reset && npx playwright test, every source recorded, LLM_MODE=replay) PASS 12.2 s, 0 replay misses, no off-origin request or console error; browser-pane walk-through of map, vessel panel, inbox, approvals, evaluation on the rebuilt stack; numbers batch (load condition displacement^(2/3), FuelEU Maritime exposure) in every tool; Q&A dev on live Claude Haiku 5.5 (prompt agent-system/v5 unchanged, 33 questions incl. 2 compliance): grounded 33/33, accuracy 25/25, abstention 4/4, injection 3/3, no-action 2/2, proposed=best 5/5, unauthorised 0/33, withheld 0/33, repaired 2/33, first progress 1.08 s / answer 4.46 s mean, $0.00112 per question; replay reproduces it; oracle 25/25; final whole-branch review + Impeccable finish review, one fix wave, re-review clean; Phase 6 spend $0.0627 of $1.00; verifier PASS 12/12",
+    "note": "fresh clone (no .env, own compose project) → docker compose up --build → recorded pinned demo; demo story PASS twice (17.3 s, 17.4 s, 0 replay misses) and verify green in the clone; live story PASS once on frozen code (second paid run; first failed on a live-only map click bug fixed in 27a38c2), first progress 1.24–2.85 s, answers 7.2–9.3 s, extraction 3 emails 5.6 s; held-out run once on Claude Haiku 5.5 after a committed pre-registration (fbbf596): extraction critical-field accuracy 1170/1182 (95% CI 98.2–99.4%), unsafe auto-accepts 0/156 (upper 2.4%), quote precision 126/126, recall 126/127; Q&A grounded 32/32, answer accuracy 23/24 (79.8–99.3%), unauthorised 0/32, abstention 4/4, injection 2/2, no-action 2/2; published beside dev on /evaluation and in docs/APPROACH.md; compose recorded by default, npm run demo:live / demo:reset switches; README, docs/APPROACH.md, docs/DEMO_SCRIPT.md; verify green (143 files / 3031 tests, 1 skipped, DB tests ran, lint 0 errors, purity OK); Phase 7 spend $0.1834 of $1.00",
     "evidence": {
-      "liveDev": "evals/reports/20261116T003513Z-qa-dev-dev-haiku-p6",
-      "replayDev": "evals/reports/20261116T010522Z-qa-dev-replay",
+      "gate": "evals/reports/20261116T160205Z-gate-phase7/summary.json",
+      "heldoutExtraction": "evals/reports/20261116T152129Z-extraction-heldout-p7-heldout",
+      "heldoutQa": "evals/reports/20261116T154031Z-qa-heldout-p7-heldout",
+      "heldoutPasses": "evals/heldout-passes.jsonl",
+      "liveStory": "evals/reports/20261116T150714Z-story-live-p7/summary.json",
       "published": "evals/published/summary.json",
-      "story": "e2e/demo.spec.ts",
-      "screenshots": "docs/screenshots/phase-6/README.md",
+      "approach": "docs/APPROACH.md",
+      "demoScript": "docs/DEMO_SCRIPT.md",
       "evalLog": "docs/EVAL_LOG.md",
-      "userReview": "plan + brand tokens + fonts approved; Phase 6 budget $1.00; Impeccable skill + hook; REVIEW-QA-P6.md approved; Ruling 25 (record mode replay-first) + one story record pass approved (2026-11-16)",
-      "spendUsd": {
-        "phase6Total": 0.0627,
-        "cap": 1,
-        "perQuestionHaiku": 0.00112
-      },
+      "plan": "docs/superpowers/plans/2026-11-16-phase-7-final-measurement.md",
+      "userDecisions": "keep the 15 Nov recorded fixtures; Phase 7 budget $1.00; plan approved; held-out go-ahead \"Run both\" (2026-11-16)",
+      "spendUsd": { "phase7Total": 0.183435, "cap": 1, "heldout": 0.162785, "liveStory": 0.015949 },
       "latencySeconds": {
-        "firstProgressMean": 1.08,
-        "answerMean": 4.46,
-        "answerP90": 7.47,
-        "storyReplay": 12.2,
-        "targetFirstProgress": 3,
-        "targetAnswer": 45
+        "liveFirstProgressMax": 2.85,
+        "liveAnswerMax": 9.27,
+        "liveExtractThreeEmails": 5.62,
+        "heldoutQaFirstProgressMean": 1.1,
+        "heldoutQaAnswerMean": 3.82,
+        "heldoutExtractPerEmailMean": 6.02,
+        "storyRecorded": 17.3
       }
     }
   },
-  "modelDecision": "Claude Haiku 5.5 only for extraction and agent evals (user decision 2026-11-14); extraction passes on Haiku with extract-quote/v2, the Q&A grounding gate passes on Haiku with agent-system/v5.",
-  "keyCheckpoints": {
-    "2": ["ANTHROPIC_API_KEY"],
-    "5": ["AISSTREAM_API_KEY"]
-  }
+  "modelDecision": "Claude Haiku 5.5 only for extraction and agent evals (user decision 2026-11-14); held-out measured once on Haiku 5.5 with extract-quote/v2 and agent-system/v5.",
+  "keyCheckpoints": { "2": ["ANTHROPIC_API_KEY"], "5": ["AISSTREAM_API_KEY"] }
 }
