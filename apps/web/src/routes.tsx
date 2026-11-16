@@ -3,32 +3,16 @@
  * `/` map (Task 10), `/inbox` (Task 11), `/approvals` (Task 12), `/evaluation` (Task 13).
  * Deep links: `/inbox?document=<id>` opens one email (fact chips with a document source link here).
  */
-import { Analytics01Icon, Search01Icon } from "@hugeicons/core-free-icons";
-import type { IconSvgElement } from "@hugeicons/react";
+import { Search01Icon } from "@hugeicons/core-free-icons";
 import { createBrowserRouter, Link, type RouteObject } from "react-router";
 import { AppShell } from "@/components/app-shell";
 import { EmptyState } from "@/components/empty-state";
 import { ApprovalsPage } from "@/features/approvals/approvals-page";
 import { AssistantDock } from "@/features/assistant/assistant-dock";
 import { KitPage } from "@/features/dev/kit-page";
+import { EvaluationPage } from "@/features/evaluation/evaluation-page";
 import { InboxPage } from "@/features/inbox/inbox-page";
 import { MapPage } from "@/features/map/map-page";
-
-function ScreenPlaceholder({
-  title,
-  icon,
-  description,
-}: {
-  title: string;
-  icon: IconSvgElement;
-  description: string;
-}) {
-  return (
-    <div className="p-3">
-      <EmptyState icon={icon} title={title} description={description} />
-    </div>
-  );
-}
 
 function NotFound() {
   return (
@@ -65,13 +49,7 @@ export const routes: RouteObject[] = [
       },
       {
         path: "evaluation",
-        element: (
-          <ScreenPlaceholder
-            title="Evaluation"
-            icon={Analytics01Icon}
-            description="Measured accuracy of extraction and answers, from published live runs."
-          />
-        ),
+        element: <EvaluationPage />,
       },
       { path: "dev/kit", element: <KitPage /> },
       { path: "*", element: <NotFound /> },
