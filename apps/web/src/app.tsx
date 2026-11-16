@@ -1,12 +1,21 @@
+import { QueryClientProvider } from "@tanstack/react-query";
+import { useState } from "react";
+import { RouterProvider } from "react-router";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { createQueryClient } from "@/lib/queries";
+import { createRouter } from "@/routes";
 
-/** Root of the ops console. Task 9 replaces the body with the shell and routes. */
+/** Root of the ops console: server state, tooltips, routes and the one toaster. */
 export function App() {
+  const [queryClient] = useState(createQueryClient);
+  const [router] = useState(createRouter);
   return (
-    <TooltipProvider>
-      <main className="p-3 text-text-2">Pharos console scaffold</main>
-      <Toaster />
-    </TooltipProvider>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider delayDuration={300}>
+        <RouterProvider router={router} />
+        <Toaster position="bottom-right" />
+      </TooltipProvider>
+    </QueryClientProvider>
   );
 }

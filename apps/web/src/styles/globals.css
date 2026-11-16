@@ -188,4 +188,34 @@
     @apply bg-background text-foreground text-sm;
     font-variant-numeric: tabular-nums;
   }
+  /* Browser surfaces carry the palette too. */
+  ::selection {
+    background: color-mix(in oklch, var(--beacon) 32%, transparent);
+    color: var(--text-1);
+  }
+  input,
+  textarea {
+    caret-color: var(--beacon);
+  }
+  html {
+    scrollbar-color: var(--line-strong) transparent;
+    scrollbar-width: thin;
+  }
+  :focus-visible {
+    outline-color: var(--beacon);
+  }
+  a {
+    text-underline-offset: 3px;
+  }
+}
+
+/* Widths of Archivo: labels and column heads at 80 %, titles at 88 %, large readouts at 75 %. */
+@utility font-label {
+  font-stretch: 80%;
+}
+@utility font-title {
+  font-stretch: 88%;
+}
+@utility font-readout {
+  font-stretch: 75%;
 }

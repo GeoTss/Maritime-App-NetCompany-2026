@@ -1,4 +1,4 @@
-import { type MotionStyle, motion, type Transition } from "motion/react";
+import { type MotionStyle, motion, type Transition, useReducedMotion } from "motion/react";
 
 import { cn } from "@/lib/utils";
 
@@ -54,14 +54,17 @@ export const BorderBeam = ({
   size = 50,
   delay = 0,
   duration = 6,
-  colorFrom = "#ffaa40",
-  colorTo = "#9c40ff",
+  /* Awaiting approval is caution's job; no raw hex. */
+  colorFrom = "var(--caution)",
+  colorTo = "color-mix(in oklch, var(--caution) 40%, transparent)",
   transition,
   style,
   reverse = false,
   initialOffset = 0,
   borderWidth = 1,
 }: BorderBeamProps) => {
+  // A focal effect, never forced on someone who asked for less motion.
+  if (useReducedMotion()) return null;
   return (
     <div
       className="pointer-events-none absolute inset-0 rounded-[inherit] border-(length:--border-beam-width) border-transparent mask-[linear-gradient(transparent,transparent),linear-gradient(#000,#000)] mask-intersect [mask-clip:padding-box,border-box]"

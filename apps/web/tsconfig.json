@@ -8,6 +8,5 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src", "vite.config.ts"],
-  "exclude": ["src/components/primitives/**", "src/components/atoms/**"]
+  "include": ["src", "vite.config.ts"]
 }
