@@ -1,39 +1,31 @@
 {
-  "phase": 6,
-  "phaseName": "Ops console",
+  "phase": 7,
+  "phaseName": "Final measurement & demo hardening",
   "lastGate": {
-    "phase": 5,
+    "phase": 6,
     "result": "PASS",
-    "at": "2026-11-15",
-    "note": "verify green (107 files / 2666 tests, DB tests ran, lint 0 errors, purity OK); recorded AIS fills traffic, AIS congestion and hazards (recorded.db parity tests; stack evidence on the rebuilt replay stack: 656 ships, 5 AIS congestion ports, synthetic hazard, weather 152 points x 80 steps); live AIS smoke 67 positions in 20 s; live and stored weather parse; optimiser synthetic-storm, determinism and never-worse tests pass; real-ship plan (A LA MARINE to Rotterdam) 25.7 ms compute; hazard routes infeasible and avoided; voyage instructions recorded once with a drafted master instruction, no ERP call; Q&A dev on live Claude Haiku 5.5 (prompt agent-system/v5, 31 questions: 23 Phase 4 + 8 new): grounded 31/31, accuracy 23/23, abstention 4/4, injection 3/3, no-action 2/2, proposed=best 5/5, unauthorised 0/31, withheld 0/31, repaired 3/31, first progress 1.2 s / answer 4.6 s mean, $0.00102 per question; replay reproduces it; oracle 23/23; Phase 5 spend $0.0822 of $2.00; verifier PASS 14/14",
+    "at": "2026-11-16",
+    "note": "verify green (139 files / 2953 tests, DB tests ran, lint 0 errors, purity OK); web build with CSP default-src 'self'; demo story (npm run demo:reset && npx playwright test, every source recorded, LLM_MODE=replay) PASS 12.2 s, 0 replay misses, no off-origin request or console error; browser-pane walk-through of map, vessel panel, inbox, approvals, evaluation on the rebuilt stack; numbers batch (load condition displacement^(2/3), FuelEU Maritime exposure) in every tool; Q&A dev on live Claude Haiku 5.5 (prompt agent-system/v5 unchanged, 33 questions incl. 2 compliance): grounded 33/33, accuracy 25/25, abstention 4/4, injection 3/3, no-action 2/2, proposed=best 5/5, unauthorised 0/33, withheld 0/33, repaired 2/33, first progress 1.08 s / answer 4.46 s mean, $0.00112 per question; replay reproduces it; oracle 25/25; final whole-branch review + Impeccable finish review, one fix wave, re-review clean; Phase 6 spend $0.0627 of $1.00; verifier PASS 12/12",
     "evidence": {
-      "liveDev": "evals/reports/20261115T213342Z-qa-dev-dev-haiku-v5",
-      "replayDev": "evals/reports/20261115T213626Z-qa-dev-replay",
-      "firstLiveDev": "evals/reports/20261115T203841Z-qa-dev-dev-haiku-v4",
-      "oracle": "evals/reports/20261115T213336Z-qa-dev-oracle",
-      "smokeAis": "evals/reports/20261115T192456Z-smoke-ais",
-      "smokeWeather": "evals/reports/20261115T211921Z-smoke-weather",
-      "stack": "evals/reports/20261115T215115Z-stack-phase5",
-      "fixtures": "fixtures/recorded/README.md",
+      "liveDev": "evals/reports/20261116T003513Z-qa-dev-dev-haiku-p6",
+      "replayDev": "evals/reports/20261116T010522Z-qa-dev-replay",
+      "published": "evals/published/summary.json",
+      "story": "e2e/demo.spec.ts",
+      "screenshots": "docs/screenshots/phase-6/README.md",
       "evalLog": "docs/EVAL_LOG.md",
-      "userReview": "Phase 5 budget $2.00; scope added: voyage-instruction proposals, AIS hazards, MARPOL boundaries; REVIEW-QA-P5.md approved, then route-speed-08 rewording approved (2026-11-15)",
+      "userReview": "plan + brand tokens + fonts approved; Phase 6 budget $1.00; Impeccable skill + hook; REVIEW-QA-P6.md approved; Ruling 25 (record mode replay-first) + one story record pass approved (2026-11-16)",
       "spendUsd": {
-        "phase5Total": 0.0822,
-        "cap": 2,
-        "perQuestionHaiku": 0.00102
+        "phase6Total": 0.0627,
+        "cap": 1,
+        "perQuestionHaiku": 0.00112
       },
       "latencySeconds": {
-        "firstProgressMean": 1.2,
-        "answerMean": 4.6,
-        "answerP90": 7.9,
+        "firstProgressMean": 1.08,
+        "answerMean": 4.46,
+        "answerP90": 7.47,
+        "storyReplay": 12.2,
         "targetFirstProgress": 3,
         "targetAnswer": 45
-      },
-      "routeComputeMs": {
-        "aegeanPioneer": 98.8,
-        "thessalyStar": 22,
-        "realAisShip": 25.7,
-        "target": 5000
       }
     }
   },
