@@ -1,0 +1,66 @@
+{
+  "run": "evals/reports/20261116T150714Z-story-live-p7",
+  "at": "2026-11-16T15:07:14.604Z",
+  "mode": "live",
+  "result": "PASS",
+  "durationS": 45.1,
+  "costUsd": 0.009373,
+  "llmCalls": {
+    "agent": 8,
+    "extract": 3
+  },
+  "model": "claude-haiku-5-5",
+  "codeSha": "27a38c2",
+  "steps": [
+    {
+      "step": "1 map",
+      "ms": 1201
+    },
+    {
+      "step": "2 inbox: deliver three and extract",
+      "ms": 5620
+    },
+    {
+      "step": "3 bunker: first progress",
+      "ms": 1244
+    },
+    {
+      "step": "3 bunker: answer",
+      "ms": 7164
+    },
+    {
+      "step": "4 route ask: first progress",
+      "ms": 1821
+    },
+    {
+      "step": "4 route ask: answer",
+      "ms": 9269
+    },
+    {
+      "step": "4 plan route",
+      "ms": 262
+    },
+    {
+      "step": "4 instruct: first progress",
+      "ms": 2849
+    },
+    {
+      "step": "4 instruct: answer",
+      "ms": 7258
+    }
+  ],
+  "targets": {
+    "firstProgressS": 3,
+    "answerS": 45,
+    "extractPerEmailS": 20
+  },
+  "publicShip": {
+    "mmsi": "224869000",
+    "name": "VB CEBALLOS"
+  },
+  "aegeanBestCandidate": "B",
+  "firstAttempt": {
+    "result": "FAIL at step 4 plan route (live-only map click bug, fixed in 27a38c2)",
+    "costUsd": 0.006576
+  }
+}

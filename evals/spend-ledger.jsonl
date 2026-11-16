@@ -20,3 +20,4 @@
 {"phase":6,"at":"2026-11-16T01:08:17.392Z","run":"demo-story-record","label":"phase6-story-final","costUsd":0.007762}
 {"phase":7,"at":"2026-11-16T14:47:58.754Z","run":"live-console","label":"p7-unattributed-live-question","costUsd":0.0047}
 {"phase":7,"at":"2026-11-16T14:57:19.170Z","run":"demo-story-live","label":"p7-live-story-1-failed-step4","costUsd":0.006576}
+{"phase":7,"at":"2026-11-16T15:07:14.536Z","run":"demo-story-live","label":"p7-live-story-2-pass","costUsd":0.009373}
