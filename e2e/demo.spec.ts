@@ -211,6 +211,9 @@ test("demo story: six steps", async ({ page }) => {
   };
   const po = await decide(/purchase order/i, "Approve");
   await expect(po.getByText(/Purchase order\s+PO-\S+/)).toBeVisible({ timeout: 60_000 });
+  // A decided card folds to its outcome; its drafts and audit trail open from one disclosure
+  // (a GET-only click: no POST, so the replay keys do not change).
+  await po.getByRole("button", { name: /Facts, drafted messages and audit trail/ }).click();
   await expect(po.getByText("draft, not sent").first()).toBeVisible();
   await expect(
     po.getByRole("region", { name: "Audit trail" }).getByRole("listitem").first(),
@@ -224,7 +227,7 @@ test("demo story: six steps", async ({ page }) => {
   await nav(page, "/evaluation");
   await expect(page.getByRole("heading", { name: "Evaluation", level: 1 })).toBeVisible();
   await expect(page.getByText(/\d+ of \d+/).first()).toBeVisible();
-  await expect(page.getByText(/95 % interval/).first()).toBeAttached();
+  await expect(page.getByText(/95% interval/).first()).toBeAttached();
   await expect(page.locator('[data-kind="dev-split"]').first()).toBeVisible();
   await page
     .getByRole("heading", { name: "Evaluation", level: 1 })
