@@ -565,7 +565,7 @@ describe("never worse than the baseline (60 seeded inputs)", () => {
   }
   const round2 = (x: number) => Math.round(x * 100) / 100;
 
-  function randomInput(seed: number): RouteSpeedInput {
+  function randomInput(seed: number, loaded = false): RouteSpeedInput {
     const r = lcg(seed);
     // Western Mediterranean and Biscay: some routes cross the ECA boundary.
     const start = p(round2(r.range(35, 43)), round2(r.range(-12, 4)));
@@ -615,11 +615,18 @@ describe("never worse than the baseline (60 seeded inputs)", () => {
               };
             }),
           };
+    // Drawn last so the unloaded inputs are unchanged. Ballast to full load: displacement is
+    // 0.45 to 1 of the reference, so the load factor is (0.45..1)^(2/3).
+    const refDisplacementMt = Math.round(r.range(40_000, 90_000));
+    const load = {
+      displacementMt: Math.round(refDisplacementMt * r.range(0.45, 1)),
+      refDisplacementMt,
+    };
     return {
       startAt: START,
       candidates,
       baseline: { candidateId: r.pick(candidates).id, speedKn: baselineSpeed },
-      curve,
+      curve: loaded ? { ...curve, load } : curve,
       speedStepKn,
       stepNm: r.pick([10, 20, 40]),
       arriveBy: r.next() < 0.35 ? null : at(r.range(0.4, 1.6) * quickest),
@@ -656,11 +663,19 @@ describe("never worse than the baseline (60 seeded inputs)", () => {
   }
 
   it("best ≤ baseline whenever the baseline is feasible; best feasible whenever any option is", () => {
+    neverWorse(false);
+  });
+
+  it("never worse with a load on the curve", () => {
+    neverWorse(true);
+  });
+
+  function neverWorse(loaded: boolean): void {
     let feasibleBaselines = 0;
     let infeasibleBaselines = 0;
     let rescued = 0;
     for (let seed = 1; seed <= 60; seed++) {
-      const input = randomInput(seed * 7919);
+      const input = randomInput(seed * 7919, loaded);
       const r = optimiseRouteSpeed(input);
       const best = bestOf(r);
       if (r.baseline.feasible) {
@@ -682,5 +697,8 @@ describe("never worse than the baseline (60 seeded inputs)", () => {
     expect(feasibleBaselines).toBeGreaterThan(10);
     expect(infeasibleBaselines).toBeGreaterThan(5);
     expect(rescued).toBeGreaterThan(0);
-  });
+    if (loaded) {
+      expect(randomInput(7919, true).curve.load).toBeDefined();
+    }
+  }
 });

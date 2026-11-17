@@ -76,8 +76,8 @@ export const vessels = pgTable(
     name: text().notNull(),
     shipType: text().$type<"bulk_carrier" | "tanker" | "container">().notNull(),
     dwt: doublePrecision().notNull(),
-    /** Default only so the column can be added to a populated table; the seed always writes it. */
-    lightshipMt: doublePrecision().notNull().default(0),
+    /** No default: a missing load must fail loudly, not read as lightship. */
+    lightshipMt: doublePrecision().notNull(),
     trackingSource: text().$type<"simulator" | "ais">().notNull(),
     tankCapacityMt: jsonb().$type<GradeAmounts>().notNull(),
     consumptionCurve: jsonb().$type<ConsumptionCurve>().notNull(),
@@ -152,9 +152,9 @@ export const voyages = pgTable("voyages", {
   plannedRoute: jsonb().$type<Id[]>().notNull(),
   status: text().$type<"planned" | "underway" | "completed">().notNull(),
   departedAt: ts(),
-  /** Defaults only so the columns can be added to a populated table; the seed always writes them. */
-  cargoMt: doublePrecision().notNull().default(0),
-  ballastMt: doublePrecision().notNull().default(0),
+  /** No defaults: a missing load must fail loudly, not read as lightship. */
+  cargoMt: doublePrecision().notNull(),
+  ballastMt: doublePrecision().notNull(),
 });
 
 export const portCalls = pgTable("port_calls", {
