@@ -45,7 +45,7 @@ after question 2. An extra or failed plan makes the next recorded reply miss: ru
 
 Click nothing yet. Say: ships moving on AIS with a wave and wind overlay; the badges say whether each source is live or recorded.
 The fleet is highlighted. MV Aegean Pioneer (Port Said to Rotterdam) has an alert. A labelled synthetic hazard
-is on the map; it is demo data, not an observation. Click the Aegean Pioneer alert to show why: the low-sulphur fuel on board will not cover the remaining emission-control legs with the safety margin.
+is on the map; it is demo data, not an observation. Click the Aegean Pioneer alert to show why: at the planned speed its low-sulphur fuel (LSMGO) runs out before Rotterdam. The alert reads "LSMGO runs out before arrival at the planned speed".
 
 ### 2. Inbox
 
@@ -57,20 +57,23 @@ Enter quantity 300 and price 690, click "Accept correction", then "Save correcte
 ### 3. Ask: where to bunker
 
 Go back to the map and ask question 1. Wait for the answer; the gate line reads "all numbers sourced". Click a fact chip to show its source
-(a database record, a calculation, a supplier email). Say: the cheapest headline price is not the best option once barge fee, deviation, delay and carbon are counted.
+(a database record, a calculation, a supplier email). Say: the cheapest headline price (Gibraltar) can't be reached with the safety margin at the planned speed, and it costs more in total anyway once barge fee, deviation, delay and carbon are counted.
 A proposal appears: "Proposal N waiting for your decision" (N is the proposal's number).
 
 ### 4. Route and speed
 
-Ask question 2. Click the button "Aegean Pioneer, has an alert" (the vessel's marker on the map), then "Plan route". Three candidate routes appear with fuel, CO2, cost and ETA; route B is recommended against the baseline in the recorded demo (live weather decides the winner in live mode, so name the recommended row, not "B").
-Say: the recommended route avoids the labelled synthetic hazard. Point at the load factor and the FuelEU column; each number has a fact chip.
+Ask question 2. Click the button "Aegean Pioneer, has an alert" (the vessel's marker on the map), then "Plan route". The tray shows two answers.
+The best route ignoring fuel on board avoids the labelled synthetic hazard, but runs short of LSMGO before Rotterdam: the tray says where.
+The recommended plan calls at Marsaxlokk for Kestrel's 300 t: the stop's arrival, waiting, weather and bunkering times, what it adds in hours and dollars, and how it compares with the next quote (Algeciras). The fuel curve shows LSMGO jumping at the stop and staying above the margin; the map marks the stop.
+Say: the route and the bunker quote are planned together, so the ETA includes the port stop. Point at the load factor and the FuelEU column; each number has a fact chip.
 Then open the command palette (Ctrl+K or Cmd+K), pick a public ship (in recorded mode FRANKA DEYMANN: type 211121690), choose Rotterdam as destination and plan its route: the same question works for any ship on the map.
-Ask question 3 to draft the voyage instruction.
+Ask question 3 to draft the voyage instruction: it sails the recommended plan, stop included.
 
 ### 5. Approvals
 
-Go to Approvals. Approve the purchase order and confirm: it returns a PO number from the ERP simulator. Open "Facts, drafted messages and audit trail":
-the drafts read "draft, not sent" and the audit trail lists every step. Approve the voyage instruction and confirm: "Instruction recorded".
+Go to Approvals. Select the voyage instruction first: it waits for the purchase order for Kestrel at Marsaxlokk, and Approve is disabled until that order is approved.
+Select the purchase order, approve and confirm: it returns a PO number from the ERP simulator. Open "Facts, drafted messages and audit trail":
+the drafts read "draft, not sent" and the audit trail lists every step. Select the voyage instruction again, approve and confirm: "Instruction recorded". The master's draft names the bunker stop.
 Say: the model only proposes; a person approves; nothing leaves the building.
 
 ### 6. Evaluation
