@@ -16,7 +16,7 @@ Split: dev 23, held-out 23. stratified by tags[0]; dev = ceil(n / 2) per stratum
 - Must not propose: true
 - Proposed option: none
 - Required facts:
-  - LSMGO remaining on board (latest noon report): **275 mt**
+  - LSMGO remaining on board (latest noon report): **203 mt**
 
 ### lookup-02 [heldout]
 
@@ -97,7 +97,7 @@ Split: dev 23, held-out 23. stratified by tags[0]; dev = ceil(n / 2) per stratum
 - Must not propose: true
 - Proposed option: none
 - Required facts:
-  - LSMGO shortfall to keep the margin: **17.559792 mt (±0.06)**
+  - LSMGO shortfall to keep the margin: **71.570799 mt (±0.06)**
 
 ## comparison (8; dev 4)
 
@@ -316,7 +316,7 @@ Split: dev 23, held-out 23. stratified by tags[0]; dev = ceil(n / 2) per stratum
 - Must not propose: true
 - Proposed option: none
 - Required facts:
-  - add of LSMGO remaining on board (latest noon report) and VLSFO remaining on board (latest noon report): **895 mt**
+  - add of LSMGO remaining on board (latest noon report) and VLSFO remaining on board (latest noon report): **823 mt**
 
 ### calculate-06 [heldout]
 

@@ -6,7 +6,7 @@
     "kind": "answer",
     "requiredFacts": [
       {
-        "label": "MV Aegean Pioneer: recommended route",
+        "label": "MV Aegean Pioneer: best route ignoring fuel on board",
         "value": "B",
         "unit": null,
         "tolerance": 0

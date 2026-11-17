@@ -4,7 +4,13 @@
  * with an open requirement. Truth generation and the Task 10 runner both use it; the runner
  * inserts `evalExtraRequirements(world)` after seeding. The demo seed itself is untouched.
  */
-import { currentVoyage, generateWorld, openRequirements, type World } from "@pharos/db";
+import {
+  currentVoyage,
+  DEMO_SCENARIO,
+  generateWorld,
+  openRequirements,
+  type World,
+} from "@pharos/db";
 import { type BunkerRequirement, FUEL_GRADES, type FuelGrade, type Id } from "@pharos/shared";
 import { createPrng, prngPick } from "./prng.js";
 
@@ -71,8 +77,34 @@ export function evalExtraRequirements(world: World): BunkerRequirement[] {
 }
 
 /** generateWorld(EVAL_SEED, EVAL_ANCHOR) with the eval requirements added. */
+/**
+ * The extraction golden set (held-out closed 16 Nov) was generated when Aegean Pioneer's latest
+ * noon report read these tonnes. The joint route-and-bunker planner retuned the seed's LSMGO
+ * (275 -> 203 t); quantities in the generated emails are drawn against free tank space, so the
+ * eval world keeps the fuel on board the set was generated with and every file stays identical.
+ */
+const GOLDEN_SET_ROB: Readonly<Record<string, Record<FuelGrade, number>>> = {
+  [DEMO_SCENARIO.vesselImo]: { LSMGO: 275, VLSFO: 620, HSFO: 0 },
+};
+
+function withGoldenSetRob(world: World): World {
+  const latest = new Map<Id, World["noonReports"][number]>();
+  for (const r of world.noonReports) {
+    const best = latest.get(r.vesselId);
+    if (!best || r.ts > best.ts) latest.set(r.vesselId, r);
+  }
+  return {
+    ...world,
+    noonReports: world.noonReports.map((r) => {
+      const imo = world.vessels.find((v) => v.id === r.vesselId)?.imo;
+      const rob = imo ? GOLDEN_SET_ROB[imo] : undefined;
+      return rob && latest.get(r.vesselId) === r ? { ...r, robMt: { ...rob } } : r;
+    }),
+  };
+}
+
 export function evalWorld(): World {
-  const world = generateWorld({ seed: EVAL_SEED, anchor: EVAL_ANCHOR });
+  const world = withGoldenSetRob(generateWorld({ seed: EVAL_SEED, anchor: EVAL_ANCHOR }));
   return {
     ...world,
     bunkerRequirements: [...world.bunkerRequirements, ...evalExtraRequirements(world)],

@@ -7,7 +7,7 @@
     "requiredFacts": [
       {
         "label": "add of LSMGO remaining on board (latest noon report) and VLSFO remaining on board (latest noon report)",
-        "value": 895,
+        "value": 823,
         "unit": "mt",
         "tolerance": 0
       }

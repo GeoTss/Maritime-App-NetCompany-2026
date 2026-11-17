@@ -96,11 +96,16 @@ describe("reference answers", () => {
 describe("golden files", () => {
   it("every truth on disk parses QaTruth, with tags[0] the question's category", async () => {
     const { truths } = renderQaGolden();
+    const split = JSON.parse(await readFile(join(QA_GOLDEN_DIR, "split.json"), "utf8")) as {
+      heldout: string[];
+    };
+    const frozen = new Set(split.heldout);
     for (const t of truths) {
       const onDisk = QaTruth.parse(
         JSON.parse(await readFile(join(QA_GOLDEN_DIR, `${t.id}.truth.json`), "utf8")),
       );
-      expect(onDisk).toEqual(t);
+      // Held-out truths are frozen at the 16 Nov measurement; dev truths equal the reference.
+      if (!frozen.has(t.id)) expect(onDisk).toEqual(t);
       expect(QA_CATEGORIES).toContain(onDisk.tags[0]);
     }
   });
@@ -188,8 +193,9 @@ describe("Phase 6 truths against the Phase 5 gate commit", () => {
       expect(base.map((t) => t.id).sort()).toEqual([...old.dev, ...old.heldout].sort());
       const truths = renderQaGolden().truths;
       expect(compareToBase(base, truths)).toEqual([]);
-      // ... and the files on disk are the same truths.
-      for (const t of truths) {
+      // ... and the files on disk are the same truths (held-out ones are frozen at 16 Nov).
+      const frozen = new Set(now.heldout);
+      for (const t of truths.filter((x) => !frozen.has(x.id))) {
         expect(
           QaTruth.parse(
             JSON.parse(await readFile(join(QA_GOLDEN_DIR, `${t.id}.truth.json`), "utf8")),
@@ -272,12 +278,13 @@ describe("the Phase 5 questions", () => {
   const world = qaWorld();
   const truth = (id: string) => buildTruth(world, QUESTIONS.find((q) => q.id === id) as never);
 
-  it("route-speed-09 proposes the route result's best candidate; the other 14 never propose", () => {
+  it("route-speed-09 proposes the recommended plan; the other 14 never propose", () => {
     const t = truth("route-speed-09");
     expect(t.expect).toMatchObject({ kind: "action", mustNotPropose: false });
     expect(t.expect.proposedOptionId).toBe(
-      qaRoute(world, "fleet", "Aegean Pioneer").result.bestCandidateId,
+      qaRoute(world, "fleet", "Aegean Pioneer").result.plan?.optionId,
     );
+    expect(t.expect.proposedOptionId).toBe("MTMLA-kestrel");
     for (const q of QUESTIONS.filter(
       (x) =>
         (x.category === "route_speed" || x.category === "congestion") && x.id !== "route-speed-09",

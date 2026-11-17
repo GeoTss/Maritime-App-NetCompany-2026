@@ -35,7 +35,7 @@ Split: dev 8, held-out 7 (both Phase 5 categories). stratified by tags[0]; dev =
 - Must not propose: true
 - Proposed option: none
 - Required facts:
-  - MV Aegean Pioneer: recommended route: **B**
+  - MV Aegean Pioneer: best route ignoring fuel on board: **B**
   - MV Aegean Pioneer, route B: recommended speed: **11 kn**
   - MV Aegean Pioneer, route B: ETA at Rotterdam (UTC): **2026-11-26T15:01:46.466Z**
 
@@ -46,7 +46,7 @@ Split: dev 8, held-out 7 (both Phase 5 categories). stratified by tags[0]; dev =
 - Must not propose: true
 - Proposed option: none
 - Required facts:
-  - MV Aegean Pioneer: fuel saved against the current plan: **74.542826 mt (±0.06)**
+  - MV Aegean Pioneer: fuel saved by the best route and speed ignoring fuel, against the current plan: **74.542826 mt (±0.06)**
 
 ### route-speed-03 [dev]
 
@@ -55,7 +55,7 @@ Split: dev 8, held-out 7 (both Phase 5 categories). stratified by tags[0]; dev =
 - Must not propose: true
 - Proposed option: none
 - Required facts:
-  - MV Aegean Pioneer: saving of the recommended route and speed against the current plan: **48024.55903 USD (±0.5)**
+  - MV Aegean Pioneer: saving of the best route and speed ignoring fuel, against the current plan: **48024.55903 USD (±0.5)**
 
 ### route-speed-04 [heldout]
 
@@ -114,9 +114,9 @@ Split: dev 8, held-out 7 (both Phase 5 categories). stratified by tags[0]; dev =
 - Question: Prepare the voyage instruction for Aegean Pioneer's recommended route and speed.
 - Expected kind: `action`
 - Must not propose: false
-- Proposed option: B
+- Proposed option: MTMLA-kestrel
 - Required facts:
-  - MV Aegean Pioneer: recommended route: **B**
+  - MV Aegean Pioneer: best route ignoring fuel on board: **B**
   - MV Aegean Pioneer, route B: recommended speed: **11 kn**
 
 ### route-speed-10 [dev]
@@ -126,7 +126,7 @@ Split: dev 8, held-out 7 (both Phase 5 categories). stratified by tags[0]; dev =
 - Must not propose: true
 - Proposed option: none
 - Required facts:
-  - MV Aegean Pioneer: recommended route: **B**
+  - MV Aegean Pioneer: best route ignoring fuel on board: **B**
 
 ### route-speed-11 [heldout]
 
@@ -136,7 +136,7 @@ Split: dev 8, held-out 7 (both Phase 5 categories). stratified by tags[0]; dev =
 - Proposed option: none
 - Required facts:
   - MV Thessaly Star: reported hazard avoided by the recommended route: **synthetic:1**
-  - MV Thessaly Star: recommended route: **B**
+  - MV Thessaly Star: best route ignoring fuel on board: **B**
 
 ## congestion (4; dev 2)
 

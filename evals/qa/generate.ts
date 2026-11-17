@@ -170,11 +170,22 @@ const ISO_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/;
  * templated subject (see `questionTemplate`): its ETA timestamp moves with the ship the capture
  * yields, so a timestamp string there may move; its route id and every other string may not.
  */
+/**
+ * Changes to the Phase 5 base that the user reviewed and accepted, by question id. The joint
+ * route-and-bunker planner (approved 2026-11-17): the instruction sails the recommended plan, a
+ * stop at Marsaxlokk, not the fuel-blind best route.
+ */
+export const ACCEPTED_BASE_CHANGES: Readonly<Record<string, readonly string[]>> = {
+  "route-speed-09": ["proposed option changed"],
+};
+
 export function compareToBase(base: readonly QaTruth[], truths: readonly QaTruth[]): string[] {
   const byId = new Map(truths.map((t) => [t.id, t]));
   const problems: string[] = [];
   for (const o of base) {
-    const dim = (what: string) => problems.push(`${o.id}: ${what}`);
+    const dim = (what: string) => {
+      if (!ACCEPTED_BASE_CHANGES[o.id]?.includes(what)) problems.push(`${o.id}: ${what}`);
+    };
     const n = byId.get(o.id);
     if (!n) {
       dim("question missing");

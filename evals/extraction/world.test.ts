@@ -57,8 +57,12 @@ describe("eval world (ruling R1)", () => {
   });
 
   it("leaves the rest of the seed world untouched", () => {
-    const { bunkerRequirements: _a, ...rest } = world;
-    const { bunkerRequirements: _b, ...baseRest } = base;
+    const { bunkerRequirements: _a, noonReports: na, ...rest } = world;
+    const { bunkerRequirements: _b, noonReports: nb, ...baseRest } = base;
     expect(rest).toEqual(baseRest);
+    // Only Aegean Pioneer's latest noon report differs: it keeps the fuel on board the golden
+    // set was generated with (before the joint-planner retune).
+    const changed = na.filter((r, i) => JSON.stringify(r) !== JSON.stringify(nb[i]));
+    expect(changed.map((r) => r.robMt)).toEqual([{ LSMGO: 275, VLSFO: 620, HSFO: 0 }]);
   });
 });

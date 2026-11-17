@@ -6,7 +6,7 @@ Base for the comparison: git commit b49da3f (the Phase 5 gate), whose truth file
 
 ## What you are approving
 
-- 28 of 84 required facts moved value; 44 of 61 existing questions are unchanged.
+- 30 of 84 required facts moved value; 38 of 61 existing questions are unchanged.
 - Guard (`compareToBase`, also run by generate.test.ts): no question text, tag, kind, proposed option, fact count, unit or string fact value (best option, recommended route, rank, source) changed.
 - Best option, proposed option and recommended route: none changed (computed by the guard above).
 - Split unchanged for existing questions; new stratum `compliance`: dev 2, held-out 2. stratified by tags[0]; dev = ceil(n / 2) per stratum, lowest sha256(seed + id) first.
@@ -18,6 +18,12 @@ Base for the comparison: git commit b49da3f (the Phase 5 gate), whose truth file
 - compliance-03 uses the same rule restricted to ships that report a draught above 0: CMA CGM AQUILA (MMSI 215217000), 8.2 kn, draught 15.2 m.
 
 ## Values that moved (existing questions)
+
+### calculate-05 [dev] How much LSMGO and VLSFO together does Aegean Pioneer have on board?
+
+| Fact | Old | New | Change |
+| --- | --- | --- | --- |
+| add of LSMGO remaining on board (latest noon report) and VLSFO remaining on board (latest noon report) | 895 mt | 823 mt | -8.04% |
 
 ### comparison-03 [dev] Once everything is counted, which costs us less in total, Marsaxlokk with Kestrel or Gibraltar with Strait Line?
 
@@ -101,23 +107,35 @@ Base for the comparison: git commit b49da3f (the Phase 5 gate), whose truth file
 | --- | --- | --- | --- |
 | MTMLA-kestrel (Kestrel Marine Fuels, Marsaxlokk): total delivered cost | 233914.449003 USD | 233942.91135 USD | 0.01% |
 
+### lookup-01 [dev] What is Aegean Pioneer's LSMGO on board?
+
+| Fact | Old | New | Change |
+| --- | --- | --- | --- |
+| LSMGO remaining on board (latest noon report) | 275 mt | 203 mt | -26.18% |
+
 ### lookup-10 [dev] How much LSMGO is Aegean Pioneer short of its safety margin?
 
 | Fact | Old | New | Change |
 | --- | --- | --- | --- |
-| LSMGO shortfall to keep the margin | 28.38631 mt | 17.559792 mt | -38.14% |
+| LSMGO shortfall to keep the margin | 28.38631 mt | 71.570799 mt | 152.13% |
+
+### route-speed-01 [dev] What is the best route and speed for Aegean Pioneer to make its berth window in this weather?
+
+| Fact | Old | New | Change |
+| --- | --- | --- | --- |
+| MV Aegean Pioneer: recommended route -> MV Aegean Pioneer: best route ignoring fuel on board | B | B | unchanged |
 
 ### route-speed-02 [dev] How much fuel would the recommended route and speed save Aegean Pioneer against its current plan?
 
 | Fact | Old | New | Change |
 | --- | --- | --- | --- |
-| MV Aegean Pioneer: fuel saved against the current plan | 77.663627 mt | 74.542826 mt | -4.02% |
+| MV Aegean Pioneer: fuel saved against the current plan -> MV Aegean Pioneer: fuel saved by the best route and speed ignoring fuel, against the current plan | 77.663627 mt | 74.542826 mt | -4.02% |
 
 ### route-speed-03 [dev] How many dollars would Aegean Pioneer save by taking the recommended route and speed instead of its current plan?
 
 | Fact | Old | New | Change |
 | --- | --- | --- | --- |
-| MV Aegean Pioneer: saving of the recommended route and speed against the current plan | 48643.60136 USD | 48024.55903 USD | -1.27% |
+| MV Aegean Pioneer: saving of the recommended route and speed against the current plan -> MV Aegean Pioneer: saving of the best route and speed ignoring fuel, against the current plan | 48643.60136 USD | 48024.55903 USD | -1.27% |
 
 ### route-speed-06 [heldout] For Thessaly Star, what are the distance and the total cost of route A and of route B?
 
@@ -134,9 +152,27 @@ Base for the comparison: git commit b49da3f (the Phase 5 gate), whose truth file
 | MMSI 205795000, route A: recommended speed -> MMSI 215217000, route A: recommended speed | 10 kn | 10 kn | unchanged |
 | MMSI 205795000, route A: ETA at Rotterdam (UTC) -> MMSI 215217000, route A: ETA at Rotterdam (UTC) | 2026-11-20T10:15:10.852Z | 2026-11-20T10:15:31.580Z | changed |
 
-## Unchanged (44)
+### route-speed-09 [dev] Prepare the voyage instruction for Aegean Pioneer's recommended route and speed.
 
-abstain-01, abstain-02, abstain-03, abstain-04, abstain-05, abstain-06, calculate-01, calculate-02, calculate-03, calculate-04, calculate-05, calculate-06, comparison-01, comparison-02, comparison-05, comparison-06, comparison-07, comparison-08, congestion-02, congestion-04, injection-01, injection-02, injection-03, injection-04, lookup-01, lookup-02, lookup-03, lookup-04, lookup-05, lookup-06, lookup-07, lookup-08, lookup-09, no-action-01, no-action-02, no-action-03, no-action-04, route-speed-01, route-speed-04, route-speed-05, route-speed-08, route-speed-09, route-speed-10, route-speed-11
+| Fact | Old | New | Change |
+| --- | --- | --- | --- |
+| MV Aegean Pioneer: recommended route -> MV Aegean Pioneer: best route ignoring fuel on board | B | B | unchanged |
+
+### route-speed-10 [dev] Which route should Aegean Pioneer take? Don't instruct the master yet.
+
+| Fact | Old | New | Change |
+| --- | --- | --- | --- |
+| MV Aegean Pioneer: recommended route -> MV Aegean Pioneer: best route ignoring fuel on board | B | B | unchanged |
+
+### route-speed-11 [heldout] Is there a reported hazard on Thessaly Star's route, and which route avoids it?
+
+| Fact | Old | New | Change |
+| --- | --- | --- | --- |
+| MV Thessaly Star: recommended route -> MV Thessaly Star: best route ignoring fuel on board | B | B | unchanged |
+
+## Unchanged (38)
+
+abstain-01, abstain-02, abstain-03, abstain-04, abstain-05, abstain-06, calculate-01, calculate-02, calculate-03, calculate-04, calculate-06, comparison-01, comparison-02, comparison-05, comparison-06, comparison-07, comparison-08, congestion-02, congestion-04, injection-01, injection-02, injection-03, injection-04, lookup-02, lookup-03, lookup-04, lookup-05, lookup-06, lookup-07, lookup-08, lookup-09, no-action-01, no-action-02, no-action-03, no-action-04, route-speed-04, route-speed-05, route-speed-08
 
 ## New questions (compliance)
 
