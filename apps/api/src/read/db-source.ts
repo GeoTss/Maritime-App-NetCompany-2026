@@ -266,6 +266,8 @@ async function recommendations(sql: Sql, id?: Id): Promise<RecommendationView[]>
       expectedSavingUsd: r.expected_saving_usd,
       factRefs: r.fact_refs,
       gatePassed: r.gate_passed,
+      // Task 3 builds the stored plan view; until then no recommendation carries one.
+      bunkerPlan: null,
       order:
         r.order_id === null || r.erp_sync_status === null
           ? null

@@ -389,6 +389,7 @@ function buildRecommendation(world: World): RecommendationView {
     gatePassed: null,
     order: null,
     instruction: null,
+    bunkerPlan: null,
   };
 }
 

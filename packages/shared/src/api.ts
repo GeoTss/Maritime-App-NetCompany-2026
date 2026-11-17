@@ -190,6 +190,41 @@ export const RecommendationInstruction = z.object({
 });
 export type RecommendationInstruction = z.infer<typeof RecommendationInstruction>;
 
+export const NamedFact = z.object({ name: z.string().min(1), fact: Fact }).strict();
+export type NamedFact = z.infer<typeof NamedFact>;
+
+export const BunkerOptionView = z
+  .object({
+    optionId: z.string().min(1),
+    supplier: z.string().min(1),
+    port: z
+      .object({ id: Id, name: z.string().min(1), unlocode: z.string().min(1), position: LatLon })
+      .strict(),
+    rank: z.number().int().positive(),
+    feasible: z.boolean(),
+    best: z.boolean(),
+    headlinePrice: Fact,
+    totalCost: Fact,
+    delay: Fact,
+    /** Every view fact of the option with its short field name ("quantity", "total delivered cost", ...). */
+    rows: z.array(NamedFact),
+  })
+  .strict();
+export type BunkerOptionView = z.infer<typeof BunkerOptionView>;
+
+export const BunkerPlanView = z
+  .object({
+    calculationId: Id,
+    grade: FuelGrade,
+    vesselId: Id.nullable(),
+    voyageNo: z.string().nullable(),
+    /** In rank order. */
+    options: z.array(BunkerOptionView),
+    marginVsRunnerUp: Fact.nullable(),
+  })
+  .strict();
+export type BunkerPlanView = z.infer<typeof BunkerPlanView>;
+
 export const RecommendationView = z.object({
   id: Id,
   type: RecommendationType,
@@ -216,6 +251,8 @@ export const RecommendationView = z.object({
   order: RecommendationOrder.nullable(),
   /** The voyage instruction recorded on approval; null before it (and for a purchase order). */
   instruction: RecommendationInstruction.nullable(),
+  /** The stored bunker plan behind a purchase order, when it is readable; else null. */
+  bunkerPlan: BunkerPlanView.nullable(),
 });
 export type RecommendationView = z.infer<typeof RecommendationView>;
 
@@ -402,6 +439,12 @@ export const RoutePlanResponse = z
   })
   .strict();
 export type RoutePlanResponse = z.infer<typeof RoutePlanResponse>;
+
+/** A stored route plan: the same as the live response, but the compute time is unknown. */
+export const RoutePlanView = RoutePlanResponse.omit({ computeMs: true })
+  .extend({ computeMs: z.number().nonnegative().nullable() })
+  .strict();
+export type RoutePlanView = z.infer<typeof RoutePlanView>;
 
 export const AisTrafficView = AisTraffic.omit({ updatedAt: true }).extend({
   updatedAt: IsoDateTime,

@@ -8,6 +8,7 @@ import {
   AUDIT_KINDS,
   AuditEventView,
   BunkerOptionResult,
+  BunkerPlanView,
   CalculateInput,
   ConsumptionCurve,
   DecisionBody,
@@ -42,6 +43,7 @@ import {
   ReviewReference,
   RouteLeg,
   RouteOptionResult,
+  RoutePlanView,
   RouteSpeedInput,
   SimClockView,
   Vessel,
@@ -268,6 +270,7 @@ describe("Phase 2 contracts", () => {
       gatePassed: false,
       order: { orderId: 3, erpPoNumber: "PO-000001", erpSyncStatus: "synced" },
       instruction: null,
+      bunkerPlan: null,
     };
     expect(RecommendationView.parse(rec).order?.erpPoNumber).toBe("PO-000001");
     // A voyage instruction: the recorded instruction, no order.
@@ -1113,5 +1116,135 @@ describe("Phase 6 contracts", () => {
     );
     const other = { ...suite, split: "heldout" };
     expect(EvalSummary.parse({ generatedAt: at, suites: [other, suite] })).toBeTruthy();
+  });
+});
+
+const planFact = (key: string, label: string, value: number | string, unit: string | null) => ({
+  id: `f_plan_bunkering_7_${key}`,
+  label,
+  value,
+  unit,
+  provenance: {
+    source: "calculation",
+    calculationId: 7,
+    calculator: "planBunkers",
+    path: key,
+  },
+});
+
+const sampleBunkerPlanView = () => ({
+  calculationId: 7,
+  grade: "LSMGO",
+  vesselId: 1,
+  voyageNo: "V-101",
+  options: [
+    {
+      optionId: "MTMLA-kestrel",
+      supplier: "Kestrel Marine Fuels",
+      port: { id: 3, name: "Marsaxlokk", unlocode: "MTMLA", position: { lat: 35.84, lon: 14.54 } },
+      rank: 1,
+      feasible: true,
+      best: true,
+      headlinePrice: planFact("headline", "Headline price", 690, "USD/mt"),
+      totalCost: planFact("total", "Total delivered cost", 207000, "USD"),
+      delay: planFact("delay", "Delay", 0, "h"),
+      rows: [
+        { name: "quantity", fact: planFact("qty", "Quantity", 300, "mt") },
+        {
+          name: "total delivered cost",
+          fact: planFact("total", "Total delivered cost", 207000, "USD"),
+        },
+        { name: "delay", fact: planFact("delay", "Delay", 0, "h") },
+      ],
+    },
+  ],
+  marginVsRunnerUp: null,
+});
+
+const sampleRoutePlan = () => {
+  const option = {
+    candidateId: "A",
+    speedKn: 12,
+    distanceNm: 100,
+    hours: 8.3,
+    calmHours: 8.3,
+    weatherDelayHours: 0,
+    eta: "2026-11-20T06:00:00.000Z",
+    fuelMt: { LSMGO: 1, VLSFO: 0, HSFO: 0 },
+    totalFuelMt: 1,
+    co2T: 3,
+    fuelCostUsd: 700,
+    etsCostUsd: 0,
+    fuelEuCostUsd: 0,
+    timeCostUsd: 100,
+    totalCostUsd: 800,
+    maxWaveHeightM: 1,
+    weatherCoveragePct: 100,
+    feasible: true,
+    meetsArriveBy: true,
+    crossesHazard: false,
+    hazardIds: [],
+    reasons: [],
+  };
+  return {
+    calculationId: 9,
+    weatherSnapshotId: null,
+    subject: "MV Aegean Pioneer",
+    destination: "Algeciras",
+    candidates: [
+      {
+        id: "A",
+        label: "Direct",
+        points: [
+          { lat: 36, lon: -5 },
+          { lat: 37, lon: -4 },
+        ],
+      },
+    ],
+    result: {
+      options: [option],
+      baseline: option,
+      bestCandidateId: "A",
+      savingVsBaselineUsd: 0,
+      fuelSavingVsBaselineMt: 0,
+    },
+    facts: [],
+    computeMs: 12,
+  };
+};
+
+describe("plan views", () => {
+  it("parses a bunker plan view and rejects an unknown key", () => {
+    expect(BunkerPlanView.safeParse(sampleBunkerPlanView()).success).toBe(true);
+    expect(BunkerPlanView.safeParse({ ...sampleBunkerPlanView(), extra: 1 }).success).toBe(false);
+  });
+  it("lets a stored route plan carry no compute time", () => {
+    expect(RoutePlanView.safeParse({ ...sampleRoutePlan(), computeMs: null }).success).toBe(true);
+    expect(RoutePlanView.safeParse({ ...sampleRoutePlan(), computeMs: -1 }).success).toBe(false);
+  });
+  it("requires bunkerPlan on a recommendation (null allowed)", () => {
+    const rec = {
+      id: 1,
+      type: "purchase_order",
+      status: "pending",
+      calculationId: 7,
+      optionId: "MTMLA-kestrel",
+      optionLabel: null,
+      summary: "Order.",
+      expectedSavingUsd: null,
+      expectedSaving: null,
+      factRefs: [],
+      facts: [],
+      gatePassed: null,
+      order: null,
+      instruction: null,
+      bunkerPlan: null,
+    };
+    expect(RecommendationView.safeParse(rec).success).toBe(true);
+    const { bunkerPlan: _, ...without } = rec;
+    expect(RecommendationView.safeParse(without).success).toBe(false);
+    expect(
+      RecommendationView.safeParse({ ...rec, bunkerPlan: sampleBunkerPlanView() }).success,
+    ).toBe(true);
   });
 });

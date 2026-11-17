@@ -40,6 +40,7 @@ const rec = (id: number, over: Record<string, unknown> = {}) => ({
   gatePassed: true,
   order: null,
   instruction: null,
+  bunkerPlan: null,
   ...over,
 });
 
