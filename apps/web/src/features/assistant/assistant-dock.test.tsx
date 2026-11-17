@@ -41,7 +41,7 @@ function sse(frames: string[]) {
   );
 }
 const progress = (tool: string, phase: "started" | "finished", ms = 0) =>
-  frame({ type: "progress", tool, phase, ms });
+  frame({ type: "progress", callId: `call-${tool}`, tool, phase, ms });
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 

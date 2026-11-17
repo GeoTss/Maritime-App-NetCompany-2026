@@ -303,8 +303,10 @@ export const AskEvent = z.discriminatedUnion("type", [
   z
     .object({
       type: z.literal("progress"),
+      /** The model's `tool_use` id: pairs a call's events when calls overlap. */
+      callId: z.string().min(1),
       tool: AgentToolName,
-      phase: z.enum(["started", "finished"]),
+      phase: z.enum(["started", "finished", "failed"]),
       ms: z.number().nonnegative(),
     })
     .strict(),

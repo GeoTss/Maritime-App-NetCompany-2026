@@ -6,9 +6,18 @@
  * persisted.
  */
 import type Anthropic from "@anthropic-ai/sdk";
+import type { BetaToolRunContext } from "@anthropic-ai/sdk/lib/tools/BetaRunnableTool";
 import type { BetaToolRunnerParams } from "@anthropic-ai/sdk/lib/tools/BetaToolRunner";
 import type { Sql } from "@pharos/db";
-import type { AgentToolName, AskResult, Fact, GateAttempt, GateResult, Id } from "@pharos/shared";
+import type {
+  AgentToolName,
+  AskEvent,
+  AskResult,
+  Fact,
+  GateAttempt,
+  GateResult,
+  Id,
+} from "@pharos/shared";
 import type { AppConfig } from "../config.js";
 import { withCallCapture } from "./call-capture.js";
 import { loadConversationFacts } from "./fact-ledger.js";
@@ -32,11 +41,7 @@ export interface AgentDeps {
   onProgress?: (event: ToolProgress) => void;
 }
 
-export interface ToolProgress {
-  tool: AgentToolName;
-  phase: "started" | "finished";
-  ms: number;
-}
+export type ToolProgress = Omit<Extract<AskEvent, { type: "progress" }>, "type">;
 
 type MessageParam = Anthropic.Beta.BetaMessageParam;
 type Message = Anthropic.Beta.BetaMessage;
@@ -49,7 +54,23 @@ export const MAX_ITERATIONS = 8;
 /** The model's turn ended without a usable answer (refusal, truncation, no finish). */
 export class AgentError extends Error {
   override name = "AgentError";
+  constructor(
+    message: string,
+    readonly reason: AgentErrorReason,
+  ) {
+    super(message);
+  }
 }
+
+/** Why the model's turn gave no answer: it declined, ran out of tokens, or otherwise did not finish. */
+export type AgentErrorReason = "refusal" | "truncation" | "agent_error";
+
+/** Every way an ask fails that a caller tells apart (see ask/failure.ts); `internal` is the rest. */
+export type AgentFailureReason =
+  | AgentErrorReason
+  | "replay_miss"
+  | "api_error"
+  | "conversation_not_found";
 
 export class ConversationNotFoundError extends Error {
   override name = "ConversationNotFoundError";
@@ -82,20 +103,31 @@ export function agentRunnerParams(
   return { ...params, betas: [FALLBACK_BETA], fallbacks: "default" };
 }
 
-/** Reports each tool call's start and end; the tool objects (so the request body) are unchanged. */
-function withProgress(tools: AgentTools, onProgress?: (event: ToolProgress) => void): AgentTools {
+/**
+ * Reports each tool call's start and end (`failed` when it throws, which still propagates), keyed by
+ * the `tool_use` id; the tool objects (so the request body) are unchanged.
+ */
+export function withProgress(
+  tools: AgentTools,
+  onProgress?: (event: ToolProgress) => void,
+): AgentTools {
   if (!onProgress) return tools;
   return tools.map((tool) => {
     const inner = tool as { name: AgentToolName; run: (...args: unknown[]) => unknown };
     return {
       ...tool,
       run: async (...args: unknown[]) => {
+        const callId = (args[1] as BetaToolRunContext | undefined)?.toolUse?.id;
+        if (!callId) throw new Error("tool run without a tool_use id");
         const started = Date.now();
-        onProgress({ tool: inner.name, phase: "started", ms: 0 });
+        onProgress({ callId, tool: inner.name, phase: "started", ms: 0 });
         try {
-          return await inner.run(...args);
-        } finally {
-          onProgress({ tool: inner.name, phase: "finished", ms: Date.now() - started });
+          const result = await inner.run(...args);
+          onProgress({ callId, tool: inner.name, phase: "finished", ms: Date.now() - started });
+          return result;
+        } catch (err) {
+          onProgress({ callId, tool: inner.name, phase: "failed", ms: Date.now() - started });
+          throw err;
         }
       },
     };
@@ -129,19 +161,22 @@ function answerOf(final: Message): string {
     case "stop_sequence":
       break;
     case "refusal":
-      throw new AgentError("The model declined to answer (stop_reason refusal).");
+      throw new AgentError("The model declined to answer (stop_reason refusal).", "refusal");
     case "max_tokens":
-      throw new AgentError("The answer was cut off (stop_reason max_tokens).");
+      throw new AgentError("The answer was cut off (stop_reason max_tokens).", "truncation");
     case "tool_use":
-      throw new AgentError(`The agent did not finish within ${MAX_ITERATIONS} model requests.`);
+      throw new AgentError(
+        `The agent did not finish within ${MAX_ITERATIONS} model requests.`,
+        "agent_error",
+      );
     default:
-      throw new AgentError(`Unexpected stop_reason ${String(final.stop_reason)}.`);
+      throw new AgentError(`Unexpected stop_reason ${String(final.stop_reason)}.`, "agent_error");
   }
   const text = final.content
     .map((b) => (b.type === "text" ? b.text : ""))
     .join("")
     .trim();
-  if (text === "") throw new AgentError("The model returned no answer text.");
+  if (text === "") throw new AgentError("The model returned no answer text.", "agent_error");
   return text;
 }
 

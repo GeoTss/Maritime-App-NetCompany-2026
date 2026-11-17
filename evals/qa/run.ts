@@ -37,17 +37,17 @@ import { appendFileSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { APIError } from "@anthropic-ai/sdk";
 import type { Sql } from "@pharos/db";
 import { connectTestDb } from "@pharos/db/testing";
 import { type Fact, type LlmMode, QaTruth } from "@pharos/shared";
 import { z } from "zod";
-import { type AgentConfig, AgentError, runAgent } from "../../apps/api/src/ai/agent.js";
+import { type AgentConfig, runAgent } from "../../apps/api/src/ai/agent.js";
 import { captureLlmCall } from "../../apps/api/src/ai/call-capture.js";
-import { createLlm, type LlmFetch, ReplayMissError } from "../../apps/api/src/ai/llm.js";
+import { createLlm, type LlmFetch } from "../../apps/api/src/ai/llm.js";
 import { PROMPT_VERSION } from "../../apps/api/src/ai/prompts/agent-system.js";
 import { citedFactIds } from "../../apps/api/src/ai/release-gate.js";
 import { ASK_FIXTURE_NOW, prepareAskFixture } from "../../apps/api/src/ask/demo-fixture.js";
+import { classifyAskFailure } from "../../apps/api/src/ask/failure.js";
 import { DEFAULT_RECORDINGS_DIR } from "../../apps/api/src/config.js";
 import {
   apiErrorStop,
@@ -291,14 +291,17 @@ export async function withExternalCallTap<T>(
 }
 
 export function classifyAskError(err: unknown): QaErrorKind | null {
-  if (err instanceof ReplayMissError) return "replay_miss";
-  if (err instanceof AgentError) {
-    if (/stop_reason refusal/.test(err.message)) return "refusal";
-    if (/max_tokens/.test(err.message)) return "truncation";
-    return "agent_error";
+  const { reason } = classifyAskFailure(err);
+  switch (reason) {
+    case "replay_miss":
+    case "refusal":
+    case "truncation":
+    case "agent_error":
+    case "api_error":
+      return reason;
+    default:
+      return null;
   }
-  if (err instanceof APIError) return "api_error";
-  return null;
 }
 
 export interface QaRow extends QaRun {

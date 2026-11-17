@@ -1,24 +1,23 @@
 /**
  * `POST /api/ask/stream`: the same ask as `POST /api/ask`, as server-sent events. `progress`
- * events name each tool as it starts and finishes (no input, output or text), then exactly one
+ * events name each tool call (by tool_use id) as it starts, finishes or fails (no input, output or text), then exactly one
  * `answer` event carrying the `AskResponse` (only gate-released text: a withheld answer is
  * `answer: null`, and the gate shows counts, never the withheld numbers), or one `error` event.
  * Nothing the model wrote streams before the gate.
  */
-import Anthropic from "@anthropic-ai/sdk";
 import { AskEvent, type AskRequest } from "@pharos/shared";
 import type { Context } from "hono";
 import { streamSSE } from "hono/streaming";
-import { type AgentDeps, AgentError, ConversationNotFoundError, runAgent } from "../ai/agent.js";
-import { ReplayMissError } from "../ai/llm.js";
+import { type AgentDeps, runAgent } from "../ai/agent.js";
+import { classifyAskFailure } from "./failure.js";
 import { toAskResponse } from "./response.js";
 
 /** The message a failed ask reports in its `error` event. */
 export function describeAskError(err: unknown): string {
-  if (err instanceof ConversationNotFoundError || err instanceof AgentError) return err.message;
-  if (err instanceof ReplayMissError) return `replay_miss: ${err.message}`;
-  if (err instanceof Anthropic.APIError) return `llm_unavailable: ${err.message}`;
-  return "The ask failed unexpectedly.";
+  const { reason, message } = classifyAskFailure(err);
+  if (reason === "replay_miss") return `replay_miss: ${message}`;
+  if (reason === "api_error") return `llm_unavailable: ${message}`;
+  return message;
 }
 
 export async function streamAsk(c: Context, deps: AgentDeps, parsed: AskRequest) {

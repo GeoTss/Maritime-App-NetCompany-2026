@@ -18,6 +18,8 @@ import {
   ConversationNotFoundError,
   repairMessage,
   runAgent,
+  type ToolProgress,
+  withProgress,
 } from "./agent.js";
 import { captureLlmCall } from "./call-capture.js";
 import { type CallMetrics, createLlm, type LlmFetch } from "./llm.js";
@@ -31,7 +33,8 @@ import {
   textReply,
   toolCall,
 } from "./scripted-llm.js";
-import { AGENT_TOOL_DEFS } from "./tools/registry.js";
+import { createToolContext } from "./tools/common.js";
+import { AGENT_TOOL_DEFS, agentTools } from "./tools/registry.js";
 
 const throwingFetch: LlmFetch = async () => {
   throw new Error("network must not be called");
@@ -451,6 +454,57 @@ describe.skipIf(!sql)("runAgent (Postgres)", () => {
       { attempt: 2, passed: false, ungroundedNumbers: ["26"] },
     ]);
     expect(await gateAttemptsOf(res.messageId)).toEqual(res.gate.attempts);
+  });
+
+  it("progress carries the tool_use id", async () => {
+    const { deps } = scriptedDeps([
+      toolCall(1, "get_vessel_status", { vessel: "Aegean Pioneer" }),
+      (_req: ScriptedRequest) =>
+        scriptedMessage(
+          2,
+          [{ type: "tool_use", id: "toolu_second", name: "list_fleet", input: {} }],
+          "tool_use",
+        ),
+      textReply(3, "Done."),
+    ]);
+    const events: ToolProgress[] = [];
+    await runAgent({ ...deps, onProgress: (e) => events.push(e) }, "Status and fleet?");
+    expect(events.map((e) => [e.callId, e.tool, e.phase])).toEqual([
+      ["toolu_scripted_1", "get_vessel_status", "started"],
+      ["toolu_scripted_1", "get_vessel_status", "finished"],
+      ["toolu_second", "list_fleet", "started"],
+      ["toolu_second", "list_fleet", "finished"],
+    ]);
+  });
+
+  it("failed tool reports failed", async () => {
+    const { deps } = scriptedDeps([
+      toolCall(1, "get_vessel_status", { vessel: "No Such Ship" }),
+      textReply(2, "I could not find that vessel."),
+    ]);
+    const events: ToolProgress[] = [];
+    await runAgent({ ...deps, onProgress: (e) => events.push(e) }, "Status?");
+    expect(events.map((e) => [e.callId, e.phase])).toEqual([
+      ["toolu_scripted_1", "started"],
+      ["toolu_scripted_1", "failed"],
+    ]);
+  });
+
+  it("a tool error propagates unwrapped, as a rejection, through withProgress", async () => {
+    const ctx = createToolContext({ sql: db, now: () => ASK_FIXTURE_NOW, priorFacts: [] });
+    const events: ToolProgress[] = [];
+    const tools = withProgress(agentTools(ctx), (e) => events.push(e)) as unknown as {
+      name: string;
+      run: (input: unknown, context?: unknown) => Promise<unknown>;
+    }[];
+    const tool = tools.find((t) => t.name === "get_vessel_status");
+    const ctxArg = { toolUse: { id: "toolu_x" } };
+    const err = await tool?.run({ vessel: "No Such Ship" }, ctxArg).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect(events.map((e) => e.phase)).toEqual(["started", "failed"]);
+    await expect(tool?.run({ vessel: "Aegean Pioneer" })).rejects.toThrow(
+      "tool run without a tool_use id",
+    );
   });
 
   it("a refusal fails the ask with AgentError, and the call is still recorded", async () => {

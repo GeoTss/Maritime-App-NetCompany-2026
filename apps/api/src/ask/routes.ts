@@ -2,12 +2,11 @@
  * `POST /api/ask`: one question to the ops agent (`AskRequest` -> `AskResponse`, whose gate carries
  * counts only; see response.ts).
  */
-import Anthropic from "@anthropic-ai/sdk";
 import { AskRequest } from "@pharos/shared";
 import { type Context, Hono } from "hono";
-import { type AgentDeps, AgentError, ConversationNotFoundError, runAgent } from "../ai/agent.js";
-import { ReplayMissError } from "../ai/llm.js";
+import { type AgentDeps, runAgent } from "../ai/agent.js";
 import { requireContentType } from "../http/require-content-type.js";
+import { classifyAskFailure } from "./failure.js";
 import { toAskResponse } from "./response.js";
 import { streamAsk } from "./stream.js";
 
@@ -46,22 +45,27 @@ export function createAskRoutes(deps: AgentDeps) {
     try {
       return c.json(toAskResponse(await runAgent(deps, request.question, request.conversationId)));
     } catch (err) {
-      if (err instanceof ConversationNotFoundError) {
-        return c.json({ error: "conversation_not_found", message: err.message }, 404);
-      }
-      if (err instanceof AgentError) {
-        return c.json({ error: "agent_failed", message: err.message }, 502);
-      }
-      if (err instanceof ReplayMissError) {
-        // Loud on purpose: a prompt or tool output changed without re-recording.
-        return c.json({ error: "replay_miss", message: err.message }, 500);
-      }
-      if (err instanceof Anthropic.APIError) {
-        // The model API refused or could not be reached (401, 429, 529, network): say which, as JSON.
-        return c.json(
-          { error: "llm_unavailable", status: err.status ?? null, message: err.message },
-          502,
-        );
+      const failure = classifyAskFailure(err);
+      switch (failure.reason) {
+        case "conversation_not_found":
+        case "replay_miss":
+          return c.json({ error: failure.reason, message: failure.message }, failure.status as 404);
+        case "refusal":
+        case "truncation":
+        case "agent_error":
+          return c.json({ error: "agent_failed", message: failure.message }, 502);
+        case "api_error":
+          // The model API refused or could not be reached (401, 429, 529, network): say which, as JSON.
+          return c.json(
+            {
+              error: "llm_unavailable",
+              status: failure.upstreamStatus ?? null,
+              message: failure.message,
+            },
+            502,
+          );
+        default:
+          break;
       }
       throw err;
     }

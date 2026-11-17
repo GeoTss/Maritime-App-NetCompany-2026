@@ -45,6 +45,7 @@ describe("askStream", () => {
   it("parses each event, even when a frame is split across chunks", async () => {
     const progress: AskEvent = {
       type: "progress",
+      callId: "toolu_1",
       tool: "plan_bunkering",
       phase: "started",
       ms: 0,
@@ -60,7 +61,9 @@ describe("askStream", () => {
   });
 
   it("a stream that ends without an answer ends in an error event", async () => {
-    mockStream([frame({ type: "progress", tool: "list_fleet", phase: "started", ms: 0 })]);
+    mockStream([
+      frame({ type: "progress", callId: "toolu_1", tool: "list_fleet", phase: "started", ms: 0 }),
+    ]);
     const events: AskEvent[] = [];
     await askStream(request, (e) => events.push(e), new AbortController().signal);
     expect(events.at(-1)?.type).toBe("error");

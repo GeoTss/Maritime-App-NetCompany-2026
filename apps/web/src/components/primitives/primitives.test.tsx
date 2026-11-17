@@ -11,6 +11,7 @@ afterEach(cleanup);
 type Progress = Extract<AskEvent, { type: "progress" }>;
 const p = (tool: Progress["tool"], phase: "started" | "finished", ms = 0): Progress => ({
   type: "progress",
+  callId: `call-${tool}`,
   tool,
   phase,
   ms,

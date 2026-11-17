@@ -530,23 +530,48 @@ describe("Phase 4 ask events, recommendations and drafts", () => {
 
   it("AskEvent discriminates on type and keeps answer text out of progress", () => {
     expect(
+      AskEvent.safeParse({
+        type: "progress",
+        callId: "toolu_1",
+        tool: "plan_bunkering",
+        phase: "started",
+        ms: 0,
+      }).success,
+    ).toBe(true);
+    expect(
+      AskEvent.safeParse({
+        type: "progress",
+        callId: "toolu_1",
+        tool: "plan_bunkering",
+        phase: "failed",
+        ms: 3,
+      }).success,
+    ).toBe(true);
+    expect(
       AskEvent.safeParse({ type: "progress", tool: "plan_bunkering", phase: "started", ms: 0 })
         .success,
-    ).toBe(true);
+    ).toBe(false);
     expect(AskEvent.safeParse({ type: "answer", response }).success).toBe(true);
     expect(AskEvent.safeParse({ type: "error", message: "boom" }).success).toBe(true);
     expect(
       AskEvent.safeParse({
         type: "progress",
-        tool: "t",
+        callId: "toolu_1",
+        tool: "plan_bunkering",
         phase: "finished",
         ms: 5,
         answer: "leaked text",
       }).success,
     ).toBe(false);
-    expect(AskEvent.safeParse({ type: "progress", tool: "t", phase: "later", ms: 5 }).success).toBe(
-      false,
-    );
+    expect(
+      AskEvent.safeParse({
+        type: "progress",
+        callId: "toolu_1",
+        tool: "plan_bunkering",
+        phase: "later",
+        ms: 5,
+      }).success,
+    ).toBe(false);
   });
 
   it("RecommendationStatus keeps its old values and adds executing and failed", () => {
