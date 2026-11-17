@@ -14,6 +14,7 @@ import {
   type TrackFuel,
   type TrackFuelInput,
 } from "@pharos/shared";
+import { stopTimeline } from "./bunker-stop.js";
 import { dailyConsumptionMt, portStayFuelMt } from "./consumption.js";
 import { lerp, subSteps, walkSteps } from "./track.js";
 
@@ -41,8 +42,8 @@ export type StayHours = (arriveAt: Date) => number;
 /**
  * Projects fuel on board per grade along `points` at `speedKn`. Margins (`safetyMarginDays` ×
  * daily consumption at the speed) apply to the grades burned on the track and are checked after
- * every sub-step and on arrival at the stop. `stayHours` sets the stop's stay (defaults to waiting +
- * bunkering hours).
+ * every sub-step and on arrival at the stop. The stop's stay comes from `stopTimeline` (waiting,
+ * then workable weather, then bunkering) unless `stayHours` is given.
  */
 export function projectFuelAlongTrack(input: TrackFuelInput, stayHours?: StayHours): TrackFuel {
   const { curve, speedKn, stop } = input;
@@ -50,7 +51,18 @@ export function projectFuelAlongTrack(input: TrackFuelInput, stayHours?: StayHou
   const startMs = Date.parse(input.startAt);
   const route = subSteps(input.points, input.stepNm);
   const stayOf: StayHours =
-    stayHours ?? (() => (stop ? stop.waitingHours + stop.bunkeringHours : 0));
+    stayHours ??
+    ((arriveAt) => {
+      if (!stop) return 0;
+      const t = stopTimeline({
+        arriveAt,
+        position: stop.position,
+        waitingHours: stop.waitingHours,
+        bunkeringHours: stop.bunkeringHours,
+        weather: input.weather,
+      });
+      return (Date.parse(t.departAt) - arriveAt.getTime()) / HOUR_MS;
+    });
 
   let arrival: { at: number; hours: number } | null = null;
   const walked = walkSteps(

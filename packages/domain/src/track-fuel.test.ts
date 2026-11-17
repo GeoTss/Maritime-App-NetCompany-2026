@@ -6,6 +6,8 @@ import type {
   WeatherGrid,
 } from "@pharos/shared";
 import { describe, expect, it } from "vitest";
+import { stopTimeline } from "./bunker-stop.js";
+import { BUNKERING_MAX_WAVE_M } from "./constants.js";
 import { dailyConsumptionMt, portStayFuelMt } from "./consumption.js";
 import { greatCircleNm, polylineNm } from "./geo.js";
 import { evaluateRoute } from "./route-optimiser.js";
@@ -193,5 +195,62 @@ describe("projectFuelAlongTrack", () => {
     expect(route.fuelMt.LSMGO).toBeGreaterThan(0);
     expect(route.fuelMt.VLSFO).toBeGreaterThan(0);
     expect(Date.parse(fuel.breakpoints.at(-1)?.at ?? "")).toBe(Date.parse(route.eta));
+  });
+
+  it("stop stay includes the weather delay", () => {
+    const stop = {
+      pointIndex: 1,
+      position: ll(35, 20),
+      waitingHours: 4,
+      bunkeringHours: 6,
+      stayGrade: "LSMGO" as const,
+      grade: "LSMGO" as const,
+      qtyMt: 300,
+    };
+    const rob = { LSMGO: 200, VLSFO: 0, HSFO: 0 };
+    const plain = projectFuelAlongTrack(input({ points: MED3, robMt: rob }));
+    const arriveMs = Date.parse(START) + (greatCircleNm(ll(35, 15), ll(35, 20)) / 12) * HOUR_MS;
+    // Waves above the limit until 6 h after the vessel is ready to bunker, then workable.
+    const steps = 40;
+    const readyStep = Math.round((arriveMs + 4 * HOUR_MS - Date.parse(START)) / (3 * HOUR_MS));
+    const waveHeightM = Array.from({ length: steps }, (_, k) =>
+      k < readyStep + 2 ? BUNKERING_MAX_WAVE_M + 1 : 1,
+    );
+    const weather: WeatherGrid = {
+      startAt: START,
+      stepHours: 3,
+      points: [
+        {
+          lat: 35,
+          lon: 20,
+          waveHeightM,
+          waveDirDeg: Array(steps).fill(0),
+          windSpeedKn: Array(steps).fill(0),
+          windDirDeg: Array(steps).fill(0),
+          currentSpeedKn: Array(steps).fill(0),
+          currentDirDeg: Array(steps).fill(0),
+        },
+      ],
+    };
+    const r = projectFuelAlongTrack(input({ points: MED3, robMt: rob, stop, weather }));
+    const arrival = r.breakpoints.find((b) => b.kind === "stop_arrival");
+    const departure = r.breakpoints.find((b) => b.kind === "stop_departure");
+    const expected = stopTimeline({
+      arriveAt: new Date(arrival?.at ?? ""),
+      position: stop.position,
+      waitingHours: 4,
+      bunkeringHours: 6,
+      weather,
+    });
+    expect(expected.weatherDelayHours).toBeGreaterThan(0);
+    expect(
+      Math.abs(Date.parse(departure?.at ?? "") - Date.parse(expected.departAt)),
+    ).toBeLessThanOrEqual(1);
+    const stayHours = 4 + 6 + expected.weatherDelayHours;
+    expect(departure?.robMt.LSMGO).toBeCloseTo(
+      (arrival?.robMt.LSMGO ?? 0) - portStayFuelMt(curve, stayHours) + 300,
+      6,
+    );
+    expect(plain.breakpoints.some((b) => b.kind === "stop_arrival")).toBe(false);
   });
 });

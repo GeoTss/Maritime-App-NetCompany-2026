@@ -5,6 +5,7 @@
  */
 export const DOMAIN_CODE_VERSION = "0.6.0";
 export * from "./bunker-planner.js";
+export * from "./bunker-stop.js";
 export * from "./calculate.js";
 export * from "./congestion.js";
 export * from "./constants.js";
