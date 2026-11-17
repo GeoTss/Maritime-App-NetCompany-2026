@@ -9,6 +9,7 @@ import {
   type DraughtCondition,
   draughtLoad,
   etsCoverage,
+  portGrade,
   REFERENCE_VESSEL_PROFILES,
   RouteError,
   remainingRoutePoints,
@@ -29,10 +30,14 @@ import {
   type RouteGraph,
   type RouteSpeedInput,
   type ShipType,
+  type StopCandidate,
   type WeatherGrid,
 } from "@pharos/shared";
-import { voyageState } from "./seed/demo-plan.js";
+import { type CongestionMode, waitingHoursAt } from "./current-plan.js";
+import { type BunkerOffer, DEFAULT_BUNKERING_HOURS, voyageState } from "./seed/demo-plan.js";
+import { DEMO_SCENARIO } from "./seed/scenario.js";
 import type { World } from "./seed/types.js";
+import { openRequirements } from "./world-rules.js";
 
 export type RoutePlan = {
   input: RouteSpeedInput;
@@ -95,12 +100,102 @@ function market(world: World): RouteSpeedInput["market"] {
   };
 }
 
+/** What a fleet route plan checks fuel against: the offers for the open requirement, or a fixed order. */
+export interface FleetPlanOptions {
+  congestion: CongestionMode;
+  /** Offers for the voyage's open requirement; empty when it has none. */
+  offers: BunkerOffer[];
+  /** An approved purchase order that fixes the stop; only its option is then a candidate. */
+  fixedOrder: { recommendationId: Id; optionId: string; qtyMt: number } | null;
+}
+
+const NO_OFFERS: FleetPlanOptions = { congestion: "seed", offers: [], fixedOrder: null };
+
+/** A route from `start` to `end` through `via`: the shortest sea route of each half, joined. */
+function viaPort(
+  graph: RouteGraph,
+  start: LatLon,
+  via: LatLon,
+  end: LatLon,
+  avoid: HazardZone[],
+): { points: LatLon[]; stopPointIndex: number; routeError: string | null } {
+  try {
+    const [first] = candidateRoutes(graph, start, via, { max: 1, avoid });
+    const [second] = candidateRoutes(graph, via, end, { max: 1, avoid });
+    if (!first || !second)
+      return { points: [start, end], stopPointIndex: 1, routeError: "no_path" };
+    const head = [...first.points.slice(0, -1), via];
+    return {
+      points: [...head, ...second.points.slice(1)],
+      stopPointIndex: head.length - 1,
+      routeError: null,
+    };
+  } catch (e) {
+    if (e instanceof RouteError)
+      return { points: [start, end], stopPointIndex: 1, routeError: e.code };
+    throw e;
+  }
+}
+
+/** Stop candidates: one per offer through its port (only the fixed order's, when there is one). */
+function stopCandidates(
+  world: World,
+  voyageId: Id,
+  graph: RouteGraph,
+  start: LatLon,
+  end: LatLon,
+  hazards: HazardZone[],
+  opts: FleetPlanOptions,
+): StopCandidate[] {
+  const requirement = openRequirements(world, voyageId)[0];
+  if (!requirement && !opts.fixedOrder) return [];
+  const offers = opts.fixedOrder
+    ? opts.offers.filter((o) => o.optionId === opts.fixedOrder?.optionId)
+    : opts.offers;
+  const eurUsd = world.referenceRates.find((r) => r.key === "EURUSD")?.value ?? 1;
+  const out: StopCandidate[] = [];
+  for (const o of offers) {
+    const port = world.ports.find((x) => x.id === o.portId);
+    if (!port) continue;
+    const quote = o.quoteId === null ? undefined : world.quotes.find((q) => q.id === o.quoteId);
+    const grade =
+      requirement?.grade ?? world.quoteLines.find((l) => l.quoteId === o.quoteId)?.grade ?? "LSMGO";
+    const via = viaPort(graph, start, latLon(port), end, hazards);
+    out.push({
+      optionId: o.optionId,
+      quoteId: o.quoteId,
+      supplierId: o.supplierId,
+      portId: port.id,
+      unlocode: port.unlocode,
+      portIsEu: port.isEu,
+      stayGrade: portGrade(port),
+      position: latLon(port),
+      points: via.points,
+      stopPointIndex: via.stopPointIndex,
+      waitingHours: waitingHoursAt(world, port.id, opts.congestion),
+      bunkeringHours: DEFAULT_BUNKERING_HOURS,
+      grade,
+      qtyMt: opts.fixedOrder?.qtyMt ?? requirement?.qtyMt ?? o.qtyMt,
+      offeredQtyMt: o.qtyMt,
+      pricePerMt: o.pricePerMt,
+      bargeFee: o.bargeFee,
+      fxToUsd: o.currency === "EUR" ? eurUsd : 1,
+      deliveryFrom: quote?.deliveryFrom?.toISOString() ?? null,
+      deliveryTo: quote?.deliveryTo?.toISOString() ?? null,
+      orderRecommendationId: opts.fixedOrder?.recommendationId ?? null,
+      routeError: via.routeError,
+    });
+  }
+  return out;
+}
+
 /**
  * A fleet voyage from its latest noon report: "A" is the rest of the planned route; up to two sea
  * routes from the graph follow as "B" (shortest) and "C" (alternative). When the graph cannot
  * route the voyage, only "A" remains. The baseline is "A" at the planned speed; the berth window
  * of the discharge call bounds the arrival; the planned speed is rounded to 0.5 kn and clamped to
- * the curve. `hazards` are routed round in B and C (A is the planned route, kept as it is).
+ * the curve. `hazards` are routed round in B and C (A is the planned route, kept as it is). The
+ * fuel on board is the noon report's, and each offer becomes a stop candidate through its port.
  */
 export function fleetRoutePlan(
   world: World,
@@ -108,6 +203,7 @@ export function fleetRoutePlan(
   graph: RouteGraph,
   weather: WeatherGrid | null,
   hazards: HazardZone[] = [],
+  opts: FleetPlanOptions = NO_OFFERS,
 ): RoutePlan {
   const { vessel, voyage, path, report } = voyageState(world, voyageId);
   const planned = remainingRoutePoints(path, sailedNmAt(path, report.ts));
@@ -153,8 +249,12 @@ export function fleetRoutePlan(
       market: market(world),
       weather,
       hazards,
-      fuel: null,
-      stops: [],
+      fuel: {
+        robMt: report.robMt,
+        safetyMarginDays: DEMO_SCENARIO.safetyMarginDays,
+        tankCapacityMt: vessel.tankCapacityMt,
+      },
+      stops: stopCandidates(world, voyage.id, graph, position, latLon(destination), hazards, opts),
     },
     subject: vessel.name,
     destination,

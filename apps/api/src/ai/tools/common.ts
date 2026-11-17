@@ -132,21 +132,8 @@ export async function insertCalculation(
   return row.id;
 }
 
-/**
- * Why a quote is expired, or null while it is valid: its status says so, or its validity day
- * (stored as the day's start, UTC) is before the clock's UTC day. A quote is valid through its
- * last day, the rule ingestion applies to a quote's validity on receipt.
- */
-export function quoteExpiry(
-  quote: Pick<Quote, "status" | "validUntil">,
-  now: Date,
-): "status" | "validUntil" | null {
-  if (quote.status === "expired") return "status";
-  if (quote.validUntil && isoDayAfter(quote.validUntil, 0) < isoDayAfter(now, 0)) {
-    return "validUntil";
-  }
-  return null;
-}
+/** Why a quote can no longer be accepted (one rule, in `@pharos/db`). */
+export { quoteExpiry } from "@pharos/db";
 
 /** A fleet vessel from free text: a standalone 7-digit IMO in it, otherwise the name. */
 export function findVessel(world: World, text: string): Vessel {
