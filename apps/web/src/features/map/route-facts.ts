@@ -73,6 +73,7 @@ export type InfeasibleReason = RouteOptionResult["reasons"][number];
 const REASON: Record<InfeasibleReason, string> = {
   crosses_hazard: "Blocked: crosses the reported hazard",
   misses_arrive_by: "Blocked: arrives after the berth window closes",
+  insufficient_fuel: "Blocked: runs below the fuel margin",
 };
 
 export function reasonText(reason: InfeasibleReason): string {

@@ -187,6 +187,18 @@ export const RecommendationInstruction = z.object({
   candidateId: z.string().min(1),
   speedKn: z.number().positive(),
   eta: IsoDateTime,
+  /** The bunker stop the instruction calls at; null for a route with no stop. */
+  stop: z
+    .object({
+      unlocode: z.string(),
+      portName: z.string(),
+      arriveAt: IsoDateTime,
+      departAt: IsoDateTime,
+      qtyMt: z.number().positive(),
+      quoteId: Id.nullable(),
+    })
+    .strict()
+    .nullable(),
 });
 export type RecommendationInstruction = z.infer<typeof RecommendationInstruction>;
 
@@ -225,6 +237,20 @@ export const BunkerPlanView = z
   .strict();
 export type BunkerPlanView = z.infer<typeof BunkerPlanView>;
 
+/** The purchase order a voyage instruction with a bunker stop waits for. */
+export const RecommendationDependency = z
+  .object({
+    quoteId: Id,
+    /** "<supplier> at <port>". */
+    optionLabel: z.string(),
+    recommendationId: Id.nullable(),
+    status: RecommendationStatus.nullable(),
+    /** The order is approved, executing or executed. */
+    satisfied: z.boolean(),
+  })
+  .strict();
+export type RecommendationDependency = z.infer<typeof RecommendationDependency>;
+
 export const RecommendationView = z.object({
   id: Id,
   type: RecommendationType,
@@ -253,6 +279,8 @@ export const RecommendationView = z.object({
   instruction: RecommendationInstruction.nullable(),
   /** The stored bunker plan behind a purchase order, when it is readable; else null. */
   bunkerPlan: BunkerPlanView.nullable(),
+  /** The purchase order a voyage instruction with a bunker stop waits for; else null. */
+  dependsOn: RecommendationDependency.nullable(),
 });
 export type RecommendationView = z.infer<typeof RecommendationView>;
 

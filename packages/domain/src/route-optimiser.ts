@@ -169,6 +169,7 @@ function evaluateSteps(
     crossesHazard: hazardIds.length > 0,
     hazardIds,
     reasons,
+    fuel: null,
   };
 }
 
@@ -274,5 +275,7 @@ export function optimiseRouteSpeed(rawInput: RouteSpeedInput): RouteSpeedResult 
     bestCandidateId: best.candidateId,
     savingVsBaselineUsd: base.totalCostUsd - best.totalCostUsd,
     fuelSavingVsBaselineMt: base.totalFuelMt - best.totalFuelMt,
+    stopPlans: [],
+    plan: null,
   };
 }

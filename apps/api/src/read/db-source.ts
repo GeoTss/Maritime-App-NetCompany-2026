@@ -445,6 +445,7 @@ async function recommendations(sql: Sql, id?: Id): Promise<RecommendationView[]>
       gatePassed: r.gate_passed,
       // Only a readable purchase order carries its plan (set below).
       bunkerPlan: null,
+      dependsOn: null,
       order:
         r.order_id === null || r.erp_sync_status === null
           ? null
@@ -460,6 +461,7 @@ async function recommendations(sql: Sql, id?: Id): Promise<RecommendationView[]>
               candidateId: r.instruction_candidate_id,
               speedKn: r.instruction_speed_kn,
               eta: new Date(r.instruction_eta).toISOString(),
+              stop: null,
             },
     };
     if (r.kind === "route_speed") {

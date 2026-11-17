@@ -37,8 +37,10 @@ import {
   Provenance,
   QA_CATEGORIES,
   QaTruth,
+  RecommendationDependency,
   RecommendationStatus,
   RecommendationView,
+  RecommendedPlan,
   ReviewCorrection,
   ReviewReference,
   RouteLeg,
@@ -46,6 +48,8 @@ import {
   RoutePlanView,
   RouteSpeedInput,
   SimClockView,
+  StopPlanReason,
+  TrackFuelInput,
   Vessel,
   VesselStatusInput,
   Voyage,
@@ -271,6 +275,7 @@ describe("Phase 2 contracts", () => {
       order: { orderId: 3, erpPoNumber: "PO-000001", erpSyncStatus: "synced" },
       instruction: null,
       bunkerPlan: null,
+      dependsOn: null,
     };
     expect(RecommendationView.parse(rec).order?.erpPoNumber).toBe("PO-000001");
     // A voyage instruction: the recorded instruction, no order.
@@ -279,6 +284,7 @@ describe("Phase 2 contracts", () => {
       candidateId: "B",
       speedKn: 11.5,
       eta: "2026-11-20T06:00:00.000Z",
+      stop: null,
     };
     expect(
       RecommendationView.safeParse({
@@ -743,6 +749,8 @@ describe("Phase 5 contracts", () => {
       market: { euaPriceEur: 70, eurUsd: 1.1, year: 2026 },
       weather: null,
       hazards: [],
+      fuel: null,
+      stops: [],
     };
     expect(RouteSpeedInput.safeParse(input).success).toBe(false);
     const ok = {
@@ -759,6 +767,95 @@ describe("Phase 5 contracts", () => {
       ],
     };
     expect(RouteSpeedInput.safeParse(ok).success).toBe(true);
+  });
+
+  it("RouteSpeedInput requires fuel and stops", () => {
+    const input = {
+      startAt: "2026-11-15T00:00:00Z",
+      candidates: [
+        {
+          id: "a",
+          label: "Direct",
+          points: [
+            { lat: 0, lon: 0 },
+            { lat: 1, lon: 1 },
+          ],
+        },
+      ],
+      baseline: { candidateId: "a", speedKn: 12 },
+      curve: { refSpeedKn: 12, refMtPerDay: 30, auxMtPerDay: 2, minSpeedKn: 8, maxSpeedKn: 15 },
+      speedStepKn: 0.5,
+      stepNm: 10,
+      arriveBy: null,
+      notBefore: null,
+      dailyCostUsd: 10000,
+      fuelPriceUsdPerMt: { LSMGO: 800, VLSFO: 600, HSFO: 500 },
+      etsCoverage: 0.5,
+      market: { euaPriceEur: 70, eurUsd: 1.1, year: 2026 },
+      weather: null,
+      hazards: [],
+    };
+    expect(RouteSpeedInput.safeParse(input).success).toBe(false);
+    expect(RouteSpeedInput.safeParse({ ...input, fuel: null, stops: [] }).success).toBe(true);
+  });
+
+  it("TrackFuelInput rejects a stop at point index 0", () => {
+    const input = {
+      startAt: "2026-11-15T00:00:00Z",
+      points: [
+        { lat: 0, lon: 0 },
+        { lat: 1, lon: 1 },
+      ],
+      speedKn: 12,
+      stepNm: 20,
+      curve: { refSpeedKn: 12, refMtPerDay: 30, auxMtPerDay: 2, minSpeedKn: 8, maxSpeedKn: 15 },
+      weather: null,
+      robMt: { LSMGO: 100, VLSFO: 500, HSFO: 0 },
+      safetyMarginDays: 2,
+      stop: null,
+      probesNm: [],
+    };
+    const stop = {
+      pointIndex: 1,
+      position: { lat: 1, lon: 1 },
+      waitingHours: 4,
+      bunkeringHours: 6,
+      stayGrade: "LSMGO",
+      grade: "LSMGO",
+      qtyMt: 300,
+    };
+    expect(TrackFuelInput.safeParse({ ...input, stop }).success).toBe(true);
+    expect(TrackFuelInput.safeParse({ ...input, stop: { ...stop, pointIndex: 0 } }).success).toBe(
+      false,
+    );
+  });
+
+  it("StopPlanReason accepts insufficient_fuel and rejects an unknown reason", () => {
+    expect(StopPlanReason.safeParse("insufficient_fuel").success).toBe(true);
+    expect(StopPlanReason.safeParse("too_far").success).toBe(false);
+  });
+
+  it("RecommendedPlan parses a stop plan with no next option", () => {
+    const plan = {
+      kind: "stop",
+      optionId: "MTMLA-kestrel",
+      addedHours: 12.5,
+      addedUsd: 4000,
+      next: null,
+    };
+    expect(RecommendedPlan.safeParse(plan).success).toBe(true);
+    expect(RecommendedPlan.safeParse({ ...plan, kind: "bunker" }).success).toBe(false);
+  });
+
+  it("RecommendationDependency requires satisfied", () => {
+    const dep = {
+      quoteId: 3,
+      optionLabel: "Kestrel at Marsaxlokk",
+      recommendationId: null,
+      status: null,
+    };
+    expect(RecommendationDependency.safeParse({ ...dep, satisfied: false }).success).toBe(true);
+    expect(RecommendationDependency.safeParse(dep).success).toBe(false);
   });
 
   it("AisObservation rejects an 8-digit mmsi", () => {
@@ -1185,6 +1282,7 @@ const sampleRoutePlan = () => {
     crossesHazard: false,
     hazardIds: [],
     reasons: [],
+    fuel: null,
   };
   return {
     calculationId: 9,
@@ -1207,6 +1305,8 @@ const sampleRoutePlan = () => {
       bestCandidateId: "A",
       savingVsBaselineUsd: 0,
       fuelSavingVsBaselineMt: 0,
+      stopPlans: [],
+      plan: null,
     },
     facts: [],
     computeMs: 12,
@@ -1239,6 +1339,7 @@ describe("plan views", () => {
       order: null,
       instruction: null,
       bunkerPlan: null,
+      dependsOn: null,
     };
     expect(RecommendationView.safeParse(rec).success).toBe(true);
     const { bunkerPlan: _, ...without } = rec;

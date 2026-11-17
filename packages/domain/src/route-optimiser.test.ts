@@ -46,6 +46,8 @@ function makeInput(over: Partial<RouteSpeedInput> = {}): RouteSpeedInput {
     market: { euaPriceEur: 75, eurUsd: 1.08, year: 2026 },
     weather: null,
     hazards: [],
+    fuel: null,
+    stops: [],
     ...over,
   };
 }
@@ -638,6 +640,8 @@ describe("never worse than the baseline (60 seeded inputs)", () => {
       },
       weather,
       hazards: [],
+      fuel: null,
+      stops: [],
     };
     if (!loaded) return input;
     // Drawn after everything else, so the unloaded inputs are the same as without this branch.

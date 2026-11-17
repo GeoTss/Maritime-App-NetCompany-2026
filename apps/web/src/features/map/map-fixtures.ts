@@ -256,6 +256,7 @@ const option = (candidateId: string, over: Partial<RouteOptionResult>): RouteOpt
   crossesHazard: false,
   hazardIds: [],
   reasons: [],
+  fuel: null,
   ...over,
 });
 
@@ -388,6 +389,8 @@ export function makePlan(opts: { omitFact?: (fact: Fact) => boolean } = {}): Rou
       bestCandidateId: "B",
       savingVsBaselineUsd: 48024.5,
       fuelSavingVsBaselineMt: 74.5,
+      stopPlans: [],
+      plan: null,
     },
     facts: kept,
     computeMs: 80,
