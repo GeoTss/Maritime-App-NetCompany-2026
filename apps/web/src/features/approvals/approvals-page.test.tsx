@@ -845,12 +845,18 @@ describe("ApprovalsPage: deciding", () => {
         .getAllByRole("button")
         .map((b) => b.textContent),
     ).toEqual(["Reject…", "Approve purchase order…"]);
-    fireEvent.click(within(bar).getByRole("button", { name: "Approve purchase order…" }));
+    const trigger = within(bar).getByRole("button", { name: /^Approve purchase order/ });
+    fireEvent.click(trigger);
     const dialog = await screen.findByRole("alertdialog");
     expect(dialog.textContent).toMatch(
       /pushes the order to the ERP simulator and drafts a supplier confirmation \(not sent\)/,
     );
+    expect(within(dialog).getByRole("heading").textContent).toMatch(/^Order .+ from .+ at .+\?$/);
     expect(posts()).toEqual([]);
+    // Escape closes it and focus returns to the Approve trigger.
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect(document.activeElement).toBe(trigger);
   });
 
   it("a voyage instruction names its own consequence", async () => {
@@ -862,7 +868,7 @@ describe("ApprovalsPage: deciding", () => {
     const dialog = await screen.findByRole("alertdialog");
     expect(dialog.textContent).toMatch(/Nothing is written to the ERP/);
     fireEvent.click(within(dialog).getByRole("button", { name: "Keep it pending" }));
-    fireEvent.click(within(bar).getByRole("button", { name: "Approve voyage instruction…" }));
+    fireEvent.click(within(bar).getByRole("button", { name: /^Approve voyage instruction/ }));
     expect((await screen.findByRole("alertdialog")).textContent).toMatch(
       /records the route and speed instruction and drafts a message to the master \(not sent\)/,
     );
@@ -873,9 +879,9 @@ describe("ApprovalsPage: deciding", () => {
     decide = () => new Promise<Response>((r) => (release = r));
     renderPage();
     const article = await detail();
-    fireEvent.click(within(article).getByRole("button", { name: "Approve purchase order…" }));
+    fireEvent.click(within(article).getByRole("button", { name: /^Approve purchase order/ }));
     const dialog = await screen.findByRole("alertdialog");
-    fireEvent.click(within(dialog).getByRole("button", { name: "Approve" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Approve and create the order" }));
     await waitFor(() => expect(posts()).toHaveLength(1));
     // While in flight no control can start another decision, on this proposal or another.
     for (const b of screen.getAllByRole("button", { name: /Approving|Approve|Reject/ }))
@@ -930,7 +936,7 @@ describe("ApprovalsPage: deciding", () => {
     renderPage();
     const article = await detail();
     expect(article.dataset.recommendationId).toBe("1");
-    fireEvent.click(within(article).getByRole("button", { name: "Approve purchase order…" }));
+    fireEvent.click(within(article).getByRole("button", { name: /^Approve purchase order/ }));
     items = [
       rec(1, {
         status: "executed",
@@ -940,7 +946,9 @@ describe("ApprovalsPage: deciding", () => {
     ];
     await act(async () => {
       fireEvent.click(
-        within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Approve" }),
+        within(await screen.findByRole("alertdialog")).getByRole("button", {
+          name: "Approve and create the order",
+        }),
       );
     });
     // Not the next awaiting one: the outcome of what was just approved.
@@ -952,11 +960,11 @@ describe("ApprovalsPage: deciding", () => {
     decide = () => json({ error: "illegal_transition", message: "already approved" }, 409);
     renderPage();
     const article = await detail();
-    fireEvent.click(within(article).getByRole("button", { name: "Approve purchase order…" }));
+    fireEvent.click(within(article).getByRole("button", { name: /^Approve purchase order/ }));
     const dialog = await screen.findByRole("alertdialog");
     items = [rec(1, { status: "rejected" }), rec(2)];
     await act(async () => {
-      fireEvent.click(within(dialog).getByRole("button", { name: "Approve" }));
+      fireEvent.click(within(dialog).getByRole("button", { name: "Approve and create the order" }));
     });
     const note = await screen.findByText(/already decided/i);
     expect(note.textContent).toMatch(/rejected/);

@@ -446,12 +446,7 @@ function ActionBar({
       </div>
       {isPending ? (
         <div className="flex items-center gap-2">
-          <ProposalDecision
-            type={rec.type}
-            pending={pending}
-            disabled={locked}
-            onDecide={onDecide}
-          />
+          <ProposalDecision rec={rec} pending={pending} disabled={locked} onDecide={onDecide} />
         </div>
       ) : null}
     </section>

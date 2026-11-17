@@ -8,7 +8,7 @@ import type { RecommendationStatus, RecommendationView } from "@pharos/shared";
 
 type RecommendationType = RecommendationView["type"];
 
-import { type ReactNode, useState } from "react";
+import type { ReactNode } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,6 +18,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { BorderBeam } from "@/components/ui/border-beam";
 import { Button } from "@/components/ui/button";
@@ -104,6 +105,9 @@ export function DecisionButtons({
   confirmRejectLabel = "Reject",
   approveLabel = "Approve",
   rejectLabel = "Reject",
+  approveTitle = "Approve this proposal?",
+  approveSummary,
+  approveName,
   pending = null,
   disabled = false,
 }: {
@@ -117,54 +121,65 @@ export function DecisionButtons({
   /** The triggers' words, e.g. "Approve purchase order…" (the ellipsis: a confirmation follows). */
   approveLabel?: string;
   rejectLabel?: string;
+  /** The approve confirmation's title: the order restated, e.g. "Order 300 mt LSMGO from … at …?". */
+  approveTitle?: ReactNode;
+  /** Rows between the title and the consequence (the figures the approver is agreeing to). */
+  approveSummary?: ReactNode;
+  /** The Approve trigger's accessible name, so each proposal's button is distinct. */
+  approveName?: string;
   /** The decision in flight, if any: both controls wait (single-flight). */
   pending?: Decision | null;
   disabled?: boolean;
 }) {
-  const [asking, setAsking] = useState<Decision | null>(null);
   const busy = pending !== null || disabled;
 
-  const confirm = () => {
-    const decision = asking;
-    setAsking(null);
-    if (decision === "approve") void onApprove();
-    if (decision === "reject") void onReject();
-  };
-
+  // Each button is the Radix trigger of its own dialog, so closing it returns focus to the button.
   return (
     <>
-      <Button
-        variant="outline"
-        disabled={busy}
-        onClick={() => setAsking("reject")}
-        className="hover:border-alarm/60 hover:text-alarm"
-      >
-        {pending === "reject" ? "Rejecting…" : rejectLabel}
-      </Button>
-      <Button variant="commit" disabled={busy} onClick={() => setAsking("approve")}>
-        {pending === "approve" ? "Approving…" : approveLabel}
-      </Button>
-      <AlertDialog open={asking !== null} onOpenChange={(open) => !open && setAsking(null)}>
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button
+            variant="outline"
+            disabled={busy}
+            className="hover:border-alarm/60 hover:text-alarm"
+          >
+            {pending === "reject" ? "Rejecting…" : rejectLabel}
+          </Button>
+        </AlertDialogTrigger>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              {asking === "reject" ? "Reject this proposal?" : "Approve this proposal?"}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {asking === "reject" ? rejectConsequence : approveConsequence}
+            <AlertDialogTitle>Reject this proposal?</AlertDialogTitle>
+            <AlertDialogDescription>{rejectConsequence}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep it pending</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={() => void onReject()}>
+              {confirmRejectLabel}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button variant="commit" disabled={busy} aria-label={pending ? undefined : approveName}>
+            {pending === "approve" ? "Approving…" : approveLabel}
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{approveTitle}</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="flex flex-col gap-2">
+                {approveSummary}
+                <p>{approveConsequence}</p>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Keep it pending</AlertDialogCancel>
-            {asking === "reject" ? (
-              <AlertDialogAction variant="destructive" onClick={confirm}>
-                {confirmRejectLabel}
-              </AlertDialogAction>
-            ) : (
-              <AlertDialogAction variant="commit" onClick={confirm}>
-                {confirmApproveLabel}
-              </AlertDialogAction>
-            )}
+            <AlertDialogAction variant="commit" onClick={() => void onApprove()}>
+              {confirmApproveLabel}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

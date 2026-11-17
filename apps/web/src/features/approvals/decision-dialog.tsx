@@ -3,8 +3,11 @@
  * that change anything; each opens a confirmation (the shared `DecisionButtons` alert dialog)
  * that says exactly what will happen, and nothing is ever sent to an outside party.
  */
-import type { RecommendationView } from "@pharos/shared";
+import type { Fact, RecommendationView } from "@pharos/shared";
+import type { ReactNode } from "react";
 import { type Decision, DecisionButtons } from "@/components/primitives/approval-card";
+import { formatNumber } from "@/lib/format";
+import { instructionFacts, orderFacts, proposedOption, rowFact } from "./order-summary";
 
 export const APPROVE_CONSEQUENCE: Record<RecommendationView["type"], string> = {
   purchase_order:
@@ -22,27 +25,87 @@ export const APPROVE_LABEL: Record<RecommendationView["type"], string> = {
   voyage_instruction: "Approve voyage instruction…",
 };
 
+const text = (f: Fact) =>
+  typeof f.value === "number" ? formatNumber(f.value, f.unit) : String(f.value);
+
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-4 border-b border-line py-1 text-sm">
+      <dt className="text-text-2">{label}</dt>
+      <dd className="text-text-1 tabular-nums">{value}</dd>
+    </div>
+  );
+}
+
+/** The order or instruction restated for the confirm: title, and the figures as the API returned them. */
+function restate(rec: RecommendationView): { title: ReactNode; rows: ReactNode } {
+  const fallback = { title: "Approve this proposal?", rows: null };
+  const label = rec.optionLabel;
+  if (!label) return fallback;
+  if (rec.type === "purchase_order") {
+    const f = orderFacts(rec);
+    const option = proposedOption(rec);
+    if (!f.quantity || !f.grade) return fallback;
+    const price = rowFact(option, "effective price (total cost per mt)");
+    const margin = rec.bunkerPlan?.marginVsRunnerUp ?? null;
+    return {
+      title: `Order ${text(f.quantity)} ${f.grade} from ${label}?`,
+      rows: (
+        <dl>
+          {f.totalCost ? (
+            <Row
+              label="Total delivered cost"
+              value={price ? `${text(f.totalCost)} (${text(price)})` : text(f.totalCost)}
+            />
+          ) : null}
+          {margin && option?.best ? (
+            <Row label="Against the runner-up" value={text(margin)} />
+          ) : null}
+          {f.delay ? <Row label="Delay" value={text(f.delay)} /> : null}
+        </dl>
+      ),
+    };
+  }
+  const f = instructionFacts(rec);
+  if (!f.speed) return fallback;
+  const subject = f.speed.label.split(",")[0];
+  return {
+    title: `Instruct ${subject ?? "the vessel"} to sail ${label} at ${text(f.speed)}?`,
+    rows: null,
+  };
+}
+
 export function ProposalDecision({
-  type,
+  rec,
   pending,
   disabled,
   onDecide,
 }: {
-  type: RecommendationView["type"];
+  rec: RecommendationView;
   pending: Decision | null;
   disabled: boolean;
   onDecide: (decision: Decision) => Promise<unknown>;
 }) {
+  const { type } = rec;
+  const { title, rows } = restate(rec);
+  const kind = type === "purchase_order" ? "Approve purchase order" : "Approve voyage instruction";
   return (
     <DecisionButtons
       pending={pending}
       disabled={disabled}
       approveConsequence={APPROVE_CONSEQUENCE[type]}
       rejectConsequence={REJECT_CONSEQUENCE}
-      confirmApproveLabel="Approve"
+      confirmApproveLabel={
+        type === "purchase_order"
+          ? "Approve and create the order"
+          : "Approve and record the instruction"
+      }
       confirmRejectLabel="Reject"
       approveLabel={APPROVE_LABEL[type]}
       rejectLabel="Reject…"
+      approveTitle={title}
+      approveSummary={rows}
+      approveName={rec.optionLabel ? `${kind}, ${rec.optionLabel}` : undefined}
       onApprove={() => onDecide("approve")}
       onReject={() => onDecide("reject")}
     />
