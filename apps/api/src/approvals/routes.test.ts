@@ -1,6 +1,6 @@
 import type { Sql } from "@pharos/db";
 import { connectTestDb, testDbLabel } from "@pharos/db/testing";
-import { DecisionResult, DraftedMessageList } from "@pharos/shared";
+import { DecisionResult, DraftedMessageList, ProposeResult } from "@pharos/shared";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { createErpApp } from "../../../../services/erp-sim/src/app.js";
 import { createToolContext } from "../ai/tools/common.js";
@@ -72,6 +72,88 @@ describe.skipIf(!sql)("approval routes (Postgres)", () => {
       await db<{ decided_by: string | null }[]>`
       select decided_by from recommendations where id = ${recId}`
     )[0]?.decided_by;
+
+  describe("POST /api/recommendations (a person proposes from a stored plan)", () => {
+    const routePlan = async () => {
+      const ctx = createToolContext({ sql: db, now: () => ASK_FIXTURE_NOW });
+      const planned = await planRouteSpeedFacts(ctx, { vessel: "Aegean Pioneer" });
+      return planned.data as {
+        calculationId: number;
+        recommendedOptionId: string | null;
+        recommendedKind: string | null;
+      };
+    };
+    const row = async (id: number) =>
+      (
+        await db<{ type: string; status: string; option_id: string; message_id: number | null }[]>`
+          select type, status, option_id, message_id from recommendations where id = ${id}`
+      )[0];
+
+    it("proposes the purchase order for the recommended plan's bunker stop, pending", async () => {
+      const plan = await routePlan();
+      expect(plan.recommendedKind).toBe("stop");
+      const res = await post("/api/recommendations", {
+        type: "purchase_order",
+        calculationId: plan.calculationId,
+        optionId: plan.recommendedOptionId,
+      });
+      expect(res.status).toBe(200);
+      const body = ProposeResult.parse(await res.json());
+      expect(body.created).toBe(true);
+      expect(await row(body.recommendationId)).toEqual({
+        type: "purchase_order",
+        status: "pending",
+        option_id: plan.recommendedOptionId,
+        message_id: null,
+      });
+      // The same proposal again returns the pending one, not a duplicate.
+      const again = ProposeResult.parse(
+        await (
+          await post("/api/recommendations", {
+            type: "purchase_order",
+            calculationId: plan.calculationId,
+            optionId: plan.recommendedOptionId,
+          })
+        ).json(),
+      );
+      expect(again).toEqual({ recommendationId: body.recommendationId, created: false });
+    });
+
+    it("proposes the voyage instruction for the recommended plan", async () => {
+      const plan = await routePlan();
+      const res = await post("/api/recommendations", {
+        type: "voyage_instruction",
+        calculationId: plan.calculationId,
+        optionId: plan.recommendedOptionId,
+      });
+      expect(res.status).toBe(200);
+      const { recommendationId } = ProposeResult.parse(await res.json());
+      expect((await row(recommendationId))?.type).toBe("voyage_instruction");
+    });
+
+    it("refuses an option the plan rules out with the reason (409)", async () => {
+      const plan = await routePlan();
+      const res = await post("/api/recommendations", {
+        type: "voyage_instruction",
+        calculationId: plan.calculationId,
+        optionId: "B",
+      });
+      expect(res.status).toBe(409);
+      const body = (await res.json()) as { error: string; message: string };
+      expect(body.error).toBe("not_proposable");
+      expect(body.message).toMatch(/Route B is not feasible \(insufficient_fuel\)/);
+    });
+
+    it("rejects a malformed body (400) and a non-JSON request (415)", async () => {
+      expect((await post("/api/recommendations", { type: "purchase_order" })).status).toBe(400);
+      const form = await app.request("/api/recommendations", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: "type=purchase_order",
+      });
+      expect(form.status).toBe(415);
+    });
+  });
 
   it("POST /api/recommendations/:id/approve returns the DecisionResult with the PO number", async () => {
     const res = await post(`/api/recommendations/${recId}/approve`);

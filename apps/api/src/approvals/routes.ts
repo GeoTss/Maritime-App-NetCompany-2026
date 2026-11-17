@@ -7,7 +7,7 @@
  * for an instruction whose bunker stop has no approved purchase order) are 409 with the reason. Only `application/json` is accepted (415 otherwise): a cross-site HTML form can send only
  * form-encoded, multipart or text/plain bodies, so it can never approve or reject.
  */
-import { DecisionBody, type DraftedMessageList } from "@pharos/shared";
+import { DecisionBody, type DraftedMessageList, ProposeBody } from "@pharos/shared";
 import { Hono } from "hono";
 import {
   approveRecommendation,
@@ -18,6 +18,7 @@ import {
 } from "../executor/execute.js";
 import { requireContentType } from "../http/require-content-type.js";
 import { parseId } from "../read/routes.js";
+import { ProposeError, proposeFromPlan } from "./propose.js";
 import { TransitionError } from "./state.js";
 
 export type ApprovalDeps = ExecutorDeps;
@@ -26,6 +27,31 @@ export const DEFAULT_DECIDED_BY = "operator";
 
 export function createApprovalRoutes(deps: ApprovalDeps) {
   const app = new Hono();
+
+  /** `POST /api/recommendations`: a person proposes from a stored plan (pending until approved). */
+  app.post("/", requireContentType("application/json"), async (c) => {
+    let raw: unknown;
+    try {
+      raw = JSON.parse(await c.req.text());
+    } catch {
+      return c.json({ error: "invalid_request", message: "Body must be JSON." }, 400);
+    }
+    const body = ProposeBody.safeParse(raw);
+    if (!body.success) {
+      const message = body.error.issues
+        .map((i) => `${i.path.join(".") || "body"}: ${i.message}`)
+        .join("; ");
+      return c.json({ error: "invalid_request", message }, 400);
+    }
+    try {
+      return c.json(await proposeFromPlan(deps, body.data));
+    } catch (err) {
+      if (err instanceof ProposeError) {
+        return c.json({ error: "not_proposable", message: err.message }, 409);
+      }
+      throw err;
+    }
+  });
 
   const decide = (path: "approve" | "reject", action: typeof approveRecommendation) =>
     app.post(`/:id/${path}`, requireContentType("application/json"), async (c) => {

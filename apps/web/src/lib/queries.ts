@@ -1,9 +1,16 @@
 /**
- * Server state: one QueryClient, the query keys every screen shares, and the shell's own reads.
- * Queries are GETs only; a POST never runs from a query (it is an explicit user action).
+ * Server state: one QueryClient, the query keys every screen shares, the shell's own reads and
+ * the mutations more than one screen runs. Queries are GETs only; a POST never runs from a query
+ * (it is an explicit user action).
  */
-import { HealthResponse, SimClockView, SourceStatusList } from "@pharos/shared";
-import { QueryClient, useQuery } from "@tanstack/react-query";
+import {
+  HealthResponse,
+  ProposeBody,
+  ProposeResult,
+  SimClockView,
+  SourceStatusList,
+} from "@pharos/shared";
+import { QueryClient, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, isApiFailure } from "@/lib/api";
 
 export function createQueryClient(): QueryClient {
@@ -74,5 +81,23 @@ export function useSourceStatus() {
     queryKey: queryKeys.sources,
     queryFn: ({ signal }) => api.get("/api/sources", SourceStatusList, { signal }),
     refetchInterval: 30_000,
+  });
+}
+
+/**
+ * `POST /api/recommendations`: a person proposes a purchase order or a voyage instruction from a
+ * stored plan, without the assistant. The proposal is pending: nothing is ordered or sent until
+ * someone approves it on Approvals. `created` is false when the same proposal was already pending
+ * (that one is returned). A refusal is a 409 `not_proposable` whose message says why.
+ *
+ * Run only from a click. The proposals are refetched before the caller's `onSuccess` runs, so a
+ * caller that selects the new proposal finds it in the list.
+ */
+export function useProposeRecommendation() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (body: ProposeBody) =>
+      api.post("/api/recommendations", ProposeBody.parse(body), ProposeResult),
+    onSuccess: () => client.invalidateQueries({ queryKey: queryKeys.recommendations }),
   });
 }
