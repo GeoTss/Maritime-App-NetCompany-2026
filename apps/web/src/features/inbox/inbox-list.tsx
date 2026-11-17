@@ -29,19 +29,23 @@ export function StatusBadge({ status }: { status: Status }) {
   );
 }
 
-/** Bordered rows, in the order the API returns them. Selecting a row opens it; nothing else. */
+/** Bordered rows, newest first. Selecting a row opens it; nothing else. */
 export function InboxList({
   items,
   selected,
   onSelect,
+  toSettle = {},
 }: {
   items: InboxItem[];
   selected: number | null;
   onSelect: (documentId: number) => void;
+  /** Held items: how many values still need the operator, by document id. */
+  toSettle?: Record<number, number>;
 }) {
+  const sorted = [...items].sort((a, b) => Date.parse(b.receivedAt) - Date.parse(a.receivedAt));
   return (
     <ul aria-label="Emails" className="divide-y divide-line border-y border-line">
-      {items.map((item) => (
+      {sorted.map((item) => (
         <li key={item.documentId}>
           <button
             type="button"
@@ -60,7 +64,14 @@ export function InboxList({
               <UntrustedText text={item.sender} fallback="unknown sender" />
             </span>
             <span className="flex w-full items-center justify-between gap-2">
-              <StatusBadge status={item.extractionStatus} />
+              <span className="flex items-center gap-1.5">
+                <StatusBadge status={item.extractionStatus} />
+                {item.extractionStatus === "needs_review" && toSettle[item.documentId] ? (
+                  <span className="text-2xs text-caution">
+                    {toSettle[item.documentId]} to settle
+                  </span>
+                ) : null}
+              </span>
               <span className="text-2xs text-text-3">{formatUtc(item.receivedAt)}</span>
             </span>
           </button>

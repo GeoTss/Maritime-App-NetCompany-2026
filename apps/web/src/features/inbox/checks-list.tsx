@@ -5,14 +5,19 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { UntrustedText } from "@/components/untrusted-text";
 import { checkMessage } from "./check-copy";
 
-function CheckRow({ c }: { c: CheckResult }) {
+function CheckRow({ c, resolved }: { c: CheckResult; resolved?: boolean }) {
+  const ok = c.passed || resolved;
   return (
-    <li data-passed={c.passed} className="flex items-start gap-2 px-3 py-1.5 text-xs">
+    <li
+      data-passed={c.passed}
+      data-resolved={resolved ? true : undefined}
+      className="flex items-start gap-2 px-3 py-1.5 text-xs"
+    >
       <HugeiconsIcon
-        icon={c.passed ? Tick02Icon : Alert02Icon}
+        icon={ok ? Tick02Icon : Alert02Icon}
         strokeWidth={2}
-        aria-label={c.passed ? "Passed" : "Failed"}
-        className={`mt-0.5 size-3 shrink-0 ${c.passed ? "text-text-2" : "text-alarm"}`}
+        aria-label={c.passed ? "Passed" : resolved ? "Resolved" : "Failed"}
+        className={`mt-0.5 size-3 shrink-0 ${ok ? "text-text-2" : "text-alarm"}`}
       />
       <div className="min-w-0">
         <span className="font-mono text-2xs text-text-1">{c.check}</span>
@@ -21,6 +26,7 @@ function CheckRow({ c }: { c: CheckResult }) {
             <UntrustedText text={checkMessage(c) ?? c.detail} />
           </p>
         ) : null}
+        {resolved && !c.passed ? <p className="text-text-2">Resolved by you.</p> : null}
       </div>
     </li>
   );
@@ -30,7 +36,14 @@ function CheckRow({ c }: { c: CheckResult }) {
  * Each deterministic check with its verdict and message. Failed checks come first and are always
  * shown; the passed ones sit behind one toggle so a long list does not bury the failures.
  */
-export function ChecksList({ checks }: { checks: CheckResult[] }) {
+export function ChecksList({
+  checks,
+  resolved = false,
+}: {
+  checks: CheckResult[];
+  /** A person corrected the quote: the failed checks show as resolved, not red. */
+  resolved?: boolean;
+}) {
   if (checks.length === 0) {
     return <p className="px-3 py-2 text-xs text-text-3">No checks have run on this email yet.</p>;
   }
@@ -41,7 +54,7 @@ export function ChecksList({ checks }: { checks: CheckResult[] }) {
       {failed.length > 0 ? (
         <ul aria-label="Failed checks" className="divide-y divide-line">
           {failed.map((c) => (
-            <CheckRow key={c.check} c={c} />
+            <CheckRow key={c.check} c={c} resolved={resolved} />
           ))}
         </ul>
       ) : null}

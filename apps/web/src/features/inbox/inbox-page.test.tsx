@@ -145,6 +145,7 @@ function stubApi() {
         );
       if (path === "/api/review") return json({ items: [REVIEW] });
       if (path === "/api/review/reference") return json(REFERENCE);
+      if (path === "/api/clock") return json({ anchor: NOW, now: NOW, pinned: true });
       if (path === "/api/review/41/accept")
         return json({ extractionId: 41, status: "accepted", quoteId: 9 });
       return json({ error: "not_found" }, 404);
@@ -386,5 +387,47 @@ describe("review", () => {
       bargeFee: 0,
       lines: [{ grade: "VLSFO", qtyMt: 300, pricePerMt: 612.5 }],
     });
+  });
+
+  it("settles only what needs the operator: the flagged group first, with its source line", async () => {
+    renderPage("/inbox?document=1");
+    await screen.findByRole("button", { name: "Accept correction" });
+    const regions = screen.getAllByRole("region").map((r) => r.getAttribute("aria-label"));
+    expect(regions.indexOf("Needs you")).toBeLessThan(regions.indexOf("Matches the email"));
+    expect(screen.getByRole("heading", { name: /Needs you · 1/ })).toBeTruthy();
+    const qty = screen.getByLabelText("Quantity in mt, line 1");
+    expect(qty.getAttribute("aria-invalid")).toBe("true");
+    const src = document.getElementById(qty.getAttribute("aria-describedby") ?? "");
+    expect(src?.textContent).toContain("300/350 mt");
+    expect(screen.getByLabelText("Price per mt, line 1").getAttribute("aria-invalid")).toBeNull();
+  });
+
+  it("after saving, shows who corrected it and the checks as resolved", async () => {
+    renderPage("/inbox?document=1");
+    fireEvent.change(await screen.findByLabelText("Quantity in mt, line 1"), {
+      target: { value: "300" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Accept correction" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText(/300 mt VLSFO at USD 612.5 per mt/)).toBeTruthy();
+    state.items = [item(1, "accepted")];
+    state.detail = { "1": detailFor(1, "accepted") };
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save corrected quote" }));
+    expect(await screen.findByText("Corrected by you at 14 Nov 08:05Z")).toBeTruthy();
+    expect(screen.getAllByLabelText("Resolved").length).toBeGreaterThan(0);
+  });
+});
+
+describe("inbox list", () => {
+  it("lists newest first and counts what a held item still needs", async () => {
+    state.items = [
+      { ...item(1, "needs_review", "Older"), receivedAt: "2026-11-13T08:00:00.000Z" },
+      { ...item(2, "extracted", "Newer"), receivedAt: "2026-11-14T08:00:00.000Z" },
+    ];
+    renderPage();
+    const list = await screen.findByRole("list", { name: "Emails" });
+    const rows = within(list).getAllByRole("listitem");
+    expect(rows[0]?.textContent).toContain("Newer");
+    expect(await within(list).findByText("1 to settle")).toBeTruthy();
   });
 });

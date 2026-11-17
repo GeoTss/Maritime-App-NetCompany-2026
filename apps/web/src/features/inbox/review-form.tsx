@@ -11,7 +11,10 @@ import {
 } from "@pharos/shared";
 import { useMemo, useState } from "react";
 import { type DiffRow, DiffTable } from "@/components/primitives/diff-table";
+import { StateFlag } from "@/components/primitives/state-flag";
 import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { UntrustedText } from "@/components/untrusted-text";
 import {
   Dialog,
   DialogContent,
@@ -218,6 +221,44 @@ export function diffRows(
   return rows;
 }
 
+/** Which line values the checks flagged: a null normalised value, or a failed check naming the line. */
+export function flaggedFields(review: ReviewItem): { qty: Set<number>; price: Set<number> } {
+  const qty = new Set<number>();
+  const price = new Set<number>();
+  review.normalised.lines.forEach((l, i) => {
+    if (l.qtyMt === null || l.qtyMt === undefined) qty.add(i);
+    if (l.pricePerMt === null || l.pricePerMt === undefined) price.add(i);
+  });
+  for (const c of review.failedChecks) {
+    const m = /\b(Quantity|Price)\b[^.]*?\bline (\d+)/i.exec(c.detail ?? "");
+    if (!m) continue;
+    (m[1]?.toLowerCase() === "quantity" ? qty : price).add(Number(m[2]));
+  }
+  return { qty, price };
+}
+
+/** The value as the email wrote it: untrusted text, shown verbatim, never read as a number. */
+function SourceLine({
+  id,
+  testId,
+  written,
+}: {
+  id: string;
+  testId: string;
+  written?: string | null;
+}) {
+  return (
+    <p id={id} data-testid={testId} className="text-2xs text-caution">
+      In the email:{" "}
+      <UntrustedText
+        text={written ?? null}
+        fallback="not stated"
+        className="font-verbatim whitespace-pre-wrap text-text-1"
+      />
+    </p>
+  );
+}
+
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="grid min-w-0 gap-1 text-xs text-text-2">
@@ -259,165 +300,274 @@ export function ReviewForm({
   const port = reference.ports.find((p) => String(p.id) === form.portId);
   const vessel = reference.vessels.find((v) => String(v.id) === form.vesselId);
 
+  const flagged = useMemo(() => flaggedFields(review), [review]);
+  const lineFlag = (i: number) => ({ qty: flagged.qty.has(i), price: flagged.price.has(i) });
+  const settled = (i: number, k: "qty" | "price") => num(form.lines[i]?.[k] ?? "") !== null;
+
+  const vesselC = (
+    <Field label="Vessel">
+      <Select value={form.vesselId} onValueChange={(v) => set("vesselId", v)}>
+        <SelectTrigger aria-label="Vessel" className="w-full">
+          <SelectValue placeholder="Choose a vessel" />
+        </SelectTrigger>
+        <SelectContent>
+          {reference.vessels.map((v) => (
+            <SelectItem key={v.id} value={String(v.id)}>
+              {v.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </Field>
+  );
+  const portC = (
+    <Field label="Port">
+      <Select value={form.portId} onValueChange={(v) => set("portId", v)}>
+        <SelectTrigger aria-label="Port" className="w-full">
+          <SelectValue placeholder="Choose a port" />
+        </SelectTrigger>
+        <SelectContent>
+          {reference.ports.map((p) => (
+            <SelectItem key={p.id} value={String(p.id)}>
+              {p.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </Field>
+  );
+  const supplierC = (
+    <Field label="Supplier">
+      <Select value={form.supplierId} onValueChange={(v) => set("supplierId", v)}>
+        <SelectTrigger aria-label="Supplier" className="w-full">
+          <SelectValue placeholder="Choose a supplier" />
+        </SelectTrigger>
+        <SelectContent>
+          {reference.suppliers.map((s) => (
+            <SelectItem key={s.id} value={String(s.id)}>
+              {s.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </Field>
+  );
+  const currencyC = (
+    <Field label="Currency">
+      <Select value={form.currency} onValueChange={(v) => set("currency", v as Currency)}>
+        <SelectTrigger aria-label="Currency" className="w-full">
+          <SelectValue placeholder="Choose" />
+        </SelectTrigger>
+        <SelectContent>
+          {(["USD", "EUR"] as const).map((c) => (
+            <SelectItem key={c} value={c}>
+              {c}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </Field>
+  );
+  const bargeC = (
+    <Field label="Barge fee">
+      <Input
+        aria-label="Barge fee"
+        type="number"
+        min={0}
+        step="any"
+        value={form.bargeFee}
+        onChange={(e) => set("bargeFee", e.target.value)}
+      />
+    </Field>
+  );
+  const dateC = (label: string, key: "validUntil" | "deliveryFrom" | "deliveryTo") => (
+    <Field label={label}>
+      <Input
+        aria-label={label}
+        type="date"
+        value={form[key]}
+        onChange={(e) => set(key, e.target.value)}
+      />
+    </Field>
+  );
+  const gradeC = (i: number, line: LineState) => (
+    <Field label={form.lines.length > 1 ? `Grade, line ${i + 1}` : "Grade"}>
+      <Select value={line.grade} onValueChange={(v) => setLine(i, { grade: v as FuelGrade })}>
+        <SelectTrigger aria-label={`Grade, line ${i + 1}`} className="w-full">
+          <SelectValue placeholder="Choose" />
+        </SelectTrigger>
+        <SelectContent>
+          {FUEL_GRADES.map((g) => (
+            <SelectItem key={g} value={g}>
+              {g}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </Field>
+  );
+  const qtyInput = (i: number, line: LineState, flag: boolean) => (
+    <Input
+      aria-label={`Quantity in mt, line ${i + 1}`}
+      aria-invalid={flag && !settled(i, "qty") ? true : undefined}
+      aria-describedby={flag ? `src-qty-${i}` : undefined}
+      type="number"
+      min={0}
+      step="any"
+      value={line.qty}
+      onChange={(e) => setLine(i, { qty: e.target.value })}
+    />
+  );
+  const priceInput = (i: number, line: LineState, flag: boolean) => (
+    <Input
+      aria-label={`Price per mt, line ${i + 1}`}
+      aria-invalid={flag && !settled(i, "price") ? true : undefined}
+      aria-describedby={flag ? `src-price-${i}` : undefined}
+      type="number"
+      min={0}
+      step="any"
+      value={line.price}
+      onChange={(e) => setLine(i, { price: e.target.value })}
+    />
+  );
+
+  // Needs you: the flagged line values, each beside its as-written text from the email.
+  const needs: { key: string; node: React.ReactNode; done: boolean }[] = [];
+  form.lines.forEach((line, i) => {
+    const flag = lineFlag(i);
+    const src = q?.lines[i];
+    if (flag.qty) {
+      needs.push({
+        key: `qty${i}`,
+        done: settled(i, "qty"),
+        node: (
+          <Field label={`Quantity (mt)${form.lines.length > 1 ? `, line ${i + 1}` : ""}`}>
+            <SourceLine
+              id={`src-qty-${i}`}
+              testId={`written-qty-${i}`}
+              written={src?.quantity.asWritten}
+            />
+            {qtyInput(i, line, true)}
+          </Field>
+        ),
+      });
+    }
+    if (flag.price) {
+      needs.push({
+        key: `price${i}`,
+        done: settled(i, "price"),
+        node: (
+          <Field
+            label={`Price (${form.currency || "currency"} per mt)${form.lines.length > 1 ? `, line ${i + 1}` : ""}`}
+          >
+            <SourceLine
+              id={`src-price-${i}`}
+              testId={`written-price-${i}`}
+              written={src?.price.asWritten}
+            />
+            {priceInput(i, line, true)}
+          </Field>
+        ),
+      });
+    }
+  });
+  const open = needs.filter((n) => !n.done).length;
+
+  // The rest: what the email states (matches) and what it does not (optional dates, barge fee).
+  const optional: { key: string; written: string | null | undefined; node: React.ReactNode }[] = [
+    { key: "valid", written: q?.validUntil.asWritten, node: dateC("Valid until", "validUntil") },
+    {
+      key: "from",
+      written: q?.deliveryFrom.asWritten,
+      node: dateC("Delivery from", "deliveryFrom"),
+    },
+    { key: "to", written: q?.deliveryTo.asWritten, node: dateC("Delivery to", "deliveryTo") },
+    {
+      key: "barge",
+      written: q?.bargeFee.asWritten ?? (q?.bargeFee.value ?? null)?.toString(),
+      node: bargeC,
+    },
+  ];
+  const notInEmail = q ? optional.filter((o) => !o.written) : [];
+  const matches: { key: string; node: React.ReactNode }[] = [
+    { key: "vessel", node: vesselC },
+    { key: "port", node: portC },
+    { key: "supplier", node: supplierC },
+    { key: "currency", node: currencyC },
+    ...(q ? optional.filter((o) => o.written) : optional).map(({ key, node }) => ({ key, node })),
+  ];
+  form.lines.forEach((line, i) => {
+    const flag = lineFlag(i);
+    matches.push({ key: `grade${i}`, node: gradeC(i, line) });
+    if (!flag.qty) {
+      matches.push({
+        key: `qty${i}`,
+        node: <Field label="Quantity (mt)">{qtyInput(i, line, false)}</Field>,
+      });
+    }
+    if (!flag.price) {
+      matches.push({
+        key: `price${i}`,
+        node: (
+          <Field label={`Price (${form.currency || "currency"} per mt)`}>
+            {priceInput(i, line, false)}
+          </Field>
+        ),
+      });
+    }
+  });
+  const needsFold = missingFields(form).some((f) => /^(Barge fee)/.test(f));
+  const [foldOpen, setFoldOpen] = useState(needsFold);
+
   return (
     <section aria-label="Fix this quote" className="flex flex-col gap-3 px-3 py-3">
       <div>
         <h3 className="font-title text-sm font-medium text-text-1">Needs a human fix</h3>
         <p className="max-w-[60ch] text-xs text-text-2">
-          Check each value against the email, correct what the extraction could not settle, then
-          accept. Nothing is saved until you accept.
+          Only what the checks could not settle is asked of you. Nothing is saved until you accept.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-        <Field label="Vessel">
-          <Select value={form.vesselId} onValueChange={(v) => set("vesselId", v)}>
-            <SelectTrigger aria-label="Vessel" className="w-full">
-              <SelectValue placeholder="Choose a vessel" />
-            </SelectTrigger>
-            <SelectContent>
-              {reference.vessels.map((v) => (
-                <SelectItem key={v.id} value={String(v.id)}>
-                  {v.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field label="Port">
-          <Select value={form.portId} onValueChange={(v) => set("portId", v)}>
-            <SelectTrigger aria-label="Port" className="w-full">
-              <SelectValue placeholder="Choose a port" />
-            </SelectTrigger>
-            <SelectContent>
-              {reference.ports.map((p) => (
-                <SelectItem key={p.id} value={String(p.id)}>
-                  {p.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field label="Supplier">
-          <Select value={form.supplierId} onValueChange={(v) => set("supplierId", v)}>
-            <SelectTrigger aria-label="Supplier" className="w-full">
-              <SelectValue placeholder="Choose a supplier" />
-            </SelectTrigger>
-            <SelectContent>
-              {reference.suppliers.map((s) => (
-                <SelectItem key={s.id} value={String(s.id)}>
-                  {s.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field label="Currency">
-          <Select value={form.currency} onValueChange={(v) => set("currency", v as Currency)}>
-            <SelectTrigger aria-label="Currency" className="w-full">
-              <SelectValue placeholder="Choose" />
-            </SelectTrigger>
-            <SelectContent>
-              {(["USD", "EUR"] as const).map((c) => (
-                <SelectItem key={c} value={c}>
-                  {c}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field label="Barge fee">
-          <Input
-            aria-label="Barge fee"
-            type="number"
-            min={0}
-            step="any"
-            value={form.bargeFee}
-            onChange={(e) => set("bargeFee", e.target.value)}
-          />
-        </Field>
-        <Field label="Valid until">
-          <Input
-            aria-label="Valid until"
-            type="date"
-            value={form.validUntil}
-            onChange={(e) => set("validUntil", e.target.value)}
-          />
-        </Field>
-        <Field label="Delivery from">
-          <Input
-            aria-label="Delivery from"
-            type="date"
-            value={form.deliveryFrom}
-            onChange={(e) => set("deliveryFrom", e.target.value)}
-          />
-        </Field>
-        <Field label="Delivery to">
-          <Input
-            aria-label="Delivery to"
-            type="date"
-            value={form.deliveryTo}
-            onChange={(e) => set("deliveryTo", e.target.value)}
-          />
-        </Field>
-      </div>
+      {needs.length > 0 ? (
+        <section aria-label="Needs you" className="flex flex-col gap-2">
+          <h4 className="flex items-center gap-1.5 font-label text-xs text-text-1">
+            <StateFlag kind="K" />
+            {open > 0 ? `Needs you · ${open}` : `Settled by you · ${needs.length}`}
+          </h4>
+          <div className="grid grid-cols-1 gap-2 border border-line p-2 sm:grid-cols-2">
+            {needs.map((n) => (
+              <div key={n.key}>{n.node}</div>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
-      <div className="flex flex-col gap-2">
-        {form.lines.map((line, i) => {
-          const written = q?.lines[i]?.quantity.asWritten;
-          const key = `line-${i}`;
-          return (
-            <fieldset
-              key={key}
-              className="grid grid-cols-1 gap-2 border border-line p-2 sm:grid-cols-3"
-            >
-              <legend className="px-1 text-xs text-text-2">Line {i + 1}</legend>
-              <Field label="Grade">
-                <Select
-                  value={line.grade}
-                  onValueChange={(v) => setLine(i, { grade: v as FuelGrade })}
-                >
-                  <SelectTrigger aria-label={`Grade, line ${i + 1}`} className="w-full">
-                    <SelectValue placeholder="Choose" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {FUEL_GRADES.map((g) => (
-                      <SelectItem key={g} value={g}>
-                        {g}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field label="Quantity (mt)">
-                <Input
-                  aria-label={`Quantity in mt, line ${i + 1}`}
-                  type="number"
-                  min={0}
-                  step="any"
-                  value={line.qty}
-                  onChange={(e) => setLine(i, { qty: e.target.value })}
-                />
-                {written ? (
-                  <span data-testid={`written-qty-${i}`} className="text-2xs text-caution">
-                    Written as <bdi className="font-medium">{written}</bdi>
-                  </span>
-                ) : null}
-              </Field>
-              <Field label={`Price (${form.currency || "currency"} per mt)`}>
-                <Input
-                  aria-label={`Price per mt, line ${i + 1}`}
-                  type="number"
-                  min={0}
-                  step="any"
-                  value={line.price}
-                  onChange={(e) => setLine(i, { price: e.target.value })}
-                />
-              </Field>
-            </fieldset>
-          );
-        })}
-      </div>
+      <section aria-label="Matches the email" className="flex flex-col gap-2">
+        <h4 className="font-label text-xs text-text-2">Matches the email · {matches.length}</h4>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          {matches.map((m) => (
+            <div key={m.key}>{m.node}</div>
+          ))}
+        </div>
+      </section>
+
+      {notInEmail.length > 0 ? (
+        <Collapsible open={foldOpen} onOpenChange={setFoldOpen}>
+          <CollapsibleTrigger className="flex items-center gap-1.5 font-label text-xs text-text-2 outline-none hover:text-text-1 focus-visible:ring-2 focus-visible:ring-ring/60">
+            Not in the email · {notInEmail.length}
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <p className="pt-1 text-2xs text-text-3">
+              The email does not state these. Add a value only if you know it.
+            </p>
+            <div className="grid grid-cols-1 gap-2 pt-1 sm:grid-cols-3">
+              {notInEmail.map((m) => (
+                <div key={m.key}>{m.node}</div>
+              ))}
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+      ) : null}
 
       {q ? (
         <div className="flex flex-col gap-1">
@@ -457,6 +607,16 @@ export function ReviewForm({
               supplier.
             </DialogDescription>
           </DialogHeader>
+          <ul aria-label="Corrected values" className="flex flex-col gap-0.5 text-xs text-text-1">
+            {form.lines.map((l, i) => (
+              <li key={`c-${i}`}>
+                {l.qty} mt {l.grade} at {form.currency} {l.price} per mt
+              </li>
+            ))}
+            <li>
+              Barge fee {form.currency} {form.bargeFee}
+            </li>
+          </ul>
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirming(false)}>
               Back to the form

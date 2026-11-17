@@ -14,6 +14,7 @@ import {
   ReviewDecision,
   ReviewItem,
   ReviewReference,
+  SimClockView,
   UploadResult,
 } from "@pharos/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -27,12 +28,13 @@ import { DataTag } from "@/components/source-badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api, describeFailure, isApiFailure } from "@/lib/api";
+import { formatUtc } from "@/lib/format";
 import { queryKeys } from "@/lib/queries";
 import { ChecksList } from "./checks-list";
 import { DocumentView } from "./document-view";
 import { ExtractionPanel } from "./extraction-panel";
 import { InboxList, StatusBadge } from "./inbox-list";
-import { ReviewForm } from "./review-form";
+import { flaggedFields, ReviewForm } from "./review-form";
 import { UploadDrop } from "./upload-drop";
 
 const InboxItems = listOf(InboxItem);
@@ -82,7 +84,7 @@ export function InboxPage() {
 
   const review = useQuery({
     queryKey: queryKeys.review,
-    enabled: needsReview,
+    enabled: needsReview || items.some((i) => i.extractionStatus === "needs_review"),
     queryFn: ({ signal }) => api.get("/api/review", ReviewItems, { signal }),
   });
   const reference = useQuery({
@@ -91,6 +93,16 @@ export function InboxPage() {
     queryFn: ({ signal }) => api.get("/api/review/reference", ReviewReference, { signal }),
   });
   const reviewItem = review.data?.items.find((r) => r.documentId === selected) ?? null;
+  const toSettle = useMemo(() => {
+    const out: Record<number, number> = {};
+    for (const r of review.data?.items ?? []) {
+      const f = flaggedFields(r);
+      out[r.documentId] = f.qty.size + f.price.size;
+    }
+    return out;
+  }, [review.data]);
+  // What the operator corrected this session, by document: the API keeps no correction time.
+  const [corrected, setCorrected] = useState<Record<number, CorrectedRecord>>({});
 
   const refresh = async () => {
     await client.invalidateQueries({ queryKey: queryKeys.inbox });
@@ -147,7 +159,34 @@ export function InboxPage() {
   const accept = useMutation({
     mutationFn: (v: { extractionId: number; body: ReviewCorrection }) =>
       api.post(`/api/review/${v.extractionId}/accept`, v.body, ReviewDecision),
-    onSuccess: () => afterDecision("Correction accepted", selected),
+    onSuccess: async (_result, v) => {
+      let at = new Date().toISOString();
+      try {
+        const clock = await client.fetchQuery({
+          queryKey: queryKeys.clock,
+          queryFn: ({ signal }) => api.get("/api/clock", SimClockView, { signal }),
+          staleTime: 0,
+        });
+        at = clock.now;
+      } catch {
+        // The clock is unavailable: the browser's own time stands in.
+      }
+      if (selected !== null) {
+        setCorrected((c) => ({
+          ...c,
+          [selected]: {
+            at,
+            values: [
+              ...v.body.lines.map(
+                (l) => `${l.qtyMt} mt ${l.grade} at ${v.body.currency} ${l.pricePerMt} per mt`,
+              ),
+              `barge fee ${v.body.currency} ${v.body.bargeFee}`,
+            ],
+          },
+        }));
+      }
+      await afterDecision("Correction accepted", selected);
+    },
     onError: (err) =>
       toast.error("Could not accept the correction", { description: describeFailure(err) }),
   });
@@ -226,7 +265,7 @@ export function InboxPage() {
             description="Deliver the next demo email or drop an .eml file to see the quote read from it."
           />
         ) : (
-          <InboxList items={items} selected={selected} onSelect={select} />
+          <InboxList items={items} selected={selected} onSelect={select} toSettle={toSettle} />
         )}
       </aside>
 
@@ -255,6 +294,7 @@ export function InboxPage() {
             evidence={evidence}
             onEvidence={setEvidence}
             reviewItem={reviewItem}
+            correctedRecord={corrected[detail.data.documentId] ?? null}
             reviewLoading={needsReview && (review.isPending || reference.isPending)}
             reviewError={review.error ?? reference.error}
             reference={reference.data ?? null}
@@ -274,11 +314,17 @@ export function InboxPage() {
 
 type DetailData = InboxItemDetail;
 
+interface CorrectedRecord {
+  at: string;
+  values: string[];
+}
+
 function DetailView({
   detail,
   evidence,
   onEvidence,
   reviewItem,
+  correctedRecord,
   reviewLoading,
   reviewError,
   reference,
@@ -288,6 +334,7 @@ function DetailView({
   onReject,
   onRetry,
 }: {
+  correctedRecord: CorrectedRecord | null;
   detail: DetailData;
   evidence: string | null;
   onEvidence: (e: string | null) => void;
@@ -359,7 +406,19 @@ function DetailView({
           <h2 className="border-y border-line px-3 py-2 font-title text-sm font-medium text-text-1">
             Checks
           </h2>
-          <ChecksList checks={detail.checkResults} />
+          {status === "accepted" && correctedRecord ? (
+            <section aria-label="Correction" className="border-b border-line px-3 py-2 text-xs">
+              <h3 className="font-title text-sm font-medium text-text-1">
+                Corrected by you at {formatUtc(correctedRecord.at)}
+              </h3>
+              <ul className="mt-1 flex flex-col gap-0.5 text-text-1">
+                {correctedRecord.values.map((v) => (
+                  <li key={v}>{v}</li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+          <ChecksList checks={detail.checkResults} resolved={status === "accepted"} />
         </div>
       </div>
 

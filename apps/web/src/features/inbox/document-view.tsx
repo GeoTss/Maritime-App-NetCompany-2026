@@ -43,7 +43,7 @@ export function DocumentView({
       ) : null}
       <pre
         data-testid="source-text"
-        className="min-h-0 flex-1 overflow-auto px-3 py-2 font-sans text-sm/relaxed whitespace-pre-wrap text-text-1"
+        className="min-h-0 flex-1 overflow-auto px-3 py-2 font-verbatim text-sm/relaxed whitespace-pre-wrap text-text-1"
       >
         <EvidenceText text={bodyText} evidence={missing ? null : evidence} />
       </pre>
