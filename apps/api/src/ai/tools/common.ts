@@ -1,6 +1,6 @@
 /**
- * What every agent tool shares: the per-ask context (database, clock, fact ledger, call log), the
- * deterministic fact-id scheme, and the wrapper that runs one tool call.
+ * What every agent tool shares: the per-ask context (database, clock, fact ledger, call log) and
+ * the wrapper that runs one tool call. The fact-id scheme and fact shapes are in `facts/core.ts`.
  *
  * Tools only load data and call `packages/domain`; they never compute a number themselves.
  * Their output must be deterministic for the same database state (no wall clock, no random ids),
@@ -50,53 +50,6 @@ export function createToolContext(opts: {
       tail = run.catch(() => {});
       return run;
     },
-  };
-}
-
-/**
- * `f_<tool>_<calculationId|rowId>_<path>`: `[n]` becomes `.n`, any other character outside the
- * FactId alphabet becomes `_`.
- */
-export function factId(tool: string, key: number | string, path: string): FactId {
-  const raw = `f_${tool}_${key}_${path.replace(/\[(\d+)\]/g, ".$1")}`;
-  return raw.replace(/[^A-Za-z0-9_.:-]/g, "_");
-}
-
-export function calcFact(
-  tool: string,
-  calc: { id: Id; calculator: string },
-  path: string,
-  label: string,
-  value: number | string | boolean,
-  unit: string | null,
-): Fact {
-  return {
-    id: factId(tool, calc.id, path),
-    label,
-    value,
-    unit,
-    provenance: {
-      source: "calculation",
-      calculationId: calc.id,
-      calculator: calc.calculator,
-      path,
-    },
-  };
-}
-
-export function dbFact(
-  tool: string,
-  row: { table: string; rowId: Id | string; field: string },
-  label: string,
-  value: number | string | boolean,
-  unit: string | null,
-): Fact {
-  return {
-    id: factId(tool, row.rowId, `${row.table}.${row.field}`),
-    label,
-    value,
-    unit,
-    provenance: { source: "db", table: row.table, rowId: row.rowId, field: row.field },
   };
 }
 

@@ -22,14 +22,8 @@ import {
   type Fact,
   type ToolResult,
 } from "@pharos/shared";
-import {
-  calcFact,
-  dbFact,
-  findVessel,
-  insertCalculation,
-  runTool,
-  type ToolContext,
-} from "./common.js";
+import { calcFact, dbFact } from "../../facts/core.js";
+import { findVessel, insertCalculation, runTool, type ToolContext } from "./common.js";
 
 export const TOOL = "get_emissions";
 

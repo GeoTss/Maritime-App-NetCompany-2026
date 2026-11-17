@@ -7,7 +7,8 @@ import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { currentVoyage, fobProjectionInput, loadWorld, voyageState } from "@pharos/db";
 import { DOMAIN_CODE_VERSION, projectFuelOnBoard } from "@pharos/domain";
 import { type Fact, FUEL_GRADES, type ToolResult, VesselStatusInput } from "@pharos/shared";
-import { calcFact, dbFact, findVessel, json, runTool, type ToolContext } from "./common.js";
+import { calcFact, dbFact } from "../../facts/core.js";
+import { findVessel, json, runTool, type ToolContext } from "./common.js";
 
 export const TOOL = "get_vessel_status";
 

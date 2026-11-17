@@ -12,7 +12,7 @@
 import type { RoutePlan } from "@pharos/db";
 import { type DraughtCondition, loadFactor } from "@pharos/domain";
 import type { AisTraffic, Fact, Id, RouteSpeedInput, RouteSpeedResult } from "@pharos/shared";
-import { calcFact, dbFact, factId } from "../ai/tools/common.js";
+import { calcFact, dbFact, factId } from "../facts/core.js";
 import type { PlannedRoute } from "./plan.js";
 
 /** The tool name in every route fact id. */

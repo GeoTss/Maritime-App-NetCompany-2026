@@ -29,8 +29,7 @@ import {
   ShipType,
 } from "@pharos/shared";
 import { z } from "zod";
-import { calcFact } from "../ai/tools/common.js";
-import { TOOL as PLAN_TOOL } from "../ai/tools/plan-bunkering.js";
+import { BUNKER_SAVING_PATH, bunkerOptionViewFacts, bunkerScope } from "../facts/bunker.js";
 import { routeFactOfRow, routeSpeedFactRows, subjectLabel } from "../routing/facts.js";
 import type { ReadSource } from "./source.js";
 import { buildVessels, buildVoyages } from "./world-views.js";
@@ -168,45 +167,12 @@ interface RecommendationRow {
   instruction_eta: string | Date | null;
 }
 
-/**
- * The plan's facts for one option, with the ids `plan_bunkering` gave them, so the facts the agent
- * cited when it proposed the option resolve here too.
- */
-function bunkerOptionFacts(calculationId: Id, plan: BunkerPlan, optionId: string): Fact[] {
-  const index = plan.options.findIndex((o) => o.optionId === optionId);
-  const option = plan.options[index];
-  if (!option) return [];
-  const ref = { id: calculationId, calculator: "planBunkers" };
-  const fact = (path: string, label: string, value: number | string, unit: string | null) =>
-    calcFact(PLAN_TOOL, ref, path, label, value, unit);
-  const at = (field: string) => `options[${index}].${field}`;
-  const facts = [
-    fact(at("qtyMt"), "Quantity", option.qtyMt, "mt"),
-    fact(at("headlinePriceUsdPerMt"), "Headline price", option.headlinePriceUsdPerMt, "USD/mt"),
-    fact(at("totalCostUsd"), "Total delivered cost", option.totalCostUsd, "USD"),
-    fact(
-      at("effectivePriceUsdPerMt"),
-      "Effective price (total cost per mt)",
-      option.effectivePriceUsdPerMt,
-      "USD/mt",
-    ),
-    fact(at("fuelEuCostUsd"), "FuelEU exposure", option.fuelEuCostUsd, "USD"),
-  ];
-  if (plan.bestOptionId === optionId) {
-    facts.push(fact("bestOptionId", "Best option (lowest total cost, feasible)", optionId, null));
-    if (plan.savingVsCheapestHeadlineUsd !== null) {
-      facts.push(
-        fact(
-          "savingVsCheapestHeadlineUsd",
-          "Saving against the cheapest headline price, in total cost",
-          plan.savingVsCheapestHeadlineUsd,
-          "USD",
-        ),
-      );
-    }
-  }
-  return facts;
-}
+/** The path of a route plan's saving: the recommended route and speed against the current plan. */
+const ROUTE_SAVING_PATH = "savingVsBaselineUsd";
+
+/** The calculation fact at `path` among a view's facts (a plan's saving), or null. */
+const factAt = (facts: Fact[], path: string): Fact | null =>
+  facts.find((f) => f.provenance.source === "calculation" && f.provenance.path === path) ?? null;
 
 /** What the view reads of a stored route calculation's inputs (see routing/plan.ts). */
 const RouteCalculationInputs = z.object({
@@ -221,16 +187,17 @@ const RouteCalculationInputs = z.object({
 });
 
 /**
- * A route plan's proposed route: a summary without numbers, and that route's facts (its option,
- * description and the berth window; the recommendation and saving when it is the best route) with
- * the ids `plan_route_speed` gave them. Null when the calculation or the route is unreadable.
+ * A route plan's proposed route: a summary without numbers, the route's description, and that
+ * route's facts (its option, description and the berth window; the recommendation and saving when
+ * it is the best route) with the ids `plan_route_speed` gave them. Null when the calculation or
+ * the route is unreadable.
  */
 function routeOptionView(
   calculationId: Id,
   inputs: unknown,
   outputs: unknown,
   optionId: string,
-): { summary: string; facts: Fact[] } | null {
+): { summary: string; optionLabel: string; facts: Fact[] } | null {
   const stored = RouteCalculationInputs.safeParse(inputs);
   const result = RouteSpeedResult.safeParse(outputs);
   if (!stored.success || !result.success) return null;
@@ -243,13 +210,14 @@ function routeOptionView(
   const keep = new Set([
     `inputs.optimiser.candidates.${at}.label`,
     "inputs.optimiser.arriveBy",
-    ...(optionId === result.data.bestCandidateId ? ["bestCandidateId", "savingVsBaselineUsd"] : []),
+    ...(optionId === result.data.bestCandidateId ? ["bestCandidateId", ROUTE_SAVING_PATH] : []),
   ]);
   const facts = routeSpeedFactRows(plan, result.data, null, { mmsi })
     .filter((row) => row.path.startsWith(`options[${index}].`) || keep.has(row.path))
     .map((row) => routeFactOfRow(calculationId, row));
   return {
     summary: `Instruct ${subjectLabel(plan, mmsi)} to ${destination}: ${candidate.label} (route ${optionId}).`,
+    optionLabel: candidate.label,
     facts,
   };
 }
@@ -286,6 +254,9 @@ async function recommendations(sql: Sql, id?: Id): Promise<RecommendationView[]>
   const [supplierNames, portNames] = [await names("suppliers"), await names("ports")];
 
   return rows.map((r): RecommendationView => {
+    // The saving's fact, when the proposal has a saving.
+    const savingOf = (facts: Fact[], path: string) =>
+      r.expected_saving_usd === null ? null : factAt(facts, path);
     const base = {
       id: r.id,
       type: r.type,
@@ -314,13 +285,16 @@ async function recommendations(sql: Sql, id?: Id): Promise<RecommendationView[]>
     };
     if (r.kind === "route_speed") {
       const view = routeOptionView(r.calculation_id, r.inputs, r.outputs, r.option_id);
-      return {
-        ...base,
-        ...(view ?? {
+      if (!view) {
+        return {
+          ...base,
           summary: `Option ${r.option_id} of calculation ${r.calculation_id} (not a readable route plan).`,
+          optionLabel: null,
+          expectedSaving: null,
           facts: [],
-        }),
-      };
+        };
+      }
+      return { ...base, ...view, expectedSaving: savingOf(view.facts, ROUTE_SAVING_PATH) };
     }
     const input = BunkerPlanInput.safeParse(r.inputs);
     const plan = BunkerPlan.safeParse(r.outputs);
@@ -331,16 +305,40 @@ async function recommendations(sql: Sql, id?: Id): Promise<RecommendationView[]>
       return {
         ...base,
         summary: `Option ${r.option_id} of calculation ${r.calculation_id} (not a readable bunker plan).`,
+        optionLabel: null,
+        expectedSaving: null,
         facts: [],
       };
     }
-    const supplier = supplierNames.get(offer.supplierId) ?? `supplier ${offer.supplierId}`;
-    const port = portNames.get(offer.portId) ?? `port ${offer.portId}`;
+    const options = input.data.options;
+    const names = (optionId: string) => {
+      const o = options.find((x) => x.optionId === optionId);
+      if (!o) return { supplier: "?", port: "?" };
+      return {
+        supplier: supplierNames.get(o.supplierId) ?? `supplier ${o.supplierId}`,
+        port: portNames.get(o.portId) ?? `port ${o.portId}`,
+      };
+    };
+    // The plan's facts for the option, with the ids and labels `plan_bunkering` gave them, so the
+    // facts the agent cited when it proposed the option resolve here unchanged.
+    const facts = bunkerOptionViewFacts(
+      {
+        calculationId: r.calculation_id,
+        plan: plan.data,
+        scope: bunkerScope(input.data.grade, r.option_id),
+        names,
+        displacementMt: input.data.curve.load?.displacementMt ?? null,
+      },
+      r.option_id,
+    );
+    const { supplier, port } = names(r.option_id);
     const stem = r.voyage_no ? ` for the ${r.voyage_no} stem` : "";
     return {
       ...base,
       summary: `Order ${input.data.grade}${stem} from ${supplier} at ${port}.`,
-      facts: bunkerOptionFacts(r.calculation_id, plan.data, r.option_id),
+      optionLabel: `${supplier} at ${port}`,
+      expectedSaving: savingOf(facts, BUNKER_SAVING_PATH),
+      facts,
     };
   });
 }

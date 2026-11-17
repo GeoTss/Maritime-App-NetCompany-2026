@@ -179,8 +179,18 @@ export const RecommendationView = z.object({
   status: RecommendationStatus,
   calculationId: Id,
   optionId: z.string(),
+  /**
+   * The proposed option in words: `<supplier> at <port>` for a bunker option, the route's
+   * description for a route. Null when the calculation is unreadable.
+   */
+  optionLabel: z.string().nullable(),
   summary: z.string(),
   expectedSavingUsd: z.number().nullable(),
+  /**
+   * The fact the expected saving is (one of `facts`: the plan's saving). Null when there is no
+   * saving or the calculation is unreadable.
+   */
+  expectedSaving: Fact.nullable(),
   factRefs: z.array(FactId),
   facts: z.array(Fact),
   /** Whether the answer that proposed it passed the release gate; null when no ask made it. */

@@ -18,7 +18,8 @@ import {
   RouteSpeedResult,
   type ToolResult,
 } from "@pharos/shared";
-import { dbFact, json, runTool, type ToolContext } from "./common.js";
+import { dbFact } from "../../facts/core.js";
+import { json, runTool, type ToolContext } from "./common.js";
 
 export const TOOL = "propose_action";
 

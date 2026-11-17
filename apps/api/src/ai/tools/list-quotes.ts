@@ -15,8 +15,9 @@ import {
   type Quote,
   type ToolResult,
 } from "@pharos/shared";
+import { dbFact, factId } from "../../facts/core.js";
 import { resolvePort } from "../../ingest/resolve.js";
-import { dbFact, factId, findVessel, quoteExpiry, runTool, type ToolContext } from "./common.js";
+import { findVessel, quoteExpiry, runTool, type ToolContext } from "./common.js";
 
 export const TOOL = "list_quotes";
 

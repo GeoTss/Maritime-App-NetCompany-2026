@@ -271,7 +271,8 @@ describe.skipIf(!sql)("createDbSource (Postgres)", () => {
       option?.headlinePriceUsdPerMt,
     );
     expect(byPath.get(`options[${index}].fuelEuCostUsd`)).toMatchObject({
-      label: "FuelEU exposure",
+      // The tool's label: one fact id, one Fact.
+      label: "MTMLA-kestrel (Kestrel Marine Fuels, Marsaxlokk): FuelEU exposure",
       value: option?.fuelEuCostUsd,
       unit: "USD",
     });
@@ -280,6 +281,21 @@ describe.skipIf(!sql)("createDbSource (Postgres)", () => {
     for (const ref of rec?.factRefs ?? []) expect(ids.has(ref)).toBe(true);
     const detail = RecommendationView.parse((await get(app, `/api/recommendations/${recId}`)).body);
     expect(detail).toEqual(rec);
+  });
+
+  it("recommendation names its option", async () => {
+    const rec = RecommendationView.parse((await get(app, `/api/recommendations/${recId}`)).body);
+    expect(rec.optionLabel).toBe("Kestrel Marine Fuels at Marsaxlokk");
+    expect(rec.expectedSavingUsd).not.toBeNull();
+    expect(rec.expectedSaving?.value).toBe(rec.expectedSavingUsd);
+    // The plan's saving fact, one of the view's own facts.
+    expect(rec.expectedSaving).toEqual(
+      rec.facts.find(
+        (f) =>
+          f.provenance.source === "calculation" &&
+          f.provenance.path === "savingVsCheapestHeadlineUsd",
+      ),
+    );
   });
 
   it.each(["vessels", "voyages", "inbox", "quotes", "recommendations"])(
@@ -450,6 +466,24 @@ describe.skipIf(!sql)("createDbSource (Postgres)", () => {
       const ids = new Set(rec.facts.map((f) => f.id));
       expect(rec.factRefs.length).toBe(4);
       for (const ref of rec.factRefs) expect(ids.has(ref)).toBe(true);
+    });
+
+    it("route recommendation names its candidate", async () => {
+      const rec = RecommendationView.parse((await get(app, `/api/recommendations/${viId}`)).body);
+      const [calc] = await db<{ inputs: unknown }[]>`
+        select inputs from calculations where id = ${routeCalcId}`;
+      const inputs = z
+        .object({ optimiser: z.object({ candidates: z.array(RouteCandidate) }) })
+        .parse(calc?.inputs);
+      const label = inputs.optimiser.candidates.find((c) => c.id === rec.optionId)?.label;
+      expect(label).toBeTruthy();
+      expect(rec.optionLabel).toBe(label);
+      // The plan's saving, as plan_route_speed returned it.
+      expect(rec.expectedSavingUsd).not.toBeNull();
+      expect(rec.expectedSaving?.value).toBe(rec.expectedSavingUsd);
+      expect(rec.expectedSaving).toEqual(
+        toolFacts.get(`f_plan_route_speed_${routeCalcId}_savingVsBaselineUsd`),
+      );
     });
 
     it("serves the recorded instruction once approved", async () => {

@@ -5,8 +5,9 @@
 import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { loadWorld } from "@pharos/db";
 import { type Fact, PortCongestionInput, type ToolResult } from "@pharos/shared";
+import { dbFact } from "../../facts/core.js";
 import { resolvePort } from "../../ingest/resolve.js";
-import { dbFact, runTool, type ToolContext } from "./common.js";
+import { runTool, type ToolContext } from "./common.js";
 
 export const TOOL = "get_port_congestion";
 

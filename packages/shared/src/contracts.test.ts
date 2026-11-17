@@ -237,16 +237,30 @@ describe("Phase 2 contracts", () => {
   });
 
   it("RecommendationView carries the proposing answer's gate and the order's ERP state", () => {
+    const saving = {
+      id: "f_plan_bunkering_7_savingVsCheapestHeadlineUsd",
+      label: "Saving of the best option against the cheapest headline price, in total cost",
+      value: 16171.54,
+      unit: "USD",
+      provenance: {
+        source: "calculation",
+        calculationId: 7,
+        calculator: "planBunkers",
+        path: "savingVsCheapestHeadlineUsd",
+      },
+    };
     const rec = {
       id: 1,
       type: "purchase_order",
       status: "executed",
       calculationId: 7,
       optionId: "MTMLA-kestrel",
+      optionLabel: "Kestrel Marine Fuels at Marsaxlokk",
       summary: "Order LSMGO from Kestrel Marine Fuels at Marsaxlokk.",
       expectedSavingUsd: 16171.54,
+      expectedSaving: saving,
       factRefs: ["f_plan_bunkering_7_bestOptionId"],
-      facts: [],
+      facts: [saving],
       gatePassed: false,
       order: { orderId: 3, erpPoNumber: "PO-000001", erpSyncStatus: "synced" },
       instruction: null,

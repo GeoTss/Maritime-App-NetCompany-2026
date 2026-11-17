@@ -1,9 +1,14 @@
 import type { Sql } from "@pharos/db";
 import { connectTestDb, testDbLabel } from "@pharos/db/testing";
+import type { Fact, RecommendationView } from "@pharos/shared";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { createToolContext } from "../ai/tools/common.js";
+import { createToolContext, type ToolContext } from "../ai/tools/common.js";
 import { planBunkering } from "../ai/tools/plan-bunkering.js";
+import { proposeAction } from "../ai/tools/propose-action.js";
 import { ASK_FIXTURE_NOW, prepareAskFixture } from "../ask/demo-fixture.js";
+import { createDbSource } from "../read/db-source.js";
+
+const pathOf = (f: Fact) => (f.provenance.source === "calculation" ? f.provenance.path : null);
 
 const sql = await connectTestDb("facts_bunker");
 
@@ -54,5 +59,84 @@ describe.skipIf(!sql)("bunker facts (Postgres)", () => {
     const twoGrades = await planBunkering(ctx(), { vessel: "MV Aegean Pioneer" });
     expect((twoGrades.data as { plans: unknown[] }).plans).toHaveLength(2);
     expect(JSON.stringify(twoGrades)).toMatchSnapshot();
+  });
+
+  /** Proposes `optionId` from the stored plan and reads the approval view of the proposal. */
+  const proposeAndView = async (
+    c: ToolContext,
+    calculationId: number,
+    optionId: string,
+    factRef: string,
+  ): Promise<RecommendationView> => {
+    const proposed = await proposeAction(c, {
+      type: "purchase_order",
+      calculationId,
+      optionId,
+      factRefs: [factRef],
+      rationale: "Lowest total delivered cost.",
+    });
+    const id = (proposed.data as { recommendationId: number }).recommendationId;
+    const view = await createDbSource(db).getRecommendation(id);
+    if (!view) throw new Error(`no view of recommendation ${id}`);
+    return view;
+  };
+
+  it("view facts are the tool's facts", async () => {
+    const c = ctx();
+    const result = await planBunkering(c, { vessel: "MV Aegean Pioneer" });
+    const { calculationId, bestOptionId } = result.data as {
+      calculationId: number;
+      bestOptionId: string;
+    };
+    const tool = new Map(result.facts.map((f) => [f.id, f]));
+    const bestRef = `f_plan_bunkering_${calculationId}_bestOptionId`;
+    const saving = tool.get(`f_plan_bunkering_${calculationId}_savingVsCheapestHeadlineUsd`);
+    expect(bestOptionId).toBe("MTMLA-kestrel");
+
+    for (const [i, optionId] of ["MTMLA-kestrel", "GIGIB-straitline"].entries()) {
+      const view = await proposeAndView(c, calculationId, optionId, bestRef);
+      for (const f of view.facts.filter((x) => tool.has(x.id))) {
+        expect(f, f.id).toEqual(tool.get(f.id));
+      }
+      // The effective price is the one fact the view adds; the tool never emits it.
+      expect(view.facts.filter((f) => !tool.has(f.id)).map(pathOf)).toEqual([
+        `options[${i}].effectivePriceUsdPerMt`,
+      ]);
+      const best = optionId === bestOptionId;
+      expect(view.facts.map(pathOf)).toEqual([
+        `options[${i}].qtyMt`,
+        `options[${i}].headlinePriceUsdPerMt`,
+        `options[${i}].totalCostUsd`,
+        `options[${i}].effectivePriceUsdPerMt`,
+        `options[${i}].fuelEuCostUsd`,
+        ...(best ? ["bestOptionId", "savingVsCheapestHeadlineUsd"] : []),
+      ]);
+      expect(view.expectedSaving).toEqual(best ? saving : null);
+    }
+  });
+
+  it("view facts carry the grade scope", async () => {
+    await addVlsfo();
+    const c = ctx();
+    const result = await planBunkering(c, { vessel: "MV Aegean Pioneer" });
+    const { plans } = result.data as {
+      plans: { calculationId: number; grade: string; bestOptionId: string }[];
+    };
+    const tool = new Map(result.facts.map((f) => [f.id, f]));
+    expect(plans.map((p) => p.bestOptionId)).toEqual([
+      "LSMGO-MTMLA-kestrel",
+      "VLSFO-MTMLA-kestrel",
+    ]);
+
+    for (const plan of plans) {
+      const bestRef = `f_plan_bunkering_${plan.calculationId}_bestOptionId`;
+      const view = await proposeAndView(c, plan.calculationId, plan.bestOptionId, bestRef);
+      expect(view.facts.find((f) => f.id === bestRef)?.label).toBe(
+        `${plan.grade} plan: Best option (lowest total cost, feasible)`,
+      );
+      for (const f of view.facts.filter((x) => tool.has(x.id))) {
+        expect(f, f.id).toEqual(tool.get(f.id));
+      }
+    }
   });
 });

@@ -5,7 +5,8 @@
 import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { currentVoyage, loadWorld } from "@pharos/db";
 import { type Fact, ListFleetInput, type ToolResult } from "@pharos/shared";
-import { dbFact, runTool, type ToolContext } from "./common.js";
+import { dbFact } from "../../facts/core.js";
+import { runTool, type ToolContext } from "./common.js";
 
 export const TOOL = "list_fleet";
 

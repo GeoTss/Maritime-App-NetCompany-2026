@@ -28,8 +28,10 @@ const rec = (id: number, over: Record<string, unknown> = {}) => ({
   status: "pending",
   calculationId: 3,
   optionId: "MTMLA-kestrel",
+  optionLabel: null,
   summary: "Buy VLSFO from Kestrel Marine at Marsaxlokk.",
   expectedSavingUsd: 18250,
+  expectedSaving: null,
   factRefs: ["f_total"],
   facts: [
     fact("f_total", "Total landed cost", 233914, "USD"),

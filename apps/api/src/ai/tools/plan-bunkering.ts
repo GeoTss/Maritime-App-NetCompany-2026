@@ -18,7 +18,6 @@ import {
 } from "@pharos/db";
 import { planBunkers } from "@pharos/domain";
 import {
-  type BunkerOptionResult,
   type BunkerRequirement,
   type Fact,
   PlanBunkeringInput,
@@ -28,43 +27,9 @@ import {
   type Vessel,
   type Voyage,
 } from "@pharos/shared";
-import {
-  calcFact,
-  dbFact,
-  findVessel,
-  insertCalculation,
-  quoteExpiry,
-  runTool,
-  type ToolContext,
-} from "./common.js";
-
-export const TOOL = "plan_bunkering";
-
-/**
- * Option fields returned as facts, with their units. A fact's label is
- * `<optionId> (<supplier>, <port>): <name>` (see `bunkerOptionLabel`).
- */
-export const BUNKER_OPTION_FACTS: [keyof BunkerOptionResult, string, string | null][] = [
-  ["rank", "rank by total cost", null],
-  ["feasible", "feasible", null],
-  ["qtyMt", "quantity", "mt"],
-  ["headlinePriceUsdPerMt", "headline price", "USD/mt"],
-  ["totalCostUsd", "total delivered cost", "USD"],
-  ["delayHours", "delay", "h"],
-  ["etsCostUsd", "EU ETS cost", "USD"],
-  ["fuelEuCostUsd", "FuelEU exposure", "USD"],
-];
-
-/** An option fact's label: the option id, its supplier and port, then the field's name. */
-export const bunkerOptionLabel = (optionId: string, supplier: string, port: string, name: string) =>
-  `${optionId} (${supplier}, ${port}): ${name}`;
-
-/**
- * The plan's displacement (the load on the planner's curve, from the voyage's cargo and ballast),
- * cited on the stored input; with several grades the label starts `<grade> plan: `.
- */
-export const BUNKER_DISPLACEMENT_LABEL = "Vessel displacement";
-export const BUNKER_DISPLACEMENT_FIELD = "inputs.curve.load.displacementMt";
+import { bunkerPlanFacts, BUNKER_TOOL as TOOL } from "../../facts/bunker.js";
+import { dbFact } from "../../facts/core.js";
+import { findVessel, insertCalculation, quoteExpiry, runTool, type ToolContext } from "./common.js";
 
 type PlanOutcome =
   | {
@@ -134,81 +99,19 @@ async function planRequirement(
     outputs: plan,
     voyageId: voyage.id,
   });
-  const ref = { id: calculationId, calculator: "planBunkers" };
-  const scope = multi ? `${grade} plan: ` : "";
-
   const describe = (optionId: string) => {
     const offer = offers.find((o) => o.optionId === optionId);
     const supplier = world.suppliers.find((s) => s.id === offer?.supplierId)?.name ?? "?";
     const port = world.ports.find((p) => p.id === offer?.portId)?.name ?? "?";
     return { supplier, port };
   };
-
-  const facts: Fact[] = plan.options.flatMap((o, i) => {
-    const { supplier, port } = describe(o.optionId);
-    return BUNKER_OPTION_FACTS.map(([field, label, unit]) =>
-      calcFact(
-        TOOL,
-        ref,
-        `options[${i}].${field}`,
-        bunkerOptionLabel(o.optionId, supplier, port, label),
-        o[field] as number | boolean,
-        unit,
-      ),
-    );
+  const facts = bunkerPlanFacts({
+    calculationId,
+    plan,
+    scope: multi ? `${grade} plan: ` : "",
+    names: describe,
+    displacementMt: planInput.curve.load?.displacementMt ?? null,
   });
-  const load = planInput.curve.load;
-  if (load) {
-    facts.push(
-      dbFact(
-        TOOL,
-        { table: "calculations", rowId: calculationId, field: BUNKER_DISPLACEMENT_FIELD },
-        `${scope}${BUNKER_DISPLACEMENT_LABEL}`,
-        load.displacementMt,
-        "mt",
-      ),
-    );
-  }
-  if (plan.bestOptionId !== null) {
-    facts.push(
-      calcFact(
-        TOOL,
-        ref,
-        "bestOptionId",
-        `${scope}Best option (lowest total cost, feasible)`,
-        plan.bestOptionId,
-        null,
-      ),
-    );
-  }
-  if (plan.cheapestHeadlineOptionId !== null) {
-    facts.push(
-      calcFact(
-        TOOL,
-        ref,
-        "cheapestHeadlineOptionId",
-        `${scope}Option with the cheapest headline price`,
-        plan.cheapestHeadlineOptionId,
-        null,
-      ),
-    );
-  }
-  if (plan.savingVsCheapestHeadlineUsd !== null) {
-    facts.push(
-      calcFact(
-        TOOL,
-        ref,
-        "savingVsCheapestHeadlineUsd",
-        `${scope}Saving of the best option against the cheapest headline price, in total cost`,
-        plan.savingVsCheapestHeadlineUsd,
-        "USD",
-      ),
-    );
-  }
-  // The id an answer may mention ("plan 3"), citable like any other number.
-  facts.push(
-    calcFact(TOOL, ref, "calculationId", `${scope}Bunker plan calculation id`, calculationId, null),
-  );
 
   return {
     facts,

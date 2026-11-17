@@ -7,13 +7,13 @@ import { buildDemoBunkerPlanInput, DEMO_SCENARIO, generateWorld, type World } fr
 import { planBunkers } from "@pharos/domain";
 import type {
   ExtractionOutput,
-  Fact,
   InboxItem,
   InboxItemDetail,
   QuoteView,
   RecommendationView,
 } from "@pharos/shared";
 import { convert } from "html-to-text";
+import { BUNKER_SAVING_PATH, bunkerOptionViewFacts, bunkerScope } from "../facts/bunker.js";
 import type { ReadSource } from "./source.js";
 import { buildPorts, buildVessels, buildVoyages, must } from "./world-views.js";
 
@@ -329,68 +329,43 @@ function buildQuotes(world: World): QuoteView[] {
 
 const CALCULATION_ID = 1;
 
+/** The demo plan's best option as the approval view shows it, built by the view's own builder. */
 function buildRecommendation(world: World): RecommendationView {
-  const plan = planBunkers(buildDemoBunkerPlanInput(world));
+  const input = buildDemoBunkerPlanInput(world);
+  const plan = planBunkers(input);
   const bestId = must(plan.bestOptionId, "best bunker option");
-  const index = plan.options.findIndex((o) => o.optionId === bestId);
-  const best = must(plan.options[index], "best option result");
-  const scenarioOption = must(
-    DEMO_SCENARIO.options.find((o) => o.optionId === bestId),
-    "scenario option",
+  const names = (optionId: string) => {
+    const option = must(
+      input.options.find((o) => o.optionId === optionId),
+      "plan option",
+    );
+    return {
+      supplier: must(
+        world.suppliers.find((s) => s.id === option.supplierId),
+        "option supplier",
+      ).name,
+      port: must(
+        world.ports.find((p) => p.id === option.portId),
+        "option port",
+      ).name,
+    };
+  };
+  const facts = bunkerOptionViewFacts(
+    {
+      calculationId: CALCULATION_ID,
+      plan,
+      scope: bunkerScope(input.grade, bestId),
+      names,
+      displacementMt: input.curve.load?.displacementMt ?? null,
+    },
+    bestId,
   );
-  const portName = must(
-    world.ports.find((p) => p.unlocode === scenarioOption.portLocode),
-    "best option port",
-  ).name;
-  const supplierId = must(
-    buildDemoBunkerPlanInput(world).options.find((o) => o.optionId === bestId),
-    "best plan option",
-  ).supplierId;
-  const supplier = must(
-    world.suppliers.find((s) => s.id === supplierId),
-    "best option supplier",
-  );
-
-  const calc = (path: string) => ({
-    source: "calculation" as const,
-    calculationId: CALCULATION_ID,
-    calculator: "bunker_plan",
-    path,
-  });
-  const facts: Fact[] = [
-    {
-      id: "f_bunker_plan_qty",
-      label: `${DEMO_SCENARIO.requirement.grade} quantity at ${portName}`,
-      value: best.qtyMt,
-      unit: "mt",
-      provenance: calc(`options[${index}].qtyMt`),
-    },
-    {
-      id: "f_bunker_plan_total_cost",
-      label: `Total landed cost at ${portName}`,
-      value: best.totalCostUsd,
-      unit: "USD",
-      provenance: calc(`options[${index}].totalCostUsd`),
-    },
-    {
-      id: "f_bunker_plan_effective_price",
-      label: `Effective price at ${portName}`,
-      value: best.effectivePriceUsdPerMt,
-      unit: "USD/mt",
-      provenance: calc(`options[${index}].effectivePriceUsdPerMt`),
-    },
-    ...(plan.savingVsCheapestHeadlineUsd === null
-      ? []
-      : [
-          {
-            id: "f_bunker_plan_saving",
-            label: "Saving versus the cheapest headline price",
-            value: plan.savingVsCheapestHeadlineUsd,
-            unit: "USD",
-            provenance: calc("savingVsCheapestHeadlineUsd"),
-          },
-        ]),
-  ];
+  const { supplier, port } = names(bestId);
+  // The plan's saving fact: there is one exactly when the plan has a saving.
+  const saving =
+    facts.find(
+      (f) => f.provenance.source === "calculation" && f.provenance.path === BUNKER_SAVING_PATH,
+    ) ?? null;
 
   return {
     id: 1,
@@ -398,8 +373,10 @@ function buildRecommendation(world: World): RecommendationView {
     status: "pending",
     calculationId: CALCULATION_ID,
     optionId: bestId,
-    summary: `Order ${DEMO_SCENARIO.requirement.grade} for the ${DEMO_SCENARIO.voyageNo} stem from ${supplier.name} at ${portName}.`,
+    optionLabel: `${supplier} at ${port}`,
+    summary: `Order ${DEMO_SCENARIO.requirement.grade} for the ${DEMO_SCENARIO.voyageNo} stem from ${supplier} at ${port}.`,
     expectedSavingUsd: plan.savingVsCheapestHeadlineUsd,
+    expectedSaving: saving,
     factRefs: facts.map((f) => f.id),
     facts,
     // A fixture proposal: made by no ask, not approved.

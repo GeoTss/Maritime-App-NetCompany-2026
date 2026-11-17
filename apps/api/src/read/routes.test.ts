@@ -116,6 +116,8 @@ describe("fixture content", () => {
     expect(rec?.factRefs.length).toBeGreaterThan(0);
     for (const ref of rec?.factRefs ?? []) expect(ids.has(ref)).toBe(true);
     for (const f of rec?.facts ?? []) expect(f.provenance.source).toBe("calculation");
+    expect(rec?.optionLabel).toBe("Kestrel Marine Fuels at Marsaxlokk");
+    expect(rec?.expectedSaving?.value).toBe(rec?.expectedSavingUsd);
   });
 
   it("has three demo emails with exactly one needing review", async () => {
