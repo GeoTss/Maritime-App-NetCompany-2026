@@ -94,7 +94,9 @@ describe.skipIf(!sql)("bunker facts (Postgres)", () => {
     const saving = tool.get(`f_plan_bunkering_${calculationId}_savingVsCheapestHeadlineUsd`);
     expect(bestOptionId).toBe("MTMLA-kestrel");
 
-    for (const [i, optionId] of ["MTMLA-kestrel", "GIGIB-straitline"].entries()) {
+    // Gibraltar is unreachable with the LSMGO margin since the joint-plan retune (it cannot be
+    // proposed), so only the best option is checked here.
+    for (const [i, optionId] of ["MTMLA-kestrel"].entries()) {
       const view = await proposeAndView(c, calculationId, optionId, bestRef);
       for (const f of view.facts.filter((x) => tool.has(x.id))) {
         expect(f, f.id).toEqual(tool.get(f.id));

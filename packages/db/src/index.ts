@@ -1,14 +1,27 @@
 export { createDb, type Db } from "./client.js";
+export {
+  type CongestionMode,
+  currentPlanFuel,
+  TRACK_STEP_NM,
+  waitingHoursAt,
+} from "./current-plan.js";
 export { DEFAULT_WORLD_SEED, PINNED_NOW_OFFSET_MS, pinnedNow } from "./demo-clock.js";
 export { loadWorld } from "./load-world.js";
 export { runMigrations } from "./migrate.js";
-export { fleetRoutePlan, type RoutePlan, shipRoutePlan } from "./route-plan.js";
+export { latestOffers, offersFromQuotes, quoteExpiry, validQuotes } from "./offers.js";
+export {
+  type FleetPlanOptions,
+  fleetRoutePlan,
+  type RoutePlan,
+  shipRoutePlan,
+} from "./route-plan.js";
 export * as schema from "./schema.js";
 export {
   type BunkerOffer,
   buildBunkerPlanInput,
   buildDemoBunkerPlanInput,
   DEFAULT_BUNKERING_HOURS,
+  demoOffers,
   fobProjectionInput,
   optionIdFor,
   voyageState,

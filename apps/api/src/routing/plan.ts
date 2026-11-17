@@ -5,9 +5,14 @@
  * the result as a `route_speed` calculation. All maths is in `packages/domain`.
  */
 import {
+  type BunkerOffer,
+  type CongestionMode,
   currentVoyage,
   fleetRoutePlan,
+  latestOffers,
   loadWorld,
+  offersFromQuotes,
+  openRequirements,
   type RoutePlan,
   type Sql,
   shipRoutePlan,
@@ -20,14 +25,38 @@ import type {
   Id,
   NavHazard,
   PlanRouteSpeedInput,
+  RouteCandidate,
   RouteGraph,
   RoutePlanResponse,
   RouteSpeedResult,
+  StopCandidate,
   Vessel,
 } from "@pharos/shared";
 import { findVessel, insertCalculation } from "../ai/tools/common.js";
+import { approvedOrderFor } from "../approvals/orders.js";
 import { resolvePort } from "../ingest/resolve.js";
 import { routeCalculationLoad } from "./facts.js";
+
+/**
+ * The route candidates a plan view draws: the optimiser's routes, then each bunker stop's route
+ * through its port (id = the stop plan's option id), so the map can draw the recommended plan.
+ * Stops the sea graph could not route are left out.
+ */
+export function viewCandidates(
+  candidates: RouteCandidate[],
+  stops: readonly StopCandidate[],
+): RouteCandidate[] {
+  return [
+    ...candidates,
+    ...stops
+      .filter((s) => s.routeError === null)
+      .map((s) => ({
+        id: s.optionId,
+        label: `Through ${s.unlocode} for bunkers`,
+        points: s.points,
+      })),
+  ];
+}
 
 /** A request the planner cannot serve; the message is plain text meant for the operator. */
 export class RoutePlanError extends Error {
@@ -40,6 +69,8 @@ export class RoutePlanError extends Error {
 export interface RoutePlanDeps {
   sql: Sql;
   now: () => Date;
+  /** Port waits: "seed" on the pinned demo clock (the default), else the latest AIS reading. */
+  congestion?: CongestionMode;
 }
 
 /** The route-plan response before its facts are attached (`routePlanFacts` builds them). */
@@ -197,7 +228,25 @@ export async function planRouteSpeed(
       if (!voyage) throw new RoutePlanError(`${vessel.name} has no current voyage to plan.`);
       voyageId = voyage.id;
       vesselId = vessel.id;
-      plan = fleetRoutePlan(world, voyage.id, g, weather, zones);
+      // The stop candidates: an approved order fixes the stop to its quote; otherwise every valid
+      // quote for the open requirement is one.
+      const order = await approvedOrderFor(deps.sql, voyage.id);
+      const requirement = openRequirements(world, voyage.id)[0];
+      let offers: BunkerOffer[] = [];
+      const ordered = order?.quoteId ? world.quotes.find((q) => q.id === order.quoteId) : undefined;
+      const orderedGrade = ordered
+        ? world.quoteLines.find((l) => l.quoteId === ordered.id)?.grade
+        : undefined;
+      if (ordered && orderedGrade) {
+        offers = offersFromQuotes(world, [ordered], requirement?.grade ?? orderedGrade, false);
+      } else if (requirement) {
+        offers = latestOffers(world, voyage.id, requirement.grade, deps.now(), false);
+      }
+      plan = fleetRoutePlan(world, voyage.id, g, weather, zones, {
+        congestion: deps.congestion ?? "seed",
+        offers,
+        fixedOrder: order && ordered ? order : null,
+      });
     } else {
       ship = await findShip(deps.sql, input.vessel);
       mmsi = ship.mmsi;
@@ -243,7 +292,7 @@ export async function planRouteSpeed(
       weatherSnapshotId: snapshot?.id ?? null,
       subject: plan.subject,
       destination: plan.destination.name,
-      candidates: plan.input.candidates,
+      candidates: viewCandidates(plan.input.candidates, plan.input.stops),
       result,
       computeMs,
     },

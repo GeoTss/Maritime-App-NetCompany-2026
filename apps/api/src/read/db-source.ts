@@ -5,10 +5,13 @@
  * are re-derived from the calculation it references, never from stored model text: a bunker
  * plan's option facts, or a route plan's approved-route facts as `plan_route_speed` returned them.
  * Its gate origin is the stored gate result of the answer that proposed it; its order state comes
- * from purchase_orders. A stored bunker or route plan is served whole the same way, from its
+ * from purchase_orders. A voyage instruction on a route plan's bunker stop shows the purchase
+ * order it waits for (`approvals/dependency.ts`, the executor's rule) and, once executed, the stop
+ * it recorded. A stored bunker or route plan is served whole the same way, from its
  * calculation, with the facts its tool returned.
  */
 import { loadWorld, type Sql } from "@pharos/db";
+import { latestWeatherSnapshot } from "@pharos/integrations";
 import {
   type AuditEventView,
   AuditEventView as AuditEventViewSchema,
@@ -32,8 +35,10 @@ import {
   type RoutePlanView,
   RouteSpeedResult,
   ShipType,
+  StopCandidate,
 } from "@pharos/shared";
 import { z } from "zod";
+import { orderDependencyOf } from "../approvals/dependency.js";
 import {
   BUNKER_SAVING_PATH,
   type BunkerFactContext,
@@ -48,6 +53,7 @@ import {
   routeSpeedFactRows,
   subjectLabel,
 } from "../routing/facts.js";
+import { viewCandidates } from "../routing/plan.js";
 import type { ReadSource } from "./source.js";
 import { buildVessels, buildVoyages } from "./world-views.js";
 
@@ -183,6 +189,12 @@ interface RecommendationRow {
   instruction_candidate_id: string | null;
   instruction_speed_kn: number | null;
   instruction_eta: string | Date | null;
+  instruction_stop_quote_id: number | null;
+  instruction_stop_arrive_at: string | Date | null;
+  instruction_stop_depart_at: string | Date | null;
+  instruction_stop_qty_mt: number | null;
+  instruction_stop_unlocode: string | null;
+  instruction_stop_port_name: string | null;
 }
 
 /** The path of a route plan's saving: the recommended route and speed against the current plan. */
@@ -204,6 +216,7 @@ const RouteCalculationInputs = z.object({
     arriveBy: IsoDateTime.nullable(),
     curve: ConsumptionCurve,
     hazards: z.array(HazardZone),
+    stops: z.array(StopCandidate),
   }),
 });
 
@@ -212,6 +225,8 @@ interface StoredRoutePlan {
   /** The plan as the route facts read it, rebuilt from the stored inputs. */
   plan: RoutePlanFactsInput["plan"];
   result: RouteSpeedResult;
+  /** The bunker stops the plan evaluated (their port, supplier, quote and grade). */
+  stops: StopCandidate[];
   /** The AIS ship's MMSI; null for a fleet vessel. */
   mmsi: string | null;
 }
@@ -236,6 +251,7 @@ function storedRoutePlan(row: { inputs: unknown; outputs: unknown }): StoredRout
       avoidedHazardIds,
     },
     result: result.data,
+    stops: optimiser.stops,
     mmsi,
   };
 }
@@ -243,17 +259,14 @@ function storedRoutePlan(row: { inputs: unknown; outputs: unknown }): StoredRout
 /**
  * A route plan's proposed route: a summary without numbers, the route's description, and that
  * route's facts (its option, description and the berth window; the recommendation and saving when
- * it is the best route) with the ids `plan_route_speed` gave them. Null when the calculation or
- * the route is unreadable.
+ * it is the best route) with the ids `plan_route_speed` gave them. Null when the route is
+ * unreadable.
  */
 function routeOptionView(
   calculationId: Id,
-  inputs: unknown,
-  outputs: unknown,
+  stored: StoredRoutePlan,
   optionId: string,
 ): { summary: string; optionLabel: string; facts: Fact[] } | null {
-  const stored = storedRoutePlan({ inputs, outputs });
-  if (!stored) return null;
   const { plan, result, mmsi } = stored;
   const { candidates } = plan.input;
   const index = result.options.findIndex((o) => o.candidateId === optionId);
@@ -272,6 +285,71 @@ function routeOptionView(
     summary: `Instruct ${subjectLabel(plan, mmsi)} to ${plan.destination.name}: ${candidate.label} (route ${optionId}).`,
     optionLabel: candidate.label,
     facts,
+  };
+}
+
+/**
+ * A route plan's bunker stop as a proposal names it: the instruction through its port, or the
+ * purchase order bought there (named as a bunker plan's is). Its facts are that stop plan's, the
+ * berth window, and the recommended plan's when it is that plan, with the ids `plan_route_speed`
+ * gave them. Null when the route plan has no such stop.
+ */
+function stopPlanView(
+  calculationId: Id,
+  stored: StoredRoutePlan,
+  rec: Pick<RecommendationRow, "type" | "option_id" | "voyage_no">,
+  lookups: BunkerLookups,
+): { summary: string; optionLabel: string; facts: Fact[] } | null {
+  const { plan, result, stops, mmsi } = stored;
+  const index = result.stopPlans.findIndex((s) => s.optionId === rec.option_id);
+  const stop = stops.find((s) => s.optionId === rec.option_id);
+  if (index < 0 || !stop) return null;
+  const supplier = lookups.supplierNames.get(stop.supplierId) ?? `supplier ${stop.supplierId}`;
+  const port = lookups.ports.get(stop.portId)?.name ?? `port ${stop.portId}`;
+  const recommended = result.plan?.optionId === rec.option_id;
+  const facts = routeSpeedFactRows(plan, result, null, { mmsi })
+    .filter(
+      (row) =>
+        row.path.startsWith(`stopPlans[${index}].`) ||
+        row.path === "inputs.optimiser.arriveBy" ||
+        (recommended && row.path.startsWith("plan.")),
+    )
+    .map((row) => routeFactOfRow(calculationId, row));
+  if (rec.type === "purchase_order") {
+    const stem = rec.voyage_no ? ` for the ${rec.voyage_no} stem` : "";
+    return {
+      summary: `Order ${stop.grade}${stem} from ${supplier} at ${port}.`,
+      optionLabel: `${supplier} at ${port}`,
+      facts,
+    };
+  }
+  return {
+    summary: `Instruct ${subjectLabel(plan, mmsi)} to ${plan.destination.name} with a bunker stop at ${port} (${supplier}).`,
+    optionLabel: `Bunker stop at ${port} (${supplier})`,
+    facts,
+  };
+}
+
+/** The stop an executed instruction recorded, or null for a route with no stop. */
+function recordedStop(
+  r: RecommendationRow,
+): NonNullable<RecommendationView["instruction"]>["stop"] {
+  if (
+    r.instruction_stop_unlocode === null ||
+    r.instruction_stop_port_name === null ||
+    r.instruction_stop_arrive_at === null ||
+    r.instruction_stop_depart_at === null ||
+    r.instruction_stop_qty_mt === null
+  ) {
+    return null;
+  }
+  return {
+    unlocode: r.instruction_stop_unlocode,
+    portName: r.instruction_stop_port_name,
+    arriveAt: iso(r.instruction_stop_arrive_at),
+    departAt: iso(r.instruction_stop_depart_at),
+    qtyMt: r.instruction_stop_qty_mt,
+    quoteId: r.instruction_stop_quote_id,
   };
 }
 
@@ -315,7 +393,7 @@ async function routePlan(sql: Sql, id: Id): Promise<RoutePlanView | null> {
     weatherSnapshotId: row.weather_snapshot_id,
     subject: plan.subject,
     destination: plan.destination.name,
-    candidates: plan.input.candidates,
+    candidates: viewCandidates(plan.input.candidates, stored.stops),
     result,
     facts: routePlanFacts({
       response: { calculationId: row.id, result },
@@ -413,7 +491,12 @@ async function recommendations(sql: Sql, id?: Id): Promise<RecommendationView[]>
            (m.content -> 'gate' ->> 'passed')::boolean as gate_passed,
            po.id as order_id, po.erp_po_number, po.erp_sync_status,
            vi.id as instruction_id, vi.candidate_id as instruction_candidate_id,
-           vi.speed_kn as instruction_speed_kn, vi.eta as instruction_eta
+           vi.speed_kn as instruction_speed_kn, vi.eta as instruction_eta,
+           vi.stop_quote_id as instruction_stop_quote_id,
+           vi.stop_arrive_at as instruction_stop_arrive_at,
+           vi.stop_depart_at as instruction_stop_depart_at,
+           vi.stop_qty_mt as instruction_stop_qty_mt,
+           sp.unlocode as instruction_stop_unlocode, sp.name as instruction_stop_port_name
     from recommendations r
       join calculations c on c.id = r.calculation_id
       left join voyages vo on vo.id = c.voyage_id
@@ -425,10 +508,16 @@ async function recommendations(sql: Sql, id?: Id): Promise<RecommendationView[]>
       ) po on true
       -- At most one per recommendation (unique index).
       left join voyage_instructions vi on vi.recommendation_id = r.id
+      left join ports sp on sp.id = vi.stop_port_id
     ${id === undefined ? sql`` : sql`where r.id = ${id}`}
     order by r.id desc`;
   if (rows.length === 0) return [];
   const lookups = await bunkerLookups(sql);
+  // The purchase order each instruction on a bunker stop waits for (the executor's own rule).
+  const dependsOn = new Map<Id, RecommendationView["dependsOn"]>();
+  for (const r of rows) {
+    if (r.type === "voyage_instruction") dependsOn.set(r.id, await orderDependencyOf(sql, r));
+  }
 
   return rows.map((r): RecommendationView => {
     // The saving's fact, when the proposal has a saving.
@@ -445,6 +534,7 @@ async function recommendations(sql: Sql, id?: Id): Promise<RecommendationView[]>
       gatePassed: r.gate_passed,
       // Only a readable purchase order carries its plan (set below).
       bunkerPlan: null,
+      dependsOn: dependsOn.get(r.id) ?? null,
       order:
         r.order_id === null || r.erp_sync_status === null
           ? null
@@ -460,10 +550,18 @@ async function recommendations(sql: Sql, id?: Id): Promise<RecommendationView[]>
               candidateId: r.instruction_candidate_id,
               speedKn: r.instruction_speed_kn,
               eta: new Date(r.instruction_eta).toISOString(),
+              stop: recordedStop(r),
             },
     };
     if (r.kind === "route_speed") {
-      const view = routeOptionView(r.calculation_id, r.inputs, r.outputs, r.option_id);
+      const stored = storedRoutePlan(r);
+      // A bunker stop (an instruction through it, or the order bought there), else a route.
+      const view = stored
+        ? (stopPlanView(r.calculation_id, stored, r, lookups) ??
+          (r.type === "voyage_instruction"
+            ? routeOptionView(r.calculation_id, stored, r.option_id)
+            : null))
+        : null;
       if (!view) {
         return {
           ...base,
@@ -571,9 +669,18 @@ async function worldAnchor(sql: Sql): Promise<Date | null> {
 
 export function createDbSource(sql: Sql, now: () => Date): ReadSource {
   return {
-    listVessels: async () => buildVessels(await loadWorld(sql), now()).map((v) => v.summary),
+    listVessels: async () =>
+      buildVessels(
+        await loadWorld(sql),
+        now(),
+        (await latestWeatherSnapshot(sql))?.grid ?? null,
+      ).map((v) => v.summary),
     getVessel: async (id) =>
-      buildVessels(await loadWorld(sql), now()).find((v) => v.summary.id === id)?.detail ?? null,
+      buildVessels(
+        await loadWorld(sql),
+        now(),
+        (await latestWeatherSnapshot(sql))?.grid ?? null,
+      ).find((v) => v.summary.id === id)?.detail ?? null,
     listVoyages: async () => buildVoyages(await loadWorld(sql)).map((v) => v.summary),
     getVoyage: async (id) =>
       buildVoyages(await loadWorld(sql)).find((v) => v.summary.id === id)?.detail ?? null,

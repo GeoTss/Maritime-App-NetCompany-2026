@@ -1,12 +1,13 @@
+import type { RoutePlanView } from "@pharos/shared";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { afterEach, describe, expect, it } from "vitest";
-import { makePlan } from "./map-fixtures";
+import { makeFuelPlan, makePlan } from "./map-fixtures";
 import { RouteComparison, RouteTray } from "./route-tray";
 
 afterEach(cleanup);
 
-const renderComparison = (plan = makePlan()) =>
+const renderComparison = (plan: RoutePlanView = makePlan()) =>
   render(
     <MemoryRouter>
       <RouteComparison plan={plan} />
@@ -65,6 +66,51 @@ describe("RouteComparison", () => {
     cleanup();
     renderComparison(makePlan({ omitFact: (f) => f.id === "f_plan_displacement" }));
     expect(within(screen.getByTestId("plan-load")).getAllByText("—").length).toBeGreaterThan(0);
+  });
+});
+
+describe("RouteComparison with the fuel on board", () => {
+  it("marks the best route ignoring fuel as blocked when it runs short", () => {
+    renderComparison(makeFuelPlan());
+    const best = screen.getByTestId("fuel-blind-best-summary");
+    expect(best.textContent).toMatch(/^Best route ignoring fuel on board/);
+    expect(within(best).getByRole("heading").textContent).toBe("Route B, Shortest sea route");
+    const short = within(best).getByTestId("runs-short-LSMGO");
+    const words = within(short).getByText("Runs short of LSMGO");
+    expect(words.className).toMatch(/\btext-alarm\b/);
+    expect(words.querySelector("[data-flag=V]")?.getAttribute("aria-hidden")).toBe("true");
+    const nm = within(short).getByTestId("cell-short-LSMGO-nm");
+    expect(nm.querySelector("[data-slot=fact-chip]")?.getAttribute("data-fact-id")).toBe(
+      "f_plan_options.1.fuel.grades.LSMGO.belowMarginAt.nm",
+    );
+    expect(nm.textContent).toBe("2,511 nm");
+    // In the table, the same route is ruled out for its fuel and named as the fuel-blind best.
+    const row = rowFor("B");
+    expect(row.getByText("Blocked: runs below the fuel margin")).toBeTruthy();
+    expect(row.getByTestId("fuel-blind-best")).toBeTruthy();
+    expect(screen.getByTestId("route-row-B").getAttribute("data-role")).toBe("infeasible");
+  });
+
+  it("leads with the recommended plan, then the fuel curve, then every route", () => {
+    renderComparison(makeFuelPlan());
+    const plan = screen.getByTestId("plan-summary");
+    const curve = screen.getByTestId("fuel-curve");
+    const table = screen.getByTestId("route-row-A");
+    expect(plan.compareDocumentPosition(curve) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(curve.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // No route row is recommended when the plan calls at a bunker port.
+    for (const id of ["A", "B", "C"]) {
+      expect(screen.getByTestId(`route-row-${id}`).getAttribute("data-role")).not.toBe(
+        "recommended",
+      );
+    }
+  });
+
+  it("a ship seen on AIS gets the routes alone", () => {
+    renderComparison(makePlan());
+    expect(screen.queryByTestId("plan-summary")).toBeNull();
+    expect(screen.queryByTestId("fuel-curve")).toBeNull();
+    expect(screen.queryByTestId("fuel-blind-best")).toBeNull();
   });
 });
 

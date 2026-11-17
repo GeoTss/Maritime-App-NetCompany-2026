@@ -17,13 +17,11 @@ import {
   BunkerPlan,
   BunkerPlanView,
   type Fact,
-  FobProjection,
   InboxItem,
   InboxItemDetail,
   listOf,
   QuoteView,
   RecommendationView,
-  RouteCandidate,
   RoutePlanView,
   RouteSpeedResult,
   VesselDetail,
@@ -32,7 +30,6 @@ import {
   VoyageSummary,
 } from "@pharos/shared";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { z } from "zod";
 import { createErpApp } from "../../../../services/erp-sim/src/app.js";
 import type { Extractor } from "../ai/extract.js";
 import { createToolContext } from "../ai/tools/common.js";
@@ -96,6 +93,8 @@ describe.skipIf(!sql)("createDbSource (Postgres)", () => {
   let kestrelDocId: number;
   let pendingDocId: number;
   let recId: number;
+  /** A purchase order proposed from the route plan's stop (set in the instruction view block). */
+  let routeOrderId: number;
   let calculationId: number;
   /** The facts plan_bunkering returned for `calculationId`. */
   let bunkerToolFacts: Fact[];
@@ -141,26 +140,31 @@ describe.skipIf(!sql)("createDbSource (Postgres)", () => {
       listOf(VesselSummary).parse((await get(fixtures, "/api/vessels")).body).items,
     );
     const pioneer = items.find((v) => v.name === "MV Aegean Pioneer");
-    expect(pioneer?.alerts).toContain("lsmgo_below_margin_for_eca");
+    expect(pioneer?.alerts).toContain("lsmgo_runs_out");
     const detail = VesselDetail.parse((await get(app, `/api/vessels/${pioneer?.id}`)).body);
     expect(detail).toEqual((await get(fixtures, `/api/vessels/${pioneer?.id}`)).body);
   });
 
-  it("projects fuel on board as get_vessel_status does: on the voyage's loaded curve", async () => {
+  it("draws fuel on board along the current plan; the panel and the alert agree with get_vessel_status", async () => {
     const { items } = listOf(VesselSummary).parse((await get(app, "/api/vessels")).body);
     const pioneer = items.find((v) => v.name === "MV Aegean Pioneer");
     const detail = VesselDetail.parse((await get(app, `/api/vessels/${pioneer?.id}`)).body);
     const status = await getVesselStatus(createToolContext({ sql: db, now: () => NOW }), {
       vessel: "Aegean Pioneer",
     });
-    const { fobCalculationId } = status.data as { fobCalculationId: number };
-    const [calc] = await db<{ outputs: unknown }[]>`
-      select outputs from calculations where id = ${fobCalculationId}`;
-    expect(detail.fobProjection).toEqual(FobProjection.parse(calc?.outputs));
-    // The loaded curve's shortfall (17.6 mt), not the unloaded curve's (28.4 mt).
-    expect(detail.fobProjection?.shortfallMt.LSMGO).toBeCloseTo(17.6, 1);
-    const shortfall = status.facts.find((f) => f.label === "LSMGO shortfall to keep the margin");
-    expect(detail.fobProjection?.shortfallMt.LSMGO).toBe(shortfall?.value);
+    // The alert and the tool read the one fuel calculation: LSMGO runs out on the current plan.
+    expect(pioneer?.alerts).toEqual(["lsmgo_runs_out"]);
+    expect(status.data).toMatchObject({ gradesRunningOut: ["LSMGO"] });
+    // The panel draws that same calculation: its numbers are the tool's cited facts.
+    const cited = (label: string) => status.facts.find((f) => f.label === label)?.value;
+    const lsmgo = detail.fuelTrack?.grades.LSMGO;
+    expect(lsmgo?.shortfallMt).toBeGreaterThan(0);
+    expect(lsmgo?.shortfallMt).toBe(cited("LSMGO shortfall to keep the margin"));
+    expect(lsmgo?.marginMt).toBe(cited("LSMGO safety margin to keep on arrival"));
+    expect(lsmgo?.belowMarginAt?.nm).toBe(
+      cited("LSMGO drops below its safety margin, distance along the current plan"),
+    );
+    expect(lsmgo?.runsDryAt?.nm).toBe(cited("LSMGO runs out, distance along the current plan"));
   });
 
   it("returns the seeded voyages with their detail", async () => {
@@ -408,106 +412,119 @@ describe.skipIf(!sql)("createDbSource (Postgres)", () => {
     });
   });
 
-  // Runs after the purchase-order blocks: adds a voyage instruction.
+  // Runs after the purchase-order blocks (Kestrel's order is executed): adds a voyage instruction
+  // on the recommended plan's bunker stop, and a purchase order proposed from that stop.
   describe("voyage instruction view", () => {
     let viId: number;
     let routeCalcId: number;
     let toolFacts: Map<string, Fact>;
+    let cited: string[];
 
     beforeAll(async () => {
       const ctx = createToolContext({ sql: db, now: () => NOW });
       const out = await planRouteSpeedFacts(ctx, { vessel: "Aegean Pioneer" });
       routeCalcId = (out.data as { calculationId: number }).calculationId;
       toolFacts = new Map(out.facts.map((f) => [f.id, f]));
-      const best = (out.data as { bestCandidateId: string }).bestCandidateId;
-      const cite = (suffix: string) => out.facts.find((f) => f.label.endsWith(suffix))?.id ?? "";
-      const proposed = await proposeAction(ctx, {
-        type: "voyage_instruction",
-        calculationId: routeCalcId,
-        optionId: best,
-        factRefs: [
-          cite(": recommended route"),
-          cite(`route ${best}: description`),
-          cite(`route ${best}: recommended speed`),
-          cite(`route ${best}: distance`),
-        ],
-        rationale: "Lowest total voyage cost within the berth window.",
-      });
-      viId = (proposed.data as { recommendationId: number }).recommendationId;
+      const at = (path: string) =>
+        out.facts.find((f) => f.provenance.source === "calculation" && f.provenance.path === path)
+          ?.id ?? "";
+      cited = [
+        at("plan.optionId"),
+        at("stopPlans[0].speedKn"),
+        at("stopPlans[0].stop.arriveAt"),
+        at("stopPlans[0].qtyMt"),
+      ];
+      const propose = async (type: "voyage_instruction" | "purchase_order") =>
+        (
+          (
+            await proposeAction(ctx, {
+              type,
+              calculationId: routeCalcId,
+              optionId: "MTMLA-kestrel",
+              factRefs: cited,
+              rationale: "The plan that keeps the fuel margin and meets the berth window.",
+            })
+          ).data as { recommendationId: number }
+        ).recommendationId;
+      viId = await propose("voyage_instruction");
+      routeOrderId = await propose("purchase_order");
     });
 
-    it("shows the approved route with its speed, ETA and distance facts, under the ids the agent cited", async () => {
+    it("shows the bunker-stop plan with its stop facts, under the ids the agent cited", async () => {
       const rec = RecommendationView.parse((await get(app, `/api/recommendations/${viId}`)).body);
-      const [calc] = await db<{ inputs: unknown; outputs: unknown }[]>`
-        select inputs, outputs from calculations where id = ${routeCalcId}`;
-      const result = RouteSpeedResult.parse(calc?.outputs);
-      const inputs = z
-        .object({
-          subject: z.string(),
-          destination: z.string(),
-          optimiser: z.object({ candidates: z.array(RouteCandidate) }),
-        })
-        .parse(calc?.inputs);
-      const index = result.options.findIndex((o) => o.candidateId === result.bestCandidateId);
-      const option = result.options[index];
-      const label = inputs.optimiser.candidates.find((c) => c.id === result.bestCandidateId)?.label;
+      const result = RouteSpeedResult.parse(
+        (
+          await db<
+            { outputs: unknown }[]
+          >`select outputs from calculations where id = ${routeCalcId}`
+        )[0]?.outputs,
+      );
+      // Kestrel's approved order fixes the stop: the one stop plan is the recommended plan.
+      expect(result.plan?.optionId).toBe("MTMLA-kestrel");
+      const index = result.stopPlans.findIndex((s) => s.optionId === "MTMLA-kestrel");
       expect(rec).toMatchObject({
         type: "voyage_instruction",
         status: "pending",
         calculationId: routeCalcId,
-        optionId: result.bestCandidateId,
-        expectedSavingUsd: result.savingVsBaselineUsd,
+        optionId: "MTMLA-kestrel",
+        optionLabel: "Bunker stop at Marsaxlokk (Kestrel Marine Fuels)",
+        summary:
+          "Instruct MV Aegean Pioneer to Rotterdam with a bunker stop at Marsaxlokk (Kestrel Marine Fuels).",
+        expectedSavingUsd: null,
+        expectedSaving: null,
         order: null,
         instruction: null,
+        bunkerPlan: null,
       });
-      expect(rec.summary).toBe(
-        `Instruct ${inputs.subject} to ${inputs.destination}: ${label} (route ${result.bestCandidateId}).`,
+      const paths = rec.facts.map((f) =>
+        f.provenance.source === "calculation" ? f.provenance.path : "",
       );
-      const byPath = new Map(
-        rec.facts.map((f) => [f.provenance.source === "calculation" ? f.provenance.path : "", f]),
-      );
-      expect(byPath.get(`options[${index}].speedKn`)?.value).toBe(option?.speedKn);
-      expect(byPath.get(`options[${index}].eta`)?.value).toBe(option?.eta);
-      expect(byPath.get(`options[${index}].distanceNm`)?.value).toBe(option?.distanceNm);
-      expect(byPath.get(`options[${index}].fuelEuCostUsd`)).toMatchObject({
-        value: option?.fuelEuCostUsd,
-        unit: "USD",
-      });
-      expect(byPath.get(`options[${index}].fuelEuCostUsd`)?.label.endsWith("FuelEU exposure")).toBe(
-        true,
-      );
-      expect(byPath.get("savingVsBaselineUsd")?.value).toBe(result.savingVsBaselineUsd);
-      // Only the approved route's facts, each exactly as plan_route_speed returned it.
-      for (const f of rec.facts) {
+      expect(paths).toContain(`stopPlans[${index}].qtyMt`);
+      expect(paths).toContain("plan.optionId");
+      // Only this stop plan's and the recommended plan's facts, each as plan_route_speed returned it.
+      for (const [i, f] of rec.facts.entries()) {
         expect(toolFacts.get(f.id)).toEqual(f);
-        if (f.provenance.source === "calculation" && f.provenance.path.startsWith("options[")) {
-          expect(f.provenance.path.startsWith(`options[${index}].`)).toBe(true);
-        }
+        expect(paths[i]?.startsWith("options[")).toBe(false);
       }
       const ids = new Set(rec.facts.map((f) => f.id));
-      expect(rec.factRefs.length).toBe(4);
       for (const ref of rec.factRefs) expect(ids.has(ref)).toBe(true);
     });
 
-    it("route recommendation names its candidate", async () => {
+    it("depends on the executed purchase order for its stop's quote", async () => {
+      const [quote] = await db<{ id: number }[]>`
+        select q.id from quotes q join purchase_orders po on po.quote_id = q.id
+        where po.recommendation_id = ${recId}`;
       const rec = RecommendationView.parse((await get(app, `/api/recommendations/${viId}`)).body);
-      const [calc] = await db<{ inputs: unknown }[]>`
-        select inputs from calculations where id = ${routeCalcId}`;
-      const inputs = z
-        .object({ optimiser: z.object({ candidates: z.array(RouteCandidate) }) })
-        .parse(calc?.inputs);
-      const label = inputs.optimiser.candidates.find((c) => c.id === rec.optionId)?.label;
-      expect(label).toBeTruthy();
-      expect(rec.optionLabel).toBe(label);
-      // The plan's saving, as plan_route_speed returned it.
-      expect(rec.expectedSavingUsd).not.toBeNull();
-      expect(rec.expectedSaving?.value).toBe(rec.expectedSavingUsd);
-      expect(rec.expectedSaving).toEqual(
-        toolFacts.get(`f_plan_route_speed_${routeCalcId}_savingVsBaselineUsd`),
+      expect(rec.dependsOn).toEqual({
+        quoteId: quote?.id,
+        optionLabel: "Kestrel Marine Fuels at Marsaxlokk",
+        recommendationId: recId,
+        status: "executed",
+        satisfied: true,
+      });
+      const { items } = listOf(RecommendationView).parse(
+        (await get(app, "/api/recommendations")).body,
       );
+      for (const r of items.filter((x) => x.type === "purchase_order")) {
+        expect(r.dependsOn).toBeNull();
+      }
     });
 
-    it("serves the recorded instruction once approved", async () => {
+    it("names a purchase order proposed from the route plan's stop like a bunker plan's", async () => {
+      const rec = RecommendationView.parse(
+        (await get(app, `/api/recommendations/${routeOrderId}`)).body,
+      );
+      expect(rec).toMatchObject({
+        type: "purchase_order",
+        optionLabel: "Kestrel Marine Fuels at Marsaxlokk",
+        summary: `Order LSMGO for the ${DEMO_SCENARIO.voyageNo} stem from Kestrel Marine Fuels at Marsaxlokk.`,
+        bunkerPlan: null,
+        dependsOn: null,
+      });
+      expect(rec.facts.length).toBeGreaterThan(0);
+    });
+
+    it("serves the recorded instruction with its stop once approved", async () => {
       const erpApp = createErpApp({ now: () => NOW });
       const decision = await approveRecommendation(
         {
@@ -518,9 +535,21 @@ describe.skipIf(!sql)("createDbSource (Postgres)", () => {
         viId,
         "alice",
       );
-      const [row] = await db<{ id: number; candidate_id: string; speed_kn: number; eta: Date }[]>`
-        select id, candidate_id, speed_kn, eta from voyage_instructions
-        where recommendation_id = ${viId}`;
+      const [row] = await db<
+        {
+          id: number;
+          candidate_id: string;
+          speed_kn: number;
+          eta: Date;
+          stop_quote_id: number;
+          stop_arrive_at: Date;
+          stop_depart_at: Date;
+          stop_qty_mt: number;
+        }[]
+      >`
+        select id, candidate_id, speed_kn, eta, stop_quote_id, stop_arrive_at, stop_depart_at,
+               stop_qty_mt
+        from voyage_instructions where recommendation_id = ${viId}`;
       if (!row) throw new Error("no instruction recorded");
       expect(decision.instructionId).toBe(row.id);
       const rec = RecommendationView.parse((await get(app, `/api/recommendations/${viId}`)).body);
@@ -529,9 +558,17 @@ describe.skipIf(!sql)("createDbSource (Postgres)", () => {
         order: null,
         instruction: {
           instructionId: row.id,
-          candidateId: row.candidate_id,
+          candidateId: "MTMLA-kestrel",
           speedKn: row.speed_kn,
           eta: new Date(row.eta).toISOString(),
+          stop: {
+            unlocode: "MTMLA",
+            portName: "Marsaxlokk",
+            arriveAt: new Date(row.stop_arrive_at).toISOString(),
+            departAt: new Date(row.stop_depart_at).toISOString(),
+            qtyMt: row.stop_qty_mt,
+            quoteId: row.stop_quote_id,
+          },
         },
       });
       const { items } = listOf(RecommendationView).parse(
@@ -598,8 +635,10 @@ describe.skipIf(!sql)("createDbSource (Postgres)", () => {
       const { items } = listOf(RecommendationView).parse(
         (await get(app, "/api/recommendations")).body,
       );
-      const orders = items.filter((r) => r.type === "purchase_order");
+      // A purchase order from a route plan's stop has no bunker plan behind it.
+      const orders = items.filter((r) => r.type === "purchase_order" && r.id !== routeOrderId);
       expect(orders.length).toBeGreaterThan(0);
+      expect(items.find((r) => r.id === routeOrderId)?.bunkerPlan).toBeNull();
       for (const r of orders) {
         expect(r.bunkerPlan).not.toBeNull();
         expect(r.bunkerPlan?.calculationId).toBe(r.calculationId);
@@ -621,9 +660,34 @@ describe.skipIf(!sql)("createDbSource (Postgres)", () => {
         const view = await source.getRoutePlan(id);
         expect(view).toEqual({ ...planned.response, facts, computeMs: null });
         expect(view?.facts.map((f) => f.id)).toEqual(facts.map((f) => f.id));
+        // Each routable bunker stop's track is a candidate the map can draw, by its stop plan id.
+        for (const stop of planned.response.result.stopPlans.filter((p) => p.distanceNm > 0)) {
+          expect(view?.candidates.map((c) => c.id)).toContain(stop.optionId);
+        }
         const served = await get(app, `/api/route-plans/${id}`);
         expect(served.res.status).toBe(200);
         expect(RoutePlanView.parse(served.body)).toEqual(view);
+        // The view cites what plan_route_speed cites for the same calculation: the tool's facts,
+        // byte for byte, including the fuel check, the stop plans and the recommended plan.
+        const tool = await planRouteSpeedFacts(createToolContext({ sql: db, now: () => NOW }), {
+          vessel,
+        });
+        const toolId = (tool.data as { calculationId: number }).calculationId;
+        const toolView = await get(app, `/api/route-plans/${toolId}`);
+        expect(JSON.stringify((toolView.body as { facts: Fact[] }).facts)).toBe(
+          JSON.stringify(tool.facts),
+        );
+        const { result } = planned.response;
+        const paths = tool.facts.flatMap((f) =>
+          f.provenance.source === "calculation" ? [f.provenance.path] : [],
+        );
+        expect(paths.includes("plan.optionId")).toBe(result.plan !== null);
+        expect(paths.filter((p) => p.startsWith("stopPlans[")).length > 0).toBe(
+          result.stopPlans.length > 0,
+        );
+        const short = result.options.some((o) => o.fuel?.grades.LSMGO.belowMarginAt);
+        expect(paths.some((p) => /^options\[\d+\]\.fuel\.grades\.LSMGO\./.test(p))).toBe(short);
+        if (vessel === "Aegean Pioneer") expect(short).toBe(true);
       },
     );
 

@@ -9,13 +9,9 @@ import {
   voyageLoad,
 } from "@pharos/domain";
 import { describe, expect, it } from "vitest";
+import { currentPlanFuel } from "../current-plan.js";
 import { buildRoutes, ROUTES_FILE, serializeRoutes } from "./build-routes.js";
-import {
-  buildDemoBunkerPlanInput,
-  demoVoyageState,
-  projectDemo,
-  voyageState,
-} from "./demo-plan.js";
+import { buildDemoBunkerPlanInput, demoVoyageState, voyageState } from "./demo-plan.js";
 import { DEMO_SCENARIO } from "./scenario.js";
 import { World } from "./types.js";
 import { generateWorld, ROUTES, requiredGradeFor } from "./world.js";
@@ -279,16 +275,17 @@ describe("synthetic world", () => {
     expect(voyage.cargoMt).toBeGreaterThan(0);
   });
 
-  it("Aegean Pioneer is short on LSMGO for the ECA legs", () => {
-    const { report, remainingLegs, voyage } = demoVoyageState(world);
+  it("Aegean Pioneer runs out of LSMGO before Rotterdam on the current plan", () => {
+    const { report, voyage } = demoVoyageState(world);
     expect(report.ts.getTime()).toBe(ANCHOR.getTime());
     // 24 h at 12.5 kn = 300 nm sailed on leg 1 at the anchor.
     expect(voyage.departedAt?.getTime()).toBe(ANCHOR.getTime() - 24 * 3_600_000);
-    const fob = projectDemo(world, remainingLegs);
-    expect(fob.minRobMt.LSMGO).toBeGreaterThanOrEqual(0);
-    expect(fob.minRobMt.LSMGO).toBeLessThan(fob.safetyMarginMt.LSMGO);
-    expect(fob.shortfallMt.LSMGO).toBeGreaterThan(0);
-    expect(fob.shortfallMt.VLSFO).toBe(0);
+    // The one fuel calculation (calm water): below the margin, then dry, before arrival.
+    const fuel = currentPlanFuel(world, voyage.id, null);
+    expect(fuel.grades.LSMGO.belowMarginAt).not.toBeNull();
+    expect(fuel.grades.LSMGO.runsDryAt).not.toBeNull();
+    expect(fuel.grades.LSMGO.shortfallMt).toBeGreaterThan(0);
+    expect(fuel.grades.VLSFO.shortfallMt).toBe(0);
   });
 
   it("demo trap", () => {

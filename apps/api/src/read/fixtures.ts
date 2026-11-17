@@ -414,6 +414,7 @@ function buildRecommendation(stored: FixtureBunkerPlan): RecommendationView {
     id: 1,
     type: "purchase_order",
     status: "pending",
+    dependsOn: null,
     calculationId: CALCULATION_ID,
     optionId: bestId,
     optionLabel: `${supplier} at ${port}`,

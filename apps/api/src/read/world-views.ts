@@ -3,10 +3,9 @@
  * `loadWorld`) and the fixture source (`generateWorld`). Every number comes from the world rows or
  * a `packages/domain` calculator.
  */
-import { currentVoyage, fobProjectionInput, voyageState, type World } from "@pharos/db";
-import { legsForRoute, projectFuelOnBoard } from "@pharos/domain";
+import { currentPlanFuel, currentVoyage, type World } from "@pharos/db";
+import { legsForRoute } from "@pharos/domain";
 import type {
-  FobProjection,
   LatLon,
   PortView,
   Vessel,
@@ -15,10 +14,13 @@ import type {
   VesselSummary,
   VoyageDetail,
   VoyageSummary,
+  WeatherGrid,
 } from "@pharos/shared";
 import { vesselRowFacts } from "../facts/vessel.js";
 
 export const LSMGO_ALERT = "lsmgo_below_margin_for_eca";
+/** LSMGO runs out before arrival on the current plan (a stronger form of LSMGO_ALERT). */
+export const LSMGO_RUNS_OUT = "lsmgo_runs_out";
 
 export function must<T>(v: T | undefined | null, what: string): T {
   if (v === undefined || v === null) throw new Error(`world has no ${what}`);
@@ -31,7 +33,12 @@ function vesselFacts(world: World, vessel: Vessel, now: Date): VesselFacts {
   return { robMt, voyageNo, nextPort, nextPortEta };
 }
 
-export function buildVessels(world: World, now: Date) {
+/**
+ * Fleet views. The LSMGO alert and the panel's fuel track come from one call of the one fuel
+ * calculation on the current plan (`currentPlanFuel`, on `weather` when there is a snapshot, else
+ * calm water), the calculation `get_vessel_status` cites.
+ */
+export function buildVessels(world: World, now: Date, weather: WeatherGrid | null = null) {
   const latest = <T extends { vesselId: number }>(
     rows: T[],
     vesselId: number,
@@ -49,14 +56,15 @@ export function buildVessels(world: World, now: Date) {
     const position = latest(world.vesselPositions, vessel.id, (p) => p.ts);
     const voyage = currentVoyage(world, vessel.id);
 
-    // The projection get_vessel_status computes: the same builder, on the voyage's loaded curve.
-    const fob: FobProjection | null = voyage
-      ? projectFuelOnBoard(
-          fobProjectionInput(world, voyage.id, voyageState(world, voyage.id).remainingLegs),
-        )
-      : null;
-
-    const alerts = fob?.belowMarginAtLeg.LSMGO != null ? [LSMGO_ALERT] : [];
+    // Computed once: the alert reads it and the panel draws it, so the two always agree.
+    const fuelTrack = voyage ? currentPlanFuel(world, voyage.id, weather) : null;
+    const lsmgo = fuelTrack?.grades.LSMGO ?? null;
+    const alerts =
+      lsmgo?.runsDryAt != null
+        ? [LSMGO_RUNS_OUT]
+        : lsmgo?.belowMarginAt != null
+          ? [LSMGO_ALERT]
+          : [];
     const summary: VesselSummary = {
       id: vessel.id,
       name: vessel.name,
@@ -74,7 +82,7 @@ export function buildVessels(world: World, now: Date) {
       dwt: vessel.dwt,
       tankCapacityMt: vessel.tankCapacityMt,
       consumptionCurve: vessel.consumptionCurve,
-      fobProjection: fob,
+      fuelTrack,
       facts: vesselFacts(world, vessel, now),
     };
     return { summary, detail };

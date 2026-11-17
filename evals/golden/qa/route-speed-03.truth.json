@@ -6,7 +6,7 @@
     "kind": "answer",
     "requiredFacts": [
       {
-        "label": "MV Aegean Pioneer: saving of the recommended route and speed against the current plan",
+        "label": "MV Aegean Pioneer: saving of the best route and speed ignoring fuel, against the current plan",
         "value": 48024.55902958405,
         "unit": "USD",
         "tolerance": 0.5

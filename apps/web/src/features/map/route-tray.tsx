@@ -3,12 +3,15 @@
  * `RoutePlanView.facts`. A number with no fact shows a dash; nothing is read from
  * `result.options` for display. The tray is a non-modal vaul drawer with snap points, scoped to
  * the map canvas, so the map stays usable behind it.
+ *
+ * For a fleet vessel (the plan knows the fuel on board) the tray leads with both answers: the
+ * recommended plan (route, bunker stop and quote) and the best route ignoring fuel on board, with
+ * where it runs short, then the fuel on board along both, then every route compared.
  */
 import { Cancel01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import type { Fact, RoutePlanView } from "@pharos/shared";
+import type { RoutePlanView } from "@pharos/shared";
 import { useEffect } from "react";
-import { FactChip } from "@/components/fact-chip";
 import { Button } from "@/components/ui/button";
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/drawer";
 import {
@@ -20,50 +23,24 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { UntrustedText } from "@/components/untrusted-text";
-import { formatNumber, formatUtc } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { FactCell, factText } from "./fact-cell";
+import { FuelCurve } from "./fuel-curve";
+import { FuelBlindBest, PlanSummary } from "./plan-summary";
 import {
   baselineFact,
   fuelSavingFact,
+  knowsFuel,
   loadFacts,
   type OptionMetric,
   optionFact,
   reasonText,
+  type StopNames,
   savingFact,
 } from "./route-facts";
 import { ROLE_SWATCH, ROLE_TEXT, routeRole } from "./route-style";
 
-/** What a fact shows: its own digits, rounded for display; an ETA as a UTC time. */
-function factText(fact: Fact, kind: "number" | "time"): string {
-  if (kind === "time" && typeof fact.value === "string") return formatUtc(fact.value);
-  if (typeof fact.value === "number") return formatNumber(fact.value, fact.unit);
-  return String(fact.value);
-}
-
-/** A cited number as a chip, or a dash when the plan returned no fact for it. */
-export function FactCell({
-  fact,
-  kind = "number",
-  metric,
-  className,
-}: {
-  fact: Fact | undefined;
-  kind?: "number" | "time";
-  metric?: string;
-  className?: string;
-}) {
-  return (
-    <span data-testid={metric ? `cell-${metric}` : undefined} className={className}>
-      {fact ? (
-        <FactChip fact={fact}>{factText(fact, kind)}</FactChip>
-      ) : (
-        <span className="text-text-3" title="The plan returned no fact for this number">
-          —
-        </span>
-      )}
-    </span>
-  );
-}
+export { FactCell } from "./fact-cell";
 
 const COLUMNS: { metric: OptionMetric; label: string; kind?: "time" }[] = [
   { metric: "distanceNm", label: "Distance" },
@@ -78,15 +55,34 @@ const COLUMNS: { metric: OptionMetric; label: string; kind?: "time" }[] = [
 
 const numeric = "text-right tabular-nums whitespace-nowrap";
 
-export function RouteComparison({ plan }: { plan: RoutePlanView }) {
+export function RouteComparison({ plan, names }: { plan: RoutePlanView; names?: StopNames }) {
   const { facts, result } = plan;
   const load = loadFacts(facts);
   const baselineSpeed = baselineFact(facts, "speedKn");
+  const fuelAware = knowsFuel(plan);
   return (
-    <div className="flex min-w-0 flex-col gap-3">
+    <div className="@container flex min-w-0 flex-col gap-3">
+      {fuelAware ? (
+        <div className="grid gap-x-6 gap-y-4 border-b border-line pb-4 @4xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
+          <div className="flex min-w-0 flex-col gap-4">
+            <PlanSummary plan={plan} names={names} />
+            <FuelBlindBest plan={plan} />
+          </div>
+          <FuelCurve plan={plan} />
+        </div>
+      ) : null}
+      {fuelAware ? (
+        <h3 className="text-base font-medium text-text-1 font-title">
+          Every route, without a stop
+        </h3>
+      ) : null}
       <dl className="flex flex-wrap items-baseline gap-x-6 gap-y-1 text-xs">
         <div className="flex items-baseline gap-2">
-          <dt className="text-text-3 font-label">Saving against the current plan</dt>
+          <dt className="text-text-3 font-label">
+            {fuelAware
+              ? "Saving of the best route ignoring fuel, against the current plan"
+              : "Saving against the current plan"}
+          </dt>
           <dd data-testid="plan-saving">
             <FactCell fact={savingFact(facts)} />
           </dd>
@@ -162,6 +158,11 @@ export function RouteComparison({ plan }: { plan: RoutePlanView }) {
                     </span>
                   </div>
                   <div className="pl-7 text-text-2">{candidate?.label ?? "—"}</div>
+                  {fuelAware && option.candidateId === result.bestCandidateId ? (
+                    <div className="pl-7 text-2xs text-text-2" data-testid="fuel-blind-best">
+                      Best route ignoring fuel on board
+                    </div>
+                  ) : null}
                   {option.feasible && option.meetsArriveBy ? (
                     <div className="pl-7 text-2xs text-text-2" data-testid="meets-window">
                       Meets the berth window
@@ -203,7 +204,7 @@ export function RouteComparison({ plan }: { plan: RoutePlanView }) {
               <div className="flex items-center gap-2 pl-0">
                 <span className="font-medium">
                   Current plan (route {result.baseline.candidateId}
-                  {baselineSpeed ? ` at ${factText(baselineSpeed, "number")}` : ""})
+                  {baselineSpeed ? ` at ${factText(baselineSpeed)}` : ""})
                 </span>
               </div>
             </TableCell>
@@ -245,12 +246,15 @@ function unhideRestOfPage() {
 
 export function RouteTray({
   plan,
+  names,
   container,
   snap,
   onSnapChange,
   onClose,
 }: {
   plan: RoutePlanView;
+  /** Supplier and port of each stop plan's quote, by quote id (`GET /api/quotes`). */
+  names?: StopNames;
   container: HTMLElement | null;
   snap: number | string | null;
   onSnapChange: (snap: number | string | null) => void;
@@ -292,7 +296,7 @@ export function RouteTray({
           </Button>
         </div>
         <div className="min-h-0 flex-1 overflow-auto p-3" data-vaul-no-drag>
-          <RouteComparison plan={plan} />
+          <RouteComparison plan={plan} names={names} />
         </div>
       </DrawerContent>
     </Drawer>

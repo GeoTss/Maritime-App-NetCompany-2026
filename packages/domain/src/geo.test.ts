@@ -1,6 +1,13 @@
 import type { LatLon } from "@pharos/shared";
 import { describe, expect, it } from "vitest";
-import { bearingDeg, etaAfter, greatCircleNm, pointAlongPolyline, polylineNm } from "./geo.js";
+import {
+  bearingDeg,
+  etaAfter,
+  greatCircleNm,
+  nearestAlongNm,
+  pointAlongPolyline,
+  polylineNm,
+} from "./geo.js";
 
 describe("greatCircleNm", () => {
   it("1 degree of latitude along a meridian = 2*pi*3440.065/360 = 60.0405 nm", () => {
@@ -92,5 +99,19 @@ describe("bearingDeg", () => {
     expect(b).toBeGreaterThanOrEqual(0);
     expect(b).toBeLessThan(360);
     expect(b).toBeGreaterThan(180);
+  });
+});
+
+describe("nearestAlongNm", () => {
+  it("finds the along-track distance of the nearest point", () => {
+    const r = nearestAlongNm(
+      [
+        { lat: 0, lon: 0 },
+        { lat: 0, lon: 10 },
+      ],
+      { lat: 1, lon: 5 },
+    );
+    expect(r.nm).toBeCloseTo(greatCircleNm({ lat: 0, lon: 0 }, { lat: 0, lon: 5 }), 0);
+    expect(r.offNm).toBeCloseTo(60, 0);
   });
 });

@@ -1,6 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { makePlan } from "./map-fixtures";
-import { loadFacts, optionFact, reasonText, savingFact } from "./route-facts";
+import { makeFuelPlan, makePlan } from "./map-fixtures";
+import {
+  breakpointRobFact,
+  factAtPath,
+  gradeCheckFact,
+  loadFacts,
+  optionFact,
+  planFact,
+  reasonText,
+  recommendedTrack,
+  savingFact,
+  stopFact,
+  stopGrade,
+  stopReasonText,
+} from "./route-facts";
 
 describe("route facts", () => {
   it("finds an option's fact by its calculation path, not its label", () => {
@@ -49,5 +62,34 @@ describe("route facts", () => {
   it("explains every infeasible reason in words", () => {
     expect(reasonText("crosses_hazard")).toMatch(/hazard/i);
     expect(reasonText("misses_arrive_by")).toMatch(/berth window/i);
+  });
+
+  it("reads a path written with brackets or dots alike", () => {
+    const facts = makePlan().facts;
+    expect(factAtPath(facts, "options.1.totalCostUsd")?.id).toBe("f_plan_options.1.totalCostUsd");
+  });
+
+  it("reads the recommended plan, its stop and the fuel check by output path", () => {
+    const plan = makeFuelPlan();
+    const { facts } = plan;
+    expect(recommendedTrack(plan)).toEqual({ kind: "stop", index: 0 });
+    expect(planFact(facts, "addedHours")?.value).toBe(21.3);
+    expect(planFact(facts, "next.marginUsd")?.value).toBe(6300);
+    expect(stopFact(facts, 0, "arriveAt")?.value).toBe("2026-11-17T20:00:00.000Z");
+    const stop = plan.result.stopPlans[0]?.fuel ?? null;
+    expect(stopGrade(facts, 0, stop)).toBe("LSMGO");
+    expect(
+      breakpointRobFact(facts, { kind: "stop", index: 0 }, stop, "stop_departure", "LSMGO")?.value,
+    ).toBe(381);
+    expect(
+      gradeCheckFact(facts, { kind: "option", index: 1 }, "LSMGO", "belowMarginAt.nm")?.value,
+    ).toBe(2511);
+    expect(recommendedTrack(makeFuelPlan({ infeasible: true }))).toBeNull();
+  });
+
+  it("explains every stop plan reason in words", () => {
+    expect(stopReasonText("outside_delivery_window")).toMatch(/delivery window/);
+    expect(stopReasonText("no_sea_route")).toMatch(/no sea route/);
+    expect(reasonText("insufficient_fuel")).toMatch(/fuel margin/);
   });
 });

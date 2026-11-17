@@ -246,3 +246,6 @@ export const HAZARD_LIFETIME_HOURS: Record<
  * whenever the network allows. Illustrative.
  */
 export const HAZARD_EDGE_PENALTY = 1000;
+
+/** Highest significant wave height (m) at which a barge can bunker alongside (planning limit). */
+export const BUNKERING_MAX_WAVE_M = 2.0;

@@ -1,7 +1,14 @@
 /** Route and speed optimiser, weather grid, sea network and congestion contracts (pure maths inputs/outputs). */
 import { z } from "zod";
-import { ConsumptionCurve } from "./calculators.js";
-import { EtsCoverageFactor, GradeAmounts, IsoDateTime, LatLon } from "./primitives.js";
+import { ConsumptionCurve, SignedGradeAmounts } from "./calculators.js";
+import {
+  EtsCoverageFactor,
+  FuelGrade,
+  GradeAmounts,
+  Id,
+  IsoDateTime,
+  LatLon,
+} from "./primitives.js";
 
 const NonNeg = z.number().nonnegative();
 const Positive = z.number().positive();
@@ -101,6 +108,119 @@ export const HazardZone = z
   .strict();
 export type HazardZone = z.infer<typeof HazardZone>;
 
+/** A point along a track: distance from the start, time and position. */
+export const AlongTrack = z.object({ nm: NonNeg, at: IsoDateTime, position: LatLon }).strict();
+export type AlongTrack = z.infer<typeof AlongTrack>;
+
+export const FuelBreakpoint = AlongTrack.extend({
+  kind: z.enum(["start", "grade_change", "stop_arrival", "stop_departure", "end"]),
+  robMt: SignedGradeAmounts,
+}).strict();
+export type FuelBreakpoint = z.infer<typeof FuelBreakpoint>;
+
+export const GradeFuelCheck = z
+  .object({
+    /** Burned on the track (steaming and port stay), this grade. */
+    neededMt: NonNeg,
+    /** safetyMarginDays × daily consumption at the speed; 0 when the grade is never burned. */
+    marginMt: NonNeg,
+    minRobMt: z.number(),
+    /** max(0, neededMt + marginMt − robAtStart − bunkeredMt). */
+    shortfallMt: NonNeg,
+    belowMarginAt: AlongTrack.extend({ robMt: z.number() }).strict().nullable(),
+    runsDryAt: AlongTrack.nullable(),
+  })
+  .strict();
+export type GradeFuelCheck = z.infer<typeof GradeFuelCheck>;
+
+export const StopTimeline = z
+  .object({
+    arriveAt: IsoDateTime,
+    waitingHours: NonNeg,
+    weatherDelayHours: NonNeg,
+    bunkeringHours: NonNeg,
+    departAt: IsoDateTime,
+    /** The workable-weather window ran past the end of the forecast (counted as workable). */
+    beyondForecast: z.boolean(),
+  })
+  .strict();
+export type StopTimeline = z.infer<typeof StopTimeline>;
+
+export const TrackFuel = z
+  .object({
+    breakpoints: z.array(FuelBreakpoint),
+    grades: z
+      .object({ LSMGO: GradeFuelCheck, VLSFO: GradeFuelCheck, HSFO: GradeFuelCheck })
+      .strict(),
+    /** Every grade stays at or above its margin at every sub-step end and at stop arrival. */
+    keepsMargins: z.boolean(),
+    probes: z.array(AlongTrack.extend({ robMt: SignedGradeAmounts }).strict()),
+  })
+  .strict();
+export type TrackFuel = z.infer<typeof TrackFuel>;
+
+export const TrackStopInput = z
+  .object({
+    /** Index in `points` of the port position. */
+    pointIndex: z.number().int().positive(),
+    position: LatLon,
+    waitingHours: NonNeg,
+    bunkeringHours: NonNeg,
+    stayGrade: FuelGrade,
+    grade: FuelGrade,
+    qtyMt: Positive,
+  })
+  .strict();
+export type TrackStopInput = z.infer<typeof TrackStopInput>;
+
+export const TrackFuelInput = z
+  .object({
+    startAt: IsoDateTime,
+    points: z.array(LatLon).min(2),
+    speedKn: Positive,
+    stepNm: Positive,
+    curve: ConsumptionCurve,
+    weather: WeatherGrid.nullable(),
+    robMt: GradeAmounts,
+    safetyMarginDays: NonNeg,
+    stop: TrackStopInput.nullable(),
+    probesNm: z.array(NonNeg),
+  })
+  .strict();
+export type TrackFuelInput = z.infer<typeof TrackFuelInput>;
+
+/** A bunker quote turned into a route through its port, for the optimiser to evaluate. */
+export const StopCandidate = z
+  .object({
+    /** Bunker option id, e.g. "MTMLA-kestrel". */
+    optionId: z.string().min(1),
+    quoteId: Id.nullable(),
+    supplierId: Id,
+    portId: Id,
+    unlocode: z.string().min(1),
+    portIsEu: z.boolean(),
+    stayGrade: FuelGrade,
+    position: LatLon,
+    points: z.array(LatLon).min(2),
+    stopPointIndex: z.number().int().positive(),
+    waitingHours: NonNeg,
+    bunkeringHours: NonNeg,
+    grade: FuelGrade,
+    qtyMt: Positive,
+    offeredQtyMt: NonNeg,
+    pricePerMt: Positive,
+    bargeFee: NonNeg,
+    fxToUsd: Positive,
+    deliveryFrom: IsoDateTime.nullable(),
+    deliveryTo: IsoDateTime.nullable(),
+    /** Set when an approved purchase order fixes this stop. */
+    orderRecommendationId: Id.nullable(),
+    /** Set when the sea graph cannot route through the port: the plan is reported, not evaluated. */
+    routeError: z.string().nullable(),
+  })
+  .strict();
+export type StopCandidate = z.infer<typeof StopCandidate>;
+
 export const RouteSpeedInput = z
   .object({
     startAt: IsoDateTime,
@@ -117,6 +237,13 @@ export const RouteSpeedInput = z
     market: z.object({ euaPriceEur: NonNeg, eurUsd: Positive, year: z.number().int() }).strict(),
     weather: WeatherGrid.nullable(),
     hazards: z.array(HazardZone),
+    /** Fuel on board; null for a ship with no fleet data (AIS ships): no fuel check. */
+    fuel: z
+      .object({ robMt: GradeAmounts, safetyMarginDays: NonNeg, tankCapacityMt: GradeAmounts })
+      .strict()
+      .nullable(),
+    /** Bunker stops to evaluate beside the candidates. */
+    stops: z.array(StopCandidate),
   })
   .strict();
 export type RouteSpeedInput = z.infer<typeof RouteSpeedInput>;
@@ -148,10 +275,72 @@ export const RouteOptionResult = z
     crossesHazard: z.boolean(),
     /** Ids of the hazard zones the route passes through, sorted. */
     hazardIds: z.array(z.string()),
-    reasons: z.array(z.enum(["misses_arrive_by", "crosses_hazard"])),
+    reasons: z.array(z.enum(["misses_arrive_by", "crosses_hazard", "insufficient_fuel"])),
+    /** Fuel on board along the option; null when the input has no fuel. */
+    fuel: TrackFuel.nullable(),
   })
   .strict();
 export type RouteOptionResult = z.infer<typeof RouteOptionResult>;
+
+export const StopPlanReason = z.enum([
+  "misses_arrive_by",
+  "crosses_hazard",
+  "insufficient_fuel",
+  "exceeds_tank_capacity",
+  "insufficient_quantity",
+  "outside_delivery_window",
+  "no_sea_route",
+]);
+export type StopPlanReason = z.infer<typeof StopPlanReason>;
+
+export const StopPlanResult = z
+  .object({
+    optionId: z.string().min(1),
+    quoteId: Id.nullable(),
+    unlocode: z.string().min(1),
+    speedKn: Positive,
+    distanceNm: NonNeg,
+    steamingHours: NonNeg,
+    hours: NonNeg,
+    /** Weather delay at sea; the bunkering delay is `stop.weatherDelayHours`. */
+    seaWeatherDelayHours: z.number(),
+    eta: IsoDateTime,
+    stop: StopTimeline.nullable(),
+    fuel: TrackFuel.nullable(),
+    fuelMt: GradeAmounts,
+    co2T: NonNeg,
+    fuelCostUsd: NonNeg,
+    timeCostUsd: NonNeg,
+    etsCostUsd: NonNeg,
+    fuelEuCostUsd: NonNeg,
+    voyageCostUsd: NonNeg,
+    bunkerFuelCostUsd: NonNeg,
+    bargeFeeUsd: NonNeg,
+    totalCostUsd: NonNeg,
+    qtyMt: Positive,
+    hazardIds: z.array(z.string()),
+    feasible: z.boolean(),
+    reasons: z.array(StopPlanReason),
+  })
+  .strict();
+export type StopPlanResult = z.infer<typeof StopPlanResult>;
+
+export const RecommendedPlan = z
+  .object({
+    kind: z.enum(["route", "stop"]),
+    /** A candidate id ("route") or a stop plan's option id ("stop"). */
+    optionId: z.string().min(1),
+    /** Plan hours − the fuel-blind best's hours. */
+    addedHours: z.number(),
+    /** Plan voyage cost + barge fee − the fuel-blind best's total cost. */
+    addedUsd: z.number(),
+    next: z
+      .object({ optionId: z.string(), totalCostUsd: NonNeg, marginUsd: NonNeg })
+      .strict()
+      .nullable(),
+  })
+  .strict();
+export type RecommendedPlan = z.infer<typeof RecommendedPlan>;
 
 export const RouteSpeedResult = z
   .object({
@@ -161,6 +350,10 @@ export const RouteSpeedResult = z
     bestCandidateId: z.string().min(1),
     savingVsBaselineUsd: z.number(),
     fuelSavingVsBaselineMt: z.number(),
+    /** One per stop candidate, in input order, each at its cheapest feasible speed. */
+    stopPlans: z.array(StopPlanResult),
+    /** The recommended feasible plan; null when the input has no fuel or nothing is feasible. */
+    plan: RecommendedPlan.nullable(),
   })
   .strict();
 export type RouteSpeedResult = z.infer<typeof RouteSpeedResult>;

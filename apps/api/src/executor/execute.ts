@@ -6,9 +6,13 @@
  * option (candidate, speed, ETA, points, all read from the stored route calculation) in
  * `voyage_instructions`, once per recommendation, and drafts the master's instruction (never
  * sent). The voyage's planned speed and route stay as they are. It moves through the same states.
+ * An instruction on a route plan's bunker stop also records the stop (port, quote, arrival,
+ * departure, quantity), and cannot be approved until the purchase order for the stop's quote is
+ * approved (`dependency_unmet`; the rule is `approvals/dependency.ts`, the same the views use).
  *
  * Every order value comes from the database, never from model text: the quantity is the stored
- * plan option's `qtyMt`; price, currency and barge fee come from the quote the option points at;
+ * plan option's (or route stop plan's) `qtyMt`; price, currency and barge fee come from the quote
+ * the option points at;
  * supplier ERP code, vessel IMO and port UN/LOCODE from their rows. The order is written once per
  * recommendation (row lock + unique idempotency key) and pushed to the ERP after the commit, with
  * `idempotencyKey = "rec-<id>-<world seeded_at epoch ms>"`, minted once and stored on the order,
@@ -24,13 +28,22 @@ import {
   type ErpOrderRequest,
   type FuelGrade,
   type Id,
+  type LatLon,
   type RecommendationStatus,
   RouteCandidate,
   RouteSpeedResult,
+  StopCandidate,
+  type StopPlanResult,
 } from "@pharos/shared";
 import { z } from "zod";
+import { orderDependencyOf, unmetDependencyMessage } from "../approvals/dependency.js";
 import { transition } from "../approvals/state.js";
-import { type DraftedMessageInput, draftMessages, draftVoyageInstruction } from "./drafts.js";
+import {
+  type DraftedMessageInput,
+  draftMessages,
+  draftVoyageInstruction,
+  type VoyageInstructionDraftInput,
+} from "./drafts.js";
 import type { ErpClient } from "./erp-client.js";
 
 export interface ExecutorDeps {
@@ -41,7 +54,13 @@ export interface ExecutorDeps {
   log?: (message: string) => void;
 }
 
-export type DecisionErrorCode = "not_found" | "already_rejected" | "not_pending" | "not_executable";
+export type DecisionErrorCode =
+  | "not_found"
+  | "already_rejected"
+  | "not_pending"
+  | "not_executable"
+  /** A voyage instruction's bunker stop has no approved purchase order yet. */
+  | "dependency_unmet";
 
 /** A decision that cannot be taken in the recommendation's current state. Nothing was written. */
 export class DecisionError extends Error {
@@ -113,6 +132,8 @@ async function lockRecommendation(tx: Tx, id: Id): Promise<RecommendationRow> {
  * so two concurrent approvals produce one order: the second sees `executing` or `executed` and
  * only reports the state. Approving a `failed` recommendation retries it (same order, same key).
  * A failed push is not an error: the order and the recommendation are left `failed` (audited).
+ * A voyage instruction on a bunker stop is refused (`dependency_unmet`, nothing written) until the
+ * purchase order for the stop's quote is approved; the approval audit names that order.
  */
 export async function approveRecommendation(
   deps: ExecutorDeps,
@@ -127,12 +148,20 @@ export async function approveRecommendation(
     }
     let status: RecommendationStatus = rec.status;
     if (status === "pending") {
+      const dependency = await orderDependencyOf(tx, rec);
+      if (dependency && !dependency.satisfied) {
+        throw new DecisionError(
+          "dependency_unmet",
+          `Recommendation ${id} ${unmetDependencyMessage(dependency).replace(/^It /, "")}`,
+        );
+      }
       status = transition(status, "approve");
       await tx`
         update recommendations set status = ${status}, decided_by = ${decidedBy},
           decided_at = ${iso(now)}::timestamptz
         where id = ${id}`;
-      await audit(tx, id, "recommendation.approved", decidedBy, {}, now);
+      const detail = dependency ? { dependsOnRecommendationId: dependency.recommendationId } : {};
+      await audit(tx, id, "recommendation.approved", decidedBy, detail, now);
     }
     if (status !== "approved" && status !== "failed") return null; // executing or executed
     await beginExecution(tx, { ...rec, status }, now, decidedBy);
@@ -202,23 +231,38 @@ async function beginExecution(
 /** The parts of a stored route calculation's inputs the executor reads. */
 const RouteInputs = z.object({
   destination: z.string().min(1),
-  optimiser: z.object({ candidates: z.array(RouteCandidate) }),
+  optimiser: z.object({ candidates: z.array(RouteCandidate), stops: z.array(StopCandidate) }),
 });
+
+/** The bunker stop an approved stop plan calls at, as the executor records and drafts it. */
+interface ApprovedStop {
+  portId: Id;
+  supplierId: Id;
+  quoteId: Id;
+  grade: FuelGrade;
+  arriveAt: string;
+  departAt: string;
+  qtyMt: number;
+}
+
+/** The approved plan of a stored route calculation: a route, or a stop plan through a port. */
+interface ApprovedRoute {
+  voyageId: Id;
+  destination: string;
+  /** A candidate id, or a stop plan's option id. */
+  optionId: string;
+  /** The candidate's description; null for a stop plan (it is drafted from its port). */
+  label: string | null;
+  points: LatLon[];
+  option: Pick<StopPlanResult, "speedKn" | "eta" | "distanceNm">;
+  stop: ApprovedStop | null;
+}
 
 /** The approved route of a stored route calculation, or why it cannot be executed. */
 async function approvedRoute(
   tx: Tx,
   rec: RecommendationRow,
-): Promise<
-  | {
-      ok: true;
-      voyageId: Id;
-      destination: string;
-      candidate: RouteCandidate;
-      option: RouteSpeedResult["options"][number];
-    }
-  | { ok: false; why: string }
-> {
+): Promise<({ ok: true } & ApprovedRoute) | { ok: false; why: string }> {
   const [calc] = await tx<
     { kind: string; inputs: unknown; outputs: unknown; voyage_id: number | null }[]
   >`select kind, inputs, outputs, voyage_id from calculations where id = ${rec.calculation_id}`;
@@ -233,17 +277,43 @@ async function approvedRoute(
   if (!inputs.success || !result.success) {
     return { ok: false, why: `calculation ${rec.calculation_id} is unreadable.` };
   }
+  const base = {
+    ok: true as const,
+    voyageId: calc.voyage_id,
+    destination: inputs.data.destination,
+    optionId: rec.option_id,
+  };
+  const plan = result.data.stopPlans.find((s) => s.optionId === rec.option_id);
+  if (plan) {
+    const stop = inputs.data.optimiser.stops.find((s) => s.optionId === rec.option_id);
+    if (!stop) return { ok: false, why: `the plan has no bunker stop ${rec.option_id}.` };
+    if (!plan.feasible || !plan.stop) {
+      return { ok: false, why: `bunker stop ${rec.option_id} is not feasible.` };
+    }
+    if (plan.quoteId === null) {
+      return { ok: false, why: `bunker stop ${rec.option_id} is not a received quote.` };
+    }
+    return {
+      ...base,
+      label: null,
+      points: stop.points,
+      option: plan,
+      stop: {
+        portId: stop.portId,
+        supplierId: stop.supplierId,
+        quoteId: plan.quoteId,
+        grade: stop.grade,
+        arriveAt: plan.stop.arriveAt,
+        departAt: plan.stop.departAt,
+        qtyMt: plan.qtyMt,
+      },
+    };
+  }
   const option = result.data.options.find((o) => o.candidateId === rec.option_id);
   const candidate = inputs.data.optimiser.candidates.find((c) => c.id === rec.option_id);
   if (!option || !candidate) return { ok: false, why: `the plan has no route ${rec.option_id}.` };
   if (!option.feasible) return { ok: false, why: `route ${rec.option_id} is not feasible.` };
-  return {
-    ok: true,
-    voyageId: calc.voyage_id,
-    destination: inputs.data.destination,
-    candidate,
-    option,
-  };
+  return { ...base, label: candidate.label, points: candidate.points, option, stop: null };
 }
 
 /** Records the approved route option as the voyage's instruction (the voyage itself is unchanged). */
@@ -255,12 +325,16 @@ async function recordInstruction(tx: Tx, rec: RecommendationRow, now: Date): Pro
       `Recommendation ${rec.id} cannot be executed: ${route.why}`,
     );
   }
+  const { stop } = route;
   const [row] = await tx<{ id: number }[]>`
     insert into voyage_instructions (recommendation_id, voyage_id, calculation_id, candidate_id,
-                                     speed_kn, eta, points, created_at)
-    values (${rec.id}, ${route.voyageId}, ${rec.calculation_id}, ${route.option.candidateId},
+                                     speed_kn, eta, points, stop_port_id, stop_quote_id,
+                                     stop_arrive_at, stop_depart_at, stop_qty_mt, created_at)
+    values (${rec.id}, ${route.voyageId}, ${rec.calculation_id}, ${route.optionId},
             ${route.option.speedKn}, ${route.option.eta}::timestamptz,
-            ${json(route.candidate.points)}::jsonb, ${iso(now)}::timestamptz)
+            ${json(route.points)}::jsonb, ${stop?.portId ?? null}, ${stop?.quoteId ?? null},
+            ${stop?.arriveAt ?? null}::timestamptz, ${stop?.departAt ?? null}::timestamptz,
+            ${stop?.qtyMt ?? null}, ${iso(now)}::timestamptz)
     returning id`;
   if (!row) throw new Error("voyage_instructions insert returned no row");
   await audit(
@@ -293,12 +367,17 @@ async function finishInstruction(deps: ExecutorDeps, recId: Id): Promise<void> {
         select v.name from voyages vo join vessels v on v.id = vo.vessel_id
         where vo.id = ${route.voyageId}`;
       if (!vessel) throw new Error(`voyage ${route.voyageId} has no vessel`);
+      const stop = route.stop ? await stopNames(tx, route.stop) : null;
       const draft = draftVoyageInstruction({
         recommendation: { id: recId },
         vessel: { name: vessel.name },
         destination: route.destination,
-        route: { candidateId: route.candidate.id, label: route.candidate.label },
+        route: {
+          candidateId: route.optionId,
+          label: route.label ?? `Through ${stop?.portName} for bunkers`,
+        },
         option: route.option,
+        stop,
       });
       const at = clock(deps);
       const kinds = await insertDrafts(tx, [draft], at);
@@ -320,6 +399,78 @@ async function finishInstruction(deps: ExecutorDeps, recId: Id): Promise<void> {
   }
 }
 
+/** The supplier and port names of an approved stop, for the master's draft. */
+async function stopNames(
+  tx: Tx,
+  stop: ApprovedStop,
+): Promise<NonNullable<VoyageInstructionDraftInput["stop"]>> {
+  const [names] = await tx<{ port_name: string; supplier_name: string }[]>`
+    select p.name as port_name, s.name as supplier_name
+    from ports p, suppliers s where p.id = ${stop.portId} and s.id = ${stop.supplierId}`;
+  if (!names)
+    throw new Error(`bunker stop port ${stop.portId} or supplier ${stop.supplierId} is missing`);
+  return {
+    portName: names.port_name,
+    supplierName: names.supplier_name,
+    arriveAt: stop.arriveAt,
+    departAt: stop.departAt,
+    qtyMt: stop.qtyMt,
+    grade: stop.grade,
+  };
+}
+
+/** What a purchase order buys, read from the stored calculation it was proposed from. */
+interface OrderSource {
+  grade: FuelGrade;
+  quoteId: Id | null;
+  supplierId: Id;
+  portId: Id;
+  qtyMt: number;
+  feasible: boolean;
+}
+
+/**
+ * The option a purchase order was proposed from: a bunker plan option (grade from the plan), or a
+ * route plan's bunker stop (grade and quote from its stop candidate, quantity from its stop plan).
+ * A string says why it is unreadable.
+ */
+function orderSourceOf(
+  calc: { id: Id; kind: string; inputs: unknown; outputs: unknown },
+  optionId: string,
+): OrderSource | string {
+  if (calc.kind === "route_speed") {
+    const inputs = RouteInputs.safeParse(calc.inputs);
+    const result = RouteSpeedResult.safeParse(calc.outputs);
+    if (!inputs.success || !result.success) return `calculation ${calc.id} is unreadable.`;
+    const stop = inputs.data.optimiser.stops.find((s) => s.optionId === optionId);
+    const plan = result.data.stopPlans.find((s) => s.optionId === optionId);
+    if (!stop || !plan) return `the route plan has no bunker stop ${optionId}.`;
+    return {
+      grade: stop.grade,
+      quoteId: plan.quoteId,
+      supplierId: stop.supplierId,
+      portId: stop.portId,
+      qtyMt: plan.qtyMt,
+      feasible: plan.feasible,
+    };
+  }
+  if (calc.kind !== "bunker_plan") return `calculation ${calc.id} is not a bunker or route plan.`;
+  const input = BunkerPlanInput.safeParse(calc.inputs);
+  const plan = BunkerPlan.safeParse(calc.outputs);
+  if (!input.success || !plan.success) return `calculation ${calc.id} is unreadable.`;
+  const offer = input.data.options.find((o) => o.optionId === optionId);
+  const result = plan.data.options.find((o) => o.optionId === optionId);
+  if (!offer || !result) return `the plan has no option ${optionId}.`;
+  return {
+    grade: input.data.grade,
+    quoteId: offer.quoteId,
+    supplierId: offer.supplierId,
+    portId: offer.portId,
+    qtyMt: result.qtyMt,
+    feasible: result.feasible,
+  };
+}
+
 /** Writes the purchase order and its line from the stored plan option and its quote. */
 async function createOrder(tx: Tx, rec: RecommendationRow, now: Date): Promise<Id> {
   function refuse(why: string): never {
@@ -333,17 +484,11 @@ async function createOrder(tx: Tx, rec: RecommendationRow, now: Date): Promise<I
   const [calc] = await tx<
     { kind: string; inputs: unknown; outputs: unknown; voyage_id: number | null }[]
   >`select kind, inputs, outputs, voyage_id from calculations where id = ${rec.calculation_id}`;
-  if (calc?.kind !== "bunker_plan") {
-    refuse(`calculation ${rec.calculation_id} is not a bunker plan.`);
-  }
-  const input = BunkerPlanInput.safeParse(calc.inputs);
-  const plan = BunkerPlan.safeParse(calc.outputs);
-  if (!input.success || !plan.success) refuse(`calculation ${rec.calculation_id} is unreadable.`);
-  const grade = input.data.grade;
-  const offer = input.data.options.find((o) => o.optionId === rec.option_id);
-  const result = plan.data.options.find((o) => o.optionId === rec.option_id);
-  if (!offer || !result) refuse(`the plan has no option ${rec.option_id}.`);
-  if (!result.feasible || result.qtyMt <= 0) refuse(`option ${rec.option_id} is not feasible.`);
+  if (!calc) refuse(`calculation ${rec.calculation_id} does not exist.`);
+  const offer = orderSourceOf({ id: rec.calculation_id, ...calc }, rec.option_id);
+  if (typeof offer === "string") refuse(offer);
+  const grade = offer.grade;
+  if (!offer.feasible || offer.qtyMt <= 0) refuse(`option ${rec.option_id} is not feasible.`);
   if (calc.voyage_id === null) refuse(`calculation ${rec.calculation_id} has no voyage.`);
   if (offer.quoteId === null) refuse(`option ${rec.option_id} is not a received quote.`);
 
@@ -379,7 +524,7 @@ async function createOrder(tx: Tx, rec: RecommendationRow, now: Date): Promise<I
   if (!order) throw new Error("purchase_orders insert returned no row");
   await tx`
     insert into order_lines (order_id, grade, qty_mt, price_per_mt)
-    values (${order.id}, ${grade}, ${result.qtyMt}, ${line.price_per_mt})`;
+    values (${order.id}, ${grade}, ${offer.qtyMt}, ${line.price_per_mt})`;
   await audit(
     tx,
     rec.id,
@@ -496,13 +641,15 @@ async function pushAndFinish(deps: ExecutorDeps, recId: Id): Promise<void> {
           status = 'confirmed'
         where id = ${orderId}`;
       await tx`update quotes set status = 'ordered' where id = ${order.quote_id}`;
-      // The requirement the plan was for: the voyage's lowest-id open requirement of the plan's
+      // The requirement the plan was for: the voyage's lowest-id open requirement of the ordered
       // grade (the planner's rule), not the one the quote links (a quote may offer other grades).
       await tx`
         update bunker_requirements set status = 'ordered'
         where id = (
           select r.id from bunker_requirements r join calculations c on c.voyage_id = r.voyage_id
-          where c.id = ${rec.calculation_id} and r.grade = c.inputs->>'grade' and r.status = 'open'
+          where c.id = ${rec.calculation_id} and r.status = 'open'
+            and r.grade = (select grade from order_lines where order_id = ${orderId}
+                           order by id limit 1)
           order by r.id limit 1)`;
       await audit(
         tx,
@@ -559,11 +706,12 @@ async function prepareDrafts(
       imo: string;
       port_name: string;
       unlocode: string;
+      kind: string;
       outputs: unknown;
     }[]
   >`
     select po.idempotency_key, q.currency, q.barge_fee, s.name as supplier_name, s.email_domain,
-           v.name as vessel_name, v.imo, p.name as port_name, p.unlocode, c.outputs
+           v.name as vessel_name, v.imo, p.name as port_name, p.unlocode, c.kind, c.outputs
     from purchase_orders po
       join quotes q on q.id = po.quote_id
       join suppliers s on s.id = q.supplier_id
@@ -575,9 +723,24 @@ async function prepareDrafts(
     where po.id = ${orderId}`;
   const [line] = await sql<{ grade: FuelGrade; qty_mt: number; price_per_mt: number }[]>`
     select grade, qty_mt, price_per_mt from order_lines where order_id = ${orderId} order by id limit 1`;
-  const plan = BunkerPlan.safeParse(row?.outputs);
-  const option = plan.success ? plan.data.options.find((o) => o.optionId === rec.option_id) : null;
-  if (!row || !line || !option) {
+  // A bunker plan's option, or a route plan's stop plan (its times and costs).
+  const plan = row?.kind === "bunker_plan" ? BunkerPlan.safeParse(row.outputs) : null;
+  const option = plan?.success
+    ? (plan.data.options.find((o) => o.optionId === rec.option_id) ?? null)
+    : null;
+  const route = row?.kind === "route_speed" ? RouteSpeedResult.safeParse(row.outputs) : null;
+  const stopPlan = route?.success
+    ? route.data.stopPlans.find((s) => s.optionId === rec.option_id)
+    : undefined;
+  const stop = stopPlan?.stop
+    ? {
+        arriveAt: stopPlan.stop.arriveAt,
+        departAt: stopPlan.stop.departAt,
+        bunkerFuelCostUsd: stopPlan.bunkerFuelCostUsd,
+        bargeFeeUsd: stopPlan.bargeFeeUsd,
+      }
+    : null;
+  if (!row || !line || (!option && !stop)) {
     throw new Error(`recommendation ${rec.id}: stored order or plan option is unreadable`);
   }
   return (poNumber) =>
@@ -596,6 +759,7 @@ async function prepareDrafts(
       vessel: { name: row.vessel_name, imo: row.imo },
       port: { name: row.port_name, unlocode: row.unlocode },
       option,
+      stop,
     });
 }
 

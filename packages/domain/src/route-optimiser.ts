@@ -5,7 +5,6 @@
  */
 import {
   FUEL_GRADES,
-  type FuelGrade,
   type GradeAmounts,
   type HazardZone,
   type LatLon,
@@ -15,62 +14,13 @@ import {
   type RouteSpeedResult,
 } from "@pharos/shared";
 import { dailyConsumptionMt } from "./consumption.js";
-import { gradeAt } from "./eca.js";
 import { co2Tonnes, etsCost } from "./emissions.js";
 import { fuelEuCost } from "./fueleu.js";
-import { bearingDeg, greatCircleNm } from "./geo.js";
-import { zonesContaining } from "./hazards.js";
-import { effectiveSpeedKn, sampleWeather } from "./weather-effect.js";
+import { bestStopPlan, recommendPlan } from "./stop-plan.js";
+import { hazardIdsOfSteps, type SubStep, subSteps, walkSteps } from "./track.js";
+import { projectFuelAlongTrack } from "./track-fuel.js";
 
 const HOUR_MS = 3_600_000;
-
-interface SubStep {
-  mid: LatLon;
-  headingDeg: number;
-  nm: number;
-  grade: FuelGrade;
-}
-
-/** Linear in lat/lon between a and b (as `pointAlongPolyline` does within a segment). */
-const lerp = (a: LatLon, b: LatLon, t: number): LatLon => ({
-  lat: a.lat + (b.lat - a.lat) * t,
-  lon: a.lon + (b.lon - a.lon) * t,
-});
-
-/**
- * The polyline cut into sub-steps: each segment is split into equal pieces no longer than `stepNm`.
- * Zero-length segments (repeated points) are skipped. Speed-independent, so computed once per route.
- */
-function subSteps(points: LatLon[], stepNm: number): { steps: SubStep[]; distanceNm: number } {
-  const steps: SubStep[] = [];
-  let distanceNm = 0;
-  for (let i = 1; i < points.length; i++) {
-    const a = points[i - 1] as LatLon;
-    const b = points[i] as LatLon;
-    const len = greatCircleNm(a, b);
-    if (!(len > 0)) continue;
-    distanceNm += len;
-    const n = Math.max(1, Math.ceil(len / stepNm));
-    for (let j = 0; j < n; j++) {
-      const mid = lerp(a, b, (j + 0.5) / n);
-      steps.push({
-        mid,
-        headingDeg: bearingDeg(lerp(a, b, j / n), lerp(a, b, (j + 1) / n)),
-        nm: len / n,
-        grade: gradeAt(mid),
-      });
-    }
-  }
-  return { steps, distanceNm };
-}
-
-/** Ids of the zones any sub-step midpoint falls inside, sorted. The one rule for "passes through a hazard". */
-function hazardIdsOfSteps(steps: SubStep[], zones: HazardZone[]): string[] {
-  if (zones.length === 0) return [];
-  const hit = new Set<string>();
-  for (const step of steps) for (const id of zonesContaining(step.mid, zones)) hit.add(id);
-  return [...hit].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
-}
 
 /** Zones a polyline passes through: any sub-step midpoint (steps of at most `stepNm`) inside one. Sorted. */
 export function routeHazardIds(points: LatLon[], stepNm: number, zones: HazardZone[]): string[] {
@@ -86,25 +36,18 @@ function evaluateSteps(
   const startMs = Date.parse(input.startAt);
   const daily = dailyConsumptionMt(input.curve, speedKn);
   const hoursIn: GradeAmounts = { LSMGO: 0, VLSFO: 0, HSFO: 0 };
-  let elapsed = 0;
   let delay = 0;
   let walkedNm = 0;
   let sampledNm = 0;
   let maxWaveHeightM = 0;
-  for (const step of route.steps) {
-    // Weather at the sub-step's midpoint, at the time the vessel starts the sub-step.
-    const sample = input.weather
-      ? sampleWeather(input.weather, step.mid, new Date(startMs + elapsed * HOUR_MS))
-      : null;
-    const sog = effectiveSpeedKn(speedKn, sample, step.headingDeg);
-    const h = step.nm / sog;
-    elapsed += h;
+  for (const step of walkSteps(route.steps, new Date(startMs), speedKn, input.weather)) {
+    const h = step.hours;
     delay += h - step.nm / speedKn;
     hoursIn[step.grade] += h;
     walkedNm += step.nm;
-    if (sample) {
+    if (step.waveHeightM !== null) {
       sampledNm += step.nm;
-      maxWaveHeightM = Math.max(maxWaveHeightM, sample.waveHeightM);
+      maxWaveHeightM = Math.max(maxWaveHeightM, step.waveHeightM);
     }
   }
 
@@ -169,6 +112,7 @@ function evaluateSteps(
     crossesHazard: hazardIds.length > 0,
     hazardIds,
     reasons,
+    fuel: null,
   };
 }
 
@@ -265,14 +209,41 @@ export function optimiseRouteSpeed(rawInput: RouteSpeedInput): RouteSpeedResult 
     });
     return pickBest(ranked, (o) => !o.reasons.includes("misses_arrive_by"));
   });
+  // The fuel-blind choice: berth window and hazards only (fuel is checked below, not ranked on).
   const best = pickBest(options, (o) => o.feasible).option;
   const base = baseline as RouteOptionResult | null;
   if (!base) throw new Error("baseline option was not evaluated");
+
+  const pointsOf = new Map(input.candidates.map((c) => [c.id, c.points]));
+  const fueled = (o: RouteOptionResult): RouteOptionResult => {
+    if (!input.fuel) return o;
+    const fuel = projectFuelAlongTrack({
+      startAt: input.startAt,
+      points: pointsOf.get(o.candidateId) ?? [],
+      speedKn: o.speedKn,
+      stepNm: input.stepNm,
+      curve: input.curve,
+      weather: input.weather,
+      robMt: input.fuel.robMt,
+      safetyMarginDays: input.fuel.safetyMarginDays,
+      stop: null,
+      probesNm: [],
+    });
+    const reasons: RouteOptionResult["reasons"] = fuel.keepsMargins
+      ? o.reasons
+      : [...o.reasons, "insufficient_fuel"];
+    return { ...o, fuel, reasons, feasible: reasons.length === 0 };
+  };
+  const finalOptions = options.map((r) => fueled(r.option));
+  const finalBest = finalOptions.find((o) => o.candidateId === best.candidateId) ?? fueled(best);
+  const stopPlans = input.fuel ? input.stops.map((s) => bestStopPlan(input, s, grid)) : [];
   return {
-    options: options.map((r) => r.option),
-    baseline: base,
+    options: finalOptions,
+    baseline: fueled(base),
     bestCandidateId: best.candidateId,
     savingVsBaselineUsd: base.totalCostUsd - best.totalCostUsd,
     fuelSavingVsBaselineMt: base.totalFuelMt - best.totalFuelMt,
+    stopPlans,
+    plan: input.fuel ? recommendPlan(finalBest, finalOptions, stopPlans) : null,
   };
 }

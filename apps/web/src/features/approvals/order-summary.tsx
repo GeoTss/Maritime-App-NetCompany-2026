@@ -1,9 +1,12 @@
 /**
  * What a proposal commits to, as four cited readouts. A purchase order reads its bunker plan's own
  * facts for the proposed option: grade and quantity, headline price, total delivered cost and the
- * delay to the voyage. A voyage instruction reads its route by name and the facts of that one route
- * option by output path: recommended speed, ETA and total voyage cost. Every number is the API's fact as a
- * chip; the UI adds none of its own, and a fact that is missing reads "not stated".
+ * delay to the voyage. A purchase order proposed from a route plan's bunker stop has no bunker
+ * plan: it reads that stop plan's facts, the quantity, the cost of the fuel bought, the barge fee
+ * and the plan total (voyage and fuel bought; never called a delivered cost). A voyage instruction
+ * reads its route by name and the facts of that one route option by output path: recommended
+ * speed, ETA and total voyage cost. Every number is the API's fact as a chip; the UI adds none of
+ * its own, and a fact that is missing reads "not stated".
  */
 import type { BunkerOptionView, Fact, RecommendationView } from "@pharos/shared";
 import type { ReactNode } from "react";
@@ -19,10 +22,12 @@ export function proposedOption(rec: RecommendationView): BunkerOptionView | null
 export const rowFact = (option: BunkerOptionView | null, name: string): Fact | null =>
   option?.rows.find((r) => r.name === name)?.fact ?? null;
 
-const OPTION_PATH = /^options\[(\d+)\]\.([A-Za-z]+)$/;
+/** A route option's or a stop plan's own field: `options[1].eta`, `stopPlans[0].speedKn`. */
+const OPTION_PATH = /^((?:options|stopPlans)\[\d+\])\.([A-Za-z]+)$/;
 
 /**
- * Reads a proposal's calculation facts of ONE option, by field (`options[i].<field>`). The option
+ * Reads a proposal's calculation facts of ONE option, by field (`options[i].<field>`, or
+ * `stopPlans[i].<field>` for an instruction that calls at a bunker port). The option
  * is the single index under which the key fields are cited. If they are cited under more than one
  * option (another route's total beside this one's), which one the proposal is cannot be told from
  * the facts, so every field reads null ("not stated") rather than a guess. Facts of other fields
@@ -40,14 +45,51 @@ export function oneOptionFacts(facts: Fact[], keys: readonly string[]) {
   }
   const index = indices.size === 1 ? ([...indices][0] ?? null) : null;
   return (field: string): Fact | null =>
-    index === null ? null : (byPath.get(`options[${index}].${field}`) ?? null);
+    index === null ? null : (byPath.get(`${index}.${field}`) ?? null);
+}
+
+/**
+ * A purchase order proposed from a route plan's bunker stop: no bunker plan behind it, and its
+ * calculation facts are a stop plan's (`stopPlans[i].<field>`).
+ */
+export function isStopPlanOrder(rec: RecommendationView): boolean {
+  return (
+    rec.type === "purchase_order" &&
+    proposedOption(rec) === null &&
+    rec.facts.some(
+      (f) => f.provenance.source === "calculation" && f.provenance.path.startsWith("stopPlans["),
+    )
+  );
 }
 
 /**
  * The facts a purchase order is summarised by: the plan option's when the plan is readable, else
- * the proposal's own facts of one option (see `oneOptionFacts`).
+ * the proposal's own facts of one option (see `oneOptionFacts`). A route-plan stop's order has no
+ * delivered cost: its `totalCostUsd` is the whole plan's (voyage, fuel bought and barge fee), so it
+ * is `planTotal`, beside the cost of the fuel bought and the barge fee; `totalCost` stays null.
  */
 export function orderFacts(rec: RecommendationView) {
+  if (isStopPlanOrder(rec)) {
+    const at = oneOptionFacts(rec.facts, [
+      "qtyMt",
+      "bunkerFuelCostUsd",
+      "bargeFeeUsd",
+      "totalCostUsd",
+    ]);
+    return {
+      kind: "stop_plan" as const,
+      grade: null,
+      quantity: at("qtyMt"),
+      headlinePrice: null,
+      totalCost: null,
+      delay: null,
+      etsCost: null,
+      fuelEuCost: null,
+      fuelBought: at("bunkerFuelCostUsd"),
+      bargeFee: at("bargeFeeUsd"),
+      planTotal: at("totalCostUsd"),
+    };
+  }
   const option = proposedOption(rec);
   const at = oneOptionFacts(rec.facts, [
     "qtyMt",
@@ -56,6 +98,7 @@ export function orderFacts(rec: RecommendationView) {
     "delayHours",
   ]);
   return {
+    kind: "bunker_plan" as const,
     grade: rec.bunkerPlan?.grade ?? null,
     quantity: rowFact(option, "quantity") ?? at("qtyMt"),
     headlinePrice: option?.headlinePrice ?? at("headlinePriceUsdPerMt"),
@@ -63,6 +106,9 @@ export function orderFacts(rec: RecommendationView) {
     delay: option?.delay ?? at("delayHours"),
     etsCost: rowFact(option, "EU ETS cost") ?? at("etsCostUsd"),
     fuelEuCost: rowFact(option, "FuelEU exposure") ?? at("fuelEuCostUsd"),
+    fuelBought: null,
+    bargeFee: null,
+    planTotal: null,
   };
 }
 
@@ -110,7 +156,23 @@ export function OrderSummary({ rec, className }: { rec: RecommendationView; clas
   let readouts: { term: string; value: ReactNode }[];
   let counts: ReactNode;
 
-  if (isOrder) {
+  if (isOrder && isStopPlanOrder(rec)) {
+    // Bought at a route plan's bunker stop: what the fuel and the barge cost, apart from the plan.
+    const o = orderFacts(rec);
+    readouts = [
+      { term: "Quantity", value: <Cited fact={o.quantity} /> },
+      { term: "Cost of the fuel bought", value: <Cited fact={o.fuelBought} /> },
+      { term: "Barge fee", value: <Cited fact={o.bargeFee} /> },
+      { term: "Plan total, voyage and fuel bought", value: <Cited fact={o.planTotal} /> },
+    ];
+    counts = (
+      <>
+        Cost of the fuel bought is the quantity at the quoted price. Plan total counts the voyage
+        (fuel burned, EU ETS, FuelEU exposure and the vessel's time), the fuel bought at the stop
+        and the barge fee.
+      </>
+    );
+  } else if (isOrder) {
     const o = orderFacts(rec);
     readouts = [
       {
@@ -146,9 +208,18 @@ export function OrderSummary({ rec, className }: { rec: RecommendationView; clas
       },
       { term: "Recommended speed", value: <Cited fact={v.speed} /> },
       { term: "ETA", value: <Cited fact={v.eta} /> },
-      { term: "Total voyage cost", value: <Cited fact={v.totalCost} /> },
+      {
+        term: rec.dependsOn ? "Plan total" : "Total voyage cost",
+        value: <Cited fact={v.totalCost} />,
+      },
     ];
-    counts = (
+    // An instruction with a bunker stop is the plan's total: the voyage and the fuel it buys.
+    counts = rec.dependsOn ? (
+      <>
+        Plan total counts the voyage (fuel burned, EU ETS, FuelEU exposure and the vessel's time),
+        the fuel bought at the stop and the barge fee.
+      </>
+    ) : (
       <>
         Total voyage cost counts the fuel, <Counted name="EU ETS" fact={v.etsCost} />,{" "}
         <Counted name="FuelEU exposure" fact={v.fuelEuCost} /> and the vessel's time.
@@ -170,7 +241,10 @@ export function OrderSummary({ rec, className }: { rec: RecommendationView; clas
           </div>
         ))}
       </dl>
-      <p className="border-t border-line px-3 py-2 text-xs text-text-2">{counts}</p>
+      {/* The hairline spans the section; the sentence keeps a readable measure. */}
+      <div className="border-t border-line px-3 py-2">
+        <p className="max-w-[54ch] text-xs text-pretty text-text-2">{counts}</p>
+      </div>
     </section>
   );
 }

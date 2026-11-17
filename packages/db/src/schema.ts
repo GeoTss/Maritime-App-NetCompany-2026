@@ -386,6 +386,12 @@ export const voyageInstructions = pgTable(
     speedKn: doublePrecision().notNull(),
     eta: ts().notNull(),
     points: jsonb().$type<LatLon[]>().notNull(),
+    // The bunker stop the approved plan calls at; all null for a route with no stop.
+    stopPortId: integer().references(() => ports.id, { onDelete: "restrict" }),
+    stopQuoteId: integer().references(() => quotes.id, { onDelete: "restrict" }),
+    stopArriveAt: ts(),
+    stopDepartAt: ts(),
+    stopQtyMt: doublePrecision(),
     createdAt: ts().notNull(),
   },
   (t) => [uniqueIndex("voyage_instructions_recommendation_id_uq").on(t.recommendationId)],

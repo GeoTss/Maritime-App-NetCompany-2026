@@ -176,6 +176,7 @@ const rec = (id: number, over: Record<string, unknown> = {}) => ({
   order: null,
   instruction: null,
   bunkerPlan: null,
+  dependsOn: null,
   ...over,
 });
 
@@ -242,6 +243,41 @@ const viRec = (id: number, over: Record<string, unknown> = {}) =>
     ],
     ...over,
   });
+
+/**
+ * A purchase order proposed from route plan 5's bunker stop (Kestrel at Marsaxlokk), as the API
+ * serves it: no bunker plan, and the stop plan's facts (with the recommended plan's).
+ */
+const stopOrderRec = (id: number, over: Record<string, unknown> = {}) => {
+  const P = "MV Aegean Pioneer, MTMLA-kestrel";
+  return rec(id, {
+    calculationId: 5,
+    optionLabel: "Kestrel Marine Fuels at Marsaxlokk",
+    summary: "Order LSMGO for the AP-2611 stem from Kestrel Marine Fuels at Marsaxlokk.",
+    factRefs: [],
+    facts: [
+      routeFact("stopPlans[0].speedKn", `${P}: recommended speed`, 11.5, "kn"),
+      routeFact("stopPlans[0].qtyMt", `${P}: quantity bought`, 300, "mt"),
+      routeFact(
+        "stopPlans[0].voyageCostUsd",
+        `${P}: voyage cost (fuel burned, EU ETS, FuelEU, vessel time)`,
+        418123.45,
+        "USD",
+      ),
+      routeFact("stopPlans[0].bunkerFuelCostUsd", `${P}: cost of the fuel bought`, 221400, "USD"),
+      routeFact("stopPlans[0].bargeFeeUsd", `${P}: barge fee`, 3000, "USD"),
+      routeFact(
+        "stopPlans[0].totalCostUsd",
+        `${P}: plan total (voyage cost, fuel bought and barge fee)`,
+        642523.45,
+        "USD",
+      ),
+      routeFact("plan.optionId", "MV Aegean Pioneer: recommended plan", "MTMLA-kestrel", null),
+    ],
+    bunkerPlan: null,
+    ...over,
+  });
+};
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -601,6 +637,59 @@ describe("ApprovalsPage: the decision", () => {
     const order = await screen.findByRole("region", { name: "The order" });
     expect(chipIds(order)).toEqual([]);
     expect(order.textContent).toMatch(/not stated/);
+  });
+
+  it("a route-plan order shows the fuel bought and the barge fee, never the plan total as delivered cost", async () => {
+    items = [stopOrderRec(4)];
+    renderPage();
+    const order = await screen.findByRole("region", { name: "The order" });
+    expect(
+      within(order)
+        .getAllByRole("term")
+        .map((t) => t.textContent),
+    ).toEqual([
+      "Quantity",
+      "Cost of the fuel bought",
+      "Barge fee",
+      "Plan total, voyage and fuel bought",
+    ]);
+    const readouts = within(order).getAllByRole("definition");
+    expect(readouts.map((d) => chipIds(d))).toEqual([
+      ["f_plan_route_speed_5_stopPlans.0.qtyMt"],
+      ["f_plan_route_speed_5_stopPlans.0.bunkerFuelCostUsd"],
+      ["f_plan_route_speed_5_stopPlans.0.bargeFeeUsd"],
+      ["f_plan_route_speed_5_stopPlans.0.totalCostUsd"],
+    ]);
+    expect(readouts.map((d) => d.querySelector("[data-slot=fact-chip]")?.textContent)).toEqual([
+      "300.0 mt",
+      "USD 221,400.00",
+      "USD 3,000.00",
+      "USD 642,523.45",
+    ]);
+    // The plan total is named for what it is: the voyage and the fuel bought, never delivered cost.
+    expect(order.textContent).not.toMatch(/delivered/i);
+    expect(order.textContent).toMatch(/Plan total counts the voyage/);
+    // The queue row: the quantity and the cost of the fuel bought, not the plan total; it comes
+    // from the route plan, not a bunker plan.
+    const [row] = within(queue()).getAllByRole("listitem");
+    expect(chipIds(row as HTMLElement)).toEqual([
+      "f_plan_route_speed_5_stopPlans.0.qtyMt",
+      "f_plan_route_speed_5_stopPlans.0.bunkerFuelCostUsd",
+    ]);
+    expect(row?.textContent).toContain("route plan 5");
+    expect(row?.textContent).not.toContain("bunker plan");
+    // The confirmation restates the order with the fuel and the barge fee; nothing is posted.
+    const bar = screen.getByRole("region", { name: "If you approve" });
+    fireEvent.click(within(bar).getByRole("button", { name: /^Approve purchase order/ }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(within(dialog).getByRole("heading").textContent).toBe(
+      "Order 300.0 mt from Kestrel Marine Fuels at Marsaxlokk?",
+    );
+    expect(dialog.textContent).toContain("Cost of the fuel bought");
+    expect(dialog.textContent).toContain("USD 221,400.00");
+    expect(dialog.textContent).toContain("Barge fee");
+    expect(dialog.textContent).not.toMatch(/delivered|642,523/i);
+    expect(posts()).toEqual([]);
   });
 
   it("draws headline price against total cost for every option", async () => {
@@ -1031,7 +1120,13 @@ describe("ApprovalsPage: deciding", () => {
       rec(2, {
         type: "voyage_instruction",
         status: "executed",
-        instruction: { instructionId: 3, candidateId: "via-suez-12.5", speedKn: 12.5, eta: NOW },
+        instruction: {
+          instructionId: 3,
+          candidateId: "via-suez-12.5",
+          speedKn: 12.5,
+          eta: NOW,
+          stop: null,
+        },
       }),
     ];
     renderPage();
@@ -1063,5 +1158,100 @@ describe("ApprovalsPage: deciding", () => {
     await detail();
     expect(screen.queryByRole("button", { name: /^Drafted messages/ })).toBeNull();
     expect(screen.getByRole("button", { name: /^Audit trail/ })).toBeTruthy();
+  });
+});
+
+/** The demo's instruction that calls at Marsaxlokk: it waits for Kestrel's purchase order. */
+const stopRec = (id: number, dependsOn: Record<string, unknown>) =>
+  viRec(id, {
+    optionId: "MTMLA-kestrel",
+    optionLabel: "Call at Marsaxlokk for bunkers",
+    summary: "Instruct MV Aegean Pioneer to call at Marsaxlokk for bunkers.",
+    dependsOn: {
+      quoteId: 11,
+      optionLabel: "Kestrel Marine Fuels at Marsaxlokk",
+      recommendationId: 4,
+      status: "pending",
+      satisfied: false,
+      ...dependsOn,
+    },
+  });
+
+describe("ApprovalsPage: an instruction that waits for its purchase order", () => {
+  it("names the order it waits for with its status flag", async () => {
+    items = [stopRec(5, {}), poRec(4)];
+    renderPage("/approvals?recommendation=5");
+    const line = await screen.findByTestId("dependency-line");
+    expect(line.textContent).toMatch(
+      /^Waits for the purchase order: Kestrel Marine Fuels at Marsaxlokk/,
+    );
+    expect(line.textContent).toContain("awaiting approval");
+    expect(line.querySelector("[data-flag=K]")?.getAttribute("aria-hidden")).toBe("true");
+    const link = within(line).getByRole("link", { name: "Open proposal 4" });
+    expect(link.getAttribute("href")).toBe("/approvals?recommendation=4");
+  });
+
+  it("disables approve with the reason beside it until the order is approved", async () => {
+    items = [stopRec(5, {}), poRec(4)];
+    renderPage("/approvals?recommendation=5");
+    const bar = await screen.findByRole("region", { name: "If you approve" });
+    const approve = within(bar).getByRole("button", { name: /^Approve voyage instruction/ });
+    expect((approve as HTMLButtonElement).disabled).toBe(true);
+    const reason = within(bar).getByTestId("approve-blocked");
+    expect(reason.textContent).toBe("Approve opens once purchase order proposal 4 is approved.");
+    expect(approve.getAttribute("aria-describedby")).toBe(reason.id);
+    expect(
+      (within(bar).getByRole("button", { name: "Reject…" }) as HTMLButtonElement).disabled,
+    ).toBe(false);
+    cleanup();
+    items = [stopRec(5, { status: "approved", satisfied: true })];
+    renderPage("/approvals?recommendation=5");
+    const open = await screen.findByRole("region", { name: "If you approve" });
+    expect(
+      (
+        within(open).getByRole("button", {
+          name: /^Approve voyage instruction/,
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(false);
+    expect(within(open).queryByTestId("approve-blocked")).toBeNull();
+    const line = screen.getByTestId("dependency-line");
+    expect(line.textContent).toMatch(/^Its purchase order: Kestrel Marine Fuels at Marsaxlokk/);
+    expect(line.querySelector("[data-flag=C]")).not.toBeNull();
+  });
+
+  it("says none is proposed yet when there is no order", async () => {
+    items = [stopRec(5, { recommendationId: null, status: null })];
+    renderPage();
+    const line = await screen.findByTestId("dependency-line");
+    expect(line.textContent).toBe(
+      "Waits for the purchase order: Kestrel Marine Fuels at Marsaxlokk none proposed yet",
+    );
+    expect(screen.getByTestId("approve-blocked").textContent).toBe(
+      "Approve opens once a purchase order for Kestrel Marine Fuels at Marsaxlokk is proposed and approved.",
+    );
+  });
+
+  it("blocks the instruction when its order was rejected: only Reject is open", async () => {
+    items = [stopRec(5, { status: "rejected" }), poRec(4, { status: "rejected" })];
+    renderPage("/approvals?recommendation=5");
+    const bar = await screen.findByRole("region", { name: "If you approve" });
+    expect(within(bar).getByTestId("approve-blocked").textContent).toBe(
+      "Blocked: its purchase order (proposal 4) was rejected. Only Reject is open.",
+    );
+    const enabled = within(bar)
+      .getAllByRole("button")
+      .filter((b) => !(b as HTMLButtonElement).disabled)
+      .map((b) => b.textContent);
+    expect(enabled).toEqual(["Reject…"]);
+    expect(screen.getByTestId("dependency-line").querySelector("[data-flag=N]")).not.toBeNull();
+  });
+
+  it("lists an awaiting order before the instruction that depends on it", async () => {
+    items = [rec(1), stopRec(2, { recommendationId: 4 }), rec(3), poRec(4)];
+    renderPage();
+    await detail();
+    const awaiting = screen.getByRole("region", { name: /Awaiting your decision/ });
+    expect(rowIds(awaiting)).toEqual([1, 3, 4, 2]);
   });
 });

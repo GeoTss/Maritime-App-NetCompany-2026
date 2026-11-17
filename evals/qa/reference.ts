@@ -13,10 +13,12 @@
 import {
   type BunkerOffer,
   buildBunkerPlanInput,
+  currentPlanFuel,
   currentVoyage,
   fleetRoutePlan,
   fobProjectionInput,
   generateWorld,
+  latestOffers,
   openRequirements,
   optionIdFor,
   type RoutePlan,
@@ -244,7 +246,13 @@ export function qaPlan(world: World) {
       qtyMt: line.qtyMt,
     });
   }
-  const result = planBunkers(buildBunkerPlanInput(world, voyage.id, offers, requirement.grade));
+  // As plan_bunkering builds it: fuel on board on the recorded weather, seeded port waits.
+  const result = planBunkers(
+    buildBunkerPlanInput(world, voyage.id, offers, requirement.grade, {
+      weather: qaLive(world).weather,
+      congestion: "seed",
+    }),
+  );
   return { result, names };
 }
 
@@ -347,7 +355,17 @@ export function qaRoute(world: World, subject: "fleet" | "ais", vessel: string):
   let ship: AisTraffic | null = null;
   if (subject === "fleet") {
     const voyage = must(currentVoyage(world, vesselOf(world, vessel).id), `voyage of ${vessel}`);
-    plan = fleetRoutePlan(world, voyage.id, seaGraph, live.weather, zones);
+    // As plan_route_speed builds it on the pinned clock: seeded port waits, and the valid quotes
+    // for the open requirement as stop candidates (no order is approved during a Q&A run).
+    const requirement = openRequirements(world, voyage.id)[0];
+    const offers = requirement
+      ? latestOffers(world, voyage.id, requirement.grade, QA_NOW, false)
+      : [];
+    plan = fleetRoutePlan(world, voyage.id, seaGraph, live.weather, zones, {
+      congestion: "seed",
+      offers,
+      fixedOrder: null,
+    });
   } else {
     ship =
       vessel === "real"
@@ -525,7 +543,7 @@ export function resolveFact(world: World, ref: FactRef): QaRequiredFact {
     case "status": {
       const vessel = vesselOf(world, ref.vessel);
       const voyage = must(currentVoyage(world, vessel.id), `voyage of ${ref.vessel}`);
-      const { report, remainingLegs } = voyageState(world, voyage.id);
+      const { report } = voyageState(world, voyage.id);
       const f = ref.field;
       if (f === "nextPort") {
         const next = world.portCalls
@@ -540,17 +558,18 @@ export function resolveFact(world: World, ref: FactRef): QaRequiredFact {
       if ("rob" in f) {
         return fact(`${f.rob} remaining on board (latest noon report)`, report.robMt[f.rob], "mt");
       }
-      const fob = projectFuelOnBoard(fobProjectionInput(world, voyage.id, remainingLegs));
+      // get_vessel_status's projection: the current plan on the recorded weather (one fuel calculation).
+      const track = currentPlanFuel(world, voyage.id, qaLive(world).weather);
       if ("required" in f) {
         return fact(
           `${f.required} needed for the rest of the voyage`,
-          fob.requiredMt[f.required],
+          track.grades[f.required].neededMt,
           "mt",
         );
       }
       return fact(
         `${f.shortfall} shortfall to keep the margin`,
-        fob.shortfallMt[f.shortfall],
+        track.grades[f.shortfall].shortfallMt,
         "mt",
       );
     }
@@ -728,10 +747,9 @@ function proposedOption(world: World, spec: QuestionSpec): string | null {
       spec.facts.find((f): f is Extract<FactRef, { src: "route" }> => f.src === "route"),
       "route fact to propose",
     );
-    return must(
-      qaRoute(world, ref.subject, ref.vessel).result.bestCandidateId,
-      "best route for the proposal",
-    );
+    // The instruction sails the recommended plan (a stop plan when the route needs one).
+    const { result } = qaRoute(world, ref.subject, ref.vessel);
+    return must(result.plan?.optionId ?? result.bestCandidateId, "plan for the proposal");
   }
   return must(qaPlan(world).result.bestOptionId, "best option for the proposal");
 }

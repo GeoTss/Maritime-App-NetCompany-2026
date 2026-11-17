@@ -1,7 +1,7 @@
 import { DEMO_SCENARIO, loadWorld, type Sql } from "@pharos/db";
 import { connectTestDb, testDbLabel } from "@pharos/db/testing";
 import { DOMAIN_CODE_VERSION } from "@pharos/domain";
-import { Fact, FactId, FobProjection, VesselStatusInput } from "@pharos/shared";
+import { Fact, FactId, VesselStatusInput } from "@pharos/shared";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ASK_FIXTURE_NOW, prepareAskFixture } from "../../ask/demo-fixture.js";
 import { createToolContext } from "./common.js";
@@ -65,7 +65,10 @@ describe.skipIf(!sql)("get_vessel_status (Postgres)", () => {
     if (!calc) throw new Error("no calculation stored");
     expect(calc.kind).toBe("fob_projection");
     expect(calc.code_version).toBe(DOMAIN_CODE_VERSION);
-    const fob = FobProjection.parse(calc.outputs);
+    const fob = calc.outputs as Record<
+      "requiredMt" | "safetyMarginMt" | "shortfallMt" | "belowMarginAtNm" | "runsDryAtNm",
+      Record<string, number | null>
+    >;
     expect(fob.shortfallMt.LSMGO).toBeGreaterThan(0);
 
     for (const field of ["requiredMt", "safetyMarginMt", "shortfallMt"] as const) {
@@ -75,10 +78,21 @@ describe.skipIf(!sql)("get_vessel_status (Postgres)", () => {
       expect(f.provenance).toEqual({
         source: "calculation",
         calculationId: calc.id,
-        calculator: "projectFuelOnBoard",
+        calculator: "projectFuelAlongTrack",
         path: `${field}.LSMGO`,
       });
     }
+
+    // Where LSMGO drops below its margin and runs out on the current plan (the retuned world).
+    for (const field of ["belowMarginAtNm", "runsDryAtNm"] as const) {
+      const f = byId(result.facts, `_${calc.id}_${field}.LSMGO`);
+      expect(f.value).toBe(fob[field].LSMGO);
+      expect(f.unit).toBe("nm");
+    }
+    expect(result.data).toMatchObject({
+      gradesBelowMargin: ["LSMGO"],
+      gradesRunningOut: ["LSMGO"],
+    });
 
     const imo = result.facts.find((f) => f.provenance.source === "db" && f.label.includes("IMO"));
     expect(imo?.value).toBe(DEMO_SCENARIO.vesselImo);

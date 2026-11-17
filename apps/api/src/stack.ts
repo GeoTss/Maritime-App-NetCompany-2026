@@ -62,6 +62,8 @@ export interface StackDeps {
 export function createStackApp(deps: StackDeps) {
   const { config, sql, llm, clock, log } = deps;
   const now = clock.now;
+  // The pinned demo reads the seeded port waits so its numbers stay fixed; live reads AIS.
+  const congestion = clock.pinned ? ("seed" as const) : ("latest" as const);
   const inbox: InboxDeps = {
     sql,
     extractor: createLlmExtractor(llm, config),
@@ -77,10 +79,10 @@ export function createStackApp(deps: StackDeps) {
     read: createDbSource(sql, now),
     inbox,
     review: inbox,
-    ask: { sql, llm, config, log, now },
+    ask: { sql, llm, config, log, now, congestion },
     approvals: { sql, erp: deps.erp ?? createErpClient(config.erpBaseUrl), log, now },
     llmCalls: { sql },
-    live: { sql, now },
+    live: { sql, now, congestion },
     clock,
     evalSummary: { path: deps.evalSummaryPath ?? DEFAULT_EVAL_SUMMARY_PATH },
   });

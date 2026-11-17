@@ -3,7 +3,8 @@
  * executor does the rest. The JSON body (`{}` or `{decidedBy}`, default "operator") names who
  * decided and nothing else: an order's values always come from the stored calculation and quote.
  *
- * Illegal moves (`TransitionError`) are 409. Only `application/json` is accepted (415 otherwise): a cross-site HTML form can send only
+ * Illegal moves (`TransitionError`) and refused decisions (`DecisionError`, e.g. `dependency_unmet`
+ * for an instruction whose bunker stop has no approved purchase order) are 409 with the reason. Only `application/json` is accepted (415 otherwise): a cross-site HTML form can send only
  * form-encoded, multipart or text/plain bodies, so it can never approve or reject.
  */
 import { DecisionBody, type DraftedMessageList } from "@pharos/shared";

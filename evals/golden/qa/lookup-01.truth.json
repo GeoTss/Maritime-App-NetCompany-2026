@@ -7,7 +7,7 @@
     "requiredFacts": [
       {
         "label": "LSMGO remaining on board (latest noon report)",
-        "value": 275,
+        "value": 203,
         "unit": "mt",
         "tolerance": 0
       }

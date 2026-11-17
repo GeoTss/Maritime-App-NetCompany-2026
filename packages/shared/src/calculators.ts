@@ -63,7 +63,11 @@ export const FobProjectionInput = z
 export type FobProjectionInput = z.infer<typeof FobProjectionInput>;
 
 /** ROB per grade; may go negative in a projection (a shortfall is reported, not clamped). */
-const SignedGradeAmounts = z.object({ LSMGO: z.number(), VLSFO: z.number(), HSFO: z.number() });
+export const SignedGradeAmounts = z.object({
+  LSMGO: z.number(),
+  VLSFO: z.number(),
+  HSFO: z.number(),
+});
 
 export const FobProjection = z.object({
   legs: z.array(

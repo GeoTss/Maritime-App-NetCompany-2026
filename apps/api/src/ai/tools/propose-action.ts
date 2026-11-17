@@ -5,9 +5,14 @@
  * one of that calculation's, and the expected saving is read from the calculation, never taken from
  * the model. Only the executor acts, after a human approves.
  *
- * - `purchase_order`: one feasible option of a `bunker_plan` (from `plan_bunkering`).
- * - `voyage_instruction`: one feasible route of a `route_speed` plan of a fleet vessel's voyage
- *   (from `plan_route_speed`); a plan for a ship seen on AIS is refused.
+ * - `purchase_order`: one feasible option of a `bunker_plan` (from `plan_bunkering`), or one
+ *   feasible bunker stop of a fleet vessel's `route_speed` plan (from `plan_route_speed`).
+ * - `voyage_instruction`: one feasible route (fuel included) or one feasible bunker stop plan of a
+ *   `route_speed` plan of a fleet vessel's voyage; a plan for a ship seen on AIS is refused.
+ *
+ * One call inserts at most one row. An instruction on a bunker stop never creates the purchase
+ * order it needs (a proposal nobody asked for); it reports the matching order, if any, through
+ * the one dependency rule in `approvals/dependency.ts`, and says when that order is not approved.
  */
 import {
   BunkerPlan,
@@ -17,17 +22,25 @@ import {
   RouteSpeedResult,
   type ToolResult,
 } from "@pharos/shared";
+import { orderDependencyOf } from "../../approvals/dependency.js";
 import { dbFact } from "../../facts/core.js";
 import { json, runTool, type ToolContext } from "./common.js";
 import { defineTool } from "./define.js";
 
 export const TOOL = "propose_action";
 
-/** What each proposal type needs: the calculation kind it is proposed from and the tool that makes it. */
-const SOURCE = {
-  purchase_order: { kind: "bunker_plan", tool: "plan_bunkering" },
-  voyage_instruction: { kind: "route_speed", tool: "plan_route_speed" },
-} as const;
+/** The tool that makes each calculation kind a proposal can come from. */
+const TOOL_OF = { bunker_plan: "plan_bunkering", route_speed: "plan_route_speed" } as const;
+type SourceKind = keyof typeof TOOL_OF;
+
+/** The calculation kinds each proposal type is proposed from. */
+const SOURCES: Record<ProposedAction["type"], readonly SourceKind[]> = {
+  purchase_order: ["bunker_plan", "route_speed"],
+  voyage_instruction: ["route_speed"],
+};
+
+const sourceList = (kinds: readonly SourceKind[]) =>
+  kinds.map((k) => `${k} (${TOOL_OF[k]})`).join(" or ");
 
 const NOTE = {
   purchase_order: "Pending human approval. Nothing has been ordered or sent.",
@@ -37,13 +50,25 @@ const NOTE = {
 
 const OWN_VESSELS_ONLY = "Pharos can only instruct the operator's own vessels.";
 
+/** Why a stop plan of a route calculation cannot be proposed, or null when it can. */
+function refuseStop(stop: RouteSpeedResult["stopPlans"][number]): string | null {
+  if (!stop.feasible) {
+    return `Bunker stop ${stop.optionId} is not feasible (${stop.reasons.join(", ")}); it cannot be proposed.`;
+  }
+  if (stop.quoteId === null) {
+    return `Bunker stop ${stop.optionId} is not a received quote; it cannot be proposed.`;
+  }
+  return null;
+}
+
 /** The option the proposal points at, checked against the stored calculation, and its saving. */
 function checkedOption(
   action: ProposedAction,
+  kind: SourceKind,
   outputs: unknown,
 ): { expectedSavingUsd: number | null } {
   const id = action.calculationId;
-  if (action.type === "purchase_order") {
+  if (kind === "bunker_plan") {
     const plan = BunkerPlan.parse(outputs);
     const option = plan.options.find((o) => o.optionId === action.optionId);
     if (!option) throw new Error(`Calculation ${id} has no option ${action.optionId}.`);
@@ -59,14 +84,37 @@ function checkedOption(
     };
   }
   const result = RouteSpeedResult.parse(outputs);
+  const stops = result.stopPlans.map((s) => s.optionId).join(", ") || "none";
+  const stop = result.stopPlans.find((s) => s.optionId === action.optionId);
+  if (action.type === "purchase_order") {
+    // A route plan's purchase order buys at one of its bunker stops, never on a route.
+    if (!stop) {
+      throw new Error(
+        `Calculation ${id} has no bunker stop ${action.optionId}; its bunker stops are ${stops}.`,
+      );
+    }
+    const why = refuseStop(stop);
+    if (why) throw new Error(why);
+    return { expectedSavingUsd: null };
+  }
+  if (stop) {
+    const why = refuseStop(stop);
+    if (why) throw new Error(why);
+    // A stop plan has no saving against the current plan (which runs short).
+    return { expectedSavingUsd: null };
+  }
   const option = result.options.find((o) => o.candidateId === action.optionId);
   if (!option) {
     const ids = result.options.map((o) => o.candidateId).join(", ");
-    throw new Error(`Calculation ${id} has no route ${action.optionId}; its routes are ${ids}.`);
-  }
-  if (!option.feasible) {
     throw new Error(
-      `Route ${action.optionId} is not feasible (${option.reasons.join(", ")}); it cannot be proposed.`,
+      `Calculation ${id} has no route ${action.optionId}; its routes are ${ids} and its bunker stops are ${stops}.`,
+    );
+  }
+  // Fuel included: a route that runs short of fuel (insufficient_fuel) is not feasible.
+  if (!option.feasible) {
+    const recommended = result.plan ? ` The recommended plan is ${result.plan.optionId}.` : "";
+    throw new Error(
+      `Route ${action.optionId} is not feasible (${option.reasons.join(", ")}); it cannot be proposed.${recommended}`,
     );
   }
   // The saving is the plan's (recommended route and speed vs the current plan); another route gets none.
@@ -79,7 +127,7 @@ function checkedOption(
 export async function proposeAction(ctx: ToolContext, input: unknown): Promise<ToolResult> {
   return runTool(ctx, TOOL, input, async () => {
     const action = ProposedAction.parse(input);
-    const source = SOURCE[action.type];
+    const sources = SOURCES[action.type];
     const unknown = action.factRefs.filter((id) => !ctx.ledger.has(id));
     if (unknown.length > 0) {
       throw new Error(
@@ -90,9 +138,10 @@ export async function proposeAction(ctx: ToolContext, input: unknown): Promise<T
     const [calc] = await ctx.sql<{ kind: string; outputs: unknown; voyage_id: number | null }[]>`
       select kind, outputs, voyage_id from calculations where id = ${action.calculationId}`;
     if (!calc) throw new Error(`Calculation ${action.calculationId} does not exist.`);
-    if (calc.kind !== source.kind) {
+    const kind = sources.find((k) => k === calc.kind);
+    if (!kind) {
       throw new Error(
-        `A ${action.type} is proposed from a ${source.kind} calculation (${source.tool}); ` +
+        `A ${action.type} is proposed from a ${sourceList(sources)} calculation; ` +
           `calculation ${action.calculationId} is a ${calc.kind}.`,
       );
     }
@@ -108,7 +157,7 @@ export async function proposeAction(ctx: ToolContext, input: unknown): Promise<T
     };
     if (![...ctx.ledger.keys()].some(ofCalculation)) {
       throw new Error(
-        `Calculation ${action.calculationId} was not computed in this conversation; call ${source.tool} first.`,
+        `Calculation ${action.calculationId} was not computed in this conversation; call ${TOOL_OF[kind]} first.`,
       );
     }
     // The proposal cites the calculation it proposes from, not another one's (or a db) fact.
@@ -119,7 +168,7 @@ export async function proposeAction(ctx: ToolContext, input: unknown): Promise<T
           "cite only facts of the plan you propose from.",
       );
     }
-    const { expectedSavingUsd } = checkedOption(action, calc.outputs);
+    const { expectedSavingUsd } = checkedOption(action, kind, calc.outputs);
 
     const [existing] = await ctx.sql<{ id: number }[]>`
       select id from recommendations
@@ -140,23 +189,45 @@ export async function proposeAction(ctx: ToolContext, input: unknown): Promise<T
     }
     if (!ctx.recommendationIds.includes(id)) ctx.recommendationIds.push(id);
 
-    return {
-      facts: [
-        dbFact(
-          TOOL,
-          { table: "recommendations", rowId: id, field: "id" },
-          "Pending recommendation id",
-          id,
-          null,
-        ),
-      ],
-      data: {
-        recommendationId: id,
-        status: "pending",
-        optionId: action.optionId,
-        note: NOTE[action.type],
-      },
+    const facts = [
+      dbFact(
+        TOOL,
+        { table: "recommendations", rowId: id, field: "id" },
+        "Pending recommendation id",
+        id,
+        null,
+      ),
+    ];
+    const data: Record<string, unknown> = {
+      recommendationId: id,
+      status: "pending",
+      optionId: action.optionId,
+      note: NOTE[action.type],
     };
+    if (action.type === "voyage_instruction") {
+      // A bunker stop's instruction waits for the purchase order for its quote (never made here).
+      const dependency = await orderDependencyOf(ctx.sql, {
+        type: action.type,
+        calculation_id: action.calculationId,
+        option_id: action.optionId,
+      });
+      data.dependsOnRecommendationId = dependency?.recommendationId ?? null;
+      if (dependency && !dependency.satisfied) {
+        data.note = `${NOTE.voyage_instruction} Needs an approved purchase order for ${dependency.optionLabel} before it can be approved.`;
+      }
+      if (dependency?.recommendationId != null) {
+        facts.push(
+          dbFact(
+            TOOL,
+            { table: "recommendations", rowId: dependency.recommendationId, field: "id" },
+            "Purchase order proposal the instruction depends on",
+            dependency.recommendationId,
+            null,
+          ),
+        );
+      }
+    }
+    return { facts, data };
   });
 }
 
@@ -172,8 +243,11 @@ export const proposeActionDef = defineTool({
     "compare, ask which route or speed is best, ask for a calculation or say not to order or " +
     "instruct yet. Never for a ship seen on AIS. Creates a pending recommendation only: nothing " +
     "is ordered, changed or sent. Takes the plan's calculationId and optionId (a bunker plan's " +
-    "optionId, or a route plan's route id), and factRefs that are facts of that same plan; " +
-    "quantities, prices, speeds and ETAs come from the stored plan, never from you.",
+    "optionId; for a route plan, the recommended plan's id: a route id, or a bunker stop id " +
+    "such as MTMLA-kestrel when the route needs a bunker stop), and factRefs that are facts of " +
+    "that same plan; quantities, prices, speeds and ETAs come from the stored plan, never from " +
+    "you. A voyage instruction with a bunker stop waits for an approved purchase order for that " +
+    "stop's quote; never propose that order unless the operator asks for it.",
   inputSchema: ProposeActionInput,
   run: proposeAction,
 });

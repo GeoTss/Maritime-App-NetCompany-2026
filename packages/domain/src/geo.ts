@@ -71,3 +71,30 @@ export function etaAfter(start: Date, distanceNm: number, speedKn: number): Date
   const ms = (distanceNm / speedKn) * 3_600_000;
   return new Date(start.getTime() + Math.round(ms));
 }
+
+/**
+ * The point of a polyline nearest to `p`: its distance along the polyline from the start and how far
+ * `p` is from it. Each segment is projected in a local plane (longitude scaled by cos(latitude)),
+ * which is accurate enough for the short off-track distances it is used for.
+ */
+export function nearestAlongNm(points: LatLon[], p: LatLon): { nm: number; offNm: number } {
+  let best = { nm: 0, offNm: Number.POSITIVE_INFINITY };
+  let walked = 0;
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1] as LatLon;
+    const b = points[i] as LatLon;
+    const len = greatCircleNm(a, b);
+    const k = Math.cos((((a.lat + b.lat) / 2) * Math.PI) / 180);
+    const dx = (b.lon - a.lon) * k;
+    const dy = b.lat - a.lat;
+    const sq = dx * dx + dy * dy;
+    const t =
+      sq > 0 ? Math.min(1, Math.max(0, ((p.lon - a.lon) * k * dx + (p.lat - a.lat) * dy) / sq)) : 0;
+    const q = { lat: a.lat + (b.lat - a.lat) * t, lon: a.lon + (b.lon - a.lon) * t };
+    const offNm = greatCircleNm(p, q);
+    if (offNm < best.offNm) best = { nm: walked + t * len, offNm };
+    walked += len;
+  }
+  if (points.length === 1) best = { nm: 0, offNm: greatCircleNm(p, points[0] as LatLon) };
+  return best;
+}

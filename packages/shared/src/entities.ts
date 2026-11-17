@@ -407,6 +407,12 @@ export const VoyageInstruction = z.object({
   speedKn: z.number().positive(),
   eta: Ts,
   points: z.array(LatLon).min(2),
+  /** The bunker stop the approved plan calls at; all null for a route with no stop. */
+  stopPortId: Id.nullable(),
+  stopQuoteId: Id.nullable(),
+  stopArriveAt: Ts.nullable(),
+  stopDepartAt: Ts.nullable(),
+  stopQtyMt: z.number().positive().nullable(),
   createdAt: Ts,
 });
 export type VoyageInstruction = z.infer<typeof VoyageInstruction>;

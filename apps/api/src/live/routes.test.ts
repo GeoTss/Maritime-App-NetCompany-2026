@@ -56,7 +56,15 @@ describe.skipIf(!sql)("live routes (Postgres)", () => {
     expect(res.status).toBe(200);
     const body = RoutePlanResponse.parse(await res.json());
     expect(body.candidates.length).toBeGreaterThan(0);
-    expect(body.result.options).toHaveLength(body.candidates.length);
+    // One option per route; the remaining candidates are the bunker stops' routes (by stop plan id).
+    const routes = new Set(body.result.options.map((o: { candidateId: string }) => o.candidateId));
+    const stops = new Set(body.result.stopPlans.map((p: { optionId: string }) => p.optionId));
+    for (const c of body.candidates as { id: string }[]) {
+      expect(routes.has(c.id) || stops.has(c.id), c.id).toBe(true);
+    }
+    expect(body.candidates.filter((c: { id: string }) => routes.has(c.id))).toHaveLength(
+      body.result.options.length,
+    );
     const [row] = await db<{ kind: string }[]>`
       select kind from calculations where id = ${body.calculationId}`;
     expect(row?.kind).toBe("route_speed");

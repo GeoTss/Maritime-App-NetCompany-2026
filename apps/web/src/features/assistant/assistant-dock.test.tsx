@@ -461,6 +461,7 @@ describe("AssistantDock", () => {
     order: null,
     instruction: null,
     bunkerPlan: null,
+    dependsOn: null,
   };
   const bunkerAnswer = (over: Record<string, unknown> = {}) => {
     gets["/api/bunker-plans/1"] = () => json(plan);

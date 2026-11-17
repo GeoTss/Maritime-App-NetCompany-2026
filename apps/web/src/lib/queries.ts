@@ -30,6 +30,7 @@ export const queryKeys = {
   vessel: (id: number) => ["vessels", id] as const,
   voyage: (id: number) => ["voyages", id] as const,
   ports: ["ports"] as const,
+  quotes: ["quotes"] as const,
   traffic: ["traffic"] as const,
   hazards: ["hazards"] as const,
   congestion: ["congestion"] as const,

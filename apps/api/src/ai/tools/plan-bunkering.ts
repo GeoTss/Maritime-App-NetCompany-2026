@@ -7,35 +7,28 @@
  * its facts (and any proposal) point at.
  */
 import {
-  type BunkerOffer,
   buildBunkerPlanInput,
   currentVoyage,
   loadWorld,
+  offersFromQuotes,
   openRequirements,
-  optionIdFor,
+  validQuotes,
   type World,
 } from "@pharos/db";
 import { planBunkers } from "@pharos/domain";
+import { latestWeatherSnapshot } from "@pharos/integrations";
 import {
   type BunkerRequirement,
   type Fact,
   PlanBunkeringInput,
   type Quote,
-  type QuoteLine,
   type ToolResult,
   type Vessel,
   type Voyage,
 } from "@pharos/shared";
 import { bunkerPlanFacts, BUNKER_TOOL as TOOL } from "../../facts/bunker.js";
 import { dbFact } from "../../facts/core.js";
-import {
-  addSubject,
-  findVessel,
-  insertCalculation,
-  quoteExpiry,
-  runTool,
-  type ToolContext,
-} from "./common.js";
+import { addSubject, findVessel, insertCalculation, runTool, type ToolContext } from "./common.js";
 import { defineTool } from "./define.js";
 
 type PlanOutcome =
@@ -66,28 +59,7 @@ async function planRequirement(
   multi: boolean,
 ): Promise<PlanOutcome> {
   const grade = requirement.grade;
-  const latest = new Map<string, { quote: Quote; line: QuoteLine }>();
-  for (const quote of quotes) {
-    const line = world.quoteLines.find((l) => l.quoteId === quote.id && l.grade === grade);
-    if (line) latest.set(`${quote.supplierId}:${quote.portId}`, { quote, line });
-  }
-  const offers: BunkerOffer[] = [];
-  for (const { quote: q, line } of [...latest.values()].sort((a, b) => a.quote.id - b.quote.id)) {
-    const port = world.ports.find((p) => p.id === q.portId);
-    const supplier = world.suppliers.find((s) => s.id === q.supplierId);
-    if (!port || !supplier) continue;
-    const optionId = optionIdFor(port, supplier);
-    offers.push({
-      optionId: multi ? `${grade}-${optionId}` : optionId,
-      quoteId: q.id,
-      supplierId: supplier.id,
-      portId: port.id,
-      currency: q.currency,
-      pricePerMt: line.pricePerMt,
-      bargeFee: q.bargeFee,
-      qtyMt: line.qtyMt,
-    });
-  }
+  const offers = offersFromQuotes(world, quotes, grade, multi);
   if (offers.length === 0) {
     return {
       facts: [],
@@ -98,7 +70,12 @@ async function planRequirement(
     };
   }
 
-  const planInput = buildBunkerPlanInput(world, voyage.id, offers, grade);
+  // Fuel on board at each port from the one fuel calculation, on the latest weather snapshot.
+  const snapshot = await latestWeatherSnapshot(ctx.sql);
+  const planInput = buildBunkerPlanInput(world, voyage.id, offers, grade, {
+    weather: snapshot?.grid ?? null,
+    congestion: ctx.congestion,
+  });
   const plan = planBunkers(planInput);
   const calculationId = await insertCalculation(ctx, {
     kind: "bunker_plan",
@@ -158,17 +135,7 @@ async function planVessel(ctx: ToolContext, world: World, vessel: Vessel): Promi
 
   // Received, still-valid quotes for the voyage's open requirements, oldest first. A quote
   // links one requirement but may offer other grades too, so every plan sees every quote.
-  const now = ctx.now();
-  const open = new Set(openRequirements(world, voyage.id).map((r) => r.id));
-  const quotes = world.quotes
-    .filter(
-      (q) =>
-        q.requirementId !== null &&
-        open.has(q.requirementId) &&
-        q.status === "received" &&
-        quoteExpiry(q, now) === null,
-    )
-    .sort((a, b) => a.receivedAt.getTime() - b.receivedAt.getTime() || a.id - b.id);
+  const quotes = validQuotes(world, voyage.id, ctx.now());
 
   const multi = requirements.length > 1;
   addSubject(ctx, { kind: "vessel", vesselId: vessel.id });

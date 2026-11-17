@@ -3,8 +3,9 @@
  * Rules (enforced by scripts/check-domain-purity.mjs): no network, no LLM SDK,
  * no process.env, no hidden clock (pass `now` in), no randomness.
  */
-export const DOMAIN_CODE_VERSION = "0.6.0";
+export const DOMAIN_CODE_VERSION = "0.7.0";
 export * from "./bunker-planner.js";
+export * from "./bunker-stop.js";
 export * from "./calculate.js";
 export * from "./congestion.js";
 export * from "./constants.js";
@@ -22,6 +23,9 @@ export * from "./normalise.js";
 export * from "./price-band.js";
 export * from "./route-graph.js";
 export * from "./route-optimiser.js";
+export * from "./stop-plan.js";
+export * from "./track.js";
+export * from "./track-fuel.js";
 export * from "./units.js";
 export * from "./voyage.js";
 export * from "./weather-effect.js";

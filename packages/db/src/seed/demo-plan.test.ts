@@ -68,6 +68,9 @@ describe("buildBunkerPlanInput", () => {
   });
 
   it("demo plan matches the output pinned in Phase 6 task 2 (load condition + FuelEU)", () => {
+    // Re-pinned for the joint route-and-bunker planner (seed joint-plan-v1, LSMGO 203 t): totals
+    // are unchanged; at the planned 12.5 kn Algeciras and Gibraltar are now reached below the
+    // LSMGO margin (unreachable_with_margin), so Marsaxlokk is the only feasible stop.
     // Re-pinned in the commit "Phase 6 task 2: db and seed …" (base 67cc481): the demo voyage now
     // sails laden (54 000 t cargo, load factor 0.9610) and every total carries the FuelEU
     // exposure. Values taken by running this code on seed 20261114 / anchor 2026-11-14T08:00:00Z.
@@ -75,15 +78,15 @@ describe("buildBunkerPlanInput", () => {
     // kept as the legacy test below: with no load, total − FuelEU is unchanged.
     const plan = planBunkers(buildDemoBunkerPlanInput(world));
     expect(createHash("sha256").update(JSON.stringify(plan)).digest("hex")).toBe(
-      "623742c462aec2510b149ee428c90c1bca69e678446009e9aac178bce5803f37",
+      "9925123c42b0d15acfc95c1ae4d2e371e350f092bdc23a52ff541b3605e0f822",
     );
     expect(plan.bestOptionId).toBe("MTMLA-kestrel");
     expect(plan.cheapestHeadlineOptionId).toBe("GIGIB-straitline");
     expect(plan.savingVsCheapestHeadlineUsd).toBeCloseTo(16138.452312674606, 6);
     expect(plan.options.map((o) => [o.optionId, o.rank, o.feasible, o.totalCostUsd])).toEqual([
       ["MTMLA-kestrel", 1, true, 233942.91134964247],
-      ["ESALG-nordwind", 2, true, 239253.2780543905],
-      ["GIGIB-straitline", 3, true, 250081.36366231708],
+      ["ESALG-nordwind", 2, false, 239253.2780543905],
+      ["GIGIB-straitline", 3, false, 250081.36366231708],
     ]);
   });
 

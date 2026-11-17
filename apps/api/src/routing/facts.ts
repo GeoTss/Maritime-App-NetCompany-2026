@@ -7,17 +7,26 @@
  * re-derives the same facts with it, so the ids the agent cited resolve there. A path starting
  * `inputs.` is a field of the stored calculation's inputs (cited as `db` on the calculation row);
  * every other path points into its outputs (the `RouteSpeedResult`) and resolves to exactly the
- * row's value. The Q&A reference reuses these rows.
+ * row's value. The Q&A reference reuses these rows. A fleet vessel's rows also cite where each
+ * route runs short of fuel, every bunker stop plan and the recommended plan; their labels say the
+ * best route ignores fuel on board. A ship seen on AIS has none of these, and its labels are as
+ * they were.
  */
 import type { RoutePlan } from "@pharos/db";
 import { type DraughtCondition, loadFactor } from "@pharos/domain";
-import type {
-  AisTraffic,
-  Fact,
-  Id,
-  NavHazard,
-  RouteSpeedInput,
-  RouteSpeedResult,
+import {
+  type AisTraffic,
+  type Fact,
+  FUEL_GRADES,
+  type FuelBreakpoint,
+  type FuelGrade,
+  type Id,
+  type NavHazard,
+  type RouteSpeedInput,
+  type RouteSpeedResult,
+  type StopPlanResult,
+  type StopTimeline,
+  type TrackFuel,
 } from "@pharos/shared";
 import { calcFact, dbFact, factId } from "../facts/core.js";
 import type { PlannedRoute } from "./plan.js";
@@ -121,6 +130,240 @@ const OPTION_FIELDS: {
   { key: "weatherDelayHours", text: () => "weather delay", unit: "h" },
 ];
 
+/**
+ * A stop plan's fields as facts, labelled `<subject>, <stop plan id>: <name>`. The stop plan id is
+ * the bunker option id (`MTMLA-kestrel`): the quote's port and supplier.
+ */
+type StopPlanKey = keyof Pick<
+  StopPlanResult,
+  | "speedKn"
+  | "eta"
+  | "hours"
+  | "qtyMt"
+  | "voyageCostUsd"
+  | "bunkerFuelCostUsd"
+  | "bargeFeeUsd"
+  | "totalCostUsd"
+>;
+type StopKey = keyof Omit<StopTimeline, "beyondForecast">;
+const STOP_PLAN_FIELDS: ({ text: (d: string) => string; unit: string | null } & (
+  | { key: StopPlanKey }
+  | { stopKey: StopKey }
+))[] = [
+  { key: "speedKn", text: () => "recommended speed", unit: "kn" },
+  { key: "eta", text: (d) => `ETA at ${d} (UTC)`, unit: null },
+  { key: "hours", text: (d) => `time to ${d}, stop included`, unit: "h" },
+  { stopKey: "arriveAt", text: () => "arrival at the bunker stop (UTC)", unit: null },
+  { stopKey: "waitingHours", text: () => "waiting at the bunker stop", unit: "h" },
+  { stopKey: "weatherDelayHours", text: () => "weather delay before bunkering", unit: "h" },
+  { stopKey: "bunkeringHours", text: () => "bunkering time", unit: "h" },
+  { stopKey: "departAt", text: () => "departure from the bunker stop (UTC)", unit: null },
+  { key: "qtyMt", text: () => "quantity bought", unit: "mt" },
+  {
+    key: "voyageCostUsd",
+    text: () => "voyage cost (fuel burned, EU ETS, FuelEU, vessel time)",
+    unit: "USD",
+  },
+  { key: "bunkerFuelCostUsd", text: () => "cost of the fuel bought", unit: "USD" },
+  { key: "bargeFeeUsd", text: () => "barge fee", unit: "USD" },
+  {
+    key: "totalCostUsd",
+    text: () => "plan total (voyage cost, fuel bought and barge fee)",
+    unit: "USD",
+  },
+];
+
+/** The fuel-on-board breakpoints a stop plan cites for the grade it buys. */
+const STOP_FUEL_POINTS: { kind: FuelBreakpoint["kind"]; text: (g: string, d: string) => string }[] =
+  [
+    { kind: "stop_arrival", text: (g) => `${g} on board at stop arrival` },
+    { kind: "stop_departure", text: (g) => `${g} on board after bunkering` },
+    { kind: "end", text: (g, d) => `${g} on board at ${d}` },
+  ];
+
+/** The index of a track's first breakpoint of `kind`, or -1. */
+const breakpointIndex = (fuel: TrackFuel, kind: FuelBreakpoint["kind"]) =>
+  fuel.breakpoints.findIndex((b) => b.kind === kind);
+
+/**
+ * The grade a stop plan buys, read from its stored result: the one grade whose fuel on board is
+ * higher on leaving the stop than on arriving (the stay only burns). Read from the result, not the
+ * optimiser input, so the stored-plan view (which keeps only part of the input) cites the same.
+ */
+function boughtGrade(fuel: TrackFuel): FuelGrade | null {
+  const arrive = fuel.breakpoints[breakpointIndex(fuel, "stop_arrival")];
+  const depart = fuel.breakpoints[breakpointIndex(fuel, "stop_departure")];
+  if (!arrive || !depart) return null;
+  return FUEL_GRADES.find((g) => depart.robMt[g] > arrive.robMt[g]) ?? null;
+}
+
+/**
+ * Where a no-stop option's fuel check fails, per grade that drops below its margin: where (distance
+ * along the route and time), by how much (the shortfall), the margin, what is left at the
+ * destination, and where it runs out if it does. A grade that keeps its margin yields no rows.
+ */
+function optionFuelRows(
+  fuel: TrackFuel,
+  prefix: string,
+  name: (text: string) => string,
+  D: string,
+): RouteFactRow[] {
+  const rows: RouteFactRow[] = [];
+  const end = breakpointIndex(fuel, "end");
+  for (const g of FUEL_GRADES) {
+    const check = fuel.grades[g];
+    if (!check.belowMarginAt) continue;
+    const p = `${prefix}.grades.${g}`;
+    rows.push(
+      {
+        path: `${p}.belowMarginAt.nm`,
+        label: name(`${g} drops below its safety margin, distance along the route`),
+        value: check.belowMarginAt.nm,
+        unit: "nm",
+      },
+      {
+        path: `${p}.belowMarginAt.at`,
+        label: name(`${g} drops below its safety margin at (UTC)`),
+        value: check.belowMarginAt.at,
+        unit: null,
+      },
+    );
+    if (check.runsDryAt) {
+      rows.push(
+        {
+          path: `${p}.runsDryAt.nm`,
+          label: name(`${g} runs out, distance along the route`),
+          value: check.runsDryAt.nm,
+          unit: "nm",
+        },
+        {
+          path: `${p}.runsDryAt.at`,
+          label: name(`${g} runs out at (UTC)`),
+          value: check.runsDryAt.at,
+          unit: null,
+        },
+      );
+    }
+    rows.push(
+      {
+        path: `${p}.shortfallMt`,
+        label: name(`${g} shortfall to keep the margin`),
+        value: check.shortfallMt,
+        unit: "mt",
+      },
+      {
+        path: `${p}.marginMt`,
+        label: name(`${g} safety margin`),
+        value: check.marginMt,
+        unit: "mt",
+      },
+    );
+    const atEnd = fuel.breakpoints[end];
+    if (atEnd) {
+      rows.push({
+        path: `${prefix}.breakpoints[${end}].robMt.${g}`,
+        label: name(`${g} on board at ${D}`),
+        value: atEnd.robMt[g],
+        unit: "mt",
+      });
+    }
+  }
+  return rows;
+}
+
+/**
+ * The recommended plan (route, or route with a bunker stop) and what it adds against the best
+ * route ignoring fuel on board, the next feasible plan, then every stop plan: its route, stop
+ * timeline, costs, and the bought grade on board at the stop and at the destination. A fleet
+ * vessel only: an AIS ship has no fuel check, stop plans or recommended plan.
+ */
+function planRows(result: RouteSpeedResult, S: string, D: string): RouteFactRow[] {
+  const rows: RouteFactRow[] = [];
+  const rec = result.plan;
+  if (rec) {
+    rows.push(
+      { path: "plan.optionId", label: `${S}: recommended plan`, value: rec.optionId, unit: null },
+      {
+        path: "plan.addedHours",
+        label: `${S}: recommended plan adds (hours)`,
+        value: rec.addedHours,
+        unit: "h",
+      },
+      {
+        path: "plan.addedUsd",
+        label: `${S}: recommended plan adds (USD, excluding the fuel bought)`,
+        value: rec.addedUsd,
+        unit: "USD",
+      },
+    );
+    if (rec.next) {
+      rows.push(
+        {
+          path: "plan.next.optionId",
+          label: `${S}: next feasible plan`,
+          value: rec.next.optionId,
+          unit: null,
+        },
+        {
+          path: "plan.next.marginUsd",
+          label: `${S}: margin of the recommended plan over the next feasible plan, in plan total`,
+          value: rec.next.marginUsd,
+          unit: "USD",
+        },
+      );
+    }
+  }
+  result.stopPlans.forEach((sp, i) => {
+    const P = `${S}, ${sp.optionId}`;
+    const p = `stopPlans[${i}]`;
+    rows.push({ path: `${p}.feasible`, label: `${P}: feasible`, value: sp.feasible, unit: null });
+    sp.reasons.forEach((reason, k) => {
+      rows.push({
+        path: `${p}.reasons[${k}]`,
+        label: `${P}: reason it is not feasible`,
+        value: reason,
+        unit: null,
+      });
+    });
+    // No sea route through the port: nothing was evaluated, so nothing else is cited.
+    const stop = sp.stop;
+    if (!stop) return;
+    for (const f of STOP_PLAN_FIELDS) {
+      const [field, value] =
+        "key" in f ? [f.key, sp[f.key]] : [`stop.${f.stopKey}`, stop[f.stopKey]];
+      rows.push({ path: `${p}.${field}`, label: `${P}: ${f.text(D)}`, value, unit: f.unit });
+    }
+    if (stop.beyondForecast) {
+      rows.push({
+        path: `${p}.stop.beyondForecast`,
+        label: `${P}: bunkering weather beyond the forecast (counted as workable)`,
+        value: true,
+        unit: null,
+      });
+    }
+    const grade = sp.fuel ? boughtGrade(sp.fuel) : null;
+    if (!sp.fuel || !grade) return;
+    for (const point of STOP_FUEL_POINTS) {
+      const k = breakpointIndex(sp.fuel, point.kind);
+      const at = sp.fuel.breakpoints[k];
+      if (!at) continue;
+      rows.push({
+        path: `${p}.fuel.breakpoints[${k}].robMt.${grade}`,
+        label: `${P}: ${point.text(grade, D)}`,
+        value: at.robMt[grade],
+        unit: "mt",
+      });
+    }
+    rows.push({
+      path: `${p}.fuel.grades.${grade}.marginMt`,
+      label: `${P}: ${grade} safety margin`,
+      value: sp.fuel.grades[grade].marginMt,
+      unit: "mt",
+    });
+  });
+  return rows;
+}
+
 export function routeSpeedFactRows(
   plan: RouteFactPlan,
   result: RouteSpeedResult,
@@ -168,6 +411,9 @@ export function routeSpeedFactRows(
       value: o.crossesHazard,
       unit: null,
     });
+    if (o.fuel) {
+      rows.push(...optionFuelRows(o.fuel, p("fuel"), (t) => routeOptionLabel(S, X, t), D));
+    }
   });
 
   const b = result.baseline;
@@ -196,22 +442,29 @@ export function routeSpeedFactRows(
     rows.push({ path: `baseline.${f.key}`, label, value: b[f.key], unit: f.unit });
   }
 
+  // A fleet vessel's best route ignores fuel on board (the recommended plan is cited below); a
+  // ship seen on AIS has no fuel check, and its labels stay as they were.
+  const ais = Boolean(extra.mmsi);
   rows.push(
     {
       path: "bestCandidateId",
-      label: `${S}: recommended route`,
+      label: ais ? `${S}: recommended route` : `${S}: best route ignoring fuel on board`,
       value: result.bestCandidateId,
       unit: null,
     },
     {
       path: "savingVsBaselineUsd",
-      label: `${S}: saving of the recommended route and speed against the current plan`,
+      label: ais
+        ? `${S}: saving of the recommended route and speed against the current plan`
+        : `${S}: saving of the best route and speed ignoring fuel, against the current plan`,
       value: result.savingVsBaselineUsd,
       unit: "USD",
     },
     {
       path: "fuelSavingVsBaselineMt",
-      label: `${S}: fuel saved against the current plan`,
+      label: ais
+        ? `${S}: fuel saved against the current plan`
+        : `${S}: fuel saved by the best route and speed ignoring fuel, against the current plan`,
       value: result.fuelSavingVsBaselineMt,
       unit: "mt",
     },
@@ -228,11 +481,14 @@ export function routeSpeedFactRows(
   if (best) {
     rows.push({
       path: `options[${result.options.indexOf(best)}].weatherCoveragePct`,
-      label: `${S}: share of the recommended route covered by the weather forecast`,
+      label: ais
+        ? `${S}: share of the recommended route covered by the weather forecast`
+        : `${S}: share of the best route ignoring fuel covered by the weather forecast`,
       value: best.weatherCoveragePct,
       unit: "%",
     });
   }
+  rows.push(...planRows(result, S, D));
   // The load the plan's curve carries: displacement and its load factor (fleet vessel: the
   // voyage's cargo and ballast; AIS ship: from its draught, or assumed laden).
   const curve = plan.input.curve;

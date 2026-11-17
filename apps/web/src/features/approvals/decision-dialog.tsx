@@ -44,6 +44,21 @@ function restate(rec: RecommendationView): { title: ReactNode; rows: ReactNode }
   if (!label) return fallback;
   if (rec.type === "purchase_order") {
     const f = orderFacts(rec);
+    if (f.kind === "stop_plan") {
+      // Bought at a route plan's bunker stop: the fuel and the barge fee, as the plan cites them.
+      if (!f.quantity) return fallback;
+      return {
+        title: `Order ${text(f.quantity)} from ${label}?`,
+        rows: (
+          <dl>
+            {f.fuelBought ? (
+              <Row label="Cost of the fuel bought" value={text(f.fuelBought)} />
+            ) : null}
+            {f.bargeFee ? <Row label="Barge fee" value={text(f.bargeFee)} /> : null}
+          </dl>
+        ),
+      };
+    }
     const option = proposedOption(rec);
     if (!f.quantity || !f.grade) return fallback;
     const price = rowFact(option, "effective price (total cost per mt)");
@@ -79,11 +94,14 @@ export function ProposalDecision({
   rec,
   pending,
   disabled,
+  approveBlocked = null,
   onDecide,
 }: {
   rec: RecommendationView;
   pending: Decision | null;
   disabled: boolean;
+  /** Approve is off: the id of the reason shown beside the controls. */
+  approveBlocked?: { reasonId: string } | null;
   onDecide: (decision: Decision) => Promise<unknown>;
 }) {
   const { type } = rec;
@@ -93,6 +111,8 @@ export function ProposalDecision({
     <DecisionButtons
       pending={pending}
       disabled={disabled}
+      approveDisabled={approveBlocked !== null}
+      approveDescribedBy={approveBlocked?.reasonId}
       approveConsequence={APPROVE_CONSEQUENCE[type]}
       rejectConsequence={REJECT_CONSEQUENCE}
       confirmApproveLabel={

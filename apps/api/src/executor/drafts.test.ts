@@ -92,4 +92,48 @@ describe("draftVoyageInstruction", () => {
     expect(draft.body).toContain("Pharos has not sent it");
     expect(draftVoyageInstruction(instruction)).toEqual(draft);
   });
+
+  it("names the bunker stop in the master's instruction", () => {
+    const withStop = draftVoyageInstruction({
+      ...instruction,
+      route: { candidateId: "MTMLA-kestrel", label: "Through Marsaxlokk for bunkers" },
+      stop: {
+        portName: "Marsaxlokk",
+        arriveAt: "2026-11-17T04:07:33.652Z",
+        departAt: "2026-11-17T14:07:33.652Z",
+        qtyMt: 300,
+        grade: "LSMGO",
+        supplierName: "Kestrel Marine Fuels",
+      },
+    });
+    expect(withStop.subject).toBe(
+      "Route and speed: MV Aegean Pioneer to Rotterdam, bunkering at Marsaxlokk",
+    );
+    expect(withStop.body).toContain("Through Marsaxlokk for bunkers (plan MTMLA-kestrel)");
+    expect(withStop.body).toContain(
+      "Call at Marsaxlokk for bunkers: arrive 2026-11-17 04:07 UTC, depart 2026-11-17 14:07 UTC, " +
+        "300 t LSMGO from Kestrel Marine Fuels.",
+    );
+    // A stop changes nothing else: no stop, no line.
+    expect(draftVoyageInstruction({ ...instruction, stop: null })).toEqual(draft);
+  });
+});
+
+describe("draftMessages for a route plan's stop", () => {
+  const [, master] = draftMessages({
+    ...input,
+    option: null,
+    stop: {
+      arriveAt: "2026-11-17T04:07:33.652Z",
+      departAt: "2026-11-17T14:07:33.652Z",
+      bunkerFuelCostUsd: 221_400,
+      bargeFeeUsd: 2_800,
+    },
+  });
+
+  it("gives the stop's times and costs instead of a bunker plan's delivered cost", () => {
+    expect(master?.body).toContain("arrive 2026-11-17 04:07 UTC, depart 2026-11-17 14:07 UTC");
+    expect(master?.body).toContain("Planned fuel cost: 221,400 USD; barge fee: 2,800 USD");
+    expect(master?.body).not.toContain("effective");
+  });
 });
