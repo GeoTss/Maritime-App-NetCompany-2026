@@ -2,7 +2,7 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { afterEach, describe, expect, it } from "vitest";
 import { makePlan } from "./map-fixtures";
-import { RouteComparison } from "./route-tray";
+import { RouteComparison, RouteTray } from "./route-tray";
 
 afterEach(cleanup);
 
@@ -65,5 +65,31 @@ describe("RouteComparison", () => {
     cleanup();
     renderComparison(makePlan({ omitFact: (f) => f.id === "f_plan_displacement" }));
     expect(within(screen.getByTestId("plan-load")).getAllByText("—").length).toBeGreaterThan(0);
+  });
+});
+
+describe("RouteTray", () => {
+  it("runs non-modal: the rest of the page is not hidden from assistive tech", () => {
+    const host = document.createElement("div");
+    document.body.append(host);
+    render(
+      <MemoryRouter>
+        <header>Status</header>
+        <main id="screen" />
+        <aside aria-label="Assistant" />
+        <RouteTray
+          plan={makePlan()}
+          container={host}
+          snap={0.4}
+          onSnapChange={() => {}}
+          onClose={() => {}}
+        />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole("dialog", { hidden: true })).toBeTruthy();
+    for (const el of document.querySelectorAll("header, main, aside, body > div")) {
+      expect(el.getAttribute("aria-hidden"), el.outerHTML.slice(0, 120)).not.toBe("true");
+    }
+    host.remove();
   });
 });

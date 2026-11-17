@@ -33,6 +33,7 @@ export function Composer({ onAsk, busy }: { onAsk: (question: string) => void; b
     <form onSubmit={submit} className="flex items-end gap-2 border-t border-line p-2">
       <Textarea
         ref={field}
+        id="ask-the-assistant"
         aria-label="Ask the assistant"
         placeholder="Ask about a vessel, a quote, a route…"
         rows={1}

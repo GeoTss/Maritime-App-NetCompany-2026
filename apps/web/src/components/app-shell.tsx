@@ -3,7 +3,7 @@
  * and the assistant dock (resizable and collapsible from 768 px; a bottom drawer below that).
  */
 import { AiChat02Icon } from "@hugeicons/core-free-icons";
-import { type ReactNode, useCallback, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { usePanelRef } from "react-resizable-panels";
 import { Outlet } from "react-router";
 import { CommandMenu, CommandMenuProvider } from "@/components/command-menu";
@@ -29,6 +29,21 @@ export function AssistantDockPlaceholder() {
   );
 }
 
+/** The id of the assistant's question box: the skip link and the `/` key both land here. */
+export const ASK_BOX_ID = "ask-the-assistant";
+
+/** Focus the question box, waiting a few frames for it to mount (a drawer opening). */
+function focusAskBox(tries = 20) {
+  const box = document.getElementById(ASK_BOX_ID);
+  if (box) box.focus();
+  else if (tries > 0) requestAnimationFrame(() => focusAskBox(tries - 1));
+}
+
+function typingInField(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName);
+}
+
 export function AppShell({ dock }: { dock?: ReactNode }) {
   const wide = useMediaQuery("(min-width: 768px)", true);
   const dockPanel = usePanelRef();
@@ -47,15 +62,43 @@ export function AppShell({ dock }: { dock?: ReactNode }) {
     else panel.collapse();
   }, [wide, dockPanel]);
 
+  const openDock = useCallback(() => {
+    if (!wide) setDrawerOpen(true);
+    else if (dockPanel.current?.isCollapsed()) dockPanel.current.expand();
+    focusAskBox();
+  }, [wide, dockPanel]);
+
+  // `/` jumps to the question box unless the operator is already typing somewhere.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "/" || e.metaKey || e.ctrlKey || e.altKey || e.defaultPrevented) return;
+      if (typingInField(e.target)) return;
+      e.preventDefault();
+      openDock();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [openDock]);
+
   return (
     <CommandMenuProvider>
+      <a
+        href={`#${ASK_BOX_ID}`}
+        onClick={(e) => {
+          e.preventDefault();
+          openDock();
+        }}
+        className="sr-only focus-visible:not-sr-only focus-visible:fixed focus-visible:top-2 focus-visible:left-2 focus-visible:z-[100] focus-visible:border focus-visible:border-line-strong focus-visible:bg-ink-900 focus-visible:px-3 focus-visible:py-1.5 focus-visible:text-xs focus-visible:text-text-1"
+      >
+        Skip to the assistant
+      </a>
       <div className="grid h-dvh grid-cols-[minmax(0,1fr)] grid-rows-[auto_1fr] overflow-hidden bg-ink-950 text-text-1">
         <TopBar dockOpen={wide ? dockOpen : drawerOpen} onToggleDock={toggleDock} />
         <div className="flex min-h-0">
           {wide ? (
             <ResizablePanelGroup orientation="horizontal" className="min-w-0 flex-1">
               <ResizablePanel id="canvas" minSize="40%">
-                <main id="screen" className="h-full min-w-0 overflow-auto">
+                <main id="screen" className="relative h-full min-w-0 overflow-auto">
                   <Outlet />
                 </main>
               </ResizablePanel>
@@ -70,13 +113,13 @@ export function AppShell({ dock }: { dock?: ReactNode }) {
                 collapsedSize={0}
                 onResize={(size) => setDockOpen(size.inPixels > 0)}
               >
-                <aside aria-label="Assistant" className="h-full min-w-0 overflow-hidden bg-ink-900">
+                <aside aria-label="Assistant" className="relative h-full min-w-0 overflow-hidden bg-ink-900">
                   {dockContent}
                 </aside>
               </ResizablePanel>
             </ResizablePanelGroup>
           ) : (
-            <main id="screen" className="h-full min-w-0 flex-1 overflow-auto">
+            <main id="screen" className="relative h-full min-w-0 flex-1 overflow-auto">
               <Outlet />
             </main>
           )}

@@ -7,6 +7,7 @@
 import { Cancel01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { Fact, RoutePlanView } from "@pharos/shared";
+import { useEffect } from "react";
 import { FactChip } from "@/components/fact-chip";
 import { Button } from "@/components/ui/button";
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/drawer";
@@ -225,6 +226,23 @@ export function RouteComparison({ plan }: { plan: RoutePlanView }) {
 /** Closed (0) to open: fractions of the map canvas. */
 export const TRAY_SNAPS = [0.12, 0.4, 0.88] as const;
 
+/**
+ * vaul does not hand `modal={false}` to the Radix dialog under it, so the dialog still marks every
+ * other part of the page `aria-hidden`. The tray leaves the map, panels and dock usable, so they
+ * must stay in the accessibility tree: undo the marking once the dialog has mounted.
+ */
+function unhideRestOfPage() {
+  const unhide = () => {
+    for (const el of document.querySelectorAll("[data-aria-hidden]")) {
+      el.removeAttribute("aria-hidden");
+      el.removeAttribute("data-aria-hidden");
+    }
+  };
+  unhide();
+  const frame = requestAnimationFrame(unhide);
+  return () => cancelAnimationFrame(frame);
+}
+
 export function RouteTray({
   plan,
   container,
@@ -238,6 +256,7 @@ export function RouteTray({
   onSnapChange: (snap: number | string | null) => void;
   onClose: () => void;
 }) {
+  useEffect(unhideRestOfPage, []);
   return (
     <Drawer
       open

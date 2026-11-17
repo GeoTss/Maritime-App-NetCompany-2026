@@ -111,6 +111,31 @@ describe("app shell", () => {
     await waitFor(() => expect(router.state.location.pathname).toBe("/approvals"));
   });
 
+  it("the skip link is the first focusable element and lands in the question box", async () => {
+    renderAt("/dev/kit");
+    const skip = await screen.findByRole("link", { name: "Skip to the assistant" });
+    const focusable = document.querySelectorAll<HTMLElement>("a[href], button, input, textarea");
+    expect(focusable[0]).toBe(skip);
+    fireEvent.click(skip);
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByLabelText("Ask the assistant")),
+    );
+  });
+
+  it("/ focuses the question box, but not while typing in a field", async () => {
+    renderAt("/dev/kit");
+    const box = await screen.findByLabelText("Ask the assistant");
+    fireEvent.keyDown(document.body, { key: "/" });
+    await waitFor(() => expect(document.activeElement).toBe(box));
+    (document.activeElement as HTMLElement).blur();
+    const other = document.createElement("input");
+    document.body.append(other);
+    other.focus();
+    fireEvent.keyDown(other, { key: "/" });
+    expect(document.activeElement).toBe(other);
+    other.remove();
+  });
+
   it("loading the shell sends no POST", async () => {
     renderAt("/dev/kit");
     await screen.findByRole("heading", { name: "Design kit" });
