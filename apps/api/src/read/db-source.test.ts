@@ -145,20 +145,26 @@ describe.skipIf(!sql)("createDbSource (Postgres)", () => {
     expect(detail).toEqual((await get(fixtures, `/api/vessels/${pioneer?.id}`)).body);
   });
 
-  it("projects fuel on board on the voyage's loaded curve; the alert agrees with get_vessel_status", async () => {
+  it("draws fuel on board along the current plan; the panel and the alert agree with get_vessel_status", async () => {
     const { items } = listOf(VesselSummary).parse((await get(app, "/api/vessels")).body);
     const pioneer = items.find((v) => v.name === "MV Aegean Pioneer");
     const detail = VesselDetail.parse((await get(app, `/api/vessels/${pioneer?.id}`)).body);
     const status = await getVesselStatus(createToolContext({ sql: db, now: () => NOW }), {
       vessel: "Aegean Pioneer",
     });
-    // The panel's per-leg chart (a follow-up moves it onto the track) is short of LSMGO too.
-    expect(detail.fobProjection?.shortfallMt.LSMGO).toBeGreaterThan(0);
     // The alert and the tool read the one fuel calculation: LSMGO runs out on the current plan.
     expect(pioneer?.alerts).toEqual(["lsmgo_runs_out"]);
     expect(status.data).toMatchObject({ gradesRunningOut: ["LSMGO"] });
-    const shortfall = status.facts.find((f) => f.label === "LSMGO shortfall to keep the margin");
-    expect(shortfall?.value).toBeGreaterThan(0);
+    // The panel draws that same calculation: its numbers are the tool's cited facts.
+    const cited = (label: string) => status.facts.find((f) => f.label === label)?.value;
+    const lsmgo = detail.fuelTrack?.grades.LSMGO;
+    expect(lsmgo?.shortfallMt).toBeGreaterThan(0);
+    expect(lsmgo?.shortfallMt).toBe(cited("LSMGO shortfall to keep the margin"));
+    expect(lsmgo?.marginMt).toBe(cited("LSMGO safety margin to keep on arrival"));
+    expect(lsmgo?.belowMarginAt?.nm).toBe(
+      cited("LSMGO drops below its safety margin, distance along the current plan"),
+    );
+    expect(lsmgo?.runsDryAt?.nm).toBe(cited("LSMGO runs out, distance along the current plan"));
   });
 
   it("returns the seeded voyages with their detail", async () => {

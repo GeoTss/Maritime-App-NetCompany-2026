@@ -34,7 +34,13 @@ import { AuditTrail } from "./audit-trail";
 import { ProposalDecision } from "./decision-dialog";
 import { approveHeld, DependencyLine } from "./dependency-line";
 import { DraftsList } from "./drafts-list";
-import { instructionFacts, OrderSummary, orderFacts, proposedOption } from "./order-summary";
+import {
+  instructionFacts,
+  isStopPlanOrder,
+  OrderSummary,
+  orderFacts,
+  proposedOption,
+} from "./order-summary";
 import { byHeadlinePrice, PriceVsTotalChart } from "./price-vs-total-chart";
 
 /** "+USD 18,250" / "-USD 300": the API's value with its sign made explicit. Display only. */
@@ -56,8 +62,12 @@ const DRAFTED_STATUSES = new Set<RecommendationView["status"]>([
   "executed",
 ]);
 
+/**
+ * The calculation a proposal comes from: an order bought at a route plan's bunker stop comes from
+ * that route plan, not a bunker plan.
+ */
 const planName = (rec: RecommendationView) =>
-  `${rec.type === "purchase_order" ? "bunker" : "route"} plan ${rec.calculationId}`;
+  `${rec.type === "purchase_order" && !isStopPlanOrder(rec) ? "bunker" : "route"} plan ${rec.calculationId}`;
 
 /** Every fact of a bunker plan view: each option's rows and the margin. */
 export function planFacts(plan: BunkerPlanView): Fact[] {
@@ -78,10 +88,11 @@ type Figure = { key: string; prefix?: string; fact: Fact };
 function rowFigures(rec: RecommendationView): Figure[] {
   let figures: { key: string; prefix?: string; fact: Fact | null }[];
   if (rec.type === "purchase_order") {
+    // A route-plan stop's order: the cost of the fuel bought, never the whole plan's total.
     const o = orderFacts(rec);
     figures = [
       { key: "qty", fact: o.quantity },
-      { key: "total", fact: o.totalCost },
+      { key: "total", fact: o.kind === "stop_plan" ? o.fuelBought : o.totalCost },
     ];
   } else {
     const v = instructionFacts(rec);

@@ -1,29 +1,23 @@
 /**
- * A fleet vessel: identity, fuel on board per grade, alerts, load (from a plan's facts), the
- * fuel-on-board projection and the Plan route button. The vessel detail carries `facts`: fuel on
- * board, voyage, next port and its ETA are fact chips (cited, never animated). While the detail
- * is pending each of those six values is a skeleton, so no uncited number shows first. Once
+ * A fleet vessel: identity, fuel on board per grade, alerts, load (from a plan's facts), its fuel
+ * on board along the current plan and the Plan route button. The vessel detail carries `facts`:
+ * fuel on board, voyage, next port and its ETA are fact chips (cited, never animated). While the
+ * detail is pending each of those six values is a skeleton, so no uncited number shows first. Once
  * loaded, fuel on board falls back to the plain fleet-record value under the "simulated data" tag
  * only when its fact is null; next port and its ETA read "—" when their facts are null (the
  * voyage view's own "next" rule differs, so it is not used); the UI derives nothing.
  */
-import type { FobProjection, RoutePlanView, VesselDetail, VesselSummary } from "@pharos/shared";
-import { CartesianGrid, Line, LineChart, ReferenceLine, XAxis, YAxis } from "recharts";
+import type { FuelGrade, RoutePlanView, TrackFuel, VesselSummary } from "@pharos/shared";
 import { ErrorState } from "@/components/error-state";
 import { StateFlag } from "@/components/primitives/state-flag";
 import { DataTag } from "@/components/source-badge";
 import { Button } from "@/components/ui/button";
-import {
-  type ChartConfig,
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/components/ui/chart";
+import type { ChartConfig } from "@/components/ui/chart";
 import { Skeleton } from "@/components/ui/skeleton";
 import { describeFailure } from "@/lib/api";
 import { formatNumber, formatUtc } from "@/lib/format";
-import { cn } from "@/lib/utils";
 import { FactCell } from "./fact-cell";
+import { type CurveSeries, type DrawnTrack, GradePlot, gradesBurned } from "./fuel-curve";
 import { useVesselDetail, useVoyage } from "./map-data";
 import { Field, PanelFrame, Section } from "./panel-frame";
 import { loadFacts } from "./route-facts";
@@ -41,101 +35,87 @@ export function alertText(flag: string): string {
   return ALERT_TEXT[flag] ?? flag.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
 }
 
-/**
- * Beacon is for what you can act on, so no series uses it. LSMGO, the grade the alert is about,
- * keeps the caution hue; VLSFO is slate; HSFO is hint text drawn dashed so it stays apart.
- */
-const chartConfig = {
-  LSMGO: { label: "LSMGO", color: "var(--chart-4)" },
-  VLSFO: { label: "VLSFO", color: "var(--plan)" },
-  HSFO: { label: "HSFO", color: "var(--text-3)" },
+/** The current plan is the baseline: slate, one solid line per grade. */
+const CURRENT_PLAN: CurveSeries = {
+  key: "current",
+  name: "Current plan",
+  stroke: "var(--plan)",
+  strokeWidth: 1.5,
+  isAnimationActive: false,
+};
+const currentPlanConfig = {
+  current: { label: "Current plan", color: "var(--plan)" },
 } satisfies ChartConfig;
-const DASHED: Partial<Record<(typeof GRADES)[number], string>> = { HSFO: "4 3" };
 
-/** Fuel on board after each leg, as the projection returned it; no value is derived here. */
-function FobChart({
-  rob,
-  projection,
-  capacity,
-}: {
-  rob: VesselSummary["robMt"];
-  projection: FobProjection;
-  capacity: VesselDetail["tankCapacityMt"] | undefined;
-}) {
-  const data = [
-    { leg: "Now", ...rob },
-    ...projection.legs.map((l) => ({ leg: `Leg ${l.index + 1}`, ...l.robAfterMt })),
-  ];
-  const grades = GRADES.filter((g) => data.some((d) => d[g] !== 0));
-  const below = GRADES.filter((g) => projection.belowMarginAtLeg[g] !== null);
-  // Axis: zero and each shown grade's tank capacity, as the API returned it.
-  const caps = capacity ? grades.map((g) => capacity[g]).filter((c) => c > 0) : [];
-  const ticks = caps.length > 0 ? [...new Set([0, ...caps])].sort((a, b) => a - b) : undefined;
-  // The safety-margin line, from the projection's margin, for the grades drawn.
-  const margins = grades.filter((g) => projection.safetyMarginMt[g] > 0);
+/**
+ * Where a grade falls below its margin and runs out, as the calculation returned it: "LSMGO falls
+ * below its margin 1,483 nm along the current plan and runs out at 3,118 nm." Null when it keeps
+ * its margin.
+ */
+export function shortText(grade: FuelGrade, fuel: TrackFuel): string | null {
+  const { belowMarginAt: below, runsDryAt: dry } = fuel.grades[grade];
+  if (below) {
+    const out = dry ? ` and runs out at ${formatNumber(dry.nm, "nm")}` : "";
+    return `${grade} falls below its margin ${formatNumber(below.nm, "nm")} along the current plan${out}.`;
+  }
+  return dry ? `${grade} runs out ${formatNumber(dry.nm, "nm")} along the current plan.` : null;
+}
+
+/**
+ * Fuel on board along the rest of the current plan at the planned speed, one small chart per grade
+ * burned: the one fuel calculation the alert above reads, drawn straight between its breakpoints,
+ * with each grade's safety margin and the first point below it. Static: no animation, no tooltip.
+ */
+export function CurrentPlanFuel({ fuel }: { fuel: TrackFuel }) {
+  const tracks: DrawnTrack[] = [{ key: CURRENT_PLAN.key, fuel }];
+  const grades = gradesBurned(tracks);
+  const short = grades.flatMap((g) => shortText(g, fuel) ?? []);
+  const anyBelow = grades.some((g) => fuel.grades[g].belowMarginAt !== null);
   return (
-    <div className="flex flex-col gap-1.5" data-testid="fob-chart">
-      <ChartContainer config={chartConfig} className="aspect-auto h-32 w-full">
-        <LineChart data={data} margin={{ left: 0, right: 8, top: 4, bottom: 0 }}>
-          <CartesianGrid vertical={false} />
-          <XAxis dataKey="leg" tickLine={false} axisLine={false} fontSize={11} />
-          <YAxis
-            tickLine={false}
-            axisLine={false}
-            width={36}
-            fontSize={11}
-            ticks={ticks}
-            domain={ticks ? [0, ticks[ticks.length - 1] ?? 0] : undefined}
-          />
-          {margins.map((g) => (
-            <ReferenceLine
-              key={`margin-${g}`}
-              y={projection.safetyMarginMt[g]}
-              stroke={`var(--color-${g})`}
-              strokeDasharray="2 3"
-              strokeOpacity={0.7}
-              data-testid={`margin-line-${g}`}
+    <div className="flex flex-col gap-2" data-testid="current-plan-fuel">
+      {grades.map((g) => {
+        const { marginMt, belowMarginAt, runsDryAt } = fuel.grades[g];
+        return (
+          <figure key={g} className="flex min-w-0 flex-col gap-0.5" data-testid={`plan-fuel-${g}`}>
+            <figcaption className="text-2xs font-medium text-text-1">{g} on board, t</figcaption>
+            <GradePlot
+              grade={g}
+              tracks={tracks}
+              series={[CURRENT_PLAN]}
+              config={currentPlanConfig}
+              margin={marginMt}
+              below={belowMarginAt}
+              zeroLine={runsDryAt !== null}
+              className="h-24"
+              label={`${g} on board in tonnes over nautical miles from now, along the current plan${marginMt > 0 ? ", with the safety margin" : ""}${belowMarginAt ? ", where it first falls below it" : ""}${runsDryAt ? ", and the empty tank" : ""}.`}
             />
-          ))}
-          <ChartTooltip content={<ChartTooltipContent />} />
-          {grades.map((g) => (
-            <Line
-              key={g}
-              dataKey={g}
-              type="linear"
-              stroke={`var(--color-${g})`}
-              strokeWidth={1.5}
-              strokeDasharray={DASHED[g]}
-              dot={false}
-              isAnimationActive={false}
-            />
-          ))}
-        </LineChart>
-      </ChartContainer>
+          </figure>
+        );
+      })}
       <ul className="flex flex-wrap gap-x-3 gap-y-0.5 text-2xs text-text-2">
-        {grades.map((g) => (
-          <li key={g} className="flex items-center gap-1.5">
-            <span
-              aria-hidden
-              className={cn("inline-block w-3 border-t-2", DASHED[g] && "border-dashed")}
-              style={{ borderColor: `var(--color-${g})` }}
-            />
-            {g}
+        <li className="flex items-center gap-1.5">
+          <span aria-hidden className="inline-block w-3 border-t-2 border-plan" />
+          current plan, planned speed
+        </li>
+        <li className="flex items-center gap-1.5">
+          <span aria-hidden className="inline-block w-3 border-t border-dashed border-text-3" />
+          safety margin
+        </li>
+        {anyBelow ? (
+          <li className="flex items-center gap-1.5">
+            <span aria-hidden className="inline-block size-2 rounded-full bg-alarm" />
+            first below the margin
           </li>
-        ))}
-        <li className="text-text-3">Tonnes on board after each leg</li>
-        {margins.length > 0 ? <li className="text-text-3">Dotted line: safety margin</li> : null}
+        ) : null}
       </ul>
-      {below.length > 0 ? (
-        <p className="text-caution">
-          {below
-            .map(
-              (g) =>
-                `${g} drops below the safety margin at leg ${(projection.belowMarginAtLeg[g] ?? 0) + 1}`,
-            )
-            .join("; ")}
-          .
-        </p>
+      {short.length > 0 ? (
+        <ul className="flex flex-col gap-0.5 text-text-1" data-testid="plan-fuel-short">
+          {short.map((t) => (
+            <li key={t}>{t}</li>
+          ))}
+        </ul>
+      ) : fuel.keepsMargins ? (
+        <p className="text-text-2">Every grade keeps its safety margin to the destination.</p>
       ) : null}
     </div>
   );
@@ -307,21 +287,17 @@ export function VesselPanel({
         )}
       </Section>
 
-      <Section title="Fuel on board to destination">
+      <Section title="Fuel on board along the current plan">
         {detail.isPending ? (
           <Skeleton className="h-32 w-full" />
         ) : detail.isError ? (
           <ErrorState
             error={detail.error}
-            title="The projection could not be loaded"
+            title="The fuel on board along the plan could not be loaded"
             className="p-0"
           />
-        ) : detail.data.fobProjection ? (
-          <FobChart
-            rob={vessel.robMt}
-            projection={detail.data.fobProjection}
-            capacity={detail.data.tankCapacityMt}
-          />
+        ) : detail.data.fuelTrack ? (
+          <CurrentPlanFuel fuel={detail.data.fuelTrack} />
         ) : (
           <p className="text-text-2">This vessel has no voyage to project.</p>
         )}

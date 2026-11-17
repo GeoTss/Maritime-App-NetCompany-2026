@@ -244,6 +244,41 @@ const viRec = (id: number, over: Record<string, unknown> = {}) =>
     ...over,
   });
 
+/**
+ * A purchase order proposed from route plan 5's bunker stop (Kestrel at Marsaxlokk), as the API
+ * serves it: no bunker plan, and the stop plan's facts (with the recommended plan's).
+ */
+const stopOrderRec = (id: number, over: Record<string, unknown> = {}) => {
+  const P = "MV Aegean Pioneer, MTMLA-kestrel";
+  return rec(id, {
+    calculationId: 5,
+    optionLabel: "Kestrel Marine Fuels at Marsaxlokk",
+    summary: "Order LSMGO for the AP-2611 stem from Kestrel Marine Fuels at Marsaxlokk.",
+    factRefs: [],
+    facts: [
+      routeFact("stopPlans[0].speedKn", `${P}: recommended speed`, 11.5, "kn"),
+      routeFact("stopPlans[0].qtyMt", `${P}: quantity bought`, 300, "mt"),
+      routeFact(
+        "stopPlans[0].voyageCostUsd",
+        `${P}: voyage cost (fuel burned, EU ETS, FuelEU, vessel time)`,
+        418123.45,
+        "USD",
+      ),
+      routeFact("stopPlans[0].bunkerFuelCostUsd", `${P}: cost of the fuel bought`, 221400, "USD"),
+      routeFact("stopPlans[0].bargeFeeUsd", `${P}: barge fee`, 3000, "USD"),
+      routeFact(
+        "stopPlans[0].totalCostUsd",
+        `${P}: plan total (voyage cost, fuel bought and barge fee)`,
+        642523.45,
+        "USD",
+      ),
+      routeFact("plan.optionId", "MV Aegean Pioneer: recommended plan", "MTMLA-kestrel", null),
+    ],
+    bunkerPlan: null,
+    ...over,
+  });
+};
+
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
@@ -602,6 +637,59 @@ describe("ApprovalsPage: the decision", () => {
     const order = await screen.findByRole("region", { name: "The order" });
     expect(chipIds(order)).toEqual([]);
     expect(order.textContent).toMatch(/not stated/);
+  });
+
+  it("a route-plan order shows the fuel bought and the barge fee, never the plan total as delivered cost", async () => {
+    items = [stopOrderRec(4)];
+    renderPage();
+    const order = await screen.findByRole("region", { name: "The order" });
+    expect(
+      within(order)
+        .getAllByRole("term")
+        .map((t) => t.textContent),
+    ).toEqual([
+      "Quantity",
+      "Cost of the fuel bought",
+      "Barge fee",
+      "Plan total, voyage and fuel bought",
+    ]);
+    const readouts = within(order).getAllByRole("definition");
+    expect(readouts.map((d) => chipIds(d))).toEqual([
+      ["f_plan_route_speed_5_stopPlans.0.qtyMt"],
+      ["f_plan_route_speed_5_stopPlans.0.bunkerFuelCostUsd"],
+      ["f_plan_route_speed_5_stopPlans.0.bargeFeeUsd"],
+      ["f_plan_route_speed_5_stopPlans.0.totalCostUsd"],
+    ]);
+    expect(readouts.map((d) => d.querySelector("[data-slot=fact-chip]")?.textContent)).toEqual([
+      "300.0 mt",
+      "USD 221,400.00",
+      "USD 3,000.00",
+      "USD 642,523.45",
+    ]);
+    // The plan total is named for what it is: the voyage and the fuel bought, never delivered cost.
+    expect(order.textContent).not.toMatch(/delivered/i);
+    expect(order.textContent).toMatch(/Plan total counts the voyage/);
+    // The queue row: the quantity and the cost of the fuel bought, not the plan total; it comes
+    // from the route plan, not a bunker plan.
+    const [row] = within(queue()).getAllByRole("listitem");
+    expect(chipIds(row as HTMLElement)).toEqual([
+      "f_plan_route_speed_5_stopPlans.0.qtyMt",
+      "f_plan_route_speed_5_stopPlans.0.bunkerFuelCostUsd",
+    ]);
+    expect(row?.textContent).toContain("route plan 5");
+    expect(row?.textContent).not.toContain("bunker plan");
+    // The confirmation restates the order with the fuel and the barge fee; nothing is posted.
+    const bar = screen.getByRole("region", { name: "If you approve" });
+    fireEvent.click(within(bar).getByRole("button", { name: /^Approve purchase order/ }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(within(dialog).getByRole("heading").textContent).toBe(
+      "Order 300.0 mt from Kestrel Marine Fuels at Marsaxlokk?",
+    );
+    expect(dialog.textContent).toContain("Cost of the fuel bought");
+    expect(dialog.textContent).toContain("USD 221,400.00");
+    expect(dialog.textContent).toContain("Barge fee");
+    expect(dialog.textContent).not.toMatch(/delivered|642,523/i);
+    expect(posts()).toEqual([]);
   });
 
   it("draws headline price against total cost for every option", async () => {

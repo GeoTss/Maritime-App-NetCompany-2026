@@ -7,8 +7,9 @@
  * Drawn from the breakpoints the plan returned (start, grade changes, stop arrival and departure,
  * destination), straight between them. A static chart: never animated, no tooltip; the only
  * numbers on it are axis ticks. The margin printed under each chart is the plan's cited fact.
+ * `GradePlot`, the drawing of one grade, is shared with the vessel panel's current-plan chart.
  */
-import type { FuelGrade, RoutePlanView, TrackFuel } from "@pharos/shared";
+import type { FuelGrade, GradeFuelCheck, RoutePlanView, TrackFuel } from "@pharos/shared";
 import {
   CartesianGrid,
   Line,
@@ -37,7 +38,7 @@ type SeriesKey = "plan" | "best";
 
 /** One line of a grade's chart: drawing data only, never printed. */
 export interface CurveSeries {
-  key: SeriesKey;
+  key: string;
   name: string;
   stroke: string;
   strokeWidth: number;
@@ -73,8 +74,14 @@ export function curveTracks(plan: RoutePlanView): Track[] {
   return tracks;
 }
 
+/** A track as a grade's chart draws it: the key of its series, and its fuel on board. */
+export interface DrawnTrack {
+  key: string;
+  fuel: TrackFuel;
+}
+
 /** The grades any drawn track burns, in grade order. */
-export const gradesBurned = (tracks: readonly Track[]): FuelGrade[] =>
+export const gradesBurned = (tracks: readonly DrawnTrack[]): FuelGrade[] =>
   GRADES.filter((g) => tracks.some((t) => t.fuel.grades[g].neededMt > 0));
 
 /** How each track is drawn: one meaning per colour (beacon recommended, alarm runs short). */
@@ -104,7 +111,7 @@ export function curveSeries(tracks: readonly Track[]): CurveSeries[] {
  * reads its rows in order and steps over the other track's (a stop's arrival and departure share a
  * distance, so the jump draws as a vertical step).
  */
-function rows(tracks: readonly Track[], grade: FuelGrade) {
+function rows(tracks: readonly DrawnTrack[], grade: FuelGrade) {
   return tracks.flatMap((t) =>
     t.fuel.breakpoints.map((b) => ({ nm: b.nm, [t.key]: b.robMt[grade] })),
   );
@@ -116,6 +123,97 @@ const config = {
 } satisfies ChartConfig;
 
 const tick = (v: number) => formatDigits(v, "nm");
+
+/**
+ * One grade's fuel on board over the distance from now: each series straight through its track's
+ * breakpoints, the safety margin (`margin` > 0) as a dashed reference line, `below`, the first
+ * point under the margin, as an alarm dot, and with `zeroLine` the empty-tank line. Drawing only:
+ * never animated, no tooltip; the only numbers on it are axis ticks.
+ */
+export function GradePlot({
+  grade,
+  tracks,
+  series,
+  config: chartConfig,
+  margin,
+  below,
+  label,
+  zeroLine = false,
+  className,
+}: {
+  grade: FuelGrade;
+  tracks: readonly DrawnTrack[];
+  series: readonly CurveSeries[];
+  config: ChartConfig;
+  margin: number;
+  below: GradeFuelCheck["belowMarginAt"];
+  /** What the drawing shows, in words, for assistive technology. */
+  label: string;
+  /** Draws the empty tank (0 t) as a solid line, for a track that runs dry. */
+  zeroLine?: boolean;
+  className?: string;
+}) {
+  return (
+    <div role="img" aria-label={label}>
+      <ChartContainer config={chartConfig} className={cn("aspect-auto h-32 w-full", className)}>
+        <LineChart data={rows(tracks, grade)} margin={{ left: 0, right: 10, top: 6, bottom: 0 }}>
+          <CartesianGrid vertical={false} />
+          <XAxis
+            type="number"
+            dataKey="nm"
+            domain={[0, "dataMax"]}
+            tickLine={false}
+            axisLine={false}
+            fontSize={11}
+            tickFormatter={tick}
+          />
+          <YAxis
+            type="number"
+            tickLine={false}
+            axisLine={false}
+            width={36}
+            fontSize={11}
+            tickFormatter={tick}
+          />
+          {zeroLine ? <ReferenceLine y={0} stroke="var(--line-strong)" /> : null}
+          {margin > 0 ? (
+            <ReferenceLine
+              y={margin}
+              stroke="var(--text-3)"
+              strokeDasharray="4 3"
+              data-testid={`margin-line-${grade}`}
+            />
+          ) : null}
+          {series.map((s) => (
+            <Line
+              key={s.key}
+              dataKey={s.key}
+              name={s.name}
+              type="linear"
+              stroke={s.stroke}
+              strokeWidth={s.strokeWidth}
+              strokeDasharray={s.strokeDasharray}
+              dot={false}
+              activeDot={false}
+              connectNulls
+              isAnimationActive={s.isAnimationActive}
+            />
+          ))}
+          {below ? (
+            <ReferenceDot
+              x={below.nm}
+              y={below.robMt}
+              r={3.5}
+              fill="var(--alarm)"
+              stroke="var(--ink-950)"
+              data-testid={`below-margin-${grade}`}
+            />
+          ) : null}
+        </LineChart>
+      </ChartContainer>
+    </div>
+  );
+}
 
 function GradeChart({
   plan,
@@ -147,66 +245,15 @@ function GradeChart({
           </span>
         ) : null}
       </figcaption>
-      <div
-        role="img"
-        aria-label={`${grade} on board in tonnes over nautical miles from now, along the ${drawn}${margin > 0 ? ", with the safety margin" : ""}${below ? ", and where the best route ignoring fuel first falls below it" : ""}.`}
-      >
-        <ChartContainer config={config} className="aspect-auto h-32 w-full">
-          <LineChart data={rows(tracks, grade)} margin={{ left: 0, right: 10, top: 6, bottom: 0 }}>
-            <CartesianGrid vertical={false} />
-            <XAxis
-              type="number"
-              dataKey="nm"
-              domain={[0, "dataMax"]}
-              tickLine={false}
-              axisLine={false}
-              fontSize={11}
-              tickFormatter={tick}
-            />
-            <YAxis
-              type="number"
-              tickLine={false}
-              axisLine={false}
-              width={36}
-              fontSize={11}
-              tickFormatter={tick}
-            />
-            {margin > 0 ? (
-              <ReferenceLine
-                y={margin}
-                stroke="var(--text-3)"
-                strokeDasharray="4 3"
-                data-testid={`margin-line-${grade}`}
-              />
-            ) : null}
-            {series.map((s) => (
-              <Line
-                key={s.key}
-                dataKey={s.key}
-                name={s.name}
-                type="linear"
-                stroke={s.stroke}
-                strokeWidth={s.strokeWidth}
-                strokeDasharray={s.strokeDasharray}
-                dot={false}
-                activeDot={false}
-                connectNulls
-                isAnimationActive={s.isAnimationActive}
-              />
-            ))}
-            {below ? (
-              <ReferenceDot
-                x={below.nm}
-                y={below.robMt}
-                r={3.5}
-                fill="var(--alarm)"
-                stroke="var(--ink-950)"
-                data-testid={`below-margin-${grade}`}
-              />
-            ) : null}
-          </LineChart>
-        </ChartContainer>
-      </div>
+      <GradePlot
+        grade={grade}
+        tracks={tracks}
+        series={series}
+        config={config}
+        margin={margin}
+        below={below}
+        label={`${grade} on board in tonnes over nautical miles from now, along the ${drawn}${margin > 0 ? ", with the safety margin" : ""}${below ? ", and where the best route ignoring fuel first falls below it" : ""}.`}
+      />
     </figure>
   );
 }

@@ -1,6 +1,6 @@
 /** HTTP response shapes the ops console builds against. Times are ISO strings on the wire. */
 import { z } from "zod";
-import { ConsumptionCurve, FobProjection } from "./calculators.js";
+import { ConsumptionCurve } from "./calculators.js";
 import {
   AisTraffic,
   AuditEvent,
@@ -30,7 +30,7 @@ import {
   LatLon,
   ShipType,
 } from "./primitives.js";
-import { RouteCandidate, RouteSpeedResult } from "./routing.js";
+import { RouteCandidate, RouteSpeedResult, TrackFuel } from "./routing.js";
 import { AgentToolName } from "./tools.js";
 
 export const ApiError = z.object({ error: z.string().min(1) });
@@ -72,7 +72,12 @@ export const VesselDetail = VesselSummary.extend({
   dwt: z.number().positive(),
   tankCapacityMt: GradeAmounts,
   consumptionCurve: ConsumptionCurve,
-  fobProjection: FobProjection.nullable(),
+  /**
+   * Fuel on board along the rest of the current plan at the planned speed: the one fuel
+   * calculation (`currentPlanFuel`) the vessel's alert and `get_vessel_status` read. Null when the
+   * vessel has no current voyage.
+   */
+  fuelTrack: TrackFuel.nullable(),
   facts: VesselFacts,
 });
 export type VesselDetail = z.infer<typeof VesselDetail>;

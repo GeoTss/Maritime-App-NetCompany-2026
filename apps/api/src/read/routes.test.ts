@@ -109,7 +109,10 @@ describe("fixture content", () => {
     const pioneer = items.find((v) => v.name === "MV Aegean Pioneer");
     expect(pioneer?.alerts).toContain("lsmgo_runs_out");
     const detail = VesselDetail.parse((await get(`/api/vessels/${pioneer?.id}`)).body);
-    expect(detail.fobProjection?.shortfallMt.LSMGO).toBeGreaterThan(0);
+    // The track the alert reads: LSMGO falls below its margin, then runs out.
+    const lsmgo = detail.fuelTrack?.grades.LSMGO;
+    expect(lsmgo?.shortfallMt).toBeGreaterThan(0);
+    expect(lsmgo?.runsDryAt?.nm).toBeGreaterThan(lsmgo?.belowMarginAt?.nm ?? Infinity);
   });
 
   it("recommends the plan's best option with saving from planBunkers and resolvable fact refs", async () => {

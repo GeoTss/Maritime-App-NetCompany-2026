@@ -32,7 +32,7 @@ export const VESSELS: VesselSummary[] = [
     positionAt: "2026-11-14T08:00:00.000Z",
     voyageId: 1,
     robMt: { LSMGO: 275, VLSFO: 620, HSFO: 0 },
-    alerts: ["lsmgo_below_margin_for_eca"],
+    alerts: ["lsmgo_runs_out"],
   },
   {
     id: 2,
@@ -60,28 +60,76 @@ export const VESSEL_DETAIL: VesselDetail = {
     minSpeedKn: 9,
     maxSpeedKn: 14.5,
   },
-  fobProjection: {
-    legs: [
+  // The current plan's fuel (the one calculation the alert reads): LSMGO is burned in the
+  // emission control areas, falls below its margin at 1,562 nm and runs out at 3,111 nm.
+  fuelTrack: {
+    breakpoints: [
       {
-        index: 0,
-        grade: "VLSFO",
-        hours: 40,
-        fuelMt: 50,
-        robAfterMt: { LSMGO: 275, VLSFO: 570, HSFO: 0 },
+        kind: "start",
+        nm: 0,
+        at: "2026-11-14T08:00:00.000Z",
+        position: { lat: 33.1386, lon: 27.0159 },
+        robMt: { LSMGO: 275, VLSFO: 620, HSFO: 0 },
       },
       {
-        index: 1,
-        grade: "LSMGO",
-        hours: 60,
-        fuelMt: 90,
-        robAfterMt: { LSMGO: 185, VLSFO: 570, HSFO: 0 },
+        kind: "grade_change",
+        nm: 1761.4,
+        at: "2026-11-20T12:56:03.074Z",
+        position: { lat: 35.8809, lon: -5.4103 },
+        robMt: { LSMGO: 28.4, VLSFO: 620, HSFO: 0 },
+      },
+      {
+        kind: "grade_change",
+        nm: 2807.9,
+        at: "2026-11-24T03:40:27.003Z",
+        position: { lat: 48.5096, lon: -4.9077 },
+        robMt: { LSMGO: 28.4, VLSFO: 518.3, HSFO: 0 },
+      },
+      {
+        kind: "end",
+        nm: 3274.3,
+        at: "2026-11-25T17:00:27.093Z",
+        position: { lat: 51.92, lon: 4.5 },
+        robMt: { LSMGO: -15.3, VLSFO: 518.3, HSFO: 0 },
       },
     ],
-    requiredMt: { LSMGO: 90, VLSFO: 50, HSFO: 0 },
-    safetyMarginMt: { LSMGO: 20, VLSFO: 20, HSFO: 0 },
-    minRobMt: { LSMGO: 185, VLSFO: 570, HSFO: 0 },
-    shortfallMt: { LSMGO: 0, VLSFO: 0, HSFO: 0 },
-    belowMarginAtLeg: { LSMGO: 1, VLSFO: null, HSFO: null },
+    grades: {
+      LSMGO: {
+        neededMt: 290.3,
+        marginMt: 56.26,
+        minRobMt: -15.3,
+        shortfallMt: 71.57,
+        belowMarginAt: {
+          nm: 1562.4,
+          at: "2026-11-19T13:13:54.619Z",
+          position: { lat: 36.4755, lon: -0.422 },
+          robMt: 56.26,
+        },
+        runsDryAt: {
+          nm: 3111.2,
+          at: "2026-11-25T04:29:36.323Z",
+          position: { lat: 51.1414, lon: 1.8476 },
+        },
+      },
+      VLSFO: {
+        neededMt: 101.7,
+        marginMt: 56.26,
+        minRobMt: 518.3,
+        shortfallMt: 0,
+        belowMarginAt: null,
+        runsDryAt: null,
+      },
+      HSFO: {
+        neededMt: 0,
+        marginMt: 0,
+        minRobMt: 0,
+        shortfallMt: 0,
+        belowMarginAt: null,
+        runsDryAt: null,
+      },
+    },
+    keepsMargins: false,
+    probes: [],
   },
 };
 
