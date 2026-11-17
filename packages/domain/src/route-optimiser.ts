@@ -5,7 +5,6 @@
  */
 import {
   FUEL_GRADES,
-  type FuelGrade,
   type GradeAmounts,
   type HazardZone,
   type LatLon,
@@ -15,54 +14,12 @@ import {
   type RouteSpeedResult,
 } from "@pharos/shared";
 import { dailyConsumptionMt } from "./consumption.js";
-import { gradeAt } from "./eca.js";
 import { co2Tonnes, etsCost } from "./emissions.js";
 import { fuelEuCost } from "./fueleu.js";
-import { bearingDeg, greatCircleNm } from "./geo.js";
 import { zonesContaining } from "./hazards.js";
-import { effectiveSpeedKn, sampleWeather } from "./weather-effect.js";
+import { type SubStep, subSteps, walkSteps } from "./track.js";
 
 const HOUR_MS = 3_600_000;
-
-interface SubStep {
-  mid: LatLon;
-  headingDeg: number;
-  nm: number;
-  grade: FuelGrade;
-}
-
-/** Linear in lat/lon between a and b (as `pointAlongPolyline` does within a segment). */
-const lerp = (a: LatLon, b: LatLon, t: number): LatLon => ({
-  lat: a.lat + (b.lat - a.lat) * t,
-  lon: a.lon + (b.lon - a.lon) * t,
-});
-
-/**
- * The polyline cut into sub-steps: each segment is split into equal pieces no longer than `stepNm`.
- * Zero-length segments (repeated points) are skipped. Speed-independent, so computed once per route.
- */
-function subSteps(points: LatLon[], stepNm: number): { steps: SubStep[]; distanceNm: number } {
-  const steps: SubStep[] = [];
-  let distanceNm = 0;
-  for (let i = 1; i < points.length; i++) {
-    const a = points[i - 1] as LatLon;
-    const b = points[i] as LatLon;
-    const len = greatCircleNm(a, b);
-    if (!(len > 0)) continue;
-    distanceNm += len;
-    const n = Math.max(1, Math.ceil(len / stepNm));
-    for (let j = 0; j < n; j++) {
-      const mid = lerp(a, b, (j + 0.5) / n);
-      steps.push({
-        mid,
-        headingDeg: bearingDeg(lerp(a, b, j / n), lerp(a, b, (j + 1) / n)),
-        nm: len / n,
-        grade: gradeAt(mid),
-      });
-    }
-  }
-  return { steps, distanceNm };
-}
 
 /** Ids of the zones any sub-step midpoint falls inside, sorted. The one rule for "passes through a hazard". */
 function hazardIdsOfSteps(steps: SubStep[], zones: HazardZone[]): string[] {
@@ -86,25 +43,18 @@ function evaluateSteps(
   const startMs = Date.parse(input.startAt);
   const daily = dailyConsumptionMt(input.curve, speedKn);
   const hoursIn: GradeAmounts = { LSMGO: 0, VLSFO: 0, HSFO: 0 };
-  let elapsed = 0;
   let delay = 0;
   let walkedNm = 0;
   let sampledNm = 0;
   let maxWaveHeightM = 0;
-  for (const step of route.steps) {
-    // Weather at the sub-step's midpoint, at the time the vessel starts the sub-step.
-    const sample = input.weather
-      ? sampleWeather(input.weather, step.mid, new Date(startMs + elapsed * HOUR_MS))
-      : null;
-    const sog = effectiveSpeedKn(speedKn, sample, step.headingDeg);
-    const h = step.nm / sog;
-    elapsed += h;
+  for (const step of walkSteps(route.steps, new Date(startMs), speedKn, input.weather)) {
+    const h = step.hours;
     delay += h - step.nm / speedKn;
     hoursIn[step.grade] += h;
     walkedNm += step.nm;
-    if (sample) {
+    if (step.waveHeightM !== null) {
       sampledNm += step.nm;
-      maxWaveHeightM = Math.max(maxWaveHeightM, sample.waveHeightM);
+      maxWaveHeightM = Math.max(maxWaveHeightM, step.waveHeightM);
     }
   }
 

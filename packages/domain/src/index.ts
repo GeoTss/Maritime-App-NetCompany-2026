@@ -22,6 +22,8 @@ export * from "./normalise.js";
 export * from "./price-band.js";
 export * from "./route-graph.js";
 export * from "./route-optimiser.js";
+export * from "./track.js";
+export * from "./track-fuel.js";
 export * from "./units.js";
 export * from "./voyage.js";
 export * from "./weather-effect.js";
