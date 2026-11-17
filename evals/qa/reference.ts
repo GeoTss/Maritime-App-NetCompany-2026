@@ -13,6 +13,7 @@
 import {
   type BunkerOffer,
   buildBunkerPlanInput,
+  currentPlanFuel,
   currentVoyage,
   fleetRoutePlan,
   fobProjectionInput,
@@ -525,7 +526,7 @@ export function resolveFact(world: World, ref: FactRef): QaRequiredFact {
     case "status": {
       const vessel = vesselOf(world, ref.vessel);
       const voyage = must(currentVoyage(world, vessel.id), `voyage of ${ref.vessel}`);
-      const { report, remainingLegs } = voyageState(world, voyage.id);
+      const { report } = voyageState(world, voyage.id);
       const f = ref.field;
       if (f === "nextPort") {
         const next = world.portCalls
@@ -540,17 +541,18 @@ export function resolveFact(world: World, ref: FactRef): QaRequiredFact {
       if ("rob" in f) {
         return fact(`${f.rob} remaining on board (latest noon report)`, report.robMt[f.rob], "mt");
       }
-      const fob = projectFuelOnBoard(fobProjectionInput(world, voyage.id, remainingLegs));
+      // get_vessel_status's projection: the current plan on the recorded weather (one fuel calculation).
+      const track = currentPlanFuel(world, voyage.id, qaLive(world).weather);
       if ("required" in f) {
         return fact(
           `${f.required} needed for the rest of the voyage`,
-          fob.requiredMt[f.required],
+          track.grades[f.required].neededMt,
           "mt",
         );
       }
       return fact(
         `${f.shortfall} shortfall to keep the margin`,
-        fob.shortfallMt[f.shortfall],
+        track.grades[f.shortfall].shortfallMt,
         "mt",
       );
     }

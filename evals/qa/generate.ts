@@ -10,6 +10,7 @@
  * questions). No clock, no network, no model.
  */
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -302,6 +303,20 @@ export function renderQaReviewP6(
   return `${lines.join("\n").trimEnd()}\n`;
 }
 
+function readFileOrNull(path: string): string | null {
+  try {
+    return readFileSync(path, "utf8");
+  } catch {
+    return null;
+  }
+}
+
+/** The committed held-out ids (empty before a split exists). */
+function frozenHeldout(): string[] {
+  const text = readFileOrNull(join(QA_GOLDEN_DIR, "split.json"));
+  return text ? ((JSON.parse(text) as { heldout?: string[] }).heldout ?? []) : [];
+}
+
 export function renderQaGolden(): { files: Map<string, string>; truths: QaTruth[] } {
   const world = qaWorld();
   const truths = QUESTIONS.map((q) => buildTruth(world, q));
@@ -310,6 +325,13 @@ export function renderQaGolden(): { files: Map<string, string>; truths: QaTruth[
   const phase5 = truths.filter((t) => PHASE5_CATEGORIES.includes(t.tags[0] ?? ""));
   const files = new Map<string, string>();
   for (const t of truths) files.set(`${t.id}.truth.json`, stableJson(t));
+  // The held-out split is closed (measured once, 16 Nov): its truth files keep their bytes even
+  // when the code behind a reference answer changes. New questions go to dev.
+  for (const id of frozenHeldout()) {
+    const name = `${id}.truth.json`;
+    const onDisk = readFileOrNull(join(QA_GOLDEN_DIR, name));
+    if (onDisk !== null && files.has(name)) files.set(name, onDisk);
+  }
   files.set("split.json", qaSplitJson(split));
   // Phase 4's sheet is rendered from its own 46 and their own split (same membership), so it keeps its text.
   files.set("REVIEW-QA.md", renderQaReview(phase4, computeQaSplit(phase4)));

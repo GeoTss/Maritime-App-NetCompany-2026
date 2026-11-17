@@ -110,6 +110,17 @@ describe("golden files", () => {
     expect(await diffQaGolden(files, QA_GOLDEN_DIR)).toEqual([]);
   });
 
+  it("leave every held-out truth byte-identical (the held-out split is closed)", async () => {
+    const split = JSON.parse(await readFile(join(QA_GOLDEN_DIR, "split.json"), "utf8")) as {
+      heldout: string[];
+    };
+    const { files } = renderQaGolden();
+    for (const id of split.heldout) {
+      const name = `${id}.truth.json`;
+      expect(files.get(name), name).toBe(await readFile(join(QA_GOLDEN_DIR, name), "utf8"));
+    }
+  });
+
   it("detect drift, a missing file and a stale file", async () => {
     const { files } = renderQaGolden();
     const changed = new Map(files).set("lookup-01.truth.json", "{}\n");
