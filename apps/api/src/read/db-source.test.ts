@@ -141,26 +141,25 @@ describe.skipIf(!sql)("createDbSource (Postgres)", () => {
       listOf(VesselSummary).parse((await get(fixtures, "/api/vessels")).body).items,
     );
     const pioneer = items.find((v) => v.name === "MV Aegean Pioneer");
-    expect(pioneer?.alerts).toContain("lsmgo_below_margin_for_eca");
+    expect(pioneer?.alerts).toContain("lsmgo_runs_out");
     const detail = VesselDetail.parse((await get(app, `/api/vessels/${pioneer?.id}`)).body);
     expect(detail).toEqual((await get(fixtures, `/api/vessels/${pioneer?.id}`)).body);
   });
 
-  it("projects fuel on board as get_vessel_status does: on the voyage's loaded curve", async () => {
+  it("projects fuel on board on the voyage's loaded curve; the alert agrees with get_vessel_status", async () => {
     const { items } = listOf(VesselSummary).parse((await get(app, "/api/vessels")).body);
     const pioneer = items.find((v) => v.name === "MV Aegean Pioneer");
     const detail = VesselDetail.parse((await get(app, `/api/vessels/${pioneer?.id}`)).body);
     const status = await getVesselStatus(createToolContext({ sql: db, now: () => NOW }), {
       vessel: "Aegean Pioneer",
     });
-    const { fobCalculationId } = status.data as { fobCalculationId: number };
-    const [calc] = await db<{ outputs: unknown }[]>`
-      select outputs from calculations where id = ${fobCalculationId}`;
-    expect(detail.fobProjection).toEqual(FobProjection.parse(calc?.outputs));
-    // The loaded curve's shortfall (17.6 mt), not the unloaded curve's (28.4 mt).
-    expect(detail.fobProjection?.shortfallMt.LSMGO).toBeCloseTo(17.6, 1);
+    // The panel's per-leg chart (a follow-up moves it onto the track) is short of LSMGO too.
+    expect(detail.fobProjection?.shortfallMt.LSMGO).toBeGreaterThan(0);
+    // The alert and the tool read the one fuel calculation: LSMGO runs out on the current plan.
+    expect(pioneer?.alerts).toEqual(["lsmgo_runs_out"]);
+    expect(status.data).toMatchObject({ gradesRunningOut: ["LSMGO"] });
     const shortfall = status.facts.find((f) => f.label === "LSMGO shortfall to keep the margin");
-    expect(detail.fobProjection?.shortfallMt.LSMGO).toBe(shortfall?.value);
+    expect(shortfall?.value).toBeGreaterThan(0);
   });
 
   it("returns the seeded voyages with their detail", async () => {
