@@ -13,7 +13,11 @@ const PLAN_KIND = new Map<string, AnswerPlan["kind"]>([
   ["route_speed", "route"],
 ]);
 
-/** Ruling U3: the cited calculation with the highest id, among planBunkers and route_speed facts. */
+/**
+ * Ruling U3, amended for the joint route-and-bunker plan: a cited route plan wins over a cited
+ * bunker plan (the route plan holds the bunker stop and its quote); within a kind, the cited
+ * calculation with the highest id.
+ */
 export function answerPlan(response: AskResponse): AnswerPlan | null {
   let plan: AnswerPlan | null = null;
   for (const fact of response.facts) {
@@ -21,9 +25,11 @@ export function answerPlan(response: AskResponse): AnswerPlan | null {
     if (p.source !== "calculation") continue;
     const kind = PLAN_KIND.get(p.calculator);
     if (kind === undefined) continue;
-    if (plan === null || p.calculationId > plan.calculationId) {
-      plan = { kind, calculationId: p.calculationId };
-    }
+    const better =
+      plan === null ||
+      (kind === "route" && plan.kind === "bunker") ||
+      (kind === plan.kind && p.calculationId > plan.calculationId);
+    if (better) plan = { kind, calculationId: p.calculationId };
   }
   return plan;
 }

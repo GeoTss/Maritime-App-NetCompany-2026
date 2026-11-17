@@ -28,6 +28,13 @@ const resp = (facts: Fact[], subjects: AskSubject[] = []): AskResponse => ({
 });
 
 describe("answerPlan (ruling U3)", () => {
+  it("prefers a cited route plan over a later bunker plan (the route plan holds the stop)", () => {
+    expect(answerPlan(resp([calcFact(2, "route_speed"), calcFact(3, "planBunkers")]))).toEqual({
+      kind: "route",
+      calculationId: 2,
+    });
+  });
+
   it("picks the highest cited plan id", () => {
     expect(answerPlan(resp([calcFact(1, "planBunkers"), calcFact(5, "route_speed")]))).toEqual({
       kind: "route",
