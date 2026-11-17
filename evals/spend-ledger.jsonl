@@ -24,3 +24,5 @@
 {"phase":7,"at":"2026-11-16T15:40:13.895Z","run":"eval-extraction","label":"p7-heldout","costUsd":0.13125011999999997}
 {"phase":7,"at":"2026-11-16T15:42:39.244Z","run":"eval-qa","label":"p7-heldout","costUsd":0.03153544}
 {"phase":8,"at":"2026-11-17T16:08:43.663Z","run":"demo-story-record","label":"ui-round-instruct","costUsd":0.00281}
+{"phase":8,"at":"2026-11-17T18:09:45.809Z","run":"demo-story-record-1","label":"joint-plan-story","costUsd":0.006115}
+{"phase":8,"at":"2026-11-17T18:12:46.371Z","run":"demo-story-record-2","label":"joint-plan-story","costUsd":0.00515}
