@@ -76,7 +76,7 @@ describe.skipIf(!sql)("bunker facts (Postgres)", () => {
       rationale: "Lowest total delivered cost.",
     });
     const id = (proposed.data as { recommendationId: number }).recommendationId;
-    const view = await createDbSource(db).getRecommendation(id);
+    const view = await createDbSource(db, () => ASK_FIXTURE_NOW).getRecommendation(id);
     if (!view) throw new Error(`no view of recommendation ${id}`);
     return view;
   };

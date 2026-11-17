@@ -74,7 +74,7 @@ export function createStackApp(deps: StackDeps) {
     llmMode: config.llmMode,
     pingDb: () => pingDb(sql),
     models: { extractModel: config.extractModel, agentModel: config.agentModel },
-    read: createDbSource(sql),
+    read: createDbSource(sql, now),
     inbox,
     review: inbox,
     ask: { sql, llm, config, log, now },

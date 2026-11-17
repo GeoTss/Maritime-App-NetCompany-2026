@@ -69,7 +69,7 @@ describe.skipIf(!sql)("live smoke runner (in-process, replay)", () => {
         extractModel: DEMO_RECORDING_CONFIG.extractModel,
         agentModel: ASK_RECORDING_CONFIG.agentModel,
       },
-      read: createDbSource(db),
+      read: createDbSource(db, () => FIXTURE_ANCHOR),
       inbox: {
         sql: db,
         extractor: createLlmExtractor(llm, DEMO_RECORDING_CONFIG),

@@ -578,7 +578,7 @@ async function runCompareCore(
     const app = createApp({
       llmMode: "live",
       pingDb: async () => true,
-      read: createDbSource(sql),
+      read: createDbSource(sql, () => FIXTURE_ANCHOR),
       ask: { sql, llm, config, now: () => FIXTURE_ANCHOR },
     });
 

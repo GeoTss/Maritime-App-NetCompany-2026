@@ -13,6 +13,7 @@ import type {
   RecommendationView,
 } from "@pharos/shared";
 import { convert } from "html-to-text";
+import { pinnedNow } from "../clock.js";
 import { BUNKER_SAVING_PATH, bunkerOptionViewFacts, bunkerScope } from "../facts/bunker.js";
 import type { ReadSource } from "./source.js";
 import { buildPorts, buildVessels, buildVoyages, must } from "./world-views.js";
@@ -390,7 +391,7 @@ function buildRecommendation(world: World): RecommendationView {
 
 export function createFixtureSource(): ReadSource {
   const world = generateWorld({ seed: FIXTURE_SEED, anchor: FIXTURE_ANCHOR });
-  const vessels = buildVessels(world);
+  const vessels = buildVessels(world, pinnedNow(FIXTURE_ANCHOR));
   const voyages = buildVoyages(world);
   const inbox = buildInbox(world);
   const quotes = buildQuotes(world);

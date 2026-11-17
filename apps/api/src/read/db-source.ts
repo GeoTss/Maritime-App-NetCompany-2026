@@ -400,12 +400,12 @@ async function worldAnchor(sql: Sql): Promise<Date | null> {
 
 // ---------- source ----------
 
-export function createDbSource(sql: Sql): ReadSource {
+export function createDbSource(sql: Sql, now: () => Date): ReadSource {
   return {
     dataTag: "db",
-    listVessels: async () => buildVessels(await loadWorld(sql)).map((v) => v.summary),
+    listVessels: async () => buildVessels(await loadWorld(sql), now()).map((v) => v.summary),
     getVessel: async (id) =>
-      buildVessels(await loadWorld(sql)).find((v) => v.summary.id === id)?.detail ?? null,
+      buildVessels(await loadWorld(sql), now()).find((v) => v.summary.id === id)?.detail ?? null,
     listVoyages: async () => buildVoyages(await loadWorld(sql)).map((v) => v.summary),
     getVoyage: async (id) =>
       buildVoyages(await loadWorld(sql)).find((v) => v.summary.id === id)?.detail ?? null,

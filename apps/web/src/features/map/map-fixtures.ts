@@ -45,6 +45,7 @@ export const VESSELS: VesselSummary[] = [
 
 export const VESSEL_DETAIL: VesselDetail = {
   ...(VESSELS[0] as VesselSummary),
+  facts: { robMt: null, voyageNo: null, nextPort: null, nextPortEta: null },
   dwt: 58000,
   tankCapacityMt: { LSMGO: 600, VLSFO: 1500, HSFO: 0 },
   consumptionCurve: {

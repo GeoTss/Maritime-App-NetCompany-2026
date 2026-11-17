@@ -65,7 +65,11 @@ describe.skipIf(!sql)("createDbSource (Postgres)", () => {
     },
   };
   const ingest: IngestDeps = { sql: db, extractor, now: () => NOW };
-  const app = createApp({ llmMode: "replay", pingDb: async () => true, read: createDbSource(db) });
+  const app = createApp({
+    llmMode: "replay",
+    pingDb: async () => true,
+    read: createDbSource(db, () => NOW),
+  });
   const fixtures = createApp({
     llmMode: "replay",
     pingDb: async () => true,

@@ -52,11 +52,26 @@ export const VesselSummary = z.object({
 });
 export type VesselSummary = z.infer<typeof VesselSummary>;
 
+/**
+ * The facts behind a vessel's panel readouts, the same facts `get_vessel_status` cites (same ids,
+ * labels and values). Null entries: the vessel has no current voyage, or no later port call.
+ */
+export const VesselFacts = z
+  .object({
+    robMt: z.object({ LSMGO: Fact, VLSFO: Fact, HSFO: Fact }).strict().nullable(),
+    voyageNo: Fact.nullable(),
+    nextPort: Fact.nullable(),
+    nextPortEta: Fact.nullable(),
+  })
+  .strict();
+export type VesselFacts = z.infer<typeof VesselFacts>;
+
 export const VesselDetail = VesselSummary.extend({
   dwt: z.number().positive(),
   tankCapacityMt: GradeAmounts,
   consumptionCurve: ConsumptionCurve,
   fobProjection: FobProjection.nullable(),
+  facts: VesselFacts,
 });
 export type VesselDetail = z.infer<typeof VesselDetail>;
 

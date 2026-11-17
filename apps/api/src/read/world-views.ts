@@ -9,11 +9,14 @@ import type {
   FobProjection,
   LatLon,
   PortView,
+  Vessel,
   VesselDetail,
+  VesselFacts,
   VesselSummary,
   VoyageDetail,
   VoyageSummary,
 } from "@pharos/shared";
+import { vesselRowFacts } from "../facts/vessel.js";
 
 export const LSMGO_ALERT = "lsmgo_below_margin_for_eca";
 
@@ -22,7 +25,13 @@ export function must<T>(v: T | undefined | null, what: string): T {
   return v;
 }
 
-export function buildVessels(world: World) {
+/** The facts behind the panel readouts: the tool's own, from the one builder. */
+function vesselFacts(world: World, vessel: Vessel, now: Date): VesselFacts {
+  const { robMt, voyageNo, nextPort, nextPortEta } = vesselRowFacts(world, vessel, now);
+  return { robMt, voyageNo, nextPort, nextPortEta };
+}
+
+export function buildVessels(world: World, now: Date) {
   const latest = <T extends { vesselId: number }>(
     rows: T[],
     vesselId: number,
@@ -66,6 +75,7 @@ export function buildVessels(world: World) {
       tankCapacityMt: vessel.tankCapacityMt,
       consumptionCurve: vessel.consumptionCurve,
       fobProjection: fob,
+      facts: vesselFacts(world, vessel, now),
     };
     return { summary, detail };
   });

@@ -6,32 +6,25 @@
 import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { currentVoyage, fobProjectionInput, loadWorld, voyageState } from "@pharos/db";
 import { DOMAIN_CODE_VERSION, projectFuelOnBoard } from "@pharos/domain";
-import { type Fact, FUEL_GRADES, type ToolResult, VesselStatusInput } from "@pharos/shared";
-import { calcFact, dbFact } from "../../facts/core.js";
+import {
+  type Fact,
+  FUEL_GRADES,
+  type FuelGrade,
+  type ToolResult,
+  VesselStatusInput,
+} from "@pharos/shared";
+import { calcFact } from "../../facts/core.js";
+import { VESSEL_TOOL, vesselRowFacts } from "../../facts/vessel.js";
 import { findVessel, json, runTool, type ToolContext } from "./common.js";
 
-export const TOOL = "get_vessel_status";
+export const TOOL = VESSEL_TOOL;
 
 export function getVesselStatus(ctx: ToolContext, input: VesselStatusInput): Promise<ToolResult> {
   return runTool(ctx, TOOL, input, async () => {
     const world = await loadWorld(ctx.sql);
     const vessel = findVessel(world, input.vessel);
-    const facts: Fact[] = [
-      dbFact(
-        TOOL,
-        { table: "vessels", rowId: vessel.id, field: "name" },
-        "Vessel name",
-        vessel.name,
-        null,
-      ),
-      dbFact(
-        TOOL,
-        { table: "vessels", rowId: vessel.id, field: "imo" },
-        `IMO of ${vessel.name}`,
-        vessel.imo,
-        null,
-      ),
-    ];
+    const row = vesselRowFacts(world, vessel, ctx.now());
+    const facts: Fact[] = [row.name, row.imo];
     const voyage = currentVoyage(world, vessel.id);
     if (!voyage) {
       return {
@@ -44,25 +37,9 @@ export function getVesselStatus(ctx: ToolContext, input: VesselStatusInput): Pro
       };
     }
     // The latest noon report and the legs still to sail, as the planner sees them.
-    const { report, remainingLegs } = voyageState(world, voyage.id);
-    facts.push(
-      ...FUEL_GRADES.map((g) =>
-        dbFact(
-          TOOL,
-          { table: "noon_reports", rowId: report.id, field: `robMt.${g}` },
-          `${g} remaining on board (latest noon report)`,
-          report.robMt[g],
-          "mt",
-        ),
-      ),
-      dbFact(
-        TOOL,
-        { table: "voyages", rowId: voyage.id, field: "voyageNo" },
-        "Current voyage number",
-        voyage.voyageNo,
-        null,
-      ),
-    );
+    const { remainingLegs } = voyageState(world, voyage.id);
+    if (!row.robMt || !row.voyageNo) throw new Error("a vessel with a voyage has no fuel facts");
+    facts.push(...FUEL_GRADES.map((g) => (row.robMt as Record<FuelGrade, Fact>)[g]), row.voyageNo);
 
     const fobInput = fobProjectionInput(world, voyage.id, remainingLegs);
     const fob = projectFuelOnBoard(fobInput);
@@ -102,29 +79,11 @@ export function getVesselStatus(ctx: ToolContext, input: VesselStatusInput): Pro
       );
     }
 
-    const now = ctx.now().getTime();
-    const next = world.portCalls
-      .filter((c) => c.voyageId === voyage.id && c.eta.getTime() >= now)
-      .sort((a, b) => a.eta.getTime() - b.eta.getTime())[0];
-    const nextPort = next ? world.ports.find((p) => p.id === next.portId) : undefined;
-    if (next && nextPort) {
-      facts.push(
-        dbFact(
-          TOOL,
-          { table: "ports", rowId: nextPort.id, field: "name" },
-          "Next port",
-          nextPort.name,
-          null,
-        ),
-        dbFact(
-          TOOL,
-          { table: "port_calls", rowId: next.id, field: "eta" },
-          `ETA at ${nextPort.name} (UTC)`,
-          next.eta.toISOString(),
-          null,
-        ),
-      );
-    }
+    if (row.nextPort && row.nextPortEta) facts.push(row.nextPort, row.nextPortEta);
+    // The ETA fact's row is the next port call itself.
+    const nextCallId =
+      row.nextPortEta?.provenance.source === "db" ? row.nextPortEta.provenance.rowId : null;
+    const next = world.portCalls.find((c) => c.id === nextCallId);
 
     return {
       facts,
@@ -133,7 +92,8 @@ export function getVesselStatus(ctx: ToolContext, input: VesselStatusInput): Pro
         voyage: { voyageNo: voyage.voyageNo, status: voyage.status },
         fobCalculationId: calc.id,
         gradesBelowMargin: FUEL_GRADES.filter((g) => fob.belowMarginAtLeg[g] !== null),
-        nextPortCall: next && nextPort ? { port: nextPort.name, purpose: next.purpose } : null,
+        nextPortCall:
+          next && row.nextPort ? { port: row.nextPort.value, purpose: next.purpose } : null,
       },
     };
   });
