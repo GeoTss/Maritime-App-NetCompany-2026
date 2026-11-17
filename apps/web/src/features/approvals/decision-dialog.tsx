@@ -16,6 +16,12 @@ export const APPROVE_CONSEQUENCE: Record<RecommendationView["type"], string> = {
 export const REJECT_CONSEQUENCE =
   "Rejecting closes this proposal. Nothing is written to the ERP, no instruction is recorded and nothing is drafted.";
 
+/** The Approve trigger's words: what is approved, and an ellipsis because a confirmation follows. */
+export const APPROVE_LABEL: Record<RecommendationView["type"], string> = {
+  purchase_order: "Approve purchase order…",
+  voyage_instruction: "Approve voyage instruction…",
+};
+
 export function ProposalDecision({
   type,
   pending,
@@ -35,6 +41,8 @@ export function ProposalDecision({
       rejectConsequence={REJECT_CONSEQUENCE}
       confirmApproveLabel="Approve"
       confirmRejectLabel="Reject"
+      approveLabel={APPROVE_LABEL[type]}
+      rejectLabel="Reject…"
       onApprove={() => onDecide("approve")}
       onReject={() => onDecide("reject")}
     />

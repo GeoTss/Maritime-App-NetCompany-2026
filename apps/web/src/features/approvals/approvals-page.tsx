@@ -1,14 +1,18 @@
 /**
- * The approvals queue, in two parts: proposals awaiting a decision (the top one carries the page's
- * single focal effect), then decided ones, folded to their outcome. Approve and Reject are the
- * only actions here and each asks first. A decision is one
- * POST at a time; if the proposal was already decided (409) the card shows the status the API
- * now holds, read from a refetch, never guessed.
+ * Approvals: a queue beside one decision. The queue lists proposals awaiting a decision (oldest
+ * first, the order they were proposed) and then decided ones (newest first). The selection lives
+ * in `?recommendation=<id>` (ruling U6), the assistant's deep link: by default the first awaiting
+ * proposal, else the newest decided one. A link to a proposal that is not listed says so.
+ *
+ * Approve and Reject are the only actions here and each asks first. A decision is one POST at a
+ * time; deciding pins the selection, so the outcome stays in view. If the proposal was already
+ * decided (409) the detail shows the status the API now holds, read from a refetch, never guessed.
+ * Below 768 px of canvas the queue stacks above the decision.
  */
 import { CheckListIcon } from "@hugeicons/core-free-icons";
 import { DecisionResult, listOf, RecommendationView } from "@pharos/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useId, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { EmptyState } from "@/components/empty-state";
@@ -17,7 +21,7 @@ import type { Decision } from "@/components/primitives/approval-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api, describeFailure, isApiFailure } from "@/lib/api";
 import { queryKeys } from "@/lib/queries";
-import { RecommendationCard } from "./approval-card";
+import { ProposalDetail, QueueRow } from "./approval-card";
 import { auditKey } from "./audit-trail";
 
 const Recommendations = listOf(RecommendationView);
@@ -31,9 +35,57 @@ const STATUS_WORD: Record<string, string> = {
   failed: "failed",
 };
 
+/**
+ * The queue's two parts. Ids are issued in the order proposals are made, so they order the queue:
+ * awaiting ascending (oldest first), decided descending (newest first).
+ */
+export function queueOrder(items: RecommendationView[]): {
+  awaiting: RecommendationView[];
+  decided: RecommendationView[];
+} {
+  return {
+    awaiting: items.filter((r) => r.status === "pending").sort((a, b) => (a.id < b.id ? -1 : 1)),
+    decided: items.filter((r) => r.status !== "pending").sort((a, b) => (a.id > b.id ? -1 : 1)),
+  };
+}
+
+function PageHeader() {
+  return (
+    <div className="flex flex-col gap-1 border-b border-line px-3 pt-3.5 pb-2.5">
+      <h1 className="text-base font-medium text-text-1 font-title">Approvals</h1>
+      <p className="text-xs text-text-2">
+        The assistant proposes; nothing is ordered or sent until you approve.
+      </p>
+    </div>
+  );
+}
+
+function QueueSection({
+  title,
+  count,
+  children,
+}: {
+  title: string;
+  count: number;
+  children: ReactNode;
+}) {
+  const id = useId();
+  return (
+    <section aria-labelledby={id} className="flex flex-col">
+      <div className="flex items-baseline gap-2 px-3 pt-3 pb-1.5">
+        <h2 id={id} className="text-sm font-medium text-text-1 font-title">
+          {title}
+        </h2>
+        <span className="text-xs text-text-3 tabular-nums">{count}</span>
+      </div>
+      {children}
+    </section>
+  );
+}
+
 export function ApprovalsPage() {
   const client = useQueryClient();
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
   const linkedParam = Number(params.get("recommendation"));
   const linked = Number.isInteger(linkedParam) && linkedParam > 0 ? linkedParam : null;
   const [conflicts, setConflicts] = useState<Record<number, string>>({});
@@ -79,101 +131,134 @@ export function ApprovalsPage() {
   });
 
   const items = list.data?.items;
-  const awaiting = useMemo(() => (items ?? []).filter((r) => r.status === "pending"), [items]);
-  const decided = useMemo(() => (items ?? []).filter((r) => r.status !== "pending"), [items]);
-  const ordered = useMemo(() => [...awaiting, ...decided], [awaiting, decided]);
-  const firstPending = awaiting[0]?.id ?? null;
+  const { awaiting, decided } = useMemo(() => queueOrder(items ?? []), [items]);
+  const fallback = awaiting[0] ?? decided[0] ?? null;
+  const selected =
+    linked === null ? fallback : ((items ?? []).find((r) => r.id === linked) ?? null);
+  const selectedId = selected?.id ?? null;
 
-  // Arriving from an assistant link: bring that proposal into view once it is listed.
-  const present = linked !== null && ordered.some((r) => r.id === linked);
+  // Arriving from an assistant link: bring the selected proposal's row into view in the queue.
   useEffect(() => {
-    if (present) document.getElementById(`rec-${linked}`)?.scrollIntoView?.({ block: "center" });
-  }, [present, linked]);
+    if (selectedId !== null) {
+      document.getElementById(`queue-${selectedId}`)?.scrollIntoView?.({ block: "nearest" });
+    }
+  }, [selectedId]);
 
   const inFlight = decide.isPending ? decide.variables : null;
 
-  return (
-    <div className="flex flex-col gap-3 p-3">
-      <header className="flex items-baseline gap-3">
-        <h1 className="text-lg text-text-1 font-title">Approvals</h1>
-      </header>
-      <p className="max-w-[64ch] text-xs/relaxed text-text-2">
-        The assistant only proposes. Nothing changes until you approve or reject, and nothing is
-        ever sent to a supplier or a master: messages are drafted for you.
-      </p>
-      {list.isPending ? (
-        <div
-          role="status"
-          className="flex max-w-[860px] flex-col gap-2"
-          aria-label="Loading proposals"
-        >
-          <Skeleton className="h-40 w-full" />
-          <Skeleton className="h-40 w-full" />
-        </div>
-      ) : list.isError ? (
-        <ErrorState
-          error={list.error}
-          title="The proposals could not be loaded"
-          onRetry={() => void list.refetch()}
-        />
-      ) : ordered.length === 0 ? (
-        <EmptyState
-          icon={CheckListIcon}
-          title="Nothing is waiting for a decision"
-          description="Ask the assistant where to bunker or which route to sail; a proposal it makes appears here."
-          action={
-            <Link to="/" className="text-xs text-beacon underline underline-offset-3">
-              Back to the map
-            </Link>
-          }
-        />
-      ) : (
-        <div className="flex max-w-[860px] flex-col gap-6">
-          {[
-            {
-              id: "awaiting",
-              title: "Awaiting your decision",
-              recs: awaiting,
-              empty: "Nothing is awaiting a decision.",
-            },
-            { id: "decided", title: "Decided", recs: decided, empty: null },
-          ].map((group) =>
-            group.recs.length === 0 && group.empty === null ? null : (
-              <section
-                key={group.id}
-                aria-labelledby={`approvals-${group.id}`}
-                className="flex flex-col gap-3"
-              >
-                <h2
-                  id={`approvals-${group.id}`}
-                  className="flex items-baseline gap-2 text-xs font-medium text-text-2 font-label"
-                >
-                  {group.title}
-                  <span className="font-normal text-text-1 tabular-nums">{group.recs.length}</span>
-                </h2>
-                {group.recs.length === 0 ? (
-                  <p className="text-xs text-text-2">{group.empty}</p>
-                ) : (
-                  group.recs.map((rec) => (
-                    <RecommendationCard
-                      key={rec.id}
-                      rec={rec}
-                      focal={rec.id === firstPending}
-                      linked={rec.id === linked}
-                      pending={inFlight?.id === rec.id ? inFlight.decision : null}
-                      locked={decide.isPending}
-                      conflict={conflicts[rec.id] ?? null}
-                      onDecide={(decision) =>
-                        decide.mutateAsync({ id: rec.id, decision }).catch(() => undefined)
-                      }
-                    />
-                  ))
-                )}
-              </section>
-            ),
+  const onDecide = (id: number) => (decision: Decision) => {
+    // Pin the selection first, so the outcome stays in view when the list refetches.
+    setParams(
+      (current) => {
+        const next = new URLSearchParams(current);
+        next.set("recommendation", String(id));
+        return next;
+      },
+      { replace: true },
+    );
+    return decide.mutateAsync({ id, decision }).catch(() => undefined);
+  };
+
+  if (list.isPending || list.isError || (items ?? []).length === 0) {
+    return (
+      <div className="flex flex-col">
+        <PageHeader />
+        <div className="p-3">
+          {list.isPending ? (
+            <div
+              role="status"
+              className="flex max-w-[860px] flex-col gap-2"
+              aria-label="Loading proposals"
+            >
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-40 w-full" />
+            </div>
+          ) : list.isError ? (
+            <ErrorState
+              error={list.error}
+              title="The proposals could not be loaded"
+              onRetry={() => void list.refetch()}
+            />
+          ) : (
+            <EmptyState
+              icon={CheckListIcon}
+              title="Nothing is waiting for a decision"
+              description="Ask the assistant where to bunker or which route to sail; a proposal it makes appears here."
+              action={
+                <Link to="/" className="text-xs text-beacon underline underline-offset-3">
+                  Back to the map
+                </Link>
+              }
+            />
           )}
         </div>
-      )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="@container/approvals h-full">
+      <div className="flex min-h-full flex-col @3xl/approvals:h-full @3xl/approvals:flex-row">
+        <aside
+          aria-label="Approval queue"
+          className="shrink-0 border-b border-line bg-ink-900 @3xl/approvals:w-[300px] @3xl/approvals:overflow-auto @3xl/approvals:border-r @3xl/approvals:border-b-0"
+        >
+          <PageHeader />
+          <QueueSection title="Awaiting your decision" count={awaiting.length}>
+            {awaiting.length === 0 ? (
+              <p className="px-3 pb-3 text-xs text-text-2">Nothing is awaiting a decision.</p>
+            ) : (
+              <ul className="border-t border-line">
+                {awaiting.map((rec) => (
+                  <QueueRow key={rec.id} rec={rec} selected={rec.id === selectedId} />
+                ))}
+              </ul>
+            )}
+          </QueueSection>
+          <QueueSection title="Decided" count={decided.length}>
+            {decided.length === 0 ? (
+              <p className="px-3 pb-4 text-xs text-text-2">
+                Approved and rejected proposals land here with their audit trail.
+              </p>
+            ) : (
+              <ul className="border-t border-line">
+                {decided.map((rec) => (
+                  <QueueRow key={rec.id} rec={rec} selected={rec.id === selectedId} />
+                ))}
+              </ul>
+            )}
+          </QueueSection>
+        </aside>
+
+        {selected ? (
+          <ProposalDetail
+            key={selected.id}
+            rec={selected}
+            focal={selected.status === "pending"}
+            pending={inFlight?.id === selected.id ? inFlight.decision : null}
+            locked={decide.isPending}
+            conflict={conflicts[selected.id] ?? null}
+            onDecide={onDecide(selected.id)}
+          />
+        ) : (
+          <div className="flex min-w-0 flex-1 flex-col items-start gap-1.5 px-4 py-5 sm:px-6">
+            <p role="status" className="text-base font-medium text-text-1">
+              Proposal {linked} is not in the list.
+            </p>
+            <p className="text-xs text-text-2">Choose one from the queue.</p>
+            {fallback ? (
+              <Link
+                to={{ search: `?recommendation=${fallback.id}` }}
+                className="text-xs text-beacon underline-offset-3 hover:underline"
+              >
+                {fallback.status === "pending"
+                  ? "Open the first awaiting proposal"
+                  : "Open the newest decided proposal"}
+              </Link>
+            ) : null}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -139,4 +139,21 @@ describe("DecisionButtons", () => {
     expect(screen.getByRole("button", { name: /Approving/ }).hasAttribute("disabled")).toBe(true);
     expect(screen.getByRole("button", { name: "Reject" }).hasAttribute("disabled")).toBe(true);
   });
+
+  it("names its triggers as given, Reject before Approve", () => {
+    render(
+      <DecisionButtons
+        onApprove={vi.fn()}
+        onReject={vi.fn()}
+        approveConsequence="x"
+        rejectConsequence="y"
+        approveLabel="Approve purchase order…"
+        rejectLabel="Reject…"
+      />,
+    );
+    expect(screen.getAllByRole("button").map((b) => b.textContent)).toEqual([
+      "Reject…",
+      "Approve purchase order…",
+    ]);
+  });
 });

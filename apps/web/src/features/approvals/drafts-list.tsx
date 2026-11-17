@@ -14,7 +14,17 @@ const KIND: Record<DraftedMessageView["kind"], string> = {
   master_instruction: "To the master",
 };
 
-export function DraftsList({ recommendationId }: { recommendationId: number }) {
+export function DraftsList({
+  recommendationId,
+  heading = true,
+  emptyText = null,
+}: {
+  recommendationId: number;
+  /** False inside a disclosure that already names the list. */
+  heading?: boolean;
+  /** Said when the executor drafted nothing (yet); null shows nothing. */
+  emptyText?: string | null;
+}) {
   const drafts = useQuery({
     queryKey: queryKeys.drafts(recommendationId),
     queryFn: ({ signal }) =>
@@ -24,10 +34,14 @@ export function DraftsList({ recommendationId }: { recommendationId: number }) {
   if (drafts.isError) {
     return <p className="text-xs text-text-3">The drafted messages could not be loaded.</p>;
   }
-  if (items.length === 0) return null;
+  if (items.length === 0) {
+    return drafts.isSuccess && emptyText ? (
+      <p className="text-xs text-text-2">{emptyText}</p>
+    ) : null;
+  }
   return (
     <section aria-label="Drafted messages" className="flex flex-col gap-2">
-      <h4 className="text-xs text-text-2 font-label">Drafted messages</h4>
+      {heading ? <h4 className="text-xs text-text-2 font-label">Drafted messages</h4> : null}
       {items.map((d) => (
         <article key={d.id} className="flex flex-col gap-1 border border-line bg-ink-950 p-2">
           <header className="flex flex-wrap items-center gap-2 text-xs">

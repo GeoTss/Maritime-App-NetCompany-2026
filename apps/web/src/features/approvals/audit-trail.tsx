@@ -56,7 +56,17 @@ export function detailPairs(detail: unknown): { key: string; label: string; valu
   }));
 }
 
-export function AuditTrail({ recommendationId }: { recommendationId: number }) {
+export function AuditTrail({
+  recommendationId,
+  heading = true,
+  emptyText = null,
+}: {
+  recommendationId: number;
+  /** False inside a disclosure that already names the trail. */
+  heading?: boolean;
+  /** Said when no event is recorded yet; null shows nothing. */
+  emptyText?: string | null;
+}) {
   const audit = useQuery({
     queryKey: auditKey(recommendationId),
     queryFn: ({ signal }) =>
@@ -66,10 +76,12 @@ export function AuditTrail({ recommendationId }: { recommendationId: number }) {
     return <p className="text-xs text-text-2">The audit trail could not be loaded.</p>;
   }
   const items = audit.data?.items ?? [];
-  if (items.length === 0) return null;
+  if (items.length === 0) {
+    return audit.isSuccess && emptyText ? <p className="text-xs text-text-2">{emptyText}</p> : null;
+  }
   return (
     <section aria-label="Audit trail" className="flex flex-col gap-1">
-      <h4 className="text-xs text-text-2 font-label">Audit trail</h4>
+      {heading ? <h4 className="text-xs text-text-2 font-label">Audit trail</h4> : null}
       <ol className="flex flex-col border border-line">
         {items.map((e) => {
           const pairs = detailPairs(e.detail);

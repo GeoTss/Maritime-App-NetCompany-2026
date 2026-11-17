@@ -28,7 +28,8 @@ export const RECOMMENDATION_KIND: Record<RecommendationType, string> = {
   voyage_instruction: "Voyage instruction",
 };
 
-const STATUS: Record<RecommendationStatus, { text: string; tone: string }> = {
+/** A proposal's status in words, with the hue whose job it is. */
+export const RECOMMENDATION_STATUS: Record<RecommendationStatus, { text: string; tone: string }> = {
   pending: { text: "awaiting approval", tone: "text-caution" },
   approved: { text: "approved", tone: "text-go" },
   executing: { text: "executing", tone: "text-text-2" },
@@ -64,7 +65,7 @@ export function ApprovalCard({
   focal?: boolean;
   className?: string;
 }) {
-  const s = STATUS[status];
+  const s = RECOMMENDATION_STATUS[status];
   return (
     <article
       data-status={status}
@@ -101,6 +102,8 @@ export function DecisionButtons({
   rejectConsequence,
   confirmApproveLabel = "Approve",
   confirmRejectLabel = "Reject",
+  approveLabel = "Approve",
+  rejectLabel = "Reject",
   pending = null,
   disabled = false,
 }: {
@@ -111,6 +114,9 @@ export function DecisionButtons({
   rejectConsequence: ReactNode;
   confirmApproveLabel?: string;
   confirmRejectLabel?: string;
+  /** The triggers' words, e.g. "Approve purchase order…" (the ellipsis: a confirmation follows). */
+  approveLabel?: string;
+  rejectLabel?: string;
   /** The decision in flight, if any: both controls wait (single-flight). */
   pending?: Decision | null;
   disabled?: boolean;
@@ -127,16 +133,16 @@ export function DecisionButtons({
 
   return (
     <>
-      <Button variant="commit" disabled={busy} onClick={() => setAsking("approve")}>
-        {pending === "approve" ? "Approving…" : "Approve"}
-      </Button>
       <Button
         variant="outline"
         disabled={busy}
         onClick={() => setAsking("reject")}
         className="hover:border-alarm/60 hover:text-alarm"
       >
-        {pending === "reject" ? "Rejecting…" : "Reject"}
+        {pending === "reject" ? "Rejecting…" : rejectLabel}
+      </Button>
+      <Button variant="commit" disabled={busy} onClick={() => setAsking("approve")}>
+        {pending === "approve" ? "Approving…" : approveLabel}
       </Button>
       <AlertDialog open={asking !== null} onOpenChange={(open) => !open && setAsking(null)}>
         <AlertDialogContent>
