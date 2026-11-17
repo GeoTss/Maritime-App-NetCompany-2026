@@ -195,12 +195,17 @@ export function evaluateStopPlan(
   };
 }
 
-/** Feasible first, then total cost, then the earlier ETA, then the lower speed. */
+/**
+ * Feasible first; between feasible plans the lower total cost, then the earlier ETA; between
+ * infeasible ones the earlier ETA first (as the optimiser ranks infeasible routes), so a quote no
+ * speed can make work is shown at its fastest, not its cheapest. Then the lower speed.
+ */
 export function stopPlanBefore(a: StopPlanResult, b: StopPlanResult): number {
   if (a.feasible !== b.feasible) return a.feasible ? -1 : 1;
-  if (a.totalCostUsd !== b.totalCostUsd) return a.totalCostUsd - b.totalCostUsd;
   const ea = Date.parse(a.eta);
   const eb = Date.parse(b.eta);
+  if (!a.feasible && ea !== eb) return ea - eb;
+  if (a.totalCostUsd !== b.totalCostUsd) return a.totalCostUsd - b.totalCostUsd;
   if (ea !== eb) return ea - eb;
   return a.speedKn - b.speedKn;
 }
@@ -219,17 +224,42 @@ export function bestStopPlan(
 
 /**
  * The recommended plan. With stop plans: the cheapest feasible one, with what it adds to the
- * fuel-blind best and the next feasible one. Without: the fuel-blind best when it keeps its fuel
- * margins. Null when nothing qualifies.
+ * fuel-blind best and the next feasible one. Without: the cheapest route (in `options`, each at its
+ * own speed) that keeps every fuel margin, with what it adds to the best and the next such route.
+ * Null when nothing qualifies.
  */
 export function recommendPlan(
   best: RouteOptionResult,
+  options: RouteOptionResult[],
   stopPlans: StopPlanResult[],
 ): RecommendedPlan | null {
   if (stopPlans.length === 0) {
-    return best.feasible
-      ? { kind: "route", optionId: best.candidateId, addedHours: 0, addedUsd: 0, next: null }
-      : null;
+    const ok = options
+      .map((o, i) => ({ o, i }))
+      .filter(({ o }) => o.feasible)
+      .sort(
+        (x, y) =>
+          x.o.totalCostUsd - y.o.totalCostUsd ||
+          Date.parse(x.o.eta) - Date.parse(y.o.eta) ||
+          x.i - y.i,
+      )
+      .map(({ o }) => o);
+    const top = ok[0];
+    if (!top) return null;
+    const next = ok[1];
+    return {
+      kind: "route",
+      optionId: top.candidateId,
+      addedHours: top.hours - best.hours,
+      addedUsd: top.totalCostUsd - best.totalCostUsd,
+      next: next
+        ? {
+            optionId: next.candidateId,
+            totalCostUsd: next.totalCostUsd,
+            marginUsd: next.totalCostUsd - top.totalCostUsd,
+          }
+        : null,
+    };
   }
   const feasible = stopPlans.filter((s) => s.feasible).sort(stopPlanBefore);
   const top = feasible[0];

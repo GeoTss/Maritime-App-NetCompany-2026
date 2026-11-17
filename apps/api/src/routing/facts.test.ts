@@ -123,10 +123,11 @@ describe("route-plan fact rows: fleet vessel", () => {
     expect(row(`stopPlans[${i}].fuel.grades.LSMGO.marginMt`).value).toBe(
       sp.fuel.grades.LSMGO.marginMt,
     );
-    // Gibraltar misses the berth window: cited as not feasible, with its reason.
+    // No speed makes Gibraltar work (slow misses the berth window, fast runs short of LSMGO): it
+    // is cited as not feasible at its earliest arrival, with that speed's reason.
     const g = result.stopPlans.findIndex((p) => p.optionId === "GIGIB-straitline");
     expect(row(`stopPlans[${g}].feasible`).value).toBe(false);
-    expect(row(`stopPlans[${g}].reasons[0]`).value).toBe("misses_arrive_by");
+    expect(row(`stopPlans[${g}].reasons[0]`).value).toBe("insufficient_fuel");
   });
 
   it("cites where the fuel-blind best runs short", () => {

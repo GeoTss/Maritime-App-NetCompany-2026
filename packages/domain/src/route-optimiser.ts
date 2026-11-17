@@ -244,6 +244,6 @@ export function optimiseRouteSpeed(rawInput: RouteSpeedInput): RouteSpeedResult 
     savingVsBaselineUsd: base.totalCostUsd - best.totalCostUsd,
     fuelSavingVsBaselineMt: base.totalFuelMt - best.totalFuelMt,
     stopPlans,
-    plan: input.fuel ? recommendPlan(finalBest, stopPlans) : null,
+    plan: input.fuel ? recommendPlan(finalBest, finalOptions, stopPlans) : null,
   };
 }

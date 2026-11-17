@@ -1,6 +1,7 @@
 import type {
   ConsumptionCurve,
   LatLon,
+  RouteOptionResult,
   RouteSpeedInput,
   StopCandidate,
   StopPlanResult,
@@ -9,7 +10,7 @@ import { describe, expect, it } from "vitest";
 import { portStayFuelMt } from "./consumption.js";
 import { co2Tonnes, etsCost } from "./emissions.js";
 import { optimiseRouteSpeed } from "./route-optimiser.js";
-import { evaluateStopPlan } from "./stop-plan.js";
+import { evaluateStopPlan, recommendPlan } from "./stop-plan.js";
 
 const ll = (lat: number, lon: number): LatLon => ({ lat, lon });
 const START = "2026-11-14T08:00:00.000Z";
@@ -189,13 +190,14 @@ describe("optimiseRouteSpeed with fuel on board", () => {
       tankCapacityMt: { LSMGO: 900, VLSFO: 1500, HSFO: 0 },
     };
     const ok = optimiseRouteSpeed(input({ fuel: ample, stops: [] }));
-    expect(ok.plan).toEqual({
+    expect(ok.plan).toMatchObject({
       kind: "route",
       optionId: ok.bestCandidateId,
       addedHours: 0,
       addedUsd: 0,
-      next: null,
     });
+    // The other route keeps its margins too: it is the next feasible plan.
+    expect(ok.plan?.next?.optionId).toBe(ok.bestCandidateId === "A" ? "B" : "A");
     expect(optimiseRouteSpeed(input({ stops: [] })).plan).toBeNull();
   });
 
@@ -213,5 +215,37 @@ describe("optimiseRouteSpeed with fuel on board", () => {
     }).costUsd;
     expect(eu.etsCostUsd - nonEu.etsCostUsd).toBeCloseTo(expected, 9);
     expect(nonEu.etsCostUsd).toBe(0);
+  });
+
+  it("with no stops, recommends the cheapest route that keeps every margin when the best runs short", () => {
+    const opt = (candidateId: string, totalCostUsd: number, hours: number, feasible: boolean) =>
+      ({
+        candidateId,
+        totalCostUsd,
+        hours,
+        eta: new Date(Date.parse(START) + hours * 3_600_000).toISOString(),
+        feasible,
+        reasons: feasible ? [] : ["insufficient_fuel"],
+      }) as unknown as RouteOptionResult;
+    const a = opt("A", 100_000, 200, false);
+    const b = opt("B", 120_000, 210, true);
+    const c = opt("C", 150_000, 205, true);
+    expect(recommendPlan(a, [a, b, c], [])).toEqual({
+      kind: "route",
+      optionId: "B",
+      addedHours: 10,
+      addedUsd: 20_000,
+      next: { optionId: "C", totalCostUsd: 150_000, marginUsd: 30_000 },
+    });
+    expect(recommendPlan(a, [a], [])).toBeNull();
+  });
+
+  it("reports a stop that no speed makes feasible at its earliest arrival", () => {
+    // A berth window that has already closed: every speed misses it.
+    const r = optimiseRouteSpeed(input({ arriveBy: START }));
+    const s = r.stopPlans[0];
+    expect(s?.feasible).toBe(false);
+    expect(s?.reasons).toContain("misses_arrive_by");
+    expect(s?.speedKn).toBe(curve.maxSpeedKn);
   });
 });
