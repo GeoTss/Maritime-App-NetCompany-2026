@@ -166,8 +166,10 @@ export function RecommendationCard({
             <div className="flex items-baseline gap-2">
               <dt className="text-text-3">Expected saving</dt>
               <dd className="text-text-1">
-                {rec.expectedSaving && rec.expectedSavingUsd !== null ? (
-                  <FactChip fact={rec.expectedSaving}>{signedUsd(rec.expectedSavingUsd)}</FactChip>
+                {rec.expectedSaving && typeof rec.expectedSaving.value === "number" ? (
+                  <FactChip fact={rec.expectedSaving}>
+                    {signedUsd(rec.expectedSaving.value)}
+                  </FactChip>
                 ) : (
                   <span className="text-text-3">not stated</span>
                 )}

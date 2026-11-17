@@ -30,7 +30,7 @@ const rec = (id: number, over: Record<string, unknown> = {}) => ({
   optionId: "MTMLA-kestrel",
   optionLabel: null,
   summary: "Buy VLSFO from Kestrel Marine at Marsaxlokk.",
-  expectedSavingUsd: 18250,
+  expectedSavingUsd: null,
   expectedSaving: null,
   factRefs: ["f_total"],
   facts: [
@@ -202,6 +202,21 @@ describe("ApprovalsPage", () => {
       .parentElement?.querySelector("[data-slot=fact-chip]");
     expect(saving?.getAttribute("data-fact-id")).toBe("f_saving");
     expect(saving?.textContent).toBe("+USD 18,250");
+  });
+
+  it("the chip prints the cited fact's number, not the second field", async () => {
+    items = [
+      rec(1, {
+        expectedSavingUsd: 999,
+        expectedSaving: fact("f_s", "Saving", 18250, "USD"),
+      }),
+    ];
+    renderPage();
+    const [card] = await screen.findAllByRole("article");
+    const chip = within(card as HTMLElement)
+      .getByText("Expected saving")
+      .parentElement?.querySelector("[data-slot=fact-chip]");
+    expect(chip?.textContent).toBe("+USD 18,250");
   });
 
   it("no uncited saving: without an expectedSaving fact it reads not stated", async () => {

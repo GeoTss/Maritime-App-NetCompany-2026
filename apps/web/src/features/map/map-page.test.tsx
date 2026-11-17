@@ -228,6 +228,34 @@ describe("MapPage", () => {
     expect(panel.querySelector("number-flow-react")).toBeNull();
   });
 
+  it("panel shows skeletons while the detail loads", async () => {
+    stubApi();
+    const base = globalThis.fetch;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: string, init?: RequestInit) =>
+        String(input) === "/api/vessels/1"
+          ? new Promise<Response>(() => {})
+          : (base as typeof fetch)(input, init),
+      ),
+    );
+    renderPage("/?vessel=1");
+    const panel = await screen.findByRole("region", { name: "Vessel panel" });
+    await waitFor(() => expect(panel.textContent).toContain("Next port ETA"));
+    expect(panel.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThanOrEqual(6);
+    expect(panel.textContent).not.toContain("275");
+    expect(panel.textContent).not.toContain("AP-2611");
+  });
+
+  it("next port ETA reads — without its fact", async () => {
+    renderPage("/?vessel=1");
+    const panel = await screen.findByRole("region", { name: "Vessel panel" });
+    await waitFor(() => expect(calls.some((c) => c.path === "/api/vessels/1")).toBe(true));
+    const label = await within(panel).findByText("Next port ETA");
+    await waitFor(() => expect(label.parentElement?.textContent).toContain("—"));
+    expect(panel.textContent).not.toContain("15:45");
+  });
+
   it("panel without voyage facts shows plain values under the simulated tag", async () => {
     renderPage("/?vessel=1");
     const panel = await screen.findByRole("region", { name: "Vessel panel" });

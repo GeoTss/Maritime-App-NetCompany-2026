@@ -1,9 +1,11 @@
 /**
  * A fleet vessel: identity, fuel on board per grade, alerts, load (from a plan's facts), the
  * fuel-on-board projection and the Plan route button. The vessel detail carries `facts`: fuel on
- * board, voyage, next port and its ETA are fact chips (cited, never animated). Where a fact is
- * null (no voyage, no later port call) or the detail has not loaded, the plain value from the
- * fleet record shows under the "simulated data" tag; the UI derives nothing.
+ * board, voyage, next port and its ETA are fact chips (cited, never animated). While the detail
+ * is pending each of those six values is a skeleton, so no uncited number shows first. Once
+ * loaded, fuel on board falls back to the plain fleet-record value under the "simulated data" tag
+ * only when its fact is null; next port and its ETA read "—" when their facts are null (the
+ * voyage view's own "next" rule differs, so it is not used); the UI derives nothing.
  */
 import { Alert02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -189,7 +191,9 @@ export function VesselPanel({
         <dl className="flex flex-col gap-1">
           {GRADES.map((g) => (
             <Field key={g} label={g}>
-              {robFacts ? (
+              {detail.isPending ? (
+                <Skeleton className="inline-block h-3.5 w-16 align-middle" />
+              ) : robFacts ? (
                 <FactCell fact={robFacts[g]} />
               ) : (
                 <span>{formatNumber(vessel.robMt[g], "mt")}</span>
@@ -216,26 +220,36 @@ export function VesselPanel({
           <Field label="Reported at">
             {vessel.positionAt ? formatUtc(vessel.positionAt) : "—"}
           </Field>
-          {voyage.data ? (
+          {detail.isPending || voyage.data ? (
             <>
               <Field label="Voyage">
-                {facts?.voyageNo ? (
-                  <FactCell fact={facts.voyageNo} />
+                {detail.isPending ? (
+                  <Skeleton className="inline-block h-3.5 w-16 align-middle" />
                 ) : (
-                  <span className="font-mono text-2xs">{voyage.data.voyageNo}</span>
+                  <>
+                    {facts?.voyageNo ? (
+                      <FactCell fact={facts.voyageNo} />
+                    ) : (
+                      <span className="font-mono text-2xs">{voyage.data?.voyageNo}</span>
+                    )}
+                    {voyage.data ? `, ${voyage.data.status}` : null}
+                  </>
                 )}
-                , {voyage.data.status}
               </Field>
-              {facts?.nextPort ? (
-                <Field label="Next port">
+              <Field label="Next port">
+                {detail.isPending ? (
+                  <Skeleton className="inline-block h-3.5 w-20 align-middle" />
+                ) : facts?.nextPort ? (
                   <FactCell fact={facts.nextPort} />
-                </Field>
-              ) : null}
+                ) : (
+                  "—"
+                )}
+              </Field>
               <Field label="Next port ETA">
-                {facts?.nextPortEta ? (
+                {detail.isPending ? (
+                  <Skeleton className="inline-block h-3.5 w-28 align-middle" />
+                ) : facts?.nextPortEta ? (
                   <FactCell fact={facts.nextPortEta} kind="time" />
-                ) : voyage.data.nextEta ? (
-                  formatUtc(voyage.data.nextEta)
                 ) : (
                   "—"
                 )}

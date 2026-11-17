@@ -67,7 +67,6 @@ describe("GET /api/eval/summary", () => {
     const res = await appAt(path).request("/api/eval/summary");
     expect(res.status).toBe(200);
     expect(EvalSummary.parse(await res.json())).toEqual(SUMMARY);
-    // Not read data: mounted before the read routes.
   });
 
   it("serves a summary with a held-out entry next to the dev one", async () => {

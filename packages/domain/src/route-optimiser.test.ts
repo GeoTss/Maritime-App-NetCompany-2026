@@ -701,7 +701,7 @@ describe("never worse than the baseline (60 seeded inputs)", () => {
     expect(rescued).toBeGreaterThan(0);
     if (loaded) {
       // The load reaches the result: the main-engine burn reads curve.load (consumption.ts, via
-      // loadFactor), so a loaded baseline costs less than the same input unloaded.
+      // loadFactor), so a loaded baseline's cost differs from the same input unloaded.
       const differing = [1, 2, 3, 4, 5].filter((seed) => {
         const withLoad = optimiseRouteSpeed(randomInput(seed * 7919, true));
         const without = optimiseRouteSpeed(randomInput(seed * 7919, false));

@@ -66,6 +66,13 @@ describe("ToolChips", () => {
     expect(screen.getByText("failed")).toBeTruthy();
   });
 
+  it("a call cut short by a failed ask reads stopped", () => {
+    render(<ToolChips calls={[{ id: "x", tool: "list_quotes", state: "stopped", ms: null }]} />);
+    expect(screen.getByText("stopped")).toBeTruthy();
+    expect(screen.queryByText("failed")).toBeNull();
+    expect(screen.queryByText("done")).toBeNull();
+  });
+
   it("every agent tool has a label", () => {
     for (const tool of AgentToolName.options) expect(TOOL_LABEL[tool]).toBeTruthy();
   });

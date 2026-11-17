@@ -16,6 +16,7 @@
  */
 import type { Sql } from "@pharos/db";
 import {
+  type AuditKind,
   BunkerPlan,
   BunkerPlanInput,
   DecisionResult,
@@ -80,7 +81,7 @@ const clock = (deps: ExecutorDeps) => deps.now();
 async function audit(
   tx: Tx,
   recommendationId: Id,
-  kind: string,
+  kind: AuditKind,
   actor: string,
   detail: Record<string, unknown>,
   at: Date,

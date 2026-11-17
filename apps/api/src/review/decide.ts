@@ -12,6 +12,7 @@
  */
 import { currentVoyage, loadWorld, openRequirements, type Sql } from "@pharos/db";
 import {
+  type AuditKind,
   type CheckResult,
   ExtractionOutput,
   type Id,
@@ -158,7 +159,7 @@ async function lockReviewable(tx: Tx, id: Id, only?: "failed"): Promise<ReviewRo
 
 async function audit(
   tx: Tx,
-  kind: string,
+  kind: AuditKind,
   detail: Record<string, unknown>,
   at: Date,
 ): Promise<void> {

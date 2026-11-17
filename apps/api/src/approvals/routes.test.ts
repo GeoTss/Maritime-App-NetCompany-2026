@@ -83,7 +83,6 @@ describe.skipIf(!sql)("approval routes (Postgres)", () => {
       erpSyncStatus: "synced",
     });
     expect(await decidedBy()).toBe("operator");
-    // Mounted before the read routes, so it is not tagged as read data.
   });
 
   it("takes decidedBy from the body", async () => {

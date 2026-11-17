@@ -6,6 +6,7 @@ import { createToolContext } from "../ai/tools/common.js";
 import { getVesselStatus } from "../ai/tools/vessel-status.js";
 import { ASK_FIXTURE_NOW, prepareAskFixture } from "../ask/demo-fixture.js";
 import { createDbSource } from "../read/db-source.js";
+import { vesselRowFacts } from "./vessel.js";
 
 const sql = await connectTestDb("facts_vessel");
 
@@ -85,5 +86,31 @@ describe.skipIf(!sql)("vessel facts (Postgres)", () => {
       nextPort: null,
       nextPortEta: null,
     });
+  });
+
+  it("a voyage with no future port call keeps fuel and voyage facts, and no next-port facts", async () => {
+    await db`
+      update port_calls set eta = ${new Date(ASK_FIXTURE_NOW.getTime() - 86_400_000).toISOString()}::timestamptz
+      where voyage_id = (select id from voyages where voyage_no = 'AP-2611')`;
+    const world = await loadWorld(db);
+    const vessel = world.vessels.find((v) => v.name === "MV Aegean Pioneer");
+    if (!vessel) throw new Error("no vessel");
+    const row = vesselRowFacts(world, vessel, ASK_FIXTURE_NOW);
+    expect(row.robMt).not.toBeNull();
+    expect(row.voyageNo?.value).toBe("AP-2611");
+    expect(row.nextPort).toBeNull();
+    expect(row.nextPortEta).toBeNull();
+
+    const detail = await detailOf("MV Aegean Pioneer");
+    expect(detail.facts.robMt).not.toBeNull();
+    expect(detail.facts.voyageNo?.value).toBe("AP-2611");
+    expect(detail.facts.nextPort).toBeNull();
+    expect(detail.facts.nextPortEta).toBeNull();
+
+    const tool = await getVesselStatus(ctx(), { vessel: "MV Aegean Pioneer" });
+    expect(tool.facts.some((f) => f.label === "Next port" || f.label.startsWith("ETA at "))).toBe(
+      false,
+    );
+    expect(tool.facts.some((f) => f.id === row.voyageNo?.id)).toBe(true);
   });
 });
