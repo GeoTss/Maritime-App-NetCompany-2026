@@ -79,11 +79,14 @@ export function ProposalDecision({
   rec,
   pending,
   disabled,
+  approveBlocked = null,
   onDecide,
 }: {
   rec: RecommendationView;
   pending: Decision | null;
   disabled: boolean;
+  /** Approve is off: the id of the reason shown beside the controls. */
+  approveBlocked?: { reasonId: string } | null;
   onDecide: (decision: Decision) => Promise<unknown>;
 }) {
   const { type } = rec;
@@ -93,6 +96,8 @@ export function ProposalDecision({
     <DecisionButtons
       pending={pending}
       disabled={disabled}
+      approveDisabled={approveBlocked !== null}
+      approveDescribedBy={approveBlocked?.reasonId}
       approveConsequence={APPROVE_CONSEQUENCE[type]}
       rejectConsequence={REJECT_CONSEQUENCE}
       confirmApproveLabel={

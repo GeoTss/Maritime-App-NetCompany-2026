@@ -132,6 +132,8 @@ export function DecisionButtons({
   approveName,
   pending = null,
   disabled = false,
+  approveDisabled = false,
+  approveDescribedBy,
 }: {
   onApprove: () => Promise<unknown> | undefined;
   onReject: () => Promise<unknown> | undefined;
@@ -152,6 +154,10 @@ export function DecisionButtons({
   /** The decision in flight, if any: both controls wait (single-flight). */
   pending?: Decision | null;
   disabled?: boolean;
+  /** Approve alone is off (e.g. it waits for another approval); Reject stays open. */
+  approveDisabled?: boolean;
+  /** The id of the text beside the controls that says why Approve is off. */
+  approveDescribedBy?: string;
 }) {
   const busy = pending !== null || disabled;
 
@@ -183,7 +189,12 @@ export function DecisionButtons({
       </AlertDialog>
       <AlertDialog>
         <AlertDialogTrigger asChild>
-          <Button variant="commit" disabled={busy} aria-label={pending ? undefined : approveName}>
+          <Button
+            variant="commit"
+            disabled={busy || approveDisabled}
+            aria-label={pending ? undefined : approveName}
+            aria-describedby={approveDisabled ? approveDescribedBy : undefined}
+          >
             {pending === "approve" ? "Approving…" : approveLabel}
           </Button>
         </AlertDialogTrigger>

@@ -19,10 +19,12 @@ export function proposedOption(rec: RecommendationView): BunkerOptionView | null
 export const rowFact = (option: BunkerOptionView | null, name: string): Fact | null =>
   option?.rows.find((r) => r.name === name)?.fact ?? null;
 
-const OPTION_PATH = /^options\[(\d+)\]\.([A-Za-z]+)$/;
+/** A route option's or a stop plan's own field: `options[1].eta`, `stopPlans[0].speedKn`. */
+const OPTION_PATH = /^((?:options|stopPlans)\[\d+\])\.([A-Za-z]+)$/;
 
 /**
- * Reads a proposal's calculation facts of ONE option, by field (`options[i].<field>`). The option
+ * Reads a proposal's calculation facts of ONE option, by field (`options[i].<field>`, or
+ * `stopPlans[i].<field>` for an instruction that calls at a bunker port). The option
  * is the single index under which the key fields are cited. If they are cited under more than one
  * option (another route's total beside this one's), which one the proposal is cannot be told from
  * the facts, so every field reads null ("not stated") rather than a guess. Facts of other fields
@@ -40,7 +42,7 @@ export function oneOptionFacts(facts: Fact[], keys: readonly string[]) {
   }
   const index = indices.size === 1 ? ([...indices][0] ?? null) : null;
   return (field: string): Fact | null =>
-    index === null ? null : (byPath.get(`options[${index}].${field}`) ?? null);
+    index === null ? null : (byPath.get(`${index}.${field}`) ?? null);
 }
 
 /**
@@ -146,9 +148,18 @@ export function OrderSummary({ rec, className }: { rec: RecommendationView; clas
       },
       { term: "Recommended speed", value: <Cited fact={v.speed} /> },
       { term: "ETA", value: <Cited fact={v.eta} /> },
-      { term: "Total voyage cost", value: <Cited fact={v.totalCost} /> },
+      {
+        term: rec.dependsOn ? "Plan total" : "Total voyage cost",
+        value: <Cited fact={v.totalCost} />,
+      },
     ];
-    counts = (
+    // An instruction with a bunker stop is the plan's total: the voyage and the fuel it buys.
+    counts = rec.dependsOn ? (
+      <>
+        Plan total counts the voyage (fuel burned, EU ETS, FuelEU exposure and the vessel's time),
+        the fuel bought at the stop and the barge fee.
+      </>
+    ) : (
       <>
         Total voyage cost counts the fuel, <Counted name="EU ETS" fact={v.etsCost} />,{" "}
         <Counted name="FuelEU exposure" fact={v.fuelEuCost} /> and the vessel's time.

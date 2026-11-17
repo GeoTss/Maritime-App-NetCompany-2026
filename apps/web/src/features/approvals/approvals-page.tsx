@@ -36,15 +36,39 @@ const STATUS_WORD: Record<string, string> = {
 };
 
 /**
+ * An awaiting instruction that waits for an awaiting purchase order moves to just after that
+ * order, so the queue reads in the order the decisions can be made.
+ */
+function ordersFirst(awaiting: RecommendationView[]): RecommendationView[] {
+  const waits = (r: RecommendationView) =>
+    r.dependsOn?.recommendationId != null &&
+    awaiting.some((o) => o.id === r.dependsOn?.recommendationId)
+      ? r.dependsOn.recommendationId
+      : null;
+  const out: RecommendationView[] = [];
+  for (const r of awaiting) {
+    if (waits(r) !== null) continue;
+    out.push(r);
+    out.push(...awaiting.filter((w) => waits(w) === r.id));
+  }
+  // An instruction whose order itself waits elsewhere keeps its place at the end.
+  out.push(...awaiting.filter((r) => !out.includes(r)));
+  return out;
+}
+
+/**
  * The queue's two parts. Ids are issued in the order proposals are made, so they order the queue:
- * awaiting ascending (oldest first), decided descending (newest first).
+ * awaiting ascending (oldest first), with an instruction after the order it waits for; decided
+ * descending (newest first).
  */
 export function queueOrder(items: RecommendationView[]): {
   awaiting: RecommendationView[];
   decided: RecommendationView[];
 } {
   return {
-    awaiting: items.filter((r) => r.status === "pending").sort((a, b) => (a.id < b.id ? -1 : 1)),
+    awaiting: ordersFirst(
+      items.filter((r) => r.status === "pending").sort((a, b) => (a.id < b.id ? -1 : 1)),
+    ),
     decided: items.filter((r) => r.status !== "pending").sort((a, b) => (a.id > b.id ? -1 : 1)),
   };
 }

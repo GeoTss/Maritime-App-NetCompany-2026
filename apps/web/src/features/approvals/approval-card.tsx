@@ -32,6 +32,7 @@ import { formatNumber, formatUtc } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { AuditTrail } from "./audit-trail";
 import { ProposalDecision } from "./decision-dialog";
+import { approveHeld, DependencyLine } from "./dependency-line";
 import { DraftsList } from "./drafts-list";
 import { instructionFacts, OrderSummary, orderFacts, proposedOption } from "./order-summary";
 import { byHeadlinePrice, PriceVsTotalChart } from "./price-vs-total-chart";
@@ -162,11 +163,18 @@ function Outcome({ rec }: { rec: RecommendationView }) {
     );
   }
   if (rec.instruction) {
+    const stop = rec.instruction.stop;
     return (
       <span className="text-xs text-text-1">
-        Instruction recorded: route {rec.instruction.candidateId}
-        {rec.optionLabel ? `, ${rec.optionLabel}` : ""}, at{" "}
+        Instruction recorded: {stop ? "" : `route ${rec.instruction.candidateId}`}
+        {rec.optionLabel ? `${stop ? "" : ", "}${rec.optionLabel}` : ""}, at{" "}
         {formatNumber(rec.instruction.speedKn, "kn")}, ETA {formatUtc(rec.instruction.eta)}
+        {stop ? (
+          <>
+            ; bunker stop at {stop.portName}, arrive {formatUtc(stop.arriveAt)}, depart{" "}
+            {formatUtc(stop.departAt)}
+          </>
+        ) : null}
       </span>
     );
   }
@@ -176,7 +184,10 @@ function Outcome({ rec }: { rec: RecommendationView }) {
 /** What approving does, in words, before the confirmation says it again. */
 function approveInWords(rec: RecommendationView): string {
   if (rec.type === "voyage_instruction") {
-    return "The route and speed instruction is recorded. The message to the master stays a draft; nothing is sent. You confirm in one more step.";
+    const what = rec.dependsOn
+      ? "The route, speed and bunker stop instruction is recorded"
+      : "The route and speed instruction is recorded";
+    return `${what}. The message to the master stays a draft; nothing is sent. You confirm in one more step.`;
   }
   const supplier = proposedOption(rec)?.supplier;
   return `A purchase order is created in the ERP simulator. The confirmation to ${supplier ?? "the supplier"} stays a draft; nothing goes to the supplier. You confirm in one more step.`;
@@ -414,7 +425,9 @@ function ActionBar({
   onDecide: (decision: Decision) => Promise<unknown>;
 }) {
   const id = useId();
+  const reasonId = useId();
   const isPending = rec.status === "pending";
+  const held = approveHeld(rec);
   return (
     <section
       aria-labelledby={id}
@@ -444,8 +457,34 @@ function ActionBar({
         )}
       </div>
       {isPending ? (
-        <div className="flex items-center gap-2">
-          <ProposalDecision rec={rec} pending={pending} disabled={locked} onDecide={onDecide} />
+        <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1.5">
+          {held ? (
+            <p
+              id={reasonId}
+              data-testid="approve-blocked"
+              className="flex max-w-[44ch] items-start gap-1.5 text-xs text-text-2"
+            >
+              <HugeiconsIcon
+                icon={AlertCircleIcon}
+                strokeWidth={2}
+                aria-hidden
+                className={cn(
+                  "mt-0.5 size-3.5 shrink-0",
+                  held.blocked ? "text-alarm" : "text-text-2",
+                )}
+              />
+              <span>{held.text}</span>
+            </p>
+          ) : null}
+          <div className="flex items-center gap-2">
+            <ProposalDecision
+              rec={rec}
+              pending={pending}
+              disabled={locked}
+              approveBlocked={held ? { reasonId } : null}
+              onDecide={onDecide}
+            />
+          </div>
         </div>
       ) : null}
     </section>
@@ -504,6 +543,7 @@ export function ProposalDetail({
               </h2>
               <DetailMeta rec={rec} />
               <OrderSummary rec={rec} className="mt-5" />
+              {rec.dependsOn ? <DependencyLine dep={rec.dependsOn} className="mt-3" /> : null}
               {isOrder && plan && plan.options.length > 0 ? (
                 <WhyThisOption rec={rec} plan={plan} />
               ) : null}
