@@ -15,7 +15,7 @@ export function routeRole(plan: RoutePlanView, optionIndex: number): RouteRole {
 export const ROLE_TEXT: Record<RouteRole, string> = {
   recommended: "Recommended",
   planned: "Current plan",
-  infeasible: "Infeasible",
+  infeasible: "Ruled out",
   other: "Alternative",
 };
 

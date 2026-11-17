@@ -5,16 +5,16 @@
 
 const LOCALE = "en-GB";
 
-/** Units written before the number ("USD 233,914"). */
+/** Units written before the number ("USD 233,914.00"). */
 const CURRENCY_UNITS = new Set(["USD", "EUR", "usd", "eur"]);
 /** Units written straight after the number, without a space ("12.5%"). */
 const TIGHT_UNITS = new Set(["%"]);
 
 const DECIMALS: Record<string, number> = {
-  USD: 0,
-  EUR: 0,
-  usd: 0,
-  eur: 0,
+  USD: 2,
+  EUR: 2,
+  usd: 2,
+  eur: 2,
   "USD/mt": 2,
   "EUR/mt": 2,
   "/mt": 2,
@@ -77,7 +77,7 @@ export function formatDigits(value: number, unit: string | null): string {
   return formatterFor(numberFormatOptions(unit, value)).format(value);
 }
 
-/** "USD 233,914", "612.50 USD/mt", "14.2 kn", "12.5%". A non-finite value is a dash. */
+/** "USD 233,914.00", "612.50 USD/mt", "14.2 kn", "12.5%". A non-finite value is a dash. */
 export function formatNumber(value: number, unit: string | null): string {
   if (!Number.isFinite(value)) return "—";
   const { prefix, suffix } = unitAffixes(unit);
@@ -115,3 +115,6 @@ export function formatUtcFull(iso: string): string {
   if (Number.isNaN(d.getTime())) return iso;
   return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}Z`;
 }
+
+/** "Nordwind Bunker Services'": the possessive of a name, with no second s after an s. */
+export const possessive = (name: string): string => (/s$/i.test(name) ? `${name}'` : `${name}'s`);

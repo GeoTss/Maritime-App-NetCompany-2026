@@ -16,6 +16,7 @@ import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import type { DerivedOperation, Fact, Provenance } from "@pharos/shared";
 import { createContext, type ReactNode, useContext, useMemo } from "react";
 import { Link } from "react-router";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { UntrustedText } from "@/components/untrusted-text";
 import { formatNumber, formatUtc, formatUtcFull, isIsoInstant } from "@/lib/format";
@@ -68,6 +69,29 @@ export function factDisplay(fact: Fact): string {
   if (typeof fact.value === "boolean") return fact.value ? "yes" : "no";
   if (isIsoInstant(fact.value)) return formatUtc(fact.value);
   return fact.unit ? `${fact.value} ${fact.unit}` : fact.value;
+}
+
+/**
+ * A calculation fact's plain lead: "Bunker plan 1, option 1: Kestrel Marine Fuels at Marsaxlokk".
+ * Built from what the fact already carries (its run id, path and label); null for other sources.
+ */
+export function calculationLead(fact: Fact): { lead: string; field: string | null } | null {
+  const p = fact.provenance;
+  if (p.source !== "calculation") return null;
+  const kind = /bunker/i.test(p.calculator)
+    ? "Bunker plan"
+    : /route/i.test(p.calculator)
+      ? "Route plan"
+      : "Calculation";
+  const option = /^options\[(\d+)\]/.exec(p.path);
+  const head = `${kind} ${p.calculationId}${option ? `, option ${Number(option[1]) + 1}` : ""}`;
+  const who = /\(([^,)]+), ([^)]+)\):\s*(.*)$/.exec(fact.label);
+  if (who) return { lead: `${head}: ${who[1]} at ${who[2]}`, field: who[3] ?? null };
+  const split = fact.label.indexOf(": ");
+  if (option && split >= 0) {
+    return { lead: `${head}: ${fact.label.slice(0, split)}`, field: fact.label.slice(split + 2) };
+  }
+  return { lead: `${head}: ${fact.label}`, field: null };
 }
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
@@ -131,19 +155,7 @@ function ProvenanceDetail({ provenance, depth }: { provenance: Provenance; depth
         </dl>
       );
     case "calculation":
-      return (
-        <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
-          <Row label="Calculator">
-            <Mono>{provenance.calculator}</Mono>
-          </Row>
-          <Row label="Run">
-            <Mono>{String(provenance.calculationId)}</Mono>
-          </Row>
-          <Row label="Output">
-            <Mono>{provenance.path}</Mono>
-          </Row>
-        </dl>
-      );
+      return null; // Its source reads as the lead line; the calculator and path are technical detail.
     case "document":
       return (
         <div className="flex flex-col gap-2">
@@ -220,6 +232,7 @@ export function FactChip({
   const depth = useContext(DepthContext);
   const kind = PROVENANCE_KIND[fact.provenance.source];
   const label = children ?? factDisplay(fact);
+  const plain = calculationLead(fact);
   const writtenOther =
     written !== undefined && written !== String(fact.value) && written !== children
       ? written
@@ -250,9 +263,10 @@ export function FactChip({
       <PopoverContent align="start" className="w-80 gap-3 text-xs">
         <DepthContext.Provider value={depth + 1}>
           <div className="flex flex-col gap-0.5">
-            <span className="text-text-2">{fact.label}</span>
+            <span className="text-text-2">{plain ? plain.lead : fact.label}</span>
+            {plain?.field ? <span className="text-text-1">{plain.field}</span> : null}
             <span className="text-base text-text-1 tabular-nums [overflow-wrap:anywhere]">
-              {String(fact.value)}
+              {typeof fact.value === "boolean" ? (fact.value ? "yes" : "no") : String(fact.value)}
               {fact.unit ? <span className="text-text-2"> {fact.unit}</span> : null}
             </span>
             {writtenOther ? (
@@ -268,7 +282,31 @@ export function FactChip({
             </span>
             <ProvenanceDetail provenance={fact.provenance} depth={depth + 1} />
           </div>
-          <span className="font-mono text-2xs text-text-3">{fact.id}</span>
+          <Collapsible>
+            <CollapsibleTrigger className="text-2xs text-text-3 underline decoration-dotted underline-offset-2 hover:text-text-2">
+              Technical detail
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pt-1.5">
+              <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+                {fact.provenance.source === "calculation" ? (
+                  <>
+                    <Row label="Calculator">
+                      <Mono>{fact.provenance.calculator}</Mono>
+                    </Row>
+                    <Row label="Run">
+                      <Mono>{String(fact.provenance.calculationId)}</Mono>
+                    </Row>
+                    <Row label="Output">
+                      <Mono>{fact.provenance.path}</Mono>
+                    </Row>
+                  </>
+                ) : null}
+                <Row label="Fact id">
+                  <Mono>{fact.id}</Mono>
+                </Row>
+              </dl>
+            </CollapsibleContent>
+          </Collapsible>
         </DepthContext.Provider>
       </PopoverContent>
     </Popover>

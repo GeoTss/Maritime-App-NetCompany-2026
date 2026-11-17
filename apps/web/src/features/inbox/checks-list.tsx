@@ -3,6 +3,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import type { CheckResult } from "@pharos/shared";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { UntrustedText } from "@/components/untrusted-text";
+import { checkMessage } from "./check-copy";
 
 function CheckRow({ c }: { c: CheckResult }) {
   return (
@@ -17,7 +18,7 @@ function CheckRow({ c }: { c: CheckResult }) {
         <span className="font-mono text-2xs text-text-1">{c.check}</span>
         {c.detail ? (
           <p className="text-text-2">
-            <UntrustedText text={c.detail} />
+            <UntrustedText text={checkMessage(c) ?? c.detail} />
           </p>
         ) : null}
       </div>

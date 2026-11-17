@@ -71,8 +71,8 @@ export function loadFacts(facts: readonly Fact[]): LoadFacts {
 export type InfeasibleReason = RouteOptionResult["reasons"][number];
 
 const REASON: Record<InfeasibleReason, string> = {
-  crosses_hazard: "Passes through a reported hazard zone",
-  misses_arrive_by: "Arrives after the berth window closes",
+  crosses_hazard: "Blocked: crosses the reported hazard",
+  misses_arrive_by: "Blocked: arrives after the berth window closes",
 };
 
 export function reasonText(reason: InfeasibleReason): string {

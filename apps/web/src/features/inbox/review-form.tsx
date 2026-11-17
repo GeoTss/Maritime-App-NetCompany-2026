@@ -28,6 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { possessive } from "@/lib/format";
 
 interface LineState {
   grade: string;
@@ -450,7 +451,7 @@ export function ReviewForm({
           <DialogHeader>
             <DialogTitle>Accept this correction?</DialogTitle>
             <DialogDescription>
-              This saves {supplier?.name ?? "the supplier"}'s quote for{" "}
+              This saves {possessive(supplier?.name ?? "the supplier")} quote for{" "}
               {vessel?.name ?? "the vessel"} at {port?.name ?? "the port"} with your corrected
               values and marks the email accepted. It places no order and sends nothing to the
               supplier.

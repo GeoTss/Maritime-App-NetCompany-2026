@@ -303,6 +303,18 @@ export function makePlan(opts: { omitFact?: (fact: Fact) => boolean } = {}): Rou
     },
   });
   facts.push({
+    id: "f_plan_baseline_speedKn",
+    label: "MV Aegean Pioneer, current plan: speed",
+    value: 12.5,
+    unit: "kn",
+    provenance: {
+      source: "calculation",
+      calculationId: 1,
+      calculator: "optimiseRouteAndSpeed",
+      path: "baseline.speedKn",
+    },
+  });
+  facts.push({
     id: "f_plan_displacement",
     label: "MV Aegean Pioneer: displacement",
     value: 65000,

@@ -551,13 +551,13 @@ describe("AssistantDock", () => {
     expect(chips.map((c) => c.textContent)).toEqual([
       "738.00",
       "11.1 h",
-      "233,943",
+      "233,942.91",
       "745.20",
       "15.0 h",
-      "239,253",
+      "239,253.28",
       "712.00",
       "36.3 h",
-      "250,081",
+      "250,081.36",
     ]);
     expect(table.querySelector("number-flow-react, [data-number-flow]")).toBeNull();
     // A GET of the stored plan; nothing is planned again.

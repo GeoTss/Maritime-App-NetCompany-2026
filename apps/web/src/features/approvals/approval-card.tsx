@@ -164,7 +164,8 @@ function Outcome({ rec }: { rec: RecommendationView }) {
   if (rec.instruction) {
     return (
       <span className="text-xs text-text-1">
-        Instruction recorded: <span className="font-mono">{rec.instruction.candidateId}</span> at{" "}
+        Instruction recorded: route {rec.instruction.candidateId}
+        {rec.optionLabel ? `, ${rec.optionLabel}` : ""}, at{" "}
         {formatNumber(rec.instruction.speedKn, "kn")}, ETA {formatUtc(rec.instruction.eta)}
       </span>
     );

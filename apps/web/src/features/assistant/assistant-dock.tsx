@@ -67,6 +67,7 @@ function useDrawArrivingAnswers(turns: Turn[]) {
 }
 
 function TurnView({ turn, onRetry }: { turn: Turn; onRetry: () => void }) {
+  const replayMiss = /replay miss/i.test(turn.error ?? "");
   return (
     <section
       className="flex flex-col gap-2 border-b border-line p-3"
@@ -84,10 +85,17 @@ function TurnView({ turn, onRetry }: { turn: Turn; onRetry: () => void }) {
           />
           <div className="flex flex-col items-start gap-1.5">
             <p className="max-w-[60ch] text-xs/relaxed text-text-1">{turn.error}</p>
-            <Button variant="outline" size="sm" onClick={onRetry}>
-              <HugeiconsIcon icon={Refresh01Icon} strokeWidth={2} data-icon="inline-start" />
-              Try again
-            </Button>
+            {/* A replay miss repeats on every retry (nothing is recorded for the question). */}
+            {replayMiss ? (
+              <Button variant="outline" size="sm" onClick={resetAssistant}>
+                New conversation
+              </Button>
+            ) : (
+              <Button variant="outline" size="sm" onClick={onRetry}>
+                <HugeiconsIcon icon={Refresh01Icon} strokeWidth={2} data-icon="inline-start" />
+                Try again
+              </Button>
+            )}
           </div>
         </div>
       ) : null}

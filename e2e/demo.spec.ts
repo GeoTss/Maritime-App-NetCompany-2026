@@ -159,7 +159,7 @@ test("demo story: six steps", async ({ page }) => {
       await expect(page.locator('[data-pinned="true"]')).toHaveCount(0);
     } else {
       const clock = page.locator("time[datetime]").first();
-      await expect(clock).toHaveText("08:05Z");
+      await expect(clock).toHaveText(/14 Nov 08:05Z$/);
       await expect(page.getByText("pinned", { exact: true })).toBeVisible();
     }
     await expect(

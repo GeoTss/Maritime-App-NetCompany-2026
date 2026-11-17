@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { displayDecimals, formatNumber, formatUtc } from "@/lib/format";
+import { displayDecimals, formatNumber, formatUtc, possessive } from "@/lib/format";
 
 /** The digits (and sign and point) of a formatted number, without grouping or unit. */
 const digitsOf = (text: string) => text.replace(/[^0-9.-]/g, "");
@@ -20,7 +20,9 @@ describe("formatNumber", () => {
 
   it("groups thousands and keeps fixed decimals per unit", () => {
     expect(formatNumber(612.5, "USD/mt")).toBe("612.50 USD/mt");
-    expect(formatNumber(233914, "USD")).toBe("USD 233,914");
+    expect(formatNumber(233914, "USD")).toBe("USD 233,914.00");
+    expect(formatNumber(48024.56, "USD")).toBe("USD 48,024.56");
+    expect(possessive("Nordwind Bunker Services")).toBe("Nordwind Bunker Services'");
     expect(formatNumber(1500.25, "mt")).toBe("1,500.3 mt");
     expect(formatNumber(14.2, "kn")).toBe("14.2 kn");
     expect(formatNumber(12.5, "%")).toBe("12.5%");

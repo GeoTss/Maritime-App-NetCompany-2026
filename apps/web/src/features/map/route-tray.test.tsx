@@ -35,7 +35,11 @@ describe("RouteComparison", () => {
   it("an infeasible route shows its reason", () => {
     renderComparison();
     const a = rowFor("A");
-    expect(a.getByText(/passes through a reported hazard zone/i)).toBeTruthy();
+    expect(a.getByText("Blocked: crosses the reported hazard")).toBeTruthy();
+    expect(screen.queryByText(/infeasible/i)).toBeNull();
+    expect(screen.getByTestId("route-row-baseline").textContent).toMatch(
+      /Current plan \(route [A-Z] at [\d.]+ kn\)/,
+    );
     expect(screen.getByTestId("route-row-A").getAttribute("data-feasible")).toBe("false");
     expect(screen.getByTestId("route-row-B").getAttribute("data-feasible")).toBe("true");
   });

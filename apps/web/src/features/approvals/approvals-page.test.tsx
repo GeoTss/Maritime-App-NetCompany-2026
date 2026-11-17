@@ -490,7 +490,7 @@ describe("ApprovalsPage: the decision", () => {
     expect(readouts.map((d) => d.querySelector("[data-slot=fact-chip]")?.textContent)).toEqual([
       "300.0 mt",
       "738.00 USD/mt",
-      "USD 233,943",
+      "USD 233,942.91",
       "11.1 h",
     ]);
     // What the total counts, with its carbon costs cited.
@@ -658,7 +658,7 @@ describe("ApprovalsPage: the decision", () => {
     const margin = why.querySelector(
       '[data-fact-id="f_plan_bunkering_1_marginVsRunnerUpUsd"]',
     ) as HTMLElement;
-    expect(margin.textContent).toBe("USD 5,310");
+    expect(margin.textContent).toBe("USD 5,310.37");
     expect(margin.closest("p")?.textContent).toMatch(/less than the runner-up/);
     // Its popover resolves both operands from the plan (the ledger includes the view's facts).
     fireEvent.click(margin);
@@ -802,7 +802,7 @@ describe("ApprovalsPage: the decision", () => {
       .getByText("Expected saving")
       .parentElement?.querySelector("[data-slot=fact-chip]");
     expect(saving?.getAttribute("data-fact-id")).toBe("f_saving");
-    expect(saving?.textContent).toBe("+USD 18,250");
+    expect(saving?.textContent).toBe("+USD 18,250.00");
   });
 
   it("the chip prints the cited fact's number, not the second field", async () => {
@@ -817,7 +817,7 @@ describe("ApprovalsPage: the decision", () => {
     const chip = screen
       .getByText("Expected saving")
       .parentElement?.querySelector("[data-slot=fact-chip]");
-    expect(chip?.textContent).toBe("+USD 18,250");
+    expect(chip?.textContent).toBe("+USD 18,250.00");
   });
 
   it("no uncited saving: without an expectedSaving fact it reads not stated", async () => {

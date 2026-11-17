@@ -80,6 +80,7 @@ const numeric = "text-right tabular-nums whitespace-nowrap";
 export function RouteComparison({ plan }: { plan: RoutePlanView }) {
   const { facts, result } = plan;
   const load = loadFacts(facts);
+  const baselineSpeed = baselineFact(facts, "speedKn");
   return (
     <div className="flex min-w-0 flex-col gap-3">
       <dl className="flex flex-wrap items-baseline gap-x-6 gap-y-1 text-xs">
@@ -160,6 +161,11 @@ export function RouteComparison({ plan }: { plan: RoutePlanView }) {
                     </span>
                   </div>
                   <div className="pl-7 text-text-2">{candidate?.label ?? "—"}</div>
+                  {option.feasible && option.meetsArriveBy ? (
+                    <div className="pl-7 text-2xs text-text-2" data-testid="meets-window">
+                      Meets the berth window
+                    </div>
+                  ) : null}
                   {option.feasible ? null : (
                     <ul className="pl-7 text-alarm">
                       {option.reasons.map((reason) => (
@@ -194,7 +200,10 @@ export function RouteComparison({ plan }: { plan: RoutePlanView }) {
           <TableRow data-testid="route-row-baseline" className="text-text-2">
             <TableCell>
               <div className="flex items-center gap-2 pl-0">
-                <span className="font-medium">Current plan</span>
+                <span className="font-medium">
+                  Current plan (route {result.baseline.candidateId}
+                  {baselineSpeed ? ` at ${factText(baselineSpeed, "number")}` : ""})
+                </span>
               </div>
             </TableCell>
             {COLUMNS.map((c) => (
