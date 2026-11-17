@@ -19,7 +19,9 @@
       "!fixtures/recorded",
       "!**/*.generated.json",
       "!**/*.md",
-      "!.claude/skills/impeccable"
+      "!.claude/skills/impeccable",
+      "!docs/design",
+      "!.impeccable"
     ]
   },
   "formatter": {
