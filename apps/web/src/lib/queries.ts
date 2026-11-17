@@ -41,6 +41,7 @@ export const queryKeys = {
   review: ["review"] as const,
   reviewReference: ["review", "reference"] as const,
   recommendations: ["recommendations"] as const,
+  recommendation: (id: number) => ["recommendations", id] as const,
   drafts: (id: number) => ["recommendations", id, "drafts"] as const,
   audit: ["audit"] as const,
   evalSummary: ["eval", "summary"] as const,

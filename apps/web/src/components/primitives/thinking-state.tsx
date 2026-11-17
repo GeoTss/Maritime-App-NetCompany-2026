@@ -47,7 +47,8 @@ export function ThinkingState({
     <Collapsible open={open} onOpenChange={setOpen} className={cn("flex flex-col", className)}>
       <CollapsibleTrigger
         className={cn(
-          "-mx-1 flex h-7 w-fit items-center gap-1.5 rounded-sm px-1 text-xs text-text-2",
+          // A long label ("Ran Supplier quotes, Bunker plan, …") wraps instead of overflowing.
+          "-mx-1 flex min-h-7 w-fit max-w-full items-center gap-1.5 rounded-sm px-1 py-1 text-left text-xs text-text-2",
           "outline-none hover:bg-ink-800 hover:text-text-1 focus-visible:ring-2 focus-visible:ring-beacon/40",
         )}
       >

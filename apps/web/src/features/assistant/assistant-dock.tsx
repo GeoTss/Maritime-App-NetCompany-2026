@@ -2,15 +2,21 @@
  * The assistant dock: suggested questions, the run's progress trace, the released answer (every
  * number a fact chip) and the composer. No answer text streams before the release gate passes it.
  * The dock proposes nothing by itself: a proposal it makes is decided on the approvals screen.
+ *
+ * Ruling U4: when an answer arrives while the map is on screen (`/`), the dock moves the map to the
+ * answer's ship and plan (`replace`, so Back is not filled with answers). Elsewhere the answer only
+ * offers "Show on map".
  */
 import { AiChat02Icon, Alert02Icon, Refresh01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
+import { useLocation, useNavigate } from "react-router";
 import { DataTag } from "@/components/source-badge";
 import { Button } from "@/components/ui/button";
 import { queryKeys, useHealth } from "@/lib/queries";
 import { AnswerMessage } from "./answer-message";
+import { answerMapLink } from "./answer-plan";
 import { ask, isRunning, resetAssistant, retry, type Turn, useAssistant } from "./assistant-store";
 import { Composer } from "./composer";
 import { ProgressTrace } from "./progress-trace";
@@ -34,8 +40,30 @@ function ModelMode() {
   return <DataTag kind={kind[mode]} />;
 }
 
+/**
+ * Ruling U4: an answer that arrives while the map is on screen moves the map to its link. Answers
+ * already shown when the dock mounted (the phone drawer opening again) have arrived before: they
+ * never navigate. A withheld answer never does.
+ */
+function useDrawArrivingAnswers(turns: Turn[]) {
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const seen = useRef<Set<number> | null>(null);
+  seen.current ??= new Set(turns.filter((t) => t.response !== null).map((t) => t.id));
+  useEffect(() => {
+    const handled = seen.current;
+    if (!handled) return;
+    for (const turn of turns) {
+      if (turn.response === null || handled.has(turn.id)) continue;
+      handled.add(turn.id);
+      if (pathname !== "/" || turn.response.answer === null) continue;
+      const link = answerMapLink(turn.response);
+      if (link !== null) navigate(link, { replace: true });
+    }
+  }, [turns, pathname, navigate]);
+}
+
 function TurnView({ turn, onRetry }: { turn: Turn; onRetry: () => void }) {
-  const routeAnswer = turn.progress.some((p) => p.tool === "plan_route_speed");
   return (
     <section
       className="flex flex-col gap-2 border-b border-line p-3"
@@ -60,7 +88,7 @@ function TurnView({ turn, onRetry }: { turn: Turn; onRetry: () => void }) {
           </div>
         </div>
       ) : null}
-      {turn.response ? <AnswerMessage response={turn.response} routeAnswer={routeAnswer} /> : null}
+      {turn.response ? <AnswerMessage response={turn.response} /> : null}
     </section>
   );
 }
@@ -70,6 +98,7 @@ export function AssistantDock() {
   const state = useAssistant();
   const scroller = useRef<HTMLDivElement>(null);
   const busy = isRunning(state);
+  useDrawArrivingAnswers(state.turns);
 
   const onAnswer = (response: { recommendationIds: number[] }) => {
     if (response.recommendationIds.length > 0)
