@@ -48,7 +48,11 @@ export const planRouteSpeedDef = defineTool({
     "hazards, and returns per route the distance, recommended speed, ETA, fuel, CO2, FuelEU " +
     "Maritime exposure, total cost and weather delay, plus the saving against the current plan, " +
     "and the load the fuel figures assume (displacement and load factor; for a ship seen on AIS, " +
-    "its reported draught and the load condition taken from it). Returns citable facts. " +
+    "its reported draught and the load condition taken from it). For a fleet vessel it also " +
+    "checks fuel on board per grade along each route and plans bunker stops at the ports of the " +
+    "received quotes: the best route ignoring fuel on board (and where it runs short) beside the " +
+    "recommended plan (route, speed, bunker stop and quote) that keeps every safety margin, with " +
+    "the hours and USD the stop adds and the next feasible quote. Returns citable facts. " +
     "Advice only: nothing is ordered or sent.",
   inputSchema: PlanRouteSpeedInput,
   run: planRouteSpeedFacts,

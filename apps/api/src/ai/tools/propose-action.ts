@@ -243,8 +243,11 @@ export const proposeActionDef = defineTool({
     "compare, ask which route or speed is best, ask for a calculation or say not to order or " +
     "instruct yet. Never for a ship seen on AIS. Creates a pending recommendation only: nothing " +
     "is ordered, changed or sent. Takes the plan's calculationId and optionId (a bunker plan's " +
-    "optionId, or a route plan's route id), and factRefs that are facts of that same plan; " +
-    "quantities, prices, speeds and ETAs come from the stored plan, never from you.",
+    "optionId; for a route plan, the recommended plan's id: a route id, or a bunker stop id " +
+    "such as MTMLA-kestrel when the route needs a bunker stop), and factRefs that are facts of " +
+    "that same plan; quantities, prices, speeds and ETAs come from the stored plan, never from " +
+    "you. A voyage instruction with a bunker stop waits for an approved purchase order for that " +
+    "stop's quote; never propose that order unless the operator asks for it.",
   inputSchema: ProposeActionInput,
   run: proposeAction,
 });
