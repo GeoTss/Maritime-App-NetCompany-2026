@@ -31,7 +31,6 @@ import {
   DecisionError,
   draftsOf,
   type ExecutorDeps,
-  executeRecommendation,
   idempotencyKeyFor,
   rejectRecommendation,
 } from "./execute.js";
@@ -566,23 +565,6 @@ describe.skipIf(!sql)("executor (Postgres)", () => {
     expect(await ordersOf(recId)).toHaveLength(1);
     expect(new Set(erp.requests.map((r) => r.key))).toEqual(new Set([`rec-${recId}-${SEED_MS}`]));
     expect(await draftsOf(db, recId)).toHaveLength(2);
-  });
-
-  it("executor runs only from an approval: executing a pending recommendation throws", async () => {
-    const err = await executeRecommendation(deps, recId).catch((e: unknown) => e);
-    expect(err).toBeInstanceOf(DecisionError);
-    expect((err as DecisionError).code).toBe("not_approved");
-    expect(await ordersOf(recId)).toHaveLength(0);
-    expect(erp.requests).toHaveLength(0);
-    expect((await recommendation(recId))?.status).toBe("pending");
-  });
-
-  it("executeRecommendation runs an approved recommendation and refuses an executed one", async () => {
-    await db`update recommendations set status = 'approved' where id = ${recId}`;
-    expect((await executeRecommendation(deps, recId)).status).toBe("executed");
-    const again = await executeRecommendation(deps, recId).catch((e: unknown) => e);
-    expect((again as DecisionError).code).toBe("not_approved");
-    expect(await ordersOf(recId)).toHaveLength(1);
   });
 
   it("reject is final", async () => {

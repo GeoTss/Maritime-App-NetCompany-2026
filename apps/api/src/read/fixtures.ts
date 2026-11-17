@@ -404,7 +404,6 @@ export function createFixtureSource(): ReadSource {
   const ports = buildPorts(world);
 
   return {
-    dataTag: "fixture",
     listVessels: async () => vessels.map((v) => v.summary),
     getVessel: async (id) => vessels.find((v) => v.summary.id === id)?.detail ?? null,
     listVoyages: async () => voyages.map((v) => v.summary),

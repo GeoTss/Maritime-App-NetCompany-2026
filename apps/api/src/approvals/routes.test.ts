@@ -84,7 +84,6 @@ describe.skipIf(!sql)("approval routes (Postgres)", () => {
     });
     expect(await decidedBy()).toBe("operator");
     // Mounted before the read routes, so it is not tagged as read data.
-    expect(res.headers.get("x-pharos-data")).toBeNull();
   });
 
   it("takes decidedBy from the body", async () => {

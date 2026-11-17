@@ -116,14 +116,6 @@ describe.skipIf(!sql)("createDbSource (Postgres)", () => {
     return { res, body: (await res.json()) as unknown };
   }
 
-  it("tags every read response as db data", async () => {
-    for (const path of ["vessels", "voyages", "inbox", "quotes", "recommendations"]) {
-      const { res } = await get(app, `/api/${path}`);
-      expect(res.status).toBe(200);
-      expect(res.headers.get("x-pharos-data")).toBe("db");
-    }
-  });
-
   it("returns the 8 seeded vessels, built exactly as the fixture source builds them", async () => {
     const { items } = listOf(VesselSummary).parse((await get(app, "/api/vessels")).body);
     expect(items).toHaveLength(8);

@@ -81,7 +81,6 @@ describe.skipIf(!sql)("POST /api/ask (Postgres)", () => {
     const body = AskResponse.parse(await res.json());
     expect(body.answer).toBe("Bunker at Marsaxlokk with Kestrel Marine Fuels.");
     expect(body.gate.passed).toBe(true);
-    expect(res.headers.get("x-pharos-data")).toBeNull();
   });
 
   it("a withheld answer is null and its numbers never leave the API: counts only", async () => {

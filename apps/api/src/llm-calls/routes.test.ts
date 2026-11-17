@@ -48,7 +48,6 @@ describe.skipIf(!sql)("GET /api/llm-calls (Postgres)", () => {
       await recordLlmCall(db, n === 2 ? "agent" : "extract", metrics(n), {});
     const res = await app.request("/api/llm-calls");
     expect(res.status).toBe(200);
-    expect(res.headers.get("x-pharos-data")).toBeNull();
     const { items } = listOf(LlmCallView).parse(await res.json());
     expect(items.map((c) => c.requestKey)).toEqual(["request-3", "request-2", "request-1"]);
     expect(items[0]).toMatchObject({

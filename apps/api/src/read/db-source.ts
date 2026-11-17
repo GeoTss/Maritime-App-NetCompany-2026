@@ -1,5 +1,5 @@
 /**
- * Database-backed ReadSource (what `server.ts` serves; responses are tagged `x-pharos-data: db`).
+ * Database-backed ReadSource (what `server.ts` serves).
  * Vessels and voyages come from the stored world through the same builders as the fixture source.
  * Inbox items, quotes and recommendations are read from their tables. A recommendation's facts
  * are re-derived from the calculation it references, never from stored model text: a bunker
@@ -402,7 +402,6 @@ async function worldAnchor(sql: Sql): Promise<Date | null> {
 
 export function createDbSource(sql: Sql, now: () => Date): ReadSource {
   return {
-    dataTag: "db",
     listVessels: async () => buildVessels(await loadWorld(sql), now()).map((v) => v.summary),
     getVessel: async (id) =>
       buildVessels(await loadWorld(sql), now()).find((v) => v.summary.id === id)?.detail ?? null,

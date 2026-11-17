@@ -3,9 +3,6 @@ import { Hono } from "hono";
 import type { Clock } from "../clock.js";
 import type { ReadSource } from "./source.js";
 
-/** Marks every response with its source ("fixture" or "db") so the console can badge it. */
-export const DATA_SOURCE_HEADER = "x-pharos-data";
-
 const notFound = { error: "not_found" } as const;
 
 /** Largest value of a Postgres `integer` id column. */
@@ -23,13 +20,7 @@ export function parseId(raw: string): number | null {
  * console's clock, ports and audit trail. `clock` is the request clock.
  */
 export function createReadRoutes(read: ReadSource, clock: Clock) {
-  const dataTag = read.dataTag;
   const app = new Hono();
-
-  app.use("*", async (c, next) => {
-    c.header(DATA_SOURCE_HEADER, dataTag);
-    await next();
-  });
 
   const resource = <T>(
     path: string,

@@ -54,7 +54,6 @@ export function createApp(deps: AppDeps) {
     return c.json(body);
   });
 
-  // Before the read routes, whose /api/* middleware would otherwise tag these responses.
   if (deps.inbox) app.route("/api/inbox", createInboxRoutes(deps.inbox));
   if (deps.review) app.route("/api/review", createReviewRoutes(deps.review));
   if (deps.ask) app.route("/api/ask", createAskRoutes(deps.ask));

@@ -40,12 +40,7 @@ export interface ExecutorDeps {
   log?: (message: string) => void;
 }
 
-export type DecisionErrorCode =
-  | "not_found"
-  | "already_rejected"
-  | "not_pending"
-  | "not_approved"
-  | "not_executable";
+export type DecisionErrorCode = "not_found" | "already_rejected" | "not_pending" | "not_executable";
 
 /** A decision that cannot be taken in the recommendation's current state. Nothing was written. */
 export class DecisionError extends Error {
@@ -143,27 +138,6 @@ export async function approveRecommendation(
     return rec;
   });
   if (run) await finish(deps, run);
-  return decisionOf(deps.sql, id);
-}
-
-/**
- * The executor entry point: runs an approved (or failed, as a retry) recommendation. It refuses
- * anything else, so a pending recommendation can never be executed without a human approval.
- */
-export async function executeRecommendation(deps: ExecutorDeps, id: Id): Promise<DecisionResult> {
-  const now = clock(deps);
-  const rec = await deps.sql.begin(async (tx) => {
-    const rec = await lockRecommendation(tx, id);
-    if (rec.status !== "approved" && rec.status !== "failed") {
-      throw new DecisionError(
-        "not_approved",
-        `Recommendation ${id} is ${rec.status}; only an approved recommendation can be executed.`,
-      );
-    }
-    await beginExecution(tx, rec, now, EXECUTOR);
-    return rec;
-  });
-  await finish(deps, rec);
   return decisionOf(deps.sql, id);
 }
 

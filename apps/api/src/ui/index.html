@@ -260,7 +260,6 @@ async function loadInbox() {
   const r = await api("/api/inbox");
   if (!r.ok) return say("inbox-note", `Could not load the inbox: ${errorText(r)}`);
   state.inbox = r.body.items;
-  const source = r.headers.get("x-pharos-data");
   $("inbox").replaceChildren(
     ...r.body.items.map((i) =>
       el("tr", {},
@@ -276,7 +275,6 @@ async function loadInbox() {
   $("inbox-note").textContent = [
     r.body.items.length === 0 ? "No emails yet." : "",
     pending ? "Extracting… refreshing every 2 s." : "",
-    source ? `Data: ${source}.` : "",
   ].filter(Boolean).join(" ");
 }
 

@@ -47,10 +47,9 @@ const resources = [
 ] as const;
 
 describe.each(resources)("/api/$path", ({ path, summary, detail, idKey }) => {
-  it("lists items, tagged as fixture data", async () => {
+  it("lists items", async () => {
     const { res, body } = await get(`/api/${path}`);
     expect(res.status).toBe(200);
-    expect(res.headers.get("x-pharos-data")).toBe("fixture");
     const parsed = listOf(summary).parse(body);
     expect(parsed.items.length).toBeGreaterThan(0);
   });
@@ -60,7 +59,6 @@ describe.each(resources)("/api/$path", ({ path, summary, detail, idKey }) => {
     const id = (list.items[0] as unknown as Record<string, number>)[idKey];
     const { res, body } = await get(`/api/${path}/${id}`);
     expect(res.status).toBe(200);
-    expect(res.headers.get("x-pharos-data")).toBe("fixture");
     detail.parse(body);
   });
 

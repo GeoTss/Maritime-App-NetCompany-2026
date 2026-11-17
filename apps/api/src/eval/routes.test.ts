@@ -68,7 +68,6 @@ describe("GET /api/eval/summary", () => {
     expect(res.status).toBe(200);
     expect(EvalSummary.parse(await res.json())).toEqual(SUMMARY);
     // Not read data: mounted before the read routes.
-    expect(res.headers.get("x-pharos-data")).toBeNull();
   });
 
   it("serves a summary with a held-out entry next to the dev one", async () => {
