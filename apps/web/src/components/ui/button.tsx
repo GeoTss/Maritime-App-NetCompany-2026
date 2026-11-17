@@ -11,9 +11,9 @@ const buttonVariants = cva(
         /* Neutral by default: the lamp is reserved for the one commit action (variant "commit"). */
         default:
           "border-line-strong bg-ink-800 text-text-1 hover:bg-[color-mix(in_oklch,var(--ink-800),var(--text-1)_6%)] aria-expanded:bg-ink-800",
-        /* Pharos is a lighthouse: the only control that changes the world is lamp-white. */
+        /* The one control that changes the world: solid signal blue with white text. */
         commit:
-          "bg-lamp font-semibold text-ink-950 hover:bg-[color-mix(in_oklch,var(--lamp),var(--ink-950)_8%)] focus-visible:ring-beacon/50",
+          "bg-lamp font-semibold text-primary-foreground hover:bg-[color-mix(in_oklch,var(--lamp),white_10%)] focus-visible:ring-beacon/50",
         outline:
           "border-border hover:bg-input/50 hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:bg-input/30",
         secondary:
