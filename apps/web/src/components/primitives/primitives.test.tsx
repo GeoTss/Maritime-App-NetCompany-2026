@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DecisionButtons } from "@/components/primitives/approval-card";
 import { DiffTable } from "@/components/primitives/diff-table";
+import { FLAG_MEANING, StateFlag } from "@/components/primitives/state-flag";
 import { ThinkingState } from "@/components/primitives/thinking-state";
 import { TOOL_LABEL, ToolChips, toolCallsFromProgress } from "@/components/primitives/tool-chips";
 
@@ -155,5 +156,28 @@ describe("DecisionButtons", () => {
       "Reject…",
       "Approve purchase order…",
     ]);
+  });
+});
+
+describe("StateFlag", () => {
+  it("renders each of the five kinds aria-hidden, with its meaning", () => {
+    const kinds = ["K", "V", "U", "C", "N"] as const;
+    const { container } = render(
+      <>
+        {kinds.map((k) => (
+          <StateFlag key={k} kind={k} />
+        ))}
+      </>,
+    );
+    const flags = container.querySelectorAll("svg[data-flag]");
+    expect(flags).toHaveLength(5);
+    for (const f of flags) expect(f.getAttribute("aria-hidden")).toBe("true");
+    expect(FLAG_MEANING).toEqual({
+      K: "needs you",
+      V: "vessel alert",
+      U: "hazard",
+      C: "approved",
+      N: "rejected",
+    });
   });
 });

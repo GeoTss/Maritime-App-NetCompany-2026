@@ -144,7 +144,7 @@ describe("EvaluationPage", () => {
       expect(el).not.toBeNull();
       return el as HTMLElement;
     });
-    // k of N in the readout voice (Archivo at 75 % width), the rest in Archivo too.
+    // k of N in the readout voice , the rest in the same family.
     const kOfN = within(row).getByTestId("k-of-n");
     expect(kOfN.textContent).toBe("646 of 651");
     expect(kOfN.className).toMatch(/font-readout/);

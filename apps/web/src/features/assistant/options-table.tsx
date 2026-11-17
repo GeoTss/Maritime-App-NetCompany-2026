@@ -37,7 +37,7 @@ function OptionRow({ option }: { option: BunkerOptionView }) {
           <span
             className={cn(
               "w-2 shrink-0 text-2xs tabular-nums",
-              option.best ? "text-go" : "text-text-3",
+              option.best ? "text-beacon" : "text-text-3",
             )}
           >
             {option.rank}
@@ -48,7 +48,7 @@ function OptionRow({ option }: { option: BunkerOptionView }) {
             </span>
             <span className="flex min-w-0 gap-1 text-2xs/3.5 text-text-2">
               <span className="truncate">{option.port.name}</span>
-              {option.best ? <span className="shrink-0 text-go">Recommended</span> : null}
+              {option.best ? <span className="shrink-0 text-beacon">Recommended</span> : null}
               {option.feasible ? null : <span className="shrink-0 text-alarm">infeasible</span>}
             </span>
           </div>
@@ -63,7 +63,7 @@ function OptionRow({ option }: { option: BunkerOptionView }) {
         <FactChip fact={option.delay} />
       </TableCell>
       <TableCell className="px-2.5 text-right">
-        <FactChip fact={option.totalCost} className={cn(option.best && "text-go")}>
+        <FactChip fact={option.totalCost} className={cn(option.best && "text-beacon")}>
           {inColumnUnit(option.totalCost, "USD")}
         </FactChip>
       </TableCell>

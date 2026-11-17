@@ -12,7 +12,7 @@ type Status = InboxItem["extractionStatus"];
  */
 export const STATUS_LABEL: Record<Status, { label: string; tone: string }> = {
   pending: { label: "Reading", tone: "text-text-2" },
-  extracted: { label: "Extracted", tone: "text-go" },
+  extracted: { label: "Extracted", tone: "text-text-1" },
   needs_review: { label: "Needs review", tone: "text-caution" },
   accepted: { label: "Accepted after fix", tone: "border-caution/50 text-caution" },
   not_a_quote: { label: "Not a quote", tone: "text-text-2" },
@@ -61,7 +61,7 @@ export function InboxList({
             </span>
             <span className="flex w-full items-center justify-between gap-2">
               <StatusBadge status={item.extractionStatus} />
-              <span className="font-mono text-2xs text-text-3">{formatUtc(item.receivedAt)}</span>
+              <span className="text-2xs text-text-3">{formatUtc(item.receivedAt)}</span>
             </span>
           </button>
         </li>

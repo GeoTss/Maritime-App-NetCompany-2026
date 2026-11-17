@@ -21,7 +21,7 @@ export const ROLE_TEXT: Record<RouteRole, string> = {
 
 /** Swatch classes for the tray legend, matching what the map draws (colour, dash). */
 export const ROLE_SWATCH: Record<RouteRole, string> = {
-  recommended: "border-t-2 border-go",
+  recommended: "border-t-2 border-beacon",
   planned: "border-t-2 border-dashed border-plan",
   infeasible: "border-t-2 border-dotted border-alarm",
   other: "border-t border-plan",

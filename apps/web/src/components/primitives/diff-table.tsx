@@ -43,7 +43,7 @@ export function DiffTable({
   rows: DiffRow[];
   beforeLabel: string;
   afterLabel: string;
-  /** Colour of a changed new value, e.g. `text-go` for the recommended route. */
+  /** Colour of a changed new value, e.g. `text-beacon` for the recommended route. */
   afterTone?: string;
   className?: string;
 }) {

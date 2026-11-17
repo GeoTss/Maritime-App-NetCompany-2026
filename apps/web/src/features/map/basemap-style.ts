@@ -10,10 +10,12 @@ export interface MapColors {
   land: string;
   coast: string;
   traffic: string;
-  go: string;
+  wave0: string;
+  wave1: string;
+  wave2: string;
+  wave3: string;
   plan: string;
   alarm: string;
-  magenta: string;
   beacon: string;
   caution: string;
   text: string;
@@ -21,14 +23,16 @@ export interface MapColors {
 
 /** CSS custom property behind each map colour. */
 const TOKEN: Record<keyof MapColors, string> = {
-  sea: "--sea",
-  land: "--land",
-  coast: "--coast",
-  traffic: "--traffic",
-  go: "--go",
+  sea: "--map-sea",
+  land: "--map-land",
+  coast: "--map-coast",
+  traffic: "--map-traffic",
+  wave0: "--wave-0",
+  wave1: "--wave-1",
+  wave2: "--wave-2",
+  wave3: "--wave-3",
   plan: "--plan",
   alarm: "--alarm",
-  magenta: "--chart-magenta",
   beacon: "--beacon",
   caution: "--caution",
   text: "--text-1",

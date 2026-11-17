@@ -539,7 +539,9 @@ describe("AssistantDock", () => {
       "ESALG-nordwind",
       "GIGIB-straitline",
     ]);
-    expect(within(rows[0] as HTMLElement).getByText("Recommended").className).toContain("text-go");
+    expect(within(rows[0] as HTMLElement).getByText("Recommended").className).toContain(
+      "text-beacon",
+    );
     expect(rows.filter((r) => r.textContent?.includes("Recommended"))).toHaveLength(1);
     // Every value is a fact chip carrying the plan's own fact (the same ids the answer cites).
     const chips = [...table.querySelectorAll('[data-slot="fact-chip"]')];

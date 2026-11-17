@@ -2,65 +2,69 @@
 name: Pharos
 description: The ops console of a bunker-to-berth desk. Dark, dense, data-first; colour only for meaning.
 colors:
-  ink-950: "#0c1218"
-  ink-900: "#121a22"
-  ink-850: "#18222c"
-  ink-800: "#1f2b37"
-  line: "#263442"
-  line-strong: "#364757"
-  text-1: "#e4eaf0"
-  text-2: "#9fb0c0"
-  text-3: "#7b8d9f"
-  beacon: "#5cc8f2"
-  go: "#3ddc97"
-  caution: "#f2b84b"
-  alarm: "#ff5d5d"
-  chart-magenta: "#e86bd6"
-  plan: "#8fa3b8"
-  lamp: "#f4f1e6"
-  sea: "#0e1822"
-  land: "#1b2630"
-  coast: "#2e3e4d"
-  traffic: "#5b7186"
+  ink-950: "#0e1114"
+  ink-900: "#151a1f"
+  ink-850: "#1d232a"
+  ink-800: "#1d232a"
+  line: "#29313a"
+  line-strong: "#3a4450"
+  text-1: "#eef1f4"
+  text-2: "#a9b2bd"
+  text-3: "#8a95a1"
+  beacon: "#6f9bff"
+  caution: "#ffc72c"
+  alarm: "#ff5c6c"
+  alarm-fill: "#c8102e"
+  plan: "#a9b2bd"
+  lamp: "#1f4fb0"
+  map-sea: "#121820"
+  map-land: "#1c232b"
+  map-coast: "#33404d"
+  map-traffic: "#5d6b79"
+  wave-0: "#121c26"
+  wave-1: "#1b2733"
+  wave-2: "#2a3a49"
+  wave-3: "#3e5367"
+  flag-red: "#c8102e"
+  flag-yellow: "#ffc72c"
+  flag-blue: "#1f4fb0"
+  flag-white: "#ffffff"
+  flag-black: "#0b0b0b"
 typography:
   readout:
-    fontFamily: "Archivo Variable, system-ui, sans-serif"
+    fontFamily: "Atkinson Hyperlegible Next Variable, system-ui, sans-serif"
     fontSize: "2rem"
     lineHeight: "2.25rem"
-    fontWeight: 400
-    fontVariation: "'wdth' 75"
-    fontFeature: "'tnum'"
+    fontWeight: 500
+    fontFeature: "'tnum', 'zero'"
   headline:
-    fontFamily: "Archivo Variable, system-ui, sans-serif"
+    fontFamily: "Atkinson Hyperlegible Next Variable, system-ui, sans-serif"
     fontSize: "1.5rem"
     lineHeight: "1.75rem"
     fontWeight: 500
-    fontVariation: "'wdth' 88"
   title:
-    fontFamily: "Archivo Variable, system-ui, sans-serif"
+    fontFamily: "Atkinson Hyperlegible Next Variable, system-ui, sans-serif"
     fontSize: "0.9375rem"
     lineHeight: "1.25rem"
     fontWeight: 500
-    fontVariation: "'wdth' 88"
   body:
-    fontFamily: "Archivo Variable, system-ui, sans-serif"
+    fontFamily: "Atkinson Hyperlegible Next Variable, system-ui, sans-serif"
     fontSize: "0.8125rem"
     lineHeight: "1.125rem"
     fontWeight: 400
-    fontFeature: "'tnum'"
+    fontFeature: "'tnum', 'zero'"
   control:
-    fontFamily: "Archivo Variable, system-ui, sans-serif"
+    fontFamily: "Atkinson Hyperlegible Next Variable, system-ui, sans-serif"
     fontSize: "0.75rem"
     lineHeight: "1rem"
     fontWeight: 500
   label:
-    fontFamily: "Archivo Variable, system-ui, sans-serif"
+    fontFamily: "Atkinson Hyperlegible Next Variable, system-ui, sans-serif"
     fontSize: "0.6875rem"
     lineHeight: "1rem"
     fontWeight: 500
-    fontVariation: "'wdth' 80"
   identifier:
-    fontFamily: "B612 Mono, ui-monospace, monospace"
+    fontFamily: "Atkinson Hyperlegible Mono Variable, ui-monospace, monospace"
     fontSize: "0.6875rem"
     lineHeight: "1rem"
     fontWeight: 400
@@ -81,7 +85,7 @@ spacing:
 components:
   button-commit:
     backgroundColor: "{colors.lamp}"
-    textColor: "{colors.ink-950}"
+    textColor: "{colors.flag-white}"
     typography: "{typography.control}"
     rounded: "{rounded.md}"
     height: "{spacing.control}"
@@ -128,6 +132,8 @@ components:
 ---
 
 # Design System: Pharos
+
+Prose describes the previous world until the Task 17 rewrite.
 
 <!-- Written by /impeccable document (scan mode) from the code shipped in Phase 6 Task 9:
      apps/web/src/styles/globals.css, components/ui/*, components/*, features/dev/kit-page.tsx.

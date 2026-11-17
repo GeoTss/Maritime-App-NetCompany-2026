@@ -90,7 +90,7 @@ export function AuditTrail({
               key={e.id}
               className="grid min-h-7 grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-3 gap-y-0.5 border-b border-line px-2 py-1 text-xs last:border-b-0 sm:grid-cols-[6.5rem_minmax(0,1fr)]"
             >
-              <time dateTime={e.at} className="font-mono text-2xs text-text-3">
+              <time dateTime={e.at} className="text-2xs text-text-3">
                 {formatUtc(e.at)}
               </time>
               <div className="flex min-w-0 flex-col gap-0.5">

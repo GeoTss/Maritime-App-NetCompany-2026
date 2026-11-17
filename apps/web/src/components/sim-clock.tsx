@@ -16,10 +16,7 @@ export function SimClock({ className }: { className?: string }) {
       <span
         role="img"
         aria-label="Simulation clock not available yet"
-        className={cn(
-          "inline-flex h-6 items-center px-1.5 font-mono text-xs text-text-3",
-          className,
-        )}
+        className={cn("inline-flex h-6 items-center px-1.5 text-xs text-text-3", className)}
       >
         --:--Z
       </span>
@@ -40,7 +37,7 @@ export function SimClock({ className }: { className?: string }) {
           )}
         >
           <span className="text-text-3 font-label">sim</span>
-          <time dateTime={data.now} className="font-mono text-text-1">
+          <time dateTime={data.now} className="text-text-1">
             {formatUtcTime(data.now)}
           </time>
           {data.pinned ? <span className="text-caution">pinned</span> : null}

@@ -151,7 +151,7 @@ export function RouteComparison({ plan }: { plan: RoutePlanView }) {
                     <span
                       className={cn(
                         "text-2xs",
-                        role === "recommended" && "text-go",
+                        role === "recommended" && "text-beacon",
                         role === "infeasible" && "text-alarm",
                         (role === "planned" || role === "other") && "text-text-2",
                       )}

@@ -153,7 +153,7 @@ export function PriceVsTotalChart({
             >
               <FactChip
                 fact={o.totalCost}
-                className={cn("text-sm", o.best && "font-semibold text-go")}
+                className={cn("text-sm", o.best && "font-semibold text-beacon")}
               />
               <span className="max-w-full truncate text-2xs text-text-2" title={o.supplier}>
                 <FactChip fact={o.delay} /> delay, {o.supplier}

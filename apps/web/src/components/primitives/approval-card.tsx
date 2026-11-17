@@ -32,9 +32,9 @@ export const RECOMMENDATION_KIND: Record<RecommendationType, string> = {
 /** A proposal's status in words, with the hue whose job it is. */
 export const RECOMMENDATION_STATUS: Record<RecommendationStatus, { text: string; tone: string }> = {
   pending: { text: "awaiting approval", tone: "text-caution" },
-  approved: { text: "approved", tone: "text-go" },
+  approved: { text: "approved", tone: "text-text-1" },
   executing: { text: "executing", tone: "text-text-2" },
-  executed: { text: "executed", tone: "text-go" },
+  executed: { text: "executed", tone: "text-text-1" },
   rejected: { text: "rejected", tone: "text-alarm" },
   failed: { text: "failed", tone: "text-alarm" },
 };

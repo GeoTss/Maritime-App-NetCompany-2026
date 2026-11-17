@@ -271,7 +271,7 @@ function WhyThisOption({ rec, plan }: { rec: RecommendationView; plan: BunkerPla
       </h3>
       {margin ? (
         <p className="mt-1 max-w-[72ch] text-xs text-text-2">
-          <FactChip fact={margin} className="text-go" /> less than the runner-up
+          <FactChip fact={margin} className="text-beacon" /> less than the runner-up
           {runnerUp ? `, ${runnerUp.supplier},` : ""} in total delivered cost, once delay and carbon
           are counted.
         </p>
@@ -348,7 +348,7 @@ function FactsBehind({ rec }: { rec: RecommendationView }) {
           title={`${o.supplier} at ${o.port.name}`}
           tag={
             o.best ? (
-              <span className="text-2xs text-go">recommended</span>
+              <span className="text-2xs text-beacon">recommended</span>
             ) : o.feasible ? null : (
               <span className="text-2xs text-alarm">not feasible</span>
             )

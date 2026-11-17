@@ -1,6 +1,6 @@
 /**
  * Route geometry exactly as returned. A plan draws every candidate by role: the recommended route
- * in --go, the current plan dashed in --plan, an infeasible route dotted in --alarm, the rest thin
+ * in --beacon, the current plan dashed in --plan, an infeasible route dotted in --alarm, the rest thin
  * in --plan. Without a plan, a selected vessel's planned track is drawn dashed.
  */
 import type { LatLon, RoutePlanView } from "@pharos/shared";
@@ -76,7 +76,7 @@ export function RouteLayer({
         id="route-recommended"
         type="line"
         filter={role("recommended") as never}
-        paint={{ "line-color": colors.go, "line-width": 3 }}
+        paint={{ "line-color": colors.beacon, "line-width": 3 }}
       />
     </Source>
   );

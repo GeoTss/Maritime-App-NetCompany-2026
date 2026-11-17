@@ -5,41 +5,51 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-/* Archivo's width sheet carries both axes: weight 100–900 and width 62–125 %. */
-@import "@fontsource-variable/archivo/wdth.css";
-@import "@fontsource/b612-mono/latin-400.css";
-@import "@fontsource/b612-mono/latin-700.css";
+/* Atkinson Hyperlegible Next (text) and its Mono (identifiers, email bodies), bundled. */
+@import "@fontsource-variable/atkinson-hyperlegible-next";
+@import "@fontsource-variable/atkinson-hyperlegible-mono";
 
 @custom-variant dark (&:is(.dark *));
 
 :root {
   color-scheme: dark;
 
-  /* surfaces */
-  --ink-950: #0c1218;
-  --ink-900: #121a22;
-  --ink-850: #18222c;
-  --ink-800: #1f2b37;
-  --line: #263442;
-  --line-strong: #364757;
-  --text-1: #e4eaf0;
-  --text-2: #9fb0c0;
-  --text-3: #7b8d9f;
+  /* surfaces: Signal hoist (dark) */
+  --ink-950: #0e1114; /* ground */
+  --ink-900: #151a1f; /* panels, top bar */
+  --ink-850: #1d232a; /* raised, hover */
+  --ink-800: #1d232a;
+  --line: #29313a;
+  --line-strong: #3a4450;
+  --text-1: #eef1f4;
+  --text-2: #a9b2bd;
+  --text-3: #8a95a1;
 
-  /* meaning: each hue has one job */
-  --beacon: #5cc8f2; /* interactive: focus ring, links, fact chips, selection */
-  --go: #3ddc97; /* recommended route, a positive saving, a live source */
-  --caution: #f2b84b; /* needs review, awaiting approval, a recorded source */
-  --alarm: #ff5d5d; /* shortfall, infeasible, failed, reject */
-  --chart-magenta: #e86bd6; /* hazard zones; "synthetic" */
-  --plan: #8fa3b8; /* planned / baseline route, other candidates */
-  --lamp: #f4f1e6; /* the commit button only */
+  /* meaning: each hue has one job. There is no green. */
+  --beacon: #6f9bff; /* act, recommended, fact-chip underline, selection, focus */
+  --caution: #ffc72c; /* needs you, awaiting a decision */
+  --alarm: #ff5c6c; /* blocked, hazard, reject (text and lines) */
+  --alarm-fill: #c8102e; /* true red for fills */
+  --plan: #a9b2bd; /* planned / baseline route, other candidates */
+  --lamp: #1f4fb0; /* the one solid primary (Approve, Review and decide), white text */
 
   /* map */
-  --sea: #0e1822;
-  --land: #1b2630;
-  --coast: #2e3e4d;
-  --traffic: #5b7186;
+  --map-sea: #121820;
+  --map-land: #1c232b;
+  --map-coast: #33404d;
+  --map-traffic: #5d6b79;
+  --wave-0: #121c26;
+  --wave-1: #1b2733;
+  --wave-2: #2a3a49;
+  --wave-3: #3e5367;
+
+  /* ICS code flags in their true pigments */
+  --flag-red: #c8102e;
+  --flag-yellow: #ffc72c;
+  --flag-blue: #1f4fb0;
+  --flag-white: #ffffff;
+  --flag-black: #0b0b0b;
+  --flag-outline: rgb(238 241 244 / 0.55);
 
   /* shadcn slots */
   --background: var(--ink-950);
@@ -49,7 +59,7 @@
   --popover: var(--ink-850);
   --popover-foreground: var(--text-1);
   --primary: var(--lamp);
-  --primary-foreground: var(--ink-950);
+  --primary-foreground: #ffffff;
   --secondary: var(--ink-800);
   --secondary-foreground: var(--text-1);
   --muted: var(--ink-850);
@@ -60,16 +70,16 @@
   --border: var(--line);
   --input: var(--line-strong);
   --ring: var(--beacon);
-  --chart-1: var(--go);
+  --chart-1: var(--beacon);
   --chart-2: var(--plan);
   --chart-3: var(--beacon);
   --chart-4: var(--caution);
-  --chart-5: var(--chart-magenta);
+  --chart-5: var(--text-3);
   --radius: 2px;
   --sidebar: var(--ink-900);
   --sidebar-foreground: var(--text-1);
   --sidebar-primary: var(--lamp);
-  --sidebar-primary-foreground: var(--ink-950);
+  --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: var(--ink-800);
   --sidebar-accent-foreground: var(--text-1);
   --sidebar-border: var(--line);
@@ -77,9 +87,10 @@
 }
 
 @theme inline {
-  --font-sans: "Archivo Variable", system-ui, sans-serif;
+  --font-sans: "Atkinson Hyperlegible Next Variable", system-ui, sans-serif;
   --font-heading: var(--font-sans);
-  --font-mono: "B612 Mono", ui-monospace, monospace;
+  --font-mono: "Atkinson Hyperlegible Mono Variable", ui-monospace, monospace;
+  --font-verbatim: var(--font-mono);
 
   /* type scale (size / line-height): 11, 12, 13 (body), 15, 18, 24, 32 px */
   --text-2xs: 0.6875rem;
@@ -109,7 +120,7 @@
   /* spacing: Tailwind's 4 px base */
   --spacing: 0.25rem;
 
-  /* brand colours as utilities: bg-ink-900, text-go, border-line, … */
+  /* brand colours as utilities: bg-ink-900, text-beacon, border-line, … */
   --color-ink-950: var(--ink-950);
   --color-ink-900: var(--ink-900);
   --color-ink-850: var(--ink-850);
@@ -120,16 +131,19 @@
   --color-text-2: var(--text-2);
   --color-text-3: var(--text-3);
   --color-beacon: var(--beacon);
-  --color-go: var(--go);
   --color-caution: var(--caution);
   --color-alarm: var(--alarm);
-  --color-chart-magenta: var(--chart-magenta);
+  --color-alarm-fill: var(--alarm-fill);
   --color-plan: var(--plan);
   --color-lamp: var(--lamp);
-  --color-sea: var(--sea);
-  --color-land: var(--land);
-  --color-coast: var(--coast);
-  --color-traffic: var(--traffic);
+  --color-map-sea: var(--map-sea);
+  --color-map-land: var(--map-land);
+  --color-map-coast: var(--map-coast);
+  --color-map-traffic: var(--map-traffic);
+  --color-wave-0: var(--wave-0);
+  --color-wave-1: var(--wave-1);
+  --color-wave-2: var(--wave-2);
+  --color-wave-3: var(--wave-3);
 
   /* shadcn slots (as generated by the CLI) */
   --color-sidebar-ring: var(--sidebar-ring);
@@ -186,7 +200,7 @@
   }
   body {
     @apply bg-background text-foreground text-sm;
-    font-variant-numeric: tabular-nums;
+    font-variant-numeric: tabular-nums slashed-zero;
   }
   /* Browser surfaces carry the palette too. */
   ::selection {
@@ -209,13 +223,14 @@
   }
 }
 
-/* Widths of Archivo: labels and column heads at 80 %, titles at 88 %, large readouts at 75 %. */
+/* Atkinson has no width axis: labels are a plain medium weight with a little tracking. */
 @utility font-label {
-  font-stretch: 80%;
+  font-weight: 500;
+  letter-spacing: 0.01em;
 }
 @utility font-title {
-  font-stretch: 88%;
+  font-weight: 500;
 }
 @utility font-readout {
-  font-stretch: 75%;
+  font-weight: 500;
 }

@@ -15,9 +15,9 @@ import { cn } from "@/lib/utils";
 
 const STATE: Record<RecommendationView["status"], { text: string; tone: string }> = {
   pending: { text: "awaiting your decision", tone: "text-caution" },
-  approved: { text: "approved", tone: "text-go" },
+  approved: { text: "approved", tone: "text-text-1" },
   executing: { text: "executing", tone: "text-text-2" },
-  executed: { text: "executed", tone: "text-go" },
+  executed: { text: "executed", tone: "text-text-1" },
   rejected: { text: "rejected", tone: "text-alarm" },
   failed: { text: "failed", tone: "text-alarm" },
 };

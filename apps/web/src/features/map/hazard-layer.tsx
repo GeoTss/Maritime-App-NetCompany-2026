@@ -1,5 +1,5 @@
 /**
- * Hazard zones in chart magenta, drawn with the radius the API returned (`zoneRadiusNm`). The
+ * Hazard zones in alarm red, drawn with the radius the API returned (`zoneRadiusNm`). The
  * label is untrusted text; the demo hazard says it is synthetic. The callout sits above the
  * hazard, clear of the port labels drawn to the right of their ports, and moves left or below
  * near the edges of the visible map so the "synthetic" tag is never clipped.
@@ -36,12 +36,12 @@ function HazardCallout({ hazard }: { hazard: Hazard }) {
           data-map-label={LABEL_PRIORITY.hazard}
           data-label-side={`${below ? "below" : "above"}-${flip ? "left" : "right"}`}
           className={cn(
-            "absolute flex w-max max-w-44 flex-col items-start gap-0.5 rounded-sm border border-chart-magenta/60 bg-ink-950/85 px-1.5 py-1 text-xs",
+            "absolute flex w-max max-w-44 flex-col items-start gap-0.5 rounded-sm border border-alarm/60 bg-ink-950/85 px-1.5 py-1 text-xs",
             below ? "top-2" : "bottom-2",
             flip ? "right-2" : "left-2",
           )}
         >
-          <span className="flex items-center gap-1.5 text-chart-magenta">
+          <span className="flex items-center gap-1.5 text-alarm">
             {KIND_TEXT[hazard.kind] ?? hazard.kind}
             {hazard.source === "synthetic" || hazard.kind === "synthetic" ? (
               <DataTag kind="synthetic" />
@@ -93,7 +93,7 @@ export function HazardLayer({
           type="circle"
           paint={{
             "circle-radius": 4,
-            "circle-color": colors.magenta,
+            "circle-color": colors.alarm,
             "circle-stroke-color": colors.text,
             "circle-stroke-width": 1,
           }}
@@ -103,12 +103,12 @@ export function HazardLayer({
         <Layer
           id="hazard-fill"
           type="fill"
-          paint={{ "fill-color": colors.magenta, "fill-opacity": 0.12 }}
+          paint={{ "fill-color": colors.alarm, "fill-opacity": 0.12 }}
         />
         <Layer
           id="hazard-line"
           type="line"
-          paint={{ "line-color": colors.magenta, "line-width": 1.5, "line-dasharray": [4, 2] }}
+          paint={{ "line-color": colors.alarm, "line-width": 1.5, "line-dasharray": [4, 2] }}
         />
       </Source>
       {hazards.map((h) => (

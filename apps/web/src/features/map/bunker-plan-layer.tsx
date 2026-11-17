@@ -80,12 +80,12 @@ const toneOf = (stack: PortStack): Tone =>
       : "infeasible";
 
 const RING: Record<Tone, string> = {
-  recommended: "border-go bg-go/12",
+  recommended: "border-beacon bg-beacon/12",
   option: "border-plan bg-plan/10",
   infeasible: "border-dotted border-alarm",
 };
 const DOT: Record<Tone, string> = {
-  recommended: "bg-go",
+  recommended: "bg-beacon",
   option: "bg-plan",
   infeasible: "bg-alarm",
 };
@@ -102,7 +102,7 @@ function OptionRow({ option }: { option: BunkerOptionView }) {
       <span
         className={cn(
           "whitespace-nowrap",
-          option.best ? "font-semibold text-go" : "font-medium text-text-1",
+          option.best ? "font-semibold text-beacon" : "font-medium text-text-1",
         )}
       >
         {option.rank} · {option.supplier}, {option.port.name}
@@ -151,7 +151,7 @@ function StackMarker({ stack }: { stack: PortStack }) {
           style={flip ? { right: side } : { left: side }}
           className={cn(
             "absolute top-0 flex w-max -translate-y-1/2 flex-col divide-y divide-line rounded-sm border bg-ink-900 text-xs",
-            tone === "recommended" ? "border-go" : "border-line-strong",
+            tone === "recommended" ? "border-beacon" : "border-line-strong",
             offscreen && "invisible",
           )}
         >
@@ -187,7 +187,7 @@ export function BunkerPlanLegend({ track, className }: { track: boolean; classNa
       <p className="text-2xs text-text-2 font-label">Ranked by total delivered cost</p>
       <ul className="flex flex-wrap gap-x-3.5 gap-y-1 text-text-1">
         <li className="flex items-center gap-1.5">
-          <span aria-hidden className="size-2.5 rounded-full border-[1.5px] border-go" />
+          <span aria-hidden className="size-2.5 rounded-full border-[1.5px] border-beacon" />
           recommended
         </li>
         <li className="flex items-center gap-1.5">

@@ -11,6 +11,23 @@ import type { MapColors } from "./basemap-style";
 /** Degrees of latitude a direction tick spans on the map. */
 const TICK_DEG = 0.7;
 
+/** Wave height as a neutral lightness ramp (never a hue): the --wave-* tokens, calm to rough. */
+function WAVE_RAMP(colors: MapColors) {
+  return [
+    "interpolate",
+    ["linear"],
+    ["get", "h"],
+    0,
+    colors.wave0,
+    1,
+    colors.wave1,
+    2.5,
+    colors.wave2,
+    4,
+    colors.wave3,
+  ] as never;
+}
+
 export function WeatherLayer({ weather, colors }: { weather: WeatherView; colors: MapColors }) {
   const { dots, ticks } = useMemo(() => {
     const dotFeatures = [];
@@ -52,7 +69,7 @@ export function WeatherLayer({ weather, colors }: { weather: WeatherView; colors
           id="weather-ticks"
           type="line"
           paint={{
-            "line-color": colors.beacon,
+            "line-color": WAVE_RAMP(colors),
             "line-width": 1,
             "line-opacity": ["interpolate", ["linear"], ["get", "h"], 0.5, 0.4, 4, 1],
           }}
@@ -63,7 +80,7 @@ export function WeatherLayer({ weather, colors }: { weather: WeatherView; colors
           id="weather-points"
           type="circle"
           paint={{
-            "circle-color": colors.beacon,
+            "circle-color": WAVE_RAMP(colors),
             "circle-radius": ["interpolate", ["linear"], ["get", "h"], 0, 1.5, 2, 4, 5, 8],
             "circle-opacity": ["interpolate", ["linear"], ["get", "h"], 0.5, 0.45, 4, 1],
           }}

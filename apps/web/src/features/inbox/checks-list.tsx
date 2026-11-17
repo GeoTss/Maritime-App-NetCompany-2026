@@ -11,7 +11,7 @@ function CheckRow({ c }: { c: CheckResult }) {
         icon={c.passed ? Tick02Icon : Alert02Icon}
         strokeWidth={2}
         aria-label={c.passed ? "Passed" : "Failed"}
-        className={`mt-0.5 size-3 shrink-0 ${c.passed ? "text-go" : "text-alarm"}`}
+        className={`mt-0.5 size-3 shrink-0 ${c.passed ? "text-text-2" : "text-alarm"}`}
       />
       <div className="min-w-0">
         <span className="font-mono text-2xs text-text-1">{c.check}</span>

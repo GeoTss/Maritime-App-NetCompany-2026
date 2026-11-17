@@ -13,6 +13,7 @@ import { FactText } from "@/components/fact-text";
 import { MetricNumber } from "@/components/metric-number";
 import { ApprovalCard, DecisionButtons } from "@/components/primitives/approval-card";
 import { DiffTable } from "@/components/primitives/diff-table";
+import { FLAG_MEANING, type FlagKind, StateFlag } from "@/components/primitives/state-flag";
 import { ThinkingState } from "@/components/primitives/thinking-state";
 import { ToolChips } from "@/components/primitives/tool-chips";
 import { SimClock } from "@/components/sim-clock";
@@ -119,13 +120,35 @@ const COLOURS: { group: string; tokens: [string, string][] }[] = [
   {
     group: "Meaning: each hue has one job",
     tokens: [
-      ["beacon", "Interactive: focus, links, fact chips, selection"],
-      ["go", "Recommended route, a positive saving, a live source"],
-      ["caution", "Needs review, awaiting approval, a recorded source"],
-      ["alarm", "Shortfall, infeasible, failed, reject"],
-      ["chart-magenta", "Hazard zones, synthetic data"],
+      ["beacon", "Act: focus, links, fact chips, selection, recommended"],
+      ["caution", "Needs you, awaiting a decision"],
+      ["alarm", "Blocked, hazard, failed, reject"],
+      ["alarm-fill", "True red for fills"],
       ["plan", "Planned or baseline route, other candidates"],
-      ["lamp", "The commit button, and nothing else"],
+      ["lamp", "The one solid primary, with white text"],
+    ],
+  },
+  {
+    group: "Map",
+    tokens: [
+      ["map-sea", "Sea"],
+      ["map-land", "Land"],
+      ["map-coast", "Coast line"],
+      ["map-traffic", "AIS traffic"],
+      ["wave-0", "Waves, calm"],
+      ["wave-1", "Waves"],
+      ["wave-2", "Waves"],
+      ["wave-3", "Waves, rough"],
+    ],
+  },
+  {
+    group: "State flag pigments",
+    tokens: [
+      ["flag-red", "ICS red"],
+      ["flag-yellow", "ICS yellow"],
+      ["flag-blue", "ICS blue"],
+      ["flag-white", "ICS white"],
+      ["flag-black", "ICS black"],
     ],
   },
   {
@@ -167,6 +190,22 @@ function useTokenValues(names: string[]) {
     setValues(Object.fromEntries(names.map((n) => [n, style.getPropertyValue(`--${n}`).trim()])));
   }, []);
   return values;
+}
+
+const FLAGS: FlagKind[] = ["K", "V", "U", "C", "N"];
+
+function FlagRows() {
+  return (
+    <ul className="grid gap-x-8 gap-y-1 sm:grid-cols-2 lg:grid-cols-5">
+      {FLAGS.map((kind) => (
+        <li key={kind} className="flex h-7 items-center gap-2 text-xs text-text-1">
+          <StateFlag kind={kind} />
+          <span>{FLAG_MEANING[kind]}</span>
+          <span className="text-2xs text-text-3">{kind}</span>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 function ColourRows() {
@@ -212,7 +251,7 @@ const SCALE: [string, string, string][] = [
 function TypeSamples() {
   return (
     <div className="grid gap-x-8 gap-y-4 lg:grid-cols-2">
-      <Sub title="Scale, Archivo">
+      <Sub title="Scale, Atkinson Hyperlegible Next">
         <ul className="divide-y divide-line border-y border-line">
           {SCALE.map(([cls, px, use]) => (
             <li key={cls} className="flex min-h-7 items-baseline gap-3 py-1">
@@ -224,16 +263,16 @@ function TypeSamples() {
         </ul>
       </Sub>
       <div className="flex flex-col gap-4">
-        <Sub title="One family, four widths">
+        <Sub title="One family, four roles">
           <ul className="divide-y divide-line border-y border-line">
             {[
-              ["font-readout", "75 %", "Large readouts", "text-xl"],
-              ["font-label", "80 %", "Labels and column heads", "text-sm"],
-              ["font-title", "88 %", "Titles", "text-base"],
-              ["", "100 %", "Body", "text-sm"],
+              ["font-readout", "Readout", "Large readouts", "text-xl"],
+              ["font-label", "Label", "Labels and column heads", "text-sm"],
+              ["font-title", "Title", "Titles", "text-base"],
+              ["", "Body", "Body", "text-sm"],
             ].map(([cls, w, use, size]) => (
               <li key={w} className="flex min-h-7 items-baseline gap-3 py-1">
-                <span className="w-10 shrink-0 font-mono text-2xs text-text-3">{w}</span>
+                <span className="w-14 shrink-0 text-2xs text-text-3">{w}</span>
                 <span className={`${cls} ${size} min-w-0 flex-1 truncate text-text-1`}>
                   Bunker at Piraeus, 1,500 mt
                 </span>
@@ -242,7 +281,7 @@ function TypeSamples() {
             ))}
           </ul>
         </Sub>
-        <Sub title="B612 Mono: identifiers only">
+        <Sub title="Atkinson Hyperlegible Mono: identifiers and verbatim text only">
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs">
             <dt className="text-text-2 font-label">MMSI</dt>
             <dd className="font-mono text-text-1">538007841</dd>
@@ -582,7 +621,7 @@ function Agent() {
             }
             tags={
               <>
-                <span className="text-2xs text-go">all numbers sourced</span>
+                <span className="text-2xs text-text-2">all numbers sourced</span>
                 <DataTag kind="simulated" />
               </>
             }
@@ -681,7 +720,7 @@ function Feedback() {
                 <DiffTable
                   beforeLabel="Planned"
                   afterLabel="Recommended"
-                  afterTone="text-go"
+                  afterTone="text-beacon"
                   rows={[
                     {
                       key: "route",
@@ -784,6 +823,9 @@ export function KitPage() {
       </nav>
       <Section id="colour" title="Colour">
         <ColourRows />
+        <Sub title="State flags: always beside their word">
+          <FlagRows />
+        </Sub>
       </Section>
       <Section id="type" title="Type">
         <TypeSamples />

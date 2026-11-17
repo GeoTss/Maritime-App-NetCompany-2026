@@ -1,6 +1,6 @@
 /**
- * Honesty signals. `SourceBadge`: whether a data source is live or recorded (go = live, caution =
- * recorded). `DataTag`: what kind of data a panel shows, in words: simulated company data, the
+ * Honesty signals. `SourceBadge`: whether a data source is live or recorded (live = a filled dot, recorded = a hollow
+ * dot, both neutral). `DataTag`: what kind of data a panel shows, in words: simulated company data, the
  * synthetic demo hazard, an unverified ad-hoc result, a dev-split score, a draft never sent.
  */
 import type { SourceStatusView } from "@pharos/shared";
@@ -38,10 +38,13 @@ export function SourceBadge({
         >
           <span
             aria-hidden
-            className={cn("size-1.5 shrink-0 rounded-full", live ? "bg-go" : "bg-caution")}
+            className={cn(
+              "size-1.5 shrink-0 rounded-full border border-text-2",
+              live && "bg-text-1",
+            )}
           />
           <span className="text-text-2">{SOURCE_NAME[status.source]}</span>{" "}
-          <span className={live ? "text-go" : "text-caution"}>{status.mode}</span>
+          <span className="text-text-1">{status.mode}</span>
         </span>
       </TooltipTrigger>
       <TooltipContent side="bottom" className="flex-col items-start gap-0.5">
@@ -89,11 +92,11 @@ export function SourceSummary({
               <span
                 aria-hidden
                 className={cn(
-                  "size-1.5 shrink-0 rounded-full",
-                  mode === "live" ? "bg-go" : "bg-caution",
+                  "size-1.5 shrink-0 rounded-full border border-text-2",
+                  mode === "live" && "bg-text-1",
                 )}
               />
-              <span className={mode === "live" ? "text-go" : "text-caution"}>{mode}</span>
+              <span className="text-text-1">{mode}</span>
             </span>
           ))}
         </span>
@@ -131,7 +134,7 @@ const TAG: Record<DataKind, { text: string; title: string; tone: string }> = {
   synthetic: {
     text: "synthetic",
     title: "Made up for the demo, not reported by any ship or authority.",
-    tone: "border-chart-magenta/50 text-chart-magenta",
+    tone: "border-line-strong text-text-2",
   },
   unverified: {
     text: "unverified",
@@ -168,18 +171,18 @@ const TAG: Record<DataKind, { text: string; title: string; tone: string }> = {
     text: "model: recorded",
     title:
       "Answers are replayed from recordings of earlier model calls, so the demo runs offline. Only questions that were recorded have answers.",
-    tone: "border-caution/50 text-caution",
+    tone: "border-line-strong text-text-2",
   },
   "model-recording": {
     text: "model: recording",
     title:
       "Each question is answered by a live model call and the exchange is saved, so it can be replayed offline later.",
-    tone: "border-caution/50 text-caution",
+    tone: "border-line-strong text-text-2",
   },
   "model-live": {
     text: "model: live",
     title: "Each question is answered by a live model call.",
-    tone: "border-go/50 text-go",
+    tone: "border-line-strong text-text-1",
   },
 };
 

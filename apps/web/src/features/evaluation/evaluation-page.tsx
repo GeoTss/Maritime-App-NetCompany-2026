@@ -2,8 +2,8 @@
  * The evaluation page: the measured accuracy of extraction and answers, exactly as published.
  * Counts are "k of N" in the readout voice, the interval is the published 95% interval; nothing
  * is recomputed here and nothing animates. Metrics the API marks `expectedZero` read as counts
- * of failures (0 is good), never as a success percentage. Measurements set in Archivo with
- * tabular figures; B612 Mono only for what you would copy: model ids, prompt versions, run times.
+ * of failures (0 is good), never as a success percentage. Measurements set in Atkinson Hyperlegible Next with
+ * tabular figures; Atkinson Hyperlegible Mono only for what you would copy: model ids, prompt versions, run times.
  */
 import { Analytics01Icon } from "@hugeicons/core-free-icons";
 import { EvalSummary } from "@pharos/shared";
@@ -73,7 +73,7 @@ function MetricRow({ metric }: { metric: Metric }) {
           className={cn("text-2xl font-readout tabular-nums", bad ? "text-alarm" : "text-text-1")}
         >
           {metric.k}
-          <span className="text-xs text-text-2 font-stretch-normal"> of </span>
+          <span className="text-xs text-text-2"> of </span>
           {metric.n}
         </span>
         {metric.rate !== null && !expectedZero ? (
@@ -144,9 +144,7 @@ function SuiteSection({ suite, heldoutPending }: { suite: Suite; heldoutPending:
         <div className="min-w-0">
           <dt className="text-2xs text-text-3">Run date</dt>
           <dd className="flex flex-wrap items-center gap-1.5 text-text-1">
-            <time dateTime={suite.runAt} className="font-mono">
-              {formatUtcFull(suite.runAt)}
-            </time>
+            <time dateTime={suite.runAt}>{formatUtcFull(suite.runAt)}</time>
             {suite.mode === "live" ? <DataTag kind="live-run" /> : null}
           </dd>
         </div>
