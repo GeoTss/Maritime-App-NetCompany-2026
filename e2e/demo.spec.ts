@@ -69,7 +69,6 @@ async function timed<T>(step: string, fn: () => Promise<T>): Promise<T> {
 
 /** Ask in the dock and wait for the released answer (gate line shown). */
 async function ask(page: Page, question: string, label: string) {
-  // The open route tray hides the rest of the page from the accessibility tree: use labels.
   const box = page.getByLabel("Ask the assistant");
   const turns = page.locator('section[aria-label="Question and answer"]');
   const before = await turns.count();

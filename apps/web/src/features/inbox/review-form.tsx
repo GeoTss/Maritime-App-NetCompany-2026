@@ -14,7 +14,6 @@ import { type DiffRow, DiffTable } from "@/components/primitives/diff-table";
 import { StateFlag } from "@/components/primitives/state-flag";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { UntrustedText } from "@/components/untrusted-text";
 import {
   Dialog,
   DialogContent,
@@ -31,6 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { UntrustedText } from "@/components/untrusted-text";
 import { possessive } from "@/lib/format";
 
 interface LineState {
@@ -609,6 +609,7 @@ export function ReviewForm({
           </DialogHeader>
           <ul aria-label="Corrected values" className="flex flex-col gap-0.5 text-xs text-text-1">
             {form.lines.map((l, i) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: form lines have no id; order is fixed while the dialog is open
               <li key={`c-${i}`}>
                 {l.qty} mt {l.grade} at {form.currency} {l.price} per mt
               </li>

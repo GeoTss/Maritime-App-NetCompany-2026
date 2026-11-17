@@ -3,7 +3,8 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const css = readFileSync(resolve(__dirname, "globals.css"), "utf8");
-const token = (name: string) => css.match(new RegExp(`--${name}:\\s*(#[0-9a-f]{6})`, "i"))?.[1] ?? "";
+const token = (name: string) =>
+  css.match(new RegExp(`--${name}:\\s*(#[0-9a-f]{6})`, "i"))?.[1] ?? "";
 
 function luminance(hex: string): number {
   const [r, g, b] = [1, 3, 5].map((i) => {

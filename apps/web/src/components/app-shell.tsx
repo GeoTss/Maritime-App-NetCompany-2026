@@ -113,7 +113,10 @@ export function AppShell({ dock }: { dock?: ReactNode }) {
                 collapsedSize={0}
                 onResize={(size) => setDockOpen(size.inPixels > 0)}
               >
-                <aside aria-label="Assistant" className="relative h-full min-w-0 overflow-hidden bg-ink-900">
+                <aside
+                  aria-label="Assistant"
+                  className="relative h-full min-w-0 overflow-hidden bg-ink-900"
+                >
                   {dockContent}
                 </aside>
               </ResizablePanel>
