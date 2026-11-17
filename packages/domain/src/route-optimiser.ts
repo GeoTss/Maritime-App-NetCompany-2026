@@ -16,18 +16,11 @@ import {
 import { dailyConsumptionMt } from "./consumption.js";
 import { co2Tonnes, etsCost } from "./emissions.js";
 import { fuelEuCost } from "./fueleu.js";
-import { zonesContaining } from "./hazards.js";
-import { type SubStep, subSteps, walkSteps } from "./track.js";
+import { bestStopPlan, recommendPlan } from "./stop-plan.js";
+import { hazardIdsOfSteps, type SubStep, subSteps, walkSteps } from "./track.js";
+import { projectFuelAlongTrack } from "./track-fuel.js";
 
 const HOUR_MS = 3_600_000;
-
-/** Ids of the zones any sub-step midpoint falls inside, sorted. The one rule for "passes through a hazard". */
-function hazardIdsOfSteps(steps: SubStep[], zones: HazardZone[]): string[] {
-  if (zones.length === 0) return [];
-  const hit = new Set<string>();
-  for (const step of steps) for (const id of zonesContaining(step.mid, zones)) hit.add(id);
-  return [...hit].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
-}
 
 /** Zones a polyline passes through: any sub-step midpoint (steps of at most `stepNm`) inside one. Sorted. */
 export function routeHazardIds(points: LatLon[], stepNm: number, zones: HazardZone[]): string[] {
@@ -216,16 +209,41 @@ export function optimiseRouteSpeed(rawInput: RouteSpeedInput): RouteSpeedResult 
     });
     return pickBest(ranked, (o) => !o.reasons.includes("misses_arrive_by"));
   });
+  // The fuel-blind choice: berth window and hazards only (fuel is checked below, not ranked on).
   const best = pickBest(options, (o) => o.feasible).option;
   const base = baseline as RouteOptionResult | null;
   if (!base) throw new Error("baseline option was not evaluated");
+
+  const pointsOf = new Map(input.candidates.map((c) => [c.id, c.points]));
+  const fueled = (o: RouteOptionResult): RouteOptionResult => {
+    if (!input.fuel) return o;
+    const fuel = projectFuelAlongTrack({
+      startAt: input.startAt,
+      points: pointsOf.get(o.candidateId) ?? [],
+      speedKn: o.speedKn,
+      stepNm: input.stepNm,
+      curve: input.curve,
+      weather: input.weather,
+      robMt: input.fuel.robMt,
+      safetyMarginDays: input.fuel.safetyMarginDays,
+      stop: null,
+      probesNm: [],
+    });
+    const reasons: RouteOptionResult["reasons"] = fuel.keepsMargins
+      ? o.reasons
+      : [...o.reasons, "insufficient_fuel"];
+    return { ...o, fuel, reasons, feasible: reasons.length === 0 };
+  };
+  const finalOptions = options.map((r) => fueled(r.option));
+  const finalBest = finalOptions.find((o) => o.candidateId === best.candidateId) ?? fueled(best);
+  const stopPlans = input.fuel ? input.stops.map((s) => bestStopPlan(input, s, grid)) : [];
   return {
-    options: options.map((r) => r.option),
-    baseline: base,
+    options: finalOptions,
+    baseline: fueled(base),
     bestCandidateId: best.candidateId,
     savingVsBaselineUsd: base.totalCostUsd - best.totalCostUsd,
     fuelSavingVsBaselineMt: base.totalFuelMt - best.totalFuelMt,
-    stopPlans: [],
-    plan: null,
+    stopPlans,
+    plan: input.fuel ? recommendPlan(finalBest, stopPlans) : null,
   };
 }

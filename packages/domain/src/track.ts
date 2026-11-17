@@ -2,9 +2,10 @@
  * The one walk along a polyline that the route optimiser and the fuel projection share: the track
  * cut into sub-steps of at most `stepNm`, each walked at the speed over ground the weather allows.
  */
-import type { FuelGrade, LatLon, WeatherGrid } from "@pharos/shared";
+import type { FuelGrade, HazardZone, LatLon, WeatherGrid } from "@pharos/shared";
 import { gradeAt } from "./eca.js";
 import { bearingDeg, greatCircleNm } from "./geo.js";
+import { zonesContaining } from "./hazards.js";
 import { effectiveSpeedKn, sampleWeather } from "./weather-effect.js";
 
 const HOUR_MS = 3_600_000;
@@ -112,4 +113,12 @@ export function walkSteps(
     elapsed += hours;
   }
   return out;
+}
+
+/** Ids of the zones any sub-step midpoint falls inside, sorted. The one rule for "passes through a hazard". */
+export function hazardIdsOfSteps(steps: SubStep[], zones: HazardZone[]): string[] {
+  if (zones.length === 0) return [];
+  const hit = new Set<string>();
+  for (const step of steps) for (const id of zonesContaining(step.mid, zones)) hit.add(id);
+  return [...hit].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 }
