@@ -97,12 +97,18 @@ describe.skipIf(!sql)("orderDependencyOf (Postgres)", () => {
     });
   });
 
-  it("ignores a rejected order and an order for another quote", async () => {
+  it("reports a rejected order as rejected and ignores an order for another quote", async () => {
     const rejected = await order(bunkerCalcId, "MTMLA-kestrel", "rejected");
     await order(bunkerCalcId, "GIGIB-straitline", "approved");
     const dep = await orderDependencyOf(db, instruction());
-    expect(dep).toMatchObject({ recommendationId: null, status: null, satisfied: false });
-    expect(dep?.recommendationId).not.toBe(rejected);
+    expect(dep).toMatchObject({ recommendationId: rejected, status: "rejected", satisfied: false });
+    // A newer live order for the same quote takes its place.
+    const pending = await order(bunkerCalcId, "MTMLA-kestrel");
+    expect(await orderDependencyOf(db, instruction())).toMatchObject({
+      recommendationId: pending,
+      status: "pending",
+      satisfied: false,
+    });
   });
 
   it("takes the latest pending order, but an approved one wins", async () => {

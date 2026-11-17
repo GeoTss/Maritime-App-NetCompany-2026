@@ -77,10 +77,16 @@ export async function orderDependencyOf(
   >`
     select r.id, r.status, r.option_id, c.kind, c.inputs, c.outputs
     from recommendations r join calculations c on c.id = r.calculation_id
-    where r.type = 'purchase_order' and r.status <> 'rejected' and c.voyage_id = ${calc.voyage_id}
+    where r.type = 'purchase_order' and c.voyage_id = ${calc.voyage_id}
     order by r.id desc`;
   const matching = orders.filter((o) => orderQuoteOf(o, o.option_id) === quoteId);
-  const match = matching.find((o) => SATISFIED.has(o.status)) ?? matching[0] ?? null;
+  // An approved (or executing, executed) order wins; else the latest live one; else the latest
+  // rejected one, so the operator is told the order was rejected rather than never proposed.
+  const match =
+    matching.find((o) => SATISFIED.has(o.status)) ??
+    matching.find((o) => o.status !== "rejected") ??
+    matching[0] ??
+    null;
   return {
     quoteId,
     optionLabel: names ? `${names.supplier} at ${names.port}` : `quote ${quoteId}`,

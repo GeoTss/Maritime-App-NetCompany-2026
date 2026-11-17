@@ -738,11 +738,11 @@ describe.skipIf(!sql)("executor (Postgres)", () => {
       expect(await instructionsOf(viId)).toHaveLength(0);
       expect(await auditKinds(viId)).toEqual([]);
 
-      // With no proposed order at all, the reason says so.
+      // Once the order is rejected, the reason names the rejected proposal.
       await rejectRecommendation(deps, recId, "carol");
       const none = await approveRecommendation(deps, viId, "alice").catch((e: unknown) => e);
       expect((none as DecisionError).code).toBe("dependency_unmet");
-      expect((none as DecisionError).message).toContain("none has been proposed yet");
+      expect((none as DecisionError).message).toContain(`proposal ${recId} is rejected`);
       expect((await recommendation(viId))?.status).toBe("pending");
     });
 
