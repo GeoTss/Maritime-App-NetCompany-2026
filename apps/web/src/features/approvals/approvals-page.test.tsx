@@ -626,7 +626,7 @@ describe("ApprovalsPage: the decision", () => {
     expect(lines).toHaveLength(3);
     const best = lines.filter((l) => l.dataset.best === "true");
     expect(best).toHaveLength(1);
-    expect(best[0]?.getAttribute("class")).toMatch(/\bstroke-go\b/);
+    expect(best[0]?.getAttribute("class")).toMatch(/\bstroke-beacon\b/);
     expect(best[0]?.getAttribute("stroke-width")).toBe("2.5");
     for (const other of lines.filter((l) => l.dataset.best !== "true")) {
       expect(other.getAttribute("class")).toMatch(/\bstroke-text-3\b/);

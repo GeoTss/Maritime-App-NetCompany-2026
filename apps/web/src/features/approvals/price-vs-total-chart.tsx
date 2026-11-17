@@ -103,7 +103,7 @@ export function PriceVsTotalChart({
           {drawOrder.map((o) => {
             const left = middle(headline.indexOf(o));
             const right = middle(plan.options.indexOf(o));
-            const dot = o.best ? "fill-go" : "fill-text-3";
+            const dot = o.best ? "fill-beacon" : "fill-text-3";
             return (
               <g key={o.optionId}>
                 <line
@@ -114,7 +114,7 @@ export function PriceVsTotalChart({
                   y2={right}
                   strokeWidth={o.best ? 2.5 : 1.5}
                   strokeDasharray={o.feasible ? undefined : "3 3"}
-                  className={o.best ? "stroke-go" : "stroke-text-3"}
+                  className={o.best ? "stroke-beacon" : "stroke-text-3"}
                 />
                 <circle cx="0" cy={left} r={o.best ? 4 : 3.5} className={dot} />
                 <circle cx="100%" cy={right} r={o.best ? 4 : 3.5} className={dot} />
