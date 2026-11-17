@@ -71,6 +71,13 @@
       "when": 1794877532825,
       "tag": "0009_certain_rafael_vega",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1794935628644,
+      "tag": "0010_clumsy_valeria_richards",
+      "breakpoints": true
     }
   ]
 }

@@ -127,9 +127,27 @@ describe("drizzle schema mirrors the shared entities", () => {
     const targets = config.foreignKeys
       .map((fk) => getTableName(fk.reference().foreignTable))
       .sort();
-    expect(targets).toEqual(["calculations", "recommendations", "voyages"]);
+    expect(targets).toEqual(["calculations", "ports", "quotes", "recommendations", "voyages"]);
     const cols = getTableColumns(schema.voyageInstructions);
-    for (const c of Object.values(cols)) expect(c.notNull).toBe(true);
+    const stop = ["stopPortId", "stopQuoteId", "stopArriveAt", "stopDepartAt", "stopQtyMt"];
+    for (const [key, c] of Object.entries(cols)) expect(c.notNull).toBe(!stop.includes(key));
+  });
+
+  it("the bunker-stop migration only adds nullable voyage_instructions columns", () => {
+    const dir = new URL("../drizzle/", import.meta.url);
+    const file = readdirSync(dir).find((f) => f.startsWith("0010_") && f.endsWith(".sql"));
+    expect(file).toBeDefined();
+    const sqlText = readFileSync(new URL(file ?? "", dir), "utf8");
+    expect(sqlText).not.toMatch(/DROP |RENAME |ALTER COLUMN|TRUNCATE|DELETE FROM|NOT NULL/i);
+    for (const col of [
+      "stop_port_id",
+      "stop_quote_id",
+      "stop_arrive_at",
+      "stop_depart_at",
+      "stop_qty_mt",
+    ]) {
+      expect(sqlText).toMatch(new RegExp(`ALTER TABLE "voyage_instructions" ADD COLUMN "${col}"`));
+    }
   });
 
   it("the voyage_instructions migration is additive", () => {

@@ -6,6 +6,7 @@ import { createErpApp } from "../../../../services/erp-sim/src/app.js";
 import { createToolContext } from "../ai/tools/common.js";
 import { planBunkering } from "../ai/tools/plan-bunkering.js";
 import { proposeAction } from "../ai/tools/propose-action.js";
+import { planRouteSpeedFacts } from "../ai/tools/route-speed.js";
 import { createApp } from "../app.js";
 import { ASK_FIXTURE_NOW, prepareAskFixture } from "../ask/demo-fixture.js";
 import { createClock } from "../clock.js";
@@ -174,6 +175,35 @@ describe.skipIf(!sql)("approval routes (Postgres)", () => {
       ["supplier_confirmation", "draft"],
       ["master_instruction", "draft"],
     ]);
+  });
+
+  it("maps dependency_unmet to 409 with the reason, and approves once the order is approved", async () => {
+    const ctx = createToolContext({ sql: db, now: () => ASK_FIXTURE_NOW });
+    const route = await planRouteSpeedFacts(ctx, { vessel: "Aegean Pioneer" });
+    const calculationId = (route.data as { calculationId: number }).calculationId;
+    const cite = route.facts.find(
+      (f) => f.provenance.source === "calculation" && f.provenance.path === "bestCandidateId",
+    );
+    const proposed = await proposeAction(ctx, {
+      type: "voyage_instruction",
+      calculationId,
+      optionId: "MTMLA-kestrel",
+      factRefs: [cite?.id ?? ""],
+      rationale: "The plan that keeps the fuel margin.",
+    });
+    const viId = (proposed.data as { recommendationId: number }).recommendationId;
+
+    const blocked = await post(`/api/recommendations/${viId}/approve`);
+    expect(blocked.status).toBe(409);
+    const body = (await blocked.json()) as { error: string; message: string };
+    expect(body.error).toBe("dependency_unmet");
+    expect(body.message).toContain("Kestrel Marine Fuels at Marsaxlokk");
+    expect(body.message).toContain(`proposal ${recId} is pending`);
+
+    expect((await post(`/api/recommendations/${recId}/approve`)).status).toBe(200);
+    const approved = await post(`/api/recommendations/${viId}/approve`);
+    expect(approved.status).toBe(200);
+    expect(DecisionResult.parse(await approved.json())).toMatchObject({ status: "executed" });
   });
 
   it("accepts application/json with a charset", async () => {

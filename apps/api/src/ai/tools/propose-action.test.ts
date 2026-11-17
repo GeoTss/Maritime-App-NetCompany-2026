@@ -185,16 +185,7 @@ describe.skipIf(!sql)("propose_action (Postgres)", () => {
     expect(await recommendations()).toHaveLength(0);
   });
 
-  it("a feasible option that is not the best is proposed without an expected saving", async () => {
-    const other = plan.options.find((o) => o.feasible && o.optionId !== plan.bestOptionId);
-    expect(other).toBeDefined();
-    if (!other) throw new Error("the demo plan has no second feasible option");
-    await proposeAction(ctx, { ...valid(), optionId: other.optionId });
-    const [row] = await recommendations();
-    expect(row?.expected_saving_usd).toBeNull();
-  });
-
-  describe("voyage_instruction", () => {
+  describe("route plans", () => {
     /** Aegean Pioneer's route plan in this conversation: its stored result and facts. */
     const routePlan = async (vessel = "Aegean Pioneer", destination?: string) => {
       const out = await planRouteSpeedFacts(
@@ -205,88 +196,151 @@ describe.skipIf(!sql)("propose_action (Postgres)", () => {
       const [calc] = await db<{ outputs: unknown; voyage_id: number | null }[]>`
         select outputs, voyage_id from calculations where id = ${id}`;
       const result = RouteSpeedResult.parse(calc?.outputs);
-      const label = (suffix: string) => {
-        const f = out.facts.find((x) => x.label.endsWith(suffix));
-        if (!f) throw new Error(`no route fact ${suffix}`);
+      /** The plan's fact at a result path (its label may change; its path does not). */
+      const at = (path: string) => {
+        const f = out.facts.find(
+          (x) => x.provenance.source === "calculation" && x.provenance.path === path,
+        );
+        if (!f) throw new Error(`no route fact at ${path}`);
         return f.id;
       };
-      return { id, result, facts: out.facts, label, voyageId: calc?.voyage_id ?? null };
+      return { id, result, facts: out.facts, at, voyageId: calc?.voyage_id ?? null };
     };
-    const instruction = (
-      plan: Awaited<ReturnType<typeof routePlan>>,
-      optionId = plan.result.bestCandidateId,
-    ) => ({
+    type Plan = Awaited<ReturnType<typeof routePlan>>;
+    const instruction = (plan: Plan, optionId = plan.result.bestCandidateId) => ({
       type: "voyage_instruction" as const,
       calculationId: plan.id,
       optionId,
-      factRefs: [plan.label(": recommended route")],
-      rationale: "Lowest total voyage cost within the berth window.",
+      factRefs: [plan.at("bestCandidateId")],
+      rationale: "The plan that keeps the fuel margin and meets the berth window.",
+    });
+    const order = (plan: Plan, optionId = "MTMLA-kestrel") => ({
+      ...instruction(plan, optionId),
+      type: "purchase_order" as const,
+      rationale: "Buy where the recommended plan bunkers.",
+    });
+    const count = async (table: "recommendations" | "purchase_orders") =>
+      (await db<{ n: number }[]>`select count(*)::int as n from ${db(table)}`)[0]?.n ?? 0;
+    const NEEDS_ORDER =
+      "Needs an approved purchase order for Kestrel Marine Fuels at Marsaxlokk before it can be approved.";
+
+    it("recommends the Marsaxlokk stop (the demo world after the retune)", async () => {
+      const plan = await routePlan();
+      expect(plan.result.plan).toMatchObject({ kind: "stop", optionId: "MTMLA-kestrel" });
+      expect(plan.result.stopPlans.find((s) => s.optionId === "MTMLA-kestrel")?.feasible).toBe(
+        true,
+      );
     });
 
-    it("on Aegean Pioneer's route plan and its best route: a pending recommendation with the plan's saving", async () => {
+    it("proposes an instruction on a stop plan without creating an order", async () => {
       const plan = await routePlan();
-      expect(plan.voyageId).not.toBeNull();
-      const best = plan.result.options.find((o) => o.candidateId === plan.result.bestCandidateId);
-      expect(best?.feasible).toBe(true);
-      const result = await proposeAction(ctx, {
-        ...instruction(plan),
-        factRefs: [
-          plan.label(": recommended route"),
-          plan.label(`route ${plan.result.bestCandidateId}: recommended speed`),
-          // A stored-input fact of the same calculation (db provenance on its row) also counts.
-          plan.label(`route ${plan.result.bestCandidateId}: description`),
-        ],
-      });
+      const orders = await count("purchase_orders");
+      const result = await proposeAction(ctx, instruction(plan, "MTMLA-kestrel"));
       const rows = await recommendations();
+      // One recommendation, the instruction: never its purchase order as a side effect.
       expect(rows).toHaveLength(1);
       expect(rows[0]).toMatchObject({
         type: "voyage_instruction",
         calculation_id: plan.id,
-        option_id: plan.result.bestCandidateId,
-        status: "pending",
-        expected_saving_usd: plan.result.savingVsBaselineUsd,
-      });
-      expect(result.data).toMatchObject({ recommendationId: rows[0]?.id, status: "pending" });
-      expect((result.data as { note: string }).note).toMatch(/No voyage change has been made/);
-      expect(ctx.recommendationIds).toEqual([rows[0]?.id]);
-    });
-
-    it("a feasible route that is not the best is proposed without an expected saving", async () => {
-      const plan = await routePlan();
-      const other = plan.result.options.find(
-        (o) => o.feasible && o.candidateId !== plan.result.bestCandidateId,
-      );
-      if (!other) throw new Error("the demo route plan has no second feasible route");
-      await proposeAction(ctx, instruction(plan, other.candidateId));
-      const rows = await recommendations();
-      expect(rows).toHaveLength(1);
-      expect(rows[0]).toMatchObject({
-        type: "voyage_instruction",
-        option_id: other.candidateId,
+        option_id: "MTMLA-kestrel",
         status: "pending",
         expected_saving_usd: null,
       });
+      expect(await count("purchase_orders")).toBe(orders);
+      expect(result.data).toMatchObject({
+        recommendationId: rows[0]?.id,
+        status: "pending",
+        optionId: "MTMLA-kestrel",
+        dependsOnRecommendationId: null,
+      });
+      const { note } = result.data as { note: string };
+      expect(note).toMatch(/No voyage change has been made/);
+      expect(note).toContain(NEEDS_ORDER);
+      expect(ctx.recommendationIds).toEqual([rows[0]?.id]);
     });
 
-    it("a type that does not match the calculation kind is a tool error naming both", async () => {
+    it("returns the matching order id, and drops the note once that order is approved", async () => {
+      const ordered = await proposeAction(ctx, valid());
+      const orderId = (ordered.data as { recommendationId: number }).recommendationId;
       const plan = await routePlan();
-      await expect(
-        proposeAction(ctx, { ...instruction(plan), type: "purchase_order" }),
-      ).rejects.toThrow(/purchase_order.*bunker_plan.*route_speed|route_speed.*purchase_order/);
-      await expect(proposeAction(ctx, { ...valid(), type: "voyage_instruction" })).rejects.toThrow(
-        /voyage_instruction.*route_speed.*bunker_plan|bunker_plan.*voyage_instruction/,
+      const pending = await proposeAction(ctx, instruction(plan, "MTMLA-kestrel"));
+      expect(pending.data).toMatchObject({ dependsOnRecommendationId: orderId });
+      expect((pending.data as { note: string }).note).toContain(NEEDS_ORDER);
+      // The order's id is cited as a fact, so an answer may name it.
+      expect(pending.facts.map((f) => f.value)).toContain(orderId);
+
+      await db`update recommendations set status = 'approved' where id = ${orderId}`;
+      const again = await proposeAction(ctx, instruction(plan, "MTMLA-kestrel"));
+      expect(again.data).toMatchObject({
+        recommendationId: (pending.data as { recommendationId: number }).recommendationId,
+        dependsOnRecommendationId: orderId,
+      });
+      expect((again.data as { note: string }).note).not.toContain("Needs an approved");
+      expect(await count("recommendations")).toBe(2);
+    });
+
+    it("proposes a purchase order from a route plan's stop", async () => {
+      const plan = await routePlan();
+      const result = await proposeAction(ctx, order(plan));
+      const rows = await recommendations();
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({
+        type: "purchase_order",
+        calculation_id: plan.id,
+        option_id: "MTMLA-kestrel",
+        status: "pending",
+        expected_saving_usd: null,
+      });
+      expect((result.data as { note: string }).note).toMatch(/Nothing has been ordered/);
+      expect(result.data).not.toHaveProperty("dependsOnRecommendationId");
+      // A route plan's purchase order is for one of its bunker stops, never a route.
+      await expect(proposeAction(ctx, order(plan, "B"))).rejects.toThrow(
+        /has no bunker stop B; its bunker stops are MTMLA-kestrel, GIGIB-straitline/,
+      );
+      expect(await recommendations()).toHaveLength(1);
+    });
+
+    it("refuses an infeasible stop plan with its reasons", async () => {
+      const plan = await routePlan();
+      const straitline = plan.result.stopPlans.find((s) => s.optionId === "GIGIB-straitline");
+      expect(straitline?.feasible).toBe(false);
+      const reasons = straitline?.reasons.join(", ") ?? "";
+      for (const action of [
+        instruction(plan, "GIGIB-straitline"),
+        order(plan, "GIGIB-straitline"),
+      ]) {
+        await expect(proposeAction(ctx, action)).rejects.toThrow(
+          `Bunker stop GIGIB-straitline is not feasible (${reasons}); it cannot be proposed.`,
+        );
+      }
+      expect(await recommendations()).toHaveLength(0);
+    });
+
+    it("refuses a fuel-blind route that runs short (insufficient_fuel)", async () => {
+      const plan = await routePlan();
+      const best = plan.result.options.find((o) => o.candidateId === plan.result.bestCandidateId);
+      expect(best?.reasons).toContain("insufficient_fuel");
+      await expect(proposeAction(ctx, instruction(plan))).rejects.toThrow(
+        new RegExp(
+          `Route ${plan.result.bestCandidateId} is not feasible \\(.*insufficient_fuel.*\\); ` +
+            "it cannot be proposed. The recommended plan is MTMLA-kestrel.",
+        ),
       );
       expect(await recommendations()).toHaveLength(0);
     });
 
-    it("an infeasible or unknown route is a tool error", async () => {
-      const plan = await routePlan();
-      const infeasible = plan.result.options.find((o) => !o.feasible);
-      if (!infeasible) throw new Error("the demo route plan has no infeasible route");
-      await expect(proposeAction(ctx, instruction(plan, infeasible.candidateId))).rejects.toThrow(
-        new RegExp(`${infeasible.candidateId} is not feasible \\(${infeasible.reasons[0]}`),
+    it("a voyage instruction from a bunker plan is a tool error naming both kinds", async () => {
+      await expect(proposeAction(ctx, { ...valid(), type: "voyage_instruction" })).rejects.toThrow(
+        /voyage_instruction.*route_speed.*bunker_plan/,
       );
-      await expect(proposeAction(ctx, instruction(plan, "Z"))).rejects.toThrow(/has no route Z/);
+      expect(await recommendations()).toHaveLength(0);
+    });
+
+    it("an unknown route is a tool error naming the routes and stops", async () => {
+      const plan = await routePlan();
+      await expect(proposeAction(ctx, instruction(plan, "Z"))).rejects.toThrow(
+        /has no route Z; its routes are A, B, C and its bunker stops are MTMLA-kestrel, GIGIB-straitline/,
+      );
       expect(await recommendations()).toHaveLength(0);
     });
 

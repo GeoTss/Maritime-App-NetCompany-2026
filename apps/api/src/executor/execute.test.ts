@@ -13,8 +13,8 @@ import {
   BunkerPlan,
   DecisionResult,
   ERP_IDEMPOTENCY_HEADER,
-  RouteCandidate,
   RouteSpeedResult,
+  StopCandidate,
 } from "@pharos/shared";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { z } from "zod";
@@ -608,40 +608,101 @@ describe.skipIf(!sql)("executor (Postgres)", () => {
     expect((reject as DecisionError).code).toBe("not_found");
   });
 
+  /** Aegean Pioneer's route plan, made in a conversation of its own: its id and facts. */
+  const planRoute = async () => {
+    const ctx = createToolContext({ sql: db, now: () => ASK_FIXTURE_NOW });
+    const out = await planRouteSpeedFacts(ctx, { vessel: "Aegean Pioneer" });
+    const id = (out.data as { calculationId: number }).calculationId;
+    // A fact of the plan, by its path (the fuel-blind best route).
+    const cite =
+      out.facts.find(
+        (f) => f.provenance.source === "calculation" && f.provenance.path === "bestCandidateId",
+      )?.id ?? "";
+    const propose = async (type: "voyage_instruction" | "purchase_order", optionId: string) =>
+      (
+        (
+          await proposeAction(ctx, {
+            type,
+            calculationId: id,
+            optionId,
+            factRefs: [cite],
+            rationale: "The plan that keeps the fuel margin and meets the berth window.",
+          })
+        ).data as { recommendationId: number }
+      ).recommendationId;
+    return { id, propose };
+  };
+
+  /** A route calculation's stop plan and its stop candidate (the stop's route, port and quote). */
+  const storedStop = async (calcId: number, optionId: string) => {
+    const [calc] = await db<{ inputs: unknown; outputs: unknown; voyage_id: number }[]>`
+      select inputs, outputs, voyage_id from calculations where id = ${calcId}`;
+    const result = RouteSpeedResult.parse(calc?.outputs);
+    const inputs = z
+      .object({ destination: z.string(), optimiser: z.object({ stops: z.array(StopCandidate) }) })
+      .parse(calc?.inputs);
+    const plan = result.stopPlans.find((s) => s.optionId === optionId);
+    const candidate = inputs.optimiser.stops.find((s) => s.optionId === optionId);
+    if (!plan?.stop || !candidate) throw new Error(`no stop plan ${optionId}`);
+    return {
+      plan,
+      timeline: plan.stop,
+      candidate,
+      destination: inputs.destination,
+      voyageId: calc?.voyage_id,
+    };
+  };
+
+  it("orders from a route plan's stop with the quote's price", async () => {
+    const route = await planRoute();
+    const id = await route.propose("purchase_order", "MTMLA-kestrel");
+    const result = DecisionResult.parse(await approveRecommendation(deps, id, "alice"));
+    expect(result).toMatchObject({
+      status: "executed",
+      erpSyncStatus: "synced",
+      instructionId: null,
+    });
+
+    // Quantity from the stored stop plan; price, currency and barge fee from its quote.
+    const { plan } = await storedStop(route.id, "MTMLA-kestrel");
+    const [quote] = await db<{ currency: string; barge_fee: number; price_per_mt: number }[]>`
+      select q.currency, q.barge_fee, l.price_per_mt
+      from quotes q join quote_lines l on l.quote_id = q.id where q.id = ${kestrelQuoteId}`;
+    const orders = await ordersOf(id);
+    expect(orders).toMatchObject([{ quote_id: kestrelQuoteId, status: "confirmed" }]);
+    const lines = await db`
+      select grade, qty_mt, price_per_mt from order_lines where order_id = ${orders[0]?.id ?? 0}`;
+    expect(lines).toEqual([
+      { grade: "LSMGO", qty_mt: plan.qtyMt, price_per_mt: quote?.price_per_mt },
+    ]);
+    expect(erp.requests[0]?.body).toMatchObject({
+      port: "MTMLA",
+      currency: quote?.currency,
+      bargeFee: quote?.barge_fee,
+      lines: [{ grade: "LSMGO", qtyMt: plan.qtyMt, pricePerMt: quote?.price_per_mt }],
+    });
+    expect(await quoteStatus(kestrelQuoteId)).toBe("ordered");
+    const [req] = await db<{ status: string }[]>`
+      select r.status from bunker_requirements r join quotes q on q.requirement_id = r.id
+      where q.id = ${kestrelQuoteId}`;
+    expect(req?.status).toBe("ordered");
+    const master = (await draftsOf(db, id)).find((d) => d.kind === "master_instruction");
+    expect(master?.body).toMatch(/Planned fuel cost: [\d,.]+ USD; barge fee: [\d,.]+ USD/);
+  });
+
   describe("voyage instructions", () => {
     let viId: number;
     let routeCalcId: number;
 
     beforeEach(async () => {
-      const ctx = createToolContext({ sql: db, now: () => ASK_FIXTURE_NOW });
-      const out = await planRouteSpeedFacts(ctx, { vessel: "Aegean Pioneer" });
-      routeCalcId = (out.data as { calculationId: number }).calculationId;
-      const best = out.facts.find((f) => f.label.endsWith(": recommended route"));
-      const proposed = await proposeAction(ctx, {
-        type: "voyage_instruction",
-        calculationId: routeCalcId,
-        optionId: String(best?.value),
-        factRefs: [best?.id ?? ""],
-        rationale: "Lowest total voyage cost within the berth window.",
-      });
-      viId = (proposed.data as { recommendationId: number }).recommendationId;
+      const route = await planRoute();
+      routeCalcId = route.id;
+      viId = await route.propose("voyage_instruction", "MTMLA-kestrel");
     });
 
-    /** The stored route calculation: its result, approved option, candidate and destination. */
-    const stored = async () => {
-      const [calc] = await db<{ inputs: unknown; outputs: unknown; voyage_id: number }[]>`
-        select inputs, outputs, voyage_id from calculations where id = ${routeCalcId}`;
-      const result = RouteSpeedResult.parse(calc?.outputs);
-      const inputs = z
-        .object({
-          destination: z.string(),
-          optimiser: z.object({ candidates: z.array(RouteCandidate) }),
-        })
-        .parse(calc?.inputs);
-      const option = result.options.find((o) => o.candidateId === result.bestCandidateId);
-      const candidate = inputs.optimiser.candidates.find((c) => c.id === result.bestCandidateId);
-      if (!option || !candidate) throw new Error("no approved option");
-      return { option, candidate, destination: inputs.destination, voyageId: calc?.voyage_id };
+    /** Approves the purchase order the Marsaxlokk stop needs (the outer Kestrel proposal). */
+    const approveOrder = async () => {
+      expect((await approveRecommendation(deps, recId, "olga")).status).toBe("executed");
     };
     const instructionsOf = (id: number) =>
       db<
@@ -652,20 +713,49 @@ describe.skipIf(!sql)("executor (Postgres)", () => {
           speed_kn: number;
           eta: Date | string;
           points: unknown;
+          stop_port_id: number | null;
+          stop_quote_id: number | null;
+          stop_arrive_at: Date | string | null;
+          stop_depart_at: Date | string | null;
+          stop_qty_mt: number | null;
         }[]
-      >`select voyage_id, calculation_id, candidate_id, speed_kn, eta, points
+      >`select voyage_id, calculation_id, candidate_id, speed_kn, eta, points, stop_port_id,
+               stop_quote_id, stop_arrive_at, stop_depart_at, stop_qty_mt
         from voyage_instructions where recommendation_id = ${id} order by id`;
     const orderCount = async () =>
       (await db<{ n: number }[]>`select count(*)::int as n from purchase_orders`)[0]?.n ?? 0;
+    const isoOf = (v: Date | string | null | undefined) =>
+      v == null ? null : new Date(v).toISOString();
 
-    it("approve records one instruction from the stored option, drafts the master's, calls no ERP and creates no order", async () => {
+    it("refuses to approve an instruction before its order is approved", async () => {
+      const err = await approveRecommendation(deps, viId, "alice").catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(DecisionError);
+      expect((err as DecisionError).code).toBe("dependency_unmet");
+      expect((err as DecisionError).message).toContain(
+        `needs an approved purchase order for Kestrel Marine Fuels at Marsaxlokk before it can be approved; proposal ${recId} is pending`,
+      );
+      expect((await recommendation(viId))?.status).toBe("pending");
+      expect(await instructionsOf(viId)).toHaveLength(0);
+      expect(await auditKinds(viId)).toEqual([]);
+
+      // With no proposed order at all, the reason says so.
+      await rejectRecommendation(deps, recId, "carol");
+      const none = await approveRecommendation(deps, viId, "alice").catch((e: unknown) => e);
+      expect((none as DecisionError).code).toBe("dependency_unmet");
+      expect((none as DecisionError).message).toContain("none has been proposed yet");
+      expect((await recommendation(viId))?.status).toBe("pending");
+    });
+
+    it("approves it once the order is approved and records the stop", async () => {
+      await approveOrder();
+      const pushes = erp.requests.length;
+      const orders = await orderCount();
       const [speedBefore] = await db<{ planned_speed_kn: number }[]>`
         select planned_speed_kn from voyages where voyage_no = ${DEMO_SCENARIO.voyageNo}`;
-      const orders = await orderCount();
+
       const result = DecisionResult.parse(await approveRecommendation(deps, viId, "alice"));
       const [instruction] = await db<{ id: number }[]>`
         select id from voyage_instructions where recommendation_id = ${viId}`;
-      expect(instruction).toBeDefined();
       expect(result).toEqual({
         recommendationId: viId,
         status: "executed",
@@ -675,39 +765,61 @@ describe.skipIf(!sql)("executor (Postgres)", () => {
         instructionId: instruction?.id,
       });
 
-      const { option, candidate, destination, voyageId } = await stored();
+      const { plan, timeline, candidate, destination, voyageId } = await storedStop(
+        routeCalcId,
+        "MTMLA-kestrel",
+      );
+      const [port] = await db<{ id: number }[]>`select id from ports where unlocode = 'MTMLA'`;
       const rows = await instructionsOf(viId);
       expect(rows).toHaveLength(1);
       const row = rows[0];
-      expect({ ...row, eta: new Date(row?.eta ?? 0).toISOString() }).toEqual({
+      expect({
+        ...row,
+        eta: isoOf(row?.eta),
+        stop_arrive_at: isoOf(row?.stop_arrive_at),
+        stop_depart_at: isoOf(row?.stop_depart_at),
+      }).toEqual({
         voyage_id: voyageId,
         calculation_id: routeCalcId,
-        candidate_id: option.candidateId,
-        speed_kn: option.speedKn,
-        eta: new Date(option.eta).toISOString(),
+        candidate_id: "MTMLA-kestrel",
+        speed_kn: plan.speedKn,
+        eta: isoOf(plan.eta),
         points: candidate.points,
+        stop_port_id: port?.id,
+        stop_quote_id: kestrelQuoteId,
+        stop_arrive_at: isoOf(timeline.arriveAt),
+        stop_depart_at: isoOf(timeline.departAt),
+        stop_qty_mt: plan.qtyMt,
       });
+      // The audit trail names the order that satisfied the dependency.
+      const [approved] = await db<{ detail: unknown }[]>`
+        select detail from audit_events
+        where recommendation_id = ${viId} and kind = 'recommendation.approved'`;
+      expect(approved?.detail).toEqual({ dependsOnRecommendationId: recId });
 
       const drafts = await draftsOf(db, viId);
       expect(drafts.map((d) => [d.kind, d.status])).toEqual([["master_instruction", "draft"]]);
       const draft = drafts[0];
       expect(draft?.to).toBe("master.mv-aegean-pioneer@fleet.pharos.example");
-      expect(draft?.subject).toBe(`Route and speed: MV Aegean Pioneer to ${destination}`);
-      expect(draft?.body).toContain(candidate.label);
+      expect(draft?.subject).toBe(
+        `Route and speed: MV Aegean Pioneer to ${destination}, bunkering at Marsaxlokk`,
+      );
+      expect(draft?.body).toMatch(
+        /Call at Marsaxlokk for bunkers: arrive .+ UTC, depart .+ UTC, 300 t LSMGO from Kestrel Marine Fuels\./,
+      );
       expect(draft?.body).toMatch(/planning-grade advice/);
-      // Every number in the draft is the approved option's speed, distance or ETA (or its label's).
+      // Every number in the draft is the approved plan's speed, distance, ETA, stop times or quantity.
       const numbers = `${draft?.subject}\n${draft?.body}`.match(/\d[\d,]*(?:\.\d+)?/g) ?? [];
       expect(numbers.length).toBeGreaterThan(0);
       for (const n of numbers) {
         const value = Number(n.replace(/,/g, ""));
         const fromCalc =
-          option.eta.includes(n) ||
-          candidate.label.includes(n) ||
-          [option.speedKn, option.distanceNm].some((v) => Math.abs(v - value) <= 0.005);
+          [plan.eta, timeline.arriveAt, timeline.departAt].some((t) => t.includes(n)) ||
+          [plan.speedKn, plan.distanceNm, plan.qtyMt].some((v) => Math.abs(v - value) <= 0.005);
         expect(fromCalc, `draft number ${n}`).toBe(true);
       }
 
-      expect(erp.requests).toHaveLength(0);
+      expect(erp.requests).toHaveLength(pushes);
       expect(await ordersOf(viId)).toHaveLength(0);
       expect(await orderCount()).toBe(orders);
       // Recorded, not applied: the voyage keeps its planned speed (ruling P5).
@@ -724,6 +836,8 @@ describe.skipIf(!sql)("executor (Postgres)", () => {
     });
 
     it("a concurrent double approve gives one instruction row and one draft", async () => {
+      await approveOrder();
+      const pushes = erp.requests.length;
       const results = await Promise.all([
         approveRecommendation(deps, viId, "alice"),
         approveRecommendation(deps, viId, "bob"),
@@ -735,10 +849,10 @@ describe.skipIf(!sql)("executor (Postgres)", () => {
       expect(kinds.filter((k) => k === "recommendation.approved")).toHaveLength(1);
       expect(kinds.filter((k) => k === "voyage.instructed")).toHaveLength(1);
       expect(kinds.filter((k) => k === "recommendation.executed")).toHaveLength(1);
-      expect(erp.requests).toHaveLength(0);
+      expect(erp.requests).toHaveLength(pushes);
     });
 
-    it("a reject records no instruction and drafts nothing", async () => {
+    it("a reject records no instruction and drafts nothing, with or without its order", async () => {
       const rejected = await rejectRecommendation(deps, viId, "carol");
       expect(rejected.status).toBe("rejected");
       expect(await instructionsOf(viId)).toHaveLength(0);
@@ -747,6 +861,8 @@ describe.skipIf(!sql)("executor (Postgres)", () => {
     });
 
     it("a failure while drafting leaves it failed; approving again retries and executes once", async () => {
+      await approveOrder();
+      const pushes = erp.requests.length;
       await db.unsafe(`
         create function pharos_test_block_drafts() returns trigger language plpgsql as
           $$ begin raise exception 'forced draft failure'; end $$;
@@ -772,7 +888,7 @@ describe.skipIf(!sql)("executor (Postgres)", () => {
         "drafts.created",
         "recommendation.executed",
       ]);
-      expect(erp.requests).toHaveLength(0);
+      expect(erp.requests).toHaveLength(pushes);
     });
 
     it("a route plan with no voyage of ours (a ship seen on AIS) cannot be executed", async () => {
