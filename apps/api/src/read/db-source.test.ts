@@ -624,6 +624,27 @@ describe.skipIf(!sql)("createDbSource (Postgres)", () => {
         const served = await get(app, `/api/route-plans/${id}`);
         expect(served.res.status).toBe(200);
         expect(RoutePlanView.parse(served.body)).toEqual(view);
+        // The view cites what plan_route_speed cites for the same calculation: the tool's facts,
+        // byte for byte, including the fuel check, the stop plans and the recommended plan.
+        const tool = await planRouteSpeedFacts(createToolContext({ sql: db, now: () => NOW }), {
+          vessel,
+        });
+        const toolId = (tool.data as { calculationId: number }).calculationId;
+        const toolView = await get(app, `/api/route-plans/${toolId}`);
+        expect(JSON.stringify((toolView.body as { facts: Fact[] }).facts)).toBe(
+          JSON.stringify(tool.facts),
+        );
+        const { result } = planned.response;
+        const paths = tool.facts.flatMap((f) =>
+          f.provenance.source === "calculation" ? [f.provenance.path] : [],
+        );
+        expect(paths.includes("plan.optionId")).toBe(result.plan !== null);
+        expect(paths.filter((p) => p.startsWith("stopPlans[")).length > 0).toBe(
+          result.stopPlans.length > 0,
+        );
+        const short = result.options.some((o) => o.fuel?.grades.LSMGO.belowMarginAt);
+        expect(paths.some((p) => /^options\[\d+\]\.fuel\.grades\.LSMGO\./.test(p))).toBe(short);
+        if (vessel === "Aegean Pioneer") expect(short).toBe(true);
       },
     );
 

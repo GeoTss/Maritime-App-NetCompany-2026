@@ -1,4 +1,11 @@
-import { currentVoyage, fleetRoutePlan, loadWorld, type Sql } from "@pharos/db";
+import {
+  currentVoyage,
+  fleetRoutePlan,
+  latestOffers,
+  loadWorld,
+  openRequirements,
+  type Sql,
+} from "@pharos/db";
 import { connectTestDb, testDbLabel } from "@pharos/db/testing";
 import { activeHazardZones, buildRouteGraph, loadFactor, optimiseRouteSpeed } from "@pharos/domain";
 import { latestWeatherSnapshot, loadSeaNetwork, recordedLiveData } from "@pharos/integrations";
@@ -70,12 +77,22 @@ describe.skipIf(!sql)("plan_route_speed (Postgres)", () => {
       })),
       ASK_FIXTURE_NOW,
     );
+    // As routing/plan.ts builds it with no approved order: every valid quote for the open
+    // requirement is a stop candidate, waiting from the seeded congestion.
+    const requirement = openRequirements(world, voyage.id)[0];
     const plan = fleetRoutePlan(
       world,
       voyage.id,
       buildRouteGraph(loadSeaNetwork().segments),
       snap?.grid ?? null,
       zones,
+      {
+        congestion: "seed",
+        offers: requirement
+          ? latestOffers(world, voyage.id, requirement.grade, ASK_FIXTURE_NOW, false)
+          : [],
+        fixedOrder: null,
+      },
     );
     return { plan, result: optimiseRouteSpeed(plan.input), snapshotId: snap?.id };
   };
@@ -108,7 +125,9 @@ describe.skipIf(!sql)("plan_route_speed (Postgres)", () => {
     const best = want.result.options.find((o) => o.candidateId === want.result.bestCandidateId);
     if (!best) throw new Error("no best option");
     const S = want.plan.subject;
-    expect(byLabel(out.facts, `${S}: recommended route`).value).toBe(want.result.bestCandidateId);
+    expect(byLabel(out.facts, `${S}: best route ignoring fuel on board`).value).toBe(
+      want.result.bestCandidateId,
+    );
     expect(byLabel(out.facts, `${S}, route ${best.candidateId}: fuel`).value).toBe(
       best.totalFuelMt,
     );
@@ -119,8 +138,10 @@ describe.skipIf(!sql)("plan_route_speed (Postgres)", () => {
       ).value,
     ).toBe(want.result.baseline.totalCostUsd);
     expect(
-      byLabel(out.facts, `${S}: saving of the recommended route and speed against the current plan`)
-        .value,
+      byLabel(
+        out.facts,
+        `${S}: saving of the best route and speed ignoring fuel, against the current plan`,
+      ).value,
     ).toBe(want.result.savingVsBaselineUsd);
     const run = byLabel(out.facts, "Weather forecast start (UTC)");
     expect(run.provenance.source).toBe("weather");
@@ -135,10 +156,40 @@ describe.skipIf(!sql)("plan_route_speed (Postgres)", () => {
     expect(out.facts.some((f) => f.label.endsWith("reported speed over ground"))).toBe(false);
     expect(byLabel(out.facts, "Route calculation id").value).toBe(calc.id);
     expect(out.facts.find((f) => f.label.includes("berth window closes"))).toBeDefined();
-    const data = out.data as { calculationId: number; note: string };
+    const data = out.data as {
+      calculationId: number;
+      note: string;
+      recommendedOptionId: string | null;
+      recommendedKind: string | null;
+    };
     expect(data.calculationId).toBe(calc.id);
     expect(data.note).toMatch(/Nothing has been ordered or sent/);
+    // The recommended plan as stored with the calculation, and its fact when there is one.
+    const stored = RouteSpeedResult.parse(calc.outputs).plan;
+    expect(data.recommendedOptionId).toBe(stored?.optionId ?? null);
+    expect(data.recommendedKind).toBe(stored?.kind ?? null);
+    if (stored) {
+      expect(byLabel(out.facts, `${S}: recommended plan`).value).toBe(stored.optionId);
+    }
     expect(c.calls[0]).toMatchObject({ tool: "plan_route_speed", isError: false });
+  });
+
+  it("an AIS ship has no recommended plan in the tool data", async () => {
+    const world = await loadWorld(db);
+    const ship = recordedLiveData({ anchor: FIXTURE_ANCHOR, ports: world.ports })
+      .traffic.filter(
+        (t) =>
+          t.name?.trim() &&
+          (t.shipType === "cargo" || t.shipType === "tanker") &&
+          (t.sogKn ?? 0) >= 8,
+      )
+      .sort((a, b) => a.mmsi.localeCompare(b.mmsi))[0];
+    if (!ship) throw new Error("no suitable ship in the capture");
+    const out = await planRouteSpeedFacts(ctx(), { vessel: ship.mmsi, destination: "Rotterdam" });
+    expect(out.data).toMatchObject({ recommendedOptionId: null, recommendedKind: null });
+    expect(byLabel(out.facts, `MMSI ${ship.mmsi}: recommended route`).value).toBe(
+      (out.data as { bestCandidateId: string }).bestCandidateId,
+    );
   });
 
   it("plans a ship from the recorded capture to Rotterdam with an assumed profile", async () => {
@@ -383,6 +434,8 @@ describe.skipIf(!sql)("plan_route_speed (Postgres)", () => {
       "calc:baseline.etsCostUsd",
       "calc:options[].fuelEuCostUsd",
       "calc:baseline.fuelEuCostUsd",
+      // Aegean Pioneer's routes run short of LSMGO on the retuned world.
+      "calc:options[].fuel.grades.LSMGO.belowMarginAt.nm",
     ]) {
       expect(sources.has(s), s).toBe(true);
     }

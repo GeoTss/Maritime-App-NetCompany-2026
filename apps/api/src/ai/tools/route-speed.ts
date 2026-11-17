@@ -26,6 +26,10 @@ export function planRouteSpeedFacts(ctx: ToolContext, input: PlanRouteSpeedInput
       data: {
         calculationId: response.calculationId,
         bestCandidateId: response.result.bestCandidateId,
+        // The recommended plan (a route, or a route with a bunker stop); null when nothing is
+        // feasible or the ship has no fuel check (a ship seen on AIS).
+        recommendedOptionId: response.result.plan?.optionId ?? null,
+        recommendedKind: response.result.plan?.kind ?? null,
         note: ROUTE_NOTE,
       },
     };
