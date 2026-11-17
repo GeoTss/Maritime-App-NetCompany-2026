@@ -51,7 +51,12 @@ export function PanelFrame({
           )}
         >
           <div className="flex min-w-0 flex-1 flex-col gap-1">
-            <h2 className="truncate text-base font-semibold text-text-1 font-title">{title}</h2>
+            <h2
+              tabIndex={-1}
+              className="truncate text-base font-medium text-text-1 outline-none font-title"
+            >
+              {title}
+            </h2>
             {subtitle && !folded ? <div className="text-text-2">{subtitle}</div> : null}
             {tags && !folded ? <div className="flex flex-wrap gap-1">{tags}</div> : null}
           </div>

@@ -128,6 +128,20 @@ describe("untrusted AIS text", () => {
     expect(posts).toEqual([]);
   });
 
+  it("⌘K lists no AIS ship until the query has two characters", async () => {
+    renderConsole("/");
+    await waitFor(() => expect(screen.getByTestId("map")).toBeTruthy());
+    await act(async () => {
+      fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+    });
+    const menu = await screen.findByRole("dialog");
+    expect(within(menu).queryByRole("option", { name: new RegExp(MMSI) })).toBeNull();
+    fireEvent.change(within(menu).getByRole("combobox"), { target: { value: MMSI.slice(0, 1) } });
+    expect(within(menu).queryByRole("option", { name: new RegExp(MMSI) })).toBeNull();
+    fireEvent.change(within(menu).getByRole("combobox"), { target: { value: MMSI.slice(0, 2) } });
+    expect(await within(menu).findByRole("option", { name: new RegExp(MMSI) })).toBeTruthy();
+  });
+
   it("the route tray's title shows the plan's subject as text", async () => {
     renderConsole("/?vessel=1");
     fireEvent.click(await screen.findByRole("button", { name: "Plan route" }));

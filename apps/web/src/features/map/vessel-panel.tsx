@@ -7,8 +7,8 @@
  * only when its fact is null; next port and its ETA read "—" when their facts are null (the
  * voyage view's own "next" rule differs, so it is not used); the UI derives nothing.
  */
-import type { FobProjection, RoutePlanView, VesselSummary } from "@pharos/shared";
-import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
+import type { FobProjection, RoutePlanView, VesselDetail, VesselSummary } from "@pharos/shared";
+import { CartesianGrid, Line, LineChart, ReferenceLine, XAxis, YAxis } from "recharts";
 import { ErrorState } from "@/components/error-state";
 import { StateFlag } from "@/components/primitives/state-flag";
 import { DataTag } from "@/components/source-badge";
@@ -52,20 +52,50 @@ const chartConfig = {
 const DASHED: Partial<Record<(typeof GRADES)[number], string>> = { HSFO: "4 3" };
 
 /** Fuel on board after each leg, as the projection returned it; no value is derived here. */
-function FobChart({ rob, projection }: { rob: VesselSummary["robMt"]; projection: FobProjection }) {
+function FobChart({
+  rob,
+  projection,
+  capacity,
+}: {
+  rob: VesselSummary["robMt"];
+  projection: FobProjection;
+  capacity: VesselDetail["tankCapacityMt"] | undefined;
+}) {
   const data = [
     { leg: "Now", ...rob },
     ...projection.legs.map((l) => ({ leg: `Leg ${l.index + 1}`, ...l.robAfterMt })),
   ];
   const grades = GRADES.filter((g) => data.some((d) => d[g] !== 0));
   const below = GRADES.filter((g) => projection.belowMarginAtLeg[g] !== null);
+  // Axis: zero and each shown grade's tank capacity, as the API returned it.
+  const caps = capacity ? grades.map((g) => capacity[g]).filter((c) => c > 0) : [];
+  const ticks = caps.length > 0 ? [...new Set([0, ...caps])].sort((a, b) => a - b) : undefined;
+  // The safety-margin line, from the projection's margin, for the grades drawn.
+  const margins = grades.filter((g) => projection.safetyMarginMt[g] > 0);
   return (
     <div className="flex flex-col gap-1.5" data-testid="fob-chart">
       <ChartContainer config={chartConfig} className="aspect-auto h-32 w-full">
         <LineChart data={data} margin={{ left: 0, right: 8, top: 4, bottom: 0 }}>
           <CartesianGrid vertical={false} />
           <XAxis dataKey="leg" tickLine={false} axisLine={false} fontSize={11} />
-          <YAxis tickLine={false} axisLine={false} width={36} fontSize={11} />
+          <YAxis
+            tickLine={false}
+            axisLine={false}
+            width={36}
+            fontSize={11}
+            ticks={ticks}
+            domain={ticks ? [0, ticks[ticks.length - 1] ?? 0] : undefined}
+          />
+          {margins.map((g) => (
+            <ReferenceLine
+              key={`margin-${g}`}
+              y={projection.safetyMarginMt[g]}
+              stroke={`var(--color-${g})`}
+              strokeDasharray="2 3"
+              strokeOpacity={0.7}
+              data-testid={`margin-line-${g}`}
+            />
+          ))}
           <ChartTooltip content={<ChartTooltipContent />} />
           {grades.map((g) => (
             <Line
@@ -93,6 +123,7 @@ function FobChart({ rob, projection }: { rob: VesselSummary["robMt"]; projection
           </li>
         ))}
         <li className="text-text-3">Tonnes on board after each leg</li>
+        {margins.length > 0 ? <li className="text-text-3">Dotted line: safety margin</li> : null}
       </ul>
       {below.length > 0 ? (
         <p className="text-caution">
@@ -285,7 +316,11 @@ export function VesselPanel({
             className="p-0"
           />
         ) : detail.data.fobProjection ? (
-          <FobChart rob={vessel.robMt} projection={detail.data.fobProjection} />
+          <FobChart
+            rob={vessel.robMt}
+            projection={detail.data.fobProjection}
+            capacity={detail.data.tankCapacityMt}
+          />
         ) : (
           <p className="text-text-2">This vessel has no voyage to project.</p>
         )}

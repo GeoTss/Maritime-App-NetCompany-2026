@@ -72,6 +72,16 @@ function useElementHeight(el: HTMLElement | null): number {
   return height;
 }
 
+/** After a command-menu pick, the panel's title takes focus (the menu gives focus back first). */
+function focusPanelHeading() {
+  window.setTimeout(() => {
+    const heading = document.querySelector<HTMLElement>(
+      '[aria-label="Ship panel"] h2, [aria-label="Vessel panel"] h2',
+    );
+    heading?.focus();
+  }, 150);
+}
+
 export function MapPage() {
   const [params, setParams] = useSearchParams();
   const wide = useMediaQuery("(min-width: 768px)", true);
@@ -212,7 +222,10 @@ export function MapPage() {
                   keywords: [v.imo, v.mmsi, "vessel", "fleet"],
                   hint: v.mmsi,
                   icon: ShipIcon,
-                  onSelect: () => selectVessel(v.id, v.position ?? undefined),
+                  onSelect: () => {
+                    selectVessel(v.id, v.position ?? undefined);
+                    focusPanelHeading();
+                  },
                 },
               ]
             : [],
@@ -232,7 +245,11 @@ export function MapPage() {
           keywords: [s.mmsi, "ship", "ais"],
           hint: s.mmsi,
           icon: Radar01Icon,
-          onSelect: () => selectShip(s.mmsi, { lat: s.lat, lon: s.lon }),
+          minQuery: 2,
+          onSelect: () => {
+            selectShip(s.mmsi, { lat: s.lat, lon: s.lon });
+            focusPanelHeading();
+          },
         })),
         ...(Object.keys(LAYER_LABEL) as LayerKey[]).map((key) => ({
           id: `map-layer-${key}`,

@@ -234,3 +234,25 @@
 @utility font-readout {
   font-weight: 500;
 }
+
+/* MapLibre's zoom control in the ink tokens (its stylesheet ships a white button). */
+.maplibregl-ctrl-group {
+  background: var(--ink-900);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  box-shadow: none;
+}
+.maplibregl-ctrl-group button {
+  background-color: transparent;
+}
+.maplibregl-ctrl-group button + button {
+  border-top: 1px solid var(--line);
+}
+.maplibregl-ctrl-group button:hover,
+.maplibregl-ctrl-group button:focus-visible {
+  background-color: var(--ink-800);
+}
+/* The plus and minus glyphs are dark SVGs: lift them to text-1. */
+.maplibregl-ctrl-group button .maplibregl-ctrl-icon {
+  filter: invert(1) brightness(0.95);
+}

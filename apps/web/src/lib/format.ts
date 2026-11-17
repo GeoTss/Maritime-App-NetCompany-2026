@@ -102,6 +102,13 @@ export function formatUtc(iso: string): string {
   return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}Z`;
 }
 
+/** "14 Nov": the UTC day of an instant. */
+export function formatUtcDay(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`;
+}
+
 /** "08:05Z": the time of day in UTC. */
 export function formatUtcTime(iso: string): string {
   const d = new Date(iso);

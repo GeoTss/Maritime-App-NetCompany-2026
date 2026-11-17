@@ -147,6 +147,26 @@ afterEach(() => {
 });
 
 describe("MapPage", () => {
+  it("the wave-forecast slider is named and speaks the step time; days are ticked", async () => {
+    renderPage();
+    const thumb = await screen.findByRole("slider", { name: "Wave forecast time" });
+    expect(thumb.getAttribute("aria-valuetext")).toBe("14 Nov 08:00Z");
+    const ticks = screen.getByTestId("day-ticks").textContent ?? "";
+    expect(ticks.startsWith("14 Nov")).toBe(true);
+    expect(ticks).toContain("15 Nov");
+    expect(screen.getByTestId("wave-legend").textContent).toBe("Wave height0 to 3+ m");
+  });
+
+  it("a pressed layer toggle shows a check; an unpressed one has none", async () => {
+    renderPage();
+    const traffic = await screen.findByRole("button", { name: /AIS traffic/ });
+    expect(traffic.getAttribute("aria-pressed")).toBe("true");
+    expect(within(traffic).queryByTestId("layer-check")).toBeTruthy();
+    fireEvent.click(traffic);
+    await waitFor(() => expect(traffic.getAttribute("aria-pressed")).toBe("false"));
+    expect(within(traffic).queryByTestId("layer-check")).toBeNull();
+  });
+
   it("heads the Needs-you column with the count and lists its items", async () => {
     renderPage();
     const column = await screen.findByRole("region", { name: "Needs you" });

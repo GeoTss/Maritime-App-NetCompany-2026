@@ -41,6 +41,8 @@ export interface CommandItemDef {
   /** A short identifier shown on the right, e.g. the MMSI. */
   hint?: string;
   icon?: IconSvgElement;
+  /** Listed only once the query has this many characters (AIS ships: a long list is noise). */
+  minQuery?: number;
   onSelect: () => void;
 }
 
@@ -133,6 +135,10 @@ export const DEV_SCREENS = [
 export function CommandMenu() {
   const { open, setOpen, groups } = useCommandMenu();
   const navigate = useNavigate();
+  const [query, setQuery] = useState("");
+  useEffect(() => {
+    if (!open) setQuery("");
+  }, [open]);
   const run = (fn: () => void) => {
     setOpen(false);
     fn();
@@ -141,7 +147,11 @@ export function CommandMenu() {
   return (
     <CommandDialog open={open} onOpenChange={setOpen}>
       <Command>
-        <CommandInput placeholder="Go to a screen, vessel, port or ship (name or MMSI)" />
+        <CommandInput
+          value={query}
+          onValueChange={setQuery}
+          placeholder="Go to a screen, vessel, port or ship (name or MMSI)"
+        />
         <CommandList>
           <CommandEmpty>Nothing matches. Try a vessel name, an MMSI or a port code.</CommandEmpty>
           <CommandGroup heading="Screens">
@@ -175,18 +185,20 @@ export function CommandMenu() {
             <div key={group.id}>
               <CommandSeparator />
               <CommandGroup heading={group.heading}>
-                {group.items.map((item) => (
-                  <CommandItem
-                    key={item.id}
-                    value={`${group.id} ${item.id} ${item.label}`}
-                    keywords={item.keywords}
-                    onSelect={() => run(item.onSelect)}
-                  >
-                    {item.icon ? <HugeiconsIcon icon={item.icon} strokeWidth={1.75} /> : null}
-                    <span className="min-w-0 truncate">{item.label}</span>
-                    {item.hint ? <CommandShortcut>{item.hint}</CommandShortcut> : null}
-                  </CommandItem>
-                ))}
+                {group.items
+                  .filter((item) => query.trim().length >= (item.minQuery ?? 0))
+                  .map((item) => (
+                    <CommandItem
+                      key={item.id}
+                      value={`${group.id} ${item.id} ${item.label}`}
+                      keywords={item.keywords}
+                      onSelect={() => run(item.onSelect)}
+                    >
+                      {item.icon ? <HugeiconsIcon icon={item.icon} strokeWidth={1.75} /> : null}
+                      <span className="min-w-0 truncate">{item.label}</span>
+                      {item.hint ? <CommandShortcut>{item.hint}</CommandShortcut> : null}
+                    </CommandItem>
+                  ))}
               </CommandGroup>
             </div>
           ))}

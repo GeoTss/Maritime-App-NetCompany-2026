@@ -7,7 +7,7 @@
 import type { PortCongestionList, PortList, SourceMode } from "@pharos/shared";
 import { Marker } from "react-map-gl/maplibre";
 import { MetricNumber } from "@/components/metric-number";
-import { formatUtc } from "@/lib/format";
+import { formatDigits, formatUtc } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { LABEL_PRIORITY, useFlipLabel } from "./map-labels";
 
@@ -40,6 +40,8 @@ function PortLabel({
         />
         <div
           ref={ref}
+          role="img"
+          aria-label={`${c.portName}: ${formatDigits(c.anchoredCount, null)} ships at anchor, ${formatDigits(c.waitingHours, "h")} hours wait`}
           data-testid={`port-${c.unlocode}`}
           data-label-side={flip ? "left" : "right"}
           data-map-label={LABEL_PRIORITY.port}
@@ -52,7 +54,6 @@ function PortLabel({
         >
           <span className="flex items-center gap-1.5 text-text-1">
             {c.portName}
-            {compact ? null : <span className="font-mono text-2xs text-text-3">{c.unlocode}</span>}
             {compact ? (
               <span className="text-text-2">
                 <MetricNumber value={c.anchoredCount} unit={null} />
@@ -62,10 +63,11 @@ function PortLabel({
             ) : null}
           </span>
           {compact ? null : (
-            <span className="flex items-baseline gap-2 text-text-2">
+            <span className="flex items-baseline gap-1.5 text-text-2">
               <span>
                 <MetricNumber value={c.anchoredCount} unit={null} /> at anchor
               </span>
+              <span aria-hidden>·</span>
               <span>
                 <MetricNumber value={c.waitingHours} unit="h" /> wait
               </span>
