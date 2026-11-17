@@ -53,6 +53,7 @@ import {
   routeSpeedFactRows,
   subjectLabel,
 } from "../routing/facts.js";
+import { viewCandidates } from "../routing/plan.js";
 import type { ReadSource } from "./source.js";
 import { buildVessels, buildVoyages } from "./world-views.js";
 
@@ -392,7 +393,7 @@ async function routePlan(sql: Sql, id: Id): Promise<RoutePlanView | null> {
     weatherSnapshotId: row.weather_snapshot_id,
     subject: plan.subject,
     destination: plan.destination.name,
-    candidates: plan.input.candidates,
+    candidates: viewCandidates(plan.input.candidates, stored.stops),
     result,
     facts: routePlanFacts({
       response: { calculationId: row.id, result },

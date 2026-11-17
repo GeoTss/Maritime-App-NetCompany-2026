@@ -25,15 +25,38 @@ import type {
   Id,
   NavHazard,
   PlanRouteSpeedInput,
+  RouteCandidate,
   RouteGraph,
   RoutePlanResponse,
   RouteSpeedResult,
+  StopCandidate,
   Vessel,
 } from "@pharos/shared";
 import { findVessel, insertCalculation } from "../ai/tools/common.js";
 import { approvedOrderFor } from "../approvals/orders.js";
 import { resolvePort } from "../ingest/resolve.js";
 import { routeCalculationLoad } from "./facts.js";
+
+/**
+ * The route candidates a plan view draws: the optimiser's routes, then each bunker stop's route
+ * through its port (id = the stop plan's option id), so the map can draw the recommended plan.
+ * Stops the sea graph could not route are left out.
+ */
+export function viewCandidates(
+  candidates: RouteCandidate[],
+  stops: readonly StopCandidate[],
+): RouteCandidate[] {
+  return [
+    ...candidates,
+    ...stops
+      .filter((s) => s.routeError === null)
+      .map((s) => ({
+        id: s.optionId,
+        label: `Through ${s.unlocode} for bunkers`,
+        points: s.points,
+      })),
+  ];
+}
 
 /** A request the planner cannot serve; the message is plain text meant for the operator. */
 export class RoutePlanError extends Error {
@@ -269,7 +292,7 @@ export async function planRouteSpeed(
       weatherSnapshotId: snapshot?.id ?? null,
       subject: plan.subject,
       destination: plan.destination.name,
-      candidates: plan.input.candidates,
+      candidates: viewCandidates(plan.input.candidates, plan.input.stops),
       result,
       computeMs,
     },

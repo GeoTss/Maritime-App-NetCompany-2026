@@ -654,6 +654,10 @@ describe.skipIf(!sql)("createDbSource (Postgres)", () => {
         const view = await source.getRoutePlan(id);
         expect(view).toEqual({ ...planned.response, facts, computeMs: null });
         expect(view?.facts.map((f) => f.id)).toEqual(facts.map((f) => f.id));
+        // Each routable bunker stop's track is a candidate the map can draw, by its stop plan id.
+        for (const stop of planned.response.result.stopPlans.filter((p) => p.distanceNm > 0)) {
+          expect(view?.candidates.map((c) => c.id)).toContain(stop.optionId);
+        }
         const served = await get(app, `/api/route-plans/${id}`);
         expect(served.res.status).toBe(200);
         expect(RoutePlanView.parse(served.body)).toEqual(view);
