@@ -118,7 +118,7 @@ describe("EvaluationPage", () => {
     expect(pending[0]?.closest("section")?.id).toBe("qa-dev");
   });
 
-  it("the run date includes the year", async () => {
+  it("run dates read as the desk reads them, never ISO", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => json(summary)),
@@ -129,8 +129,9 @@ describe("EvaluationPage", () => {
       expect(el).not.toBeNull();
       return el as HTMLElement;
     });
-    expect(t.textContent).toBe("2026-11-15 03:39:24Z");
-    expect(document.body.textContent).toContain("Published 2026-11-16 00:38:33Z");
+    expect(t.textContent).toBe("15 Nov 03:39Z");
+    expect(document.body.textContent).toContain("Published 16 Nov 00:38Z");
+    expect(document.body.textContent).not.toMatch(/\d{4}-\d{2}-\d{2}/);
   });
 
   it("intervals and counts are shown as published", async () => {
@@ -222,6 +223,71 @@ describe("EvaluationPage", () => {
     expect(a.textContent).toContain("Plain (expected 0)");
     expect(within(b).getByText("Target is 0; lower is better")).toBeTruthy();
     expect(b.textContent).toContain("Hard failures");
+  });
+
+  it("opens with the four held-out claims, folds the minor answer rows, marks clipped intervals", async () => {
+    const m = (
+      key: string,
+      k: number,
+      n: number,
+      lo: number,
+      hi: number,
+      expectedZero = false,
+    ) => ({
+      key,
+      label: key,
+      k,
+      n,
+      rate: k / n,
+      ci95: [lo, hi],
+      expectedZero,
+    });
+    const qa = (split: string) => ({
+      ...summary.suites[0],
+      suite: "qa",
+      split,
+      runAt: "2026-11-16T15:40:13.899Z",
+      metrics: [
+        m("grounded", 32, 32, 0.893, 1),
+        m("answerAccuracy", 23, 24, 0.798, 0.993),
+        m("injection", 2, 2, 0.342, 1),
+        ...["noAction", "proposedBest", "repaired"].map((k) => m(k, 2, 2, 0.34, 1)),
+        ...["unauthorised", "errors"].map((k) => m(k, 0, 32, 0, 0.107, true)),
+      ],
+    });
+    const ext = {
+      ...heldout,
+      metrics: [
+        m("critical", 1170, 1182, 0.982, 0.994),
+        m("unsafeAutoAccepts", 0, 156, 0, 0.024, true),
+      ],
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => json({ ...summary, suites: [qa("heldout"), qa("dev"), ext] })),
+    );
+    renderPage();
+    const strip = await screen.findByRole("region", { name: "Headline results, held-out" });
+    const cells = within(strip)
+      .getAllByTestId("headline-count")
+      .map((c) => c.textContent?.replace(/\s+/g, " "));
+    expect(cells).toEqual(["32 of 32", "23 of 24", "0 of 156", "1,170 of 1,182"]);
+    // Folded rows are not in the page until "5 more" opens; shown ones are.
+    expect(document.querySelector('[data-metric="noAction"]')).toBeNull();
+    expect(document.querySelector('[data-metric="grounded"]')).not.toBeNull();
+    expect(screen.getByText("5 more")).toBeTruthy();
+    // An interval starting below the 50% axis carries the "‹" marker, with its words for a reader.
+    expect(screen.getAllByText("interval starts below the axis").length).toBeGreaterThan(0);
+  });
+
+  it("a headline metric the entry lacks reads not published", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => json({ ...summary, suites: [heldout] })),
+    );
+    renderPage();
+    const strip = await screen.findByRole("region", { name: "Headline results, held-out" });
+    expect(within(strip).getAllByText("not published")).toHaveLength(3);
   });
 
   it("shows how to publish when no summary exists", async () => {
