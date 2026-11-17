@@ -92,15 +92,6 @@ beforeEach(() => {
       const m = /^\/api\/recommendations\/(\d+)\/(approve|reject)$/.exec(path);
       if (m && method === "POST") return decide(Number(m[1]), m[2] as string);
       if (/\/drafts$/.test(path)) return json({ items: drafts });
-      if (path === "/api/review/reference")
-        return json({
-          vessels: [],
-          ports: [{ id: 3, unlocode: "MTMLA", name: "Marsaxlokk" }],
-          suppliers: [
-            { id: 1, name: "Kestrel Marine Fuels" },
-            { id: 3, name: "Strait Line Fuels" },
-          ],
-        });
       if (path.startsWith("/api/audit"))
         return json({
           items: [
@@ -178,22 +169,30 @@ describe("ApprovalsPage", () => {
     ).toEqual(["rejected"]);
   });
 
-  it("matches the saving chip by its provenance path and unit, never by value", async () => {
-    const calc = (id: string, label: string, value: number, path: string) => ({
-      id,
-      label,
-      value,
-      unit: "USD",
-      provenance: { source: "calculation", calculationId: 1, calculator: "planBunkers", path },
-    });
+  it("names the option from optionLabel", async () => {
+    items = [rec(1, { optionLabel: "Kestrel Marine Fuels at Marsaxlokk" })];
+    renderPage();
+    const [card] = await screen.findAllByRole("article");
+    expect(within(card as HTMLElement).getByTestId("option-name").textContent).toBe(
+      "Kestrel Marine Fuels at Marsaxlokk",
+    );
+  });
+
+  it("saving is the expectedSaving fact chip", async () => {
     items = [
       rec(1, {
-        expectedSavingUsd: 18250,
-        facts: [
-          // Same value, but not the saving: it must not become the saving's chip.
-          calc("f_other", "Barge fee", 18250, "options[0].bargeFeeUsd"),
-          calc("f_saving", "Saving", 18250, "savingVsCheapestHeadlineUsd"),
-        ],
+        expectedSaving: {
+          id: "f_saving",
+          label: "Saving versus the cheapest headline price",
+          value: 18250,
+          unit: "USD",
+          provenance: {
+            source: "calculation",
+            calculationId: 1,
+            calculator: "planBunkers",
+            path: "savingVsCheapestHeadlineUsd",
+          },
+        },
       }),
     ];
     renderPage();
@@ -205,68 +204,32 @@ describe("ApprovalsPage", () => {
     expect(saving?.textContent).toBe("+USD 18,250");
   });
 
-  it("names an option id beside its fact, without changing the value", async () => {
-    items = [
-      rec(1, {
-        status: "rejected",
-        facts: [
-          {
-            id: "f_best",
-            label: "Best option (lowest total cost, feasible)",
-            value: "MTMLA-kestrel",
-            unit: null,
-            provenance: {
-              source: "calculation",
-              calculationId: 1,
-              calculator: "planBunkers",
-              path: "bestOptionId",
-            },
-          },
-        ],
-      }),
-      rec(2, {
-        type: "voyage_instruction",
-        status: "rejected",
-        facts: [
-          {
-            id: "f_desc",
-            label: "MV Aegean Pioneer, route B: description",
-            value: "Shortest sea route",
-            unit: null,
-            provenance: { source: "db", table: "calculations", rowId: 5, field: "label" },
-          },
-          {
-            id: "f_route",
-            label: "MV Aegean Pioneer: recommended route",
-            value: "B",
-            unit: null,
-            provenance: {
-              source: "calculation",
-              calculationId: 5,
-              calculator: "route_speed",
-              path: "bestCandidateId",
-            },
-          },
-        ],
-      }),
-    ];
+  it("no uncited saving: without an expectedSaving fact it reads not stated", async () => {
+    items = [rec(1, { expectedSavingUsd: 18250, expectedSaving: null })];
     renderPage();
-    for (const trigger of await screen.findAllByRole("button", { name: /Facts and audit trail/ }))
-      fireEvent.click(trigger);
-    const best = (await screen.findByText("MTMLA-kestrel")).closest("li") as HTMLElement;
-    await waitFor(() =>
-      expect(within(best).getByTestId("option-name").textContent).toBe(
-        "Kestrel Marine Fuels at Marsaxlokk",
-      ),
-    );
-    const route = screen.getByText("MV Aegean Pioneer: recommended route").closest("li");
-    expect(within(route as HTMLElement).getByTestId("option-name").textContent).toBe(
-      "Shortest sea route",
-    );
-    expect(within(route as HTMLElement).getByRole("button").textContent).toBe("B");
+    const [card] = await screen.findAllByRole("article");
+    const dd = within(card as HTMLElement).getByText("Expected saving").parentElement;
+    expect(dd?.textContent).toContain("not stated");
+    expect(dd?.querySelector("[data-slot=fact-chip]")).toBeNull();
+    expect(dd?.textContent).not.toContain("18,250");
+  });
+
+  it("fact rows show the fact labels", async () => {
+    const label = "MTMLA-kestrel (Kestrel Marine Fuels, Marsaxlokk): quantity";
+    items = [rec(1, { facts: [fact("f_q", label, 500, "mt")] })];
+    renderPage();
+    const row = (await screen.findByText(label)).closest("li") as HTMLElement;
+    expect(row.querySelector("[data-slot=fact-chip]")?.getAttribute("data-fact-id")).toBe("f_q");
   });
 
   it("shows a signed saving, as returned, and the gate and data tags", async () => {
+    items = [
+      rec(2, {
+        type: "voyage_instruction",
+        expectedSavingUsd: -300,
+        expectedSaving: fact("f_neg", "Saving", -300, "USD"),
+      }),
+    ];
     renderPage();
     await screen.findAllByRole("article");
     expect(screen.getByText(/-USD 300|−USD 300|USD -300/)).toBeTruthy();

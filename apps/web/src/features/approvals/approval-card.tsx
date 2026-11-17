@@ -7,7 +7,7 @@
  */
 import { AlertCircleIcon, ArrowDown01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import type { Fact, RecommendationView, ReviewReference } from "@pharos/shared";
+import type { Fact, RecommendationView } from "@pharos/shared";
 import { useState } from "react";
 import { FactChip, FactLedgerProvider } from "@/components/fact-chip";
 import { FactText } from "@/components/fact-text";
@@ -20,7 +20,6 @@ import { cn } from "@/lib/utils";
 import { AuditTrail } from "./audit-trail";
 import { ProposalDecision } from "./decision-dialog";
 import { DraftsList } from "./drafts-list";
-import { optionName } from "./option-name";
 
 const FACTS_SHOWN = 6;
 
@@ -28,20 +27,6 @@ const FACTS_SHOWN = 6;
 export function signedUsd(value: number): string {
   const text = formatNumber(Math.abs(value), "USD");
   return value < 0 ? `-${text}` : `+${text}`;
-}
-
-/** The calculation outputs that are a proposal's expected saving (bunker plan, route plan). */
-const SAVING_PATH = /(^|\.)(savingVsCheapestHeadlineUsd|savingVsBaselineUsd)$/;
-
-/** The fact the expected saving is, found by where it came from, never by its value. */
-export function savingFactOf(rec: RecommendationView): Fact | undefined {
-  if (rec.expectedSavingUsd === null) return undefined;
-  return rec.facts.find(
-    (f) =>
-      f.unit === "USD" &&
-      f.provenance.source === "calculation" &&
-      SAVING_PATH.test(f.provenance.path),
-  );
 }
 
 const SYNC: Record<NonNullable<RecommendationView["order"]>["erpSyncStatus"], string> = {
@@ -80,38 +65,24 @@ function Outcome({ rec }: { rec: RecommendationView }) {
   return <span className="text-xs text-text-2">Waiting for the executor.</span>;
 }
 
-function FactsBehind({
-  facts,
-  names,
-}: {
-  facts: Fact[];
-  names: Pick<ReviewReference, "ports" | "suppliers"> | null;
-}) {
+function FactsBehind({ facts }: { facts: Fact[] }) {
   const [all, setAll] = useState(false);
   const shown = all ? facts : facts.slice(0, FACTS_SHOWN);
   return (
     <section aria-label="Facts behind this proposal" className="flex flex-col">
       <h4 className="pb-1 text-xs text-text-2 font-label">Facts behind it</h4>
       <ul className="flex flex-col border border-line">
-        {shown.map((f) => {
-          const name = optionName(f, facts, names);
-          return (
-            <li
-              key={f.id}
-              className="flex min-h-7 items-center justify-between gap-3 border-b border-line px-2 text-xs last:border-b-0"
-            >
-              <span className="min-w-0 text-text-2">{f.label}</span>
-              <span className="flex shrink-0 items-baseline gap-2">
-                {name ? (
-                  <span data-testid="option-name" className="text-text-2">
-                    {name}
-                  </span>
-                ) : null}
-                <FactChip fact={f} />
-              </span>
-            </li>
-          );
-        })}
+        {shown.map((f) => (
+          <li
+            key={f.id}
+            className="flex min-h-7 items-center justify-between gap-3 border-b border-line px-2 text-xs last:border-b-0"
+          >
+            <span className="min-w-0 text-text-2">{f.label}</span>
+            <span className="flex shrink-0 items-baseline">
+              <FactChip fact={f} />
+            </span>
+          </li>
+        ))}
       </ul>
       {facts.length > FACTS_SHOWN ? (
         <Button variant="ghost" size="sm" className="mt-1 w-fit" onClick={() => setAll((a) => !a)}>
@@ -129,7 +100,6 @@ export function RecommendationCard({
   pending,
   locked,
   conflict,
-  names,
   onDecide,
 }: {
   rec: RecommendationView;
@@ -141,14 +111,11 @@ export function RecommendationCard({
   locked: boolean;
   /** Set when a decision found this proposal already decided; the status then comes from a refetch. */
   conflict: string | null;
-  /** Port and supplier names, to name an option id beside its fact; null until read. */
-  names: Pick<ReviewReference, "ports" | "suppliers"> | null;
   onDecide: (decision: Decision) => Promise<unknown>;
 }) {
   const isPending = rec.status === "pending";
   const decided = !isPending;
   const [open, setOpen] = useState(linked);
-  const savingFact = savingFactOf(rec);
   const drafted = rec.status !== "rejected" && rec.status !== "failed";
   const disclosure = drafted ? "Facts, drafted messages and audit trail" : "Facts and audit trail";
 
@@ -187,17 +154,25 @@ export function RecommendationCard({
             )
           }
         >
-          <dl className="flex items-baseline gap-2 text-xs">
-            <dt className="text-text-3">Expected saving</dt>
-            <dd className="text-text-1">
-              {rec.expectedSavingUsd === null ? (
-                <span className="text-text-3">not stated</span>
-              ) : savingFact ? (
-                <FactChip fact={savingFact}>{signedUsd(rec.expectedSavingUsd)}</FactChip>
-              ) : (
-                signedUsd(rec.expectedSavingUsd)
-              )}
-            </dd>
+          <dl className="flex flex-col gap-1 text-xs">
+            {rec.optionLabel ? (
+              <div className="flex items-baseline gap-2">
+                <dt className="text-text-3">Option</dt>
+                <dd data-testid="option-name" className="text-text-1">
+                  {rec.optionLabel}
+                </dd>
+              </div>
+            ) : null}
+            <div className="flex items-baseline gap-2">
+              <dt className="text-text-3">Expected saving</dt>
+              <dd className="text-text-1">
+                {rec.expectedSaving && rec.expectedSavingUsd !== null ? (
+                  <FactChip fact={rec.expectedSaving}>{signedUsd(rec.expectedSavingUsd)}</FactChip>
+                ) : (
+                  <span className="text-text-3">not stated</span>
+                )}
+              </dd>
+            </div>
           </dl>
           {conflict ? (
             <p
@@ -233,13 +208,13 @@ export function RecommendationCard({
                 />
               </CollapsibleTrigger>
               <CollapsibleContent className="flex flex-col gap-2">
-                {rec.facts.length > 0 ? <FactsBehind facts={rec.facts} names={names} /> : null}
+                {rec.facts.length > 0 ? <FactsBehind facts={rec.facts} /> : null}
                 {drafted ? <DraftsList recommendationId={rec.id} /> : null}
                 <AuditTrail recommendationId={rec.id} />
               </CollapsibleContent>
             </Collapsible>
           ) : rec.facts.length > 0 ? (
-            <FactsBehind facts={rec.facts} names={names} />
+            <FactsBehind facts={rec.facts} />
           ) : null}
         </ApprovalCard>
       </FactLedgerProvider>

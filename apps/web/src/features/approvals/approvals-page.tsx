@@ -6,7 +6,7 @@
  * now holds, read from a refetch, never guessed.
  */
 import { CheckListIcon } from "@hugeicons/core-free-icons";
-import { DecisionResult, listOf, RecommendationView, ReviewReference } from "@pharos/shared";
+import { DecisionResult, listOf, RecommendationView } from "@pharos/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router";
@@ -19,7 +19,6 @@ import { api, describeFailure, isApiFailure } from "@/lib/api";
 import { queryKeys } from "@/lib/queries";
 import { RecommendationCard } from "./approval-card";
 import { auditKey } from "./audit-trail";
-import { hasOptionFact } from "./option-name";
 
 const Recommendations = listOf(RecommendationView);
 
@@ -84,14 +83,6 @@ export function ApprovalsPage() {
   const decided = useMemo(() => (items ?? []).filter((r) => r.status !== "pending"), [items]);
   const ordered = useMemo(() => [...awaiting, ...decided], [awaiting, decided]);
   const firstPending = awaiting[0]?.id ?? null;
-
-  // Port and supplier names, to name an option id ("MTMLA-kestrel") beside its fact.
-  const reference = useQuery({
-    queryKey: queryKeys.reviewReference,
-    enabled: (items ?? []).some((r) => hasOptionFact(r.facts)),
-    queryFn: ({ signal }) => api.get("/api/review/reference", ReviewReference, { signal }),
-  });
-  const names = reference.data ?? null;
 
   // Arriving from an assistant link: bring that proposal into view once it is listed.
   const present = linked !== null && ordered.some((r) => r.id === linked);
@@ -172,7 +163,6 @@ export function ApprovalsPage() {
                       pending={inFlight?.id === rec.id ? inFlight.decision : null}
                       locked={decide.isPending}
                       conflict={conflicts[rec.id] ?? null}
-                      names={names}
                       onDecide={(decision) =>
                         decide.mutateAsync({ id: rec.id, decision }).catch(() => undefined)
                       }
