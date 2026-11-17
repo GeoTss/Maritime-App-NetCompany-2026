@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1440">
+<title>Pharos: Signal hoist, Evaluation (dark)</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700&amp;family=Atkinson+Hyperlegible+Mono:wght@400;500&amp;display=swap">
+<style>
+:root{color-scheme:dark;--ground:#0e1114;--page:#1d232a;--panel:#151a1f;--ink:#eef1f4;--ink2:#a9b2bd;--hint:#8a95a1;--line:#29313a;--line2:#3a4450;--blue:#6f9bff;--sblue:#1f4fb0;--yel:#ffc72c;--red:#ff5c6c;--sred:#c8102e;--black:#0b0b0b;--fo:rgba(238,241,244,.55);--sea:#121820;--land:#1c232b;--coast:#33404d;--ais:#5d6b79}
+*{box-sizing:border-box} h1,h2,h3,p,ul,dl,dd{margin:0} button{cursor:pointer} button,input{font:inherit;color:inherit;margin:0} :focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+body{margin:0;background:var(--ground);color:var(--ink);font:400 13px/20px 'Atkinson Hyperlegible Next',system-ui,sans-serif;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
+.app{width:1440px;height:900px;overflow:hidden;display:flex;flex-direction:column;background:var(--ground)}
+.mono{font-family:'Atkinson Hyperlegible Mono',ui-monospace,monospace;font-variant-numeric:normal}
+.lbl{font-size:11px;line-height:16px;font-weight:500;color:var(--ink2)} .s{color:var(--ink2)}
+/* State flags, drawn from the International Code of Signals; always set beside their word */
+.f{display:inline-block;flex:none;width:16px;height:12px;border:1px solid var(--fo);vertical-align:-1px}
+.f.k{background:linear-gradient(90deg,var(--yel) 50%,var(--sblue) 0)}
+.f.v{background:linear-gradient(to top right,#0000 calc(50% - 1.2px),var(--sred) 0 calc(50% + 1.2px),#0000 0),linear-gradient(to bottom right,#0000 calc(50% - 1.2px),var(--sred) 0 calc(50% + 1.2px),#0000 0),#fff}
+.f.c{background:linear-gradient(var(--sblue) 20%,#fff 0 40%,var(--sred) 0 60%,#fff 0 80%,var(--sblue) 0)}
+.kb{display:inline-flex;height:16px;border:1px solid var(--fo);font-size:11px;line-height:14px;font-weight:700;color:var(--black)} .kb b{background:var(--yel);padding:0 4px} .kb::after{content:"";width:6px;background:var(--sblue)}
+/* Top bar: wordmark, the four screens with flag count badges, sources */
+.bar{height:48px;flex:none;display:flex;padding-left:16px;background:var(--panel);border-bottom:1px solid var(--line)}
+.mark{align-self:center;margin-right:16px;font-size:15px;font-weight:700}
+.scr{display:flex} .scr a{display:flex;align-items:center;gap:6px;padding:0 8px;margin-bottom:-1px;color:var(--ink2);text-decoration:none;font-weight:500;border-bottom:2px solid #0000} .scr a[aria-current]{color:var(--ink);border-bottom-color:var(--blue)}
+.src{margin-left:auto;display:flex;align-items:center;gap:12px;padding:0 16px;font-size:12px;color:var(--ink2);white-space:nowrap} .src b{font-weight:500;color:var(--ink)}
+.dot{display:inline-block;width:8px;height:8px;margin-right:6px;border-radius:50%;border:1.5px solid var(--ink2)}
+.btn{height:28px;display:inline-flex;align-items:center;gap:8px;padding:0 8px;border:1px solid var(--line2);border-radius:2px;background:var(--panel);font-size:12px;font-weight:500;white-space:nowrap}
+kbd{font:500 11px/14px 'Atkinson Hyperlegible Mono',monospace;padding:0 4px;border:1px solid var(--line);border-radius:2px;color:var(--ink2)}
+.tag{height:20px;display:inline-flex;align-items:center;padding:0 6px;border:1px solid var(--line);border-radius:2px;font-size:11px;font-weight:500;color:var(--ink2);white-space:nowrap;background:var(--panel)}
+/* Evaluation */
+.ev{flex:1;min-height:0;overflow:hidden;padding:24px 32px}
+.ev h1{font-size:20px;line-height:28px;font-weight:700} .ev>p{max-width:760px;margin-top:4px}
+.claims{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:16px}
+.cl{padding:12px 16px;background:var(--panel);border:1px solid var(--line);border-top:2px solid var(--ink2);border-radius:2px}
+.cl .n{font-size:20px;line-height:28px;font-weight:700} .cl .n span{font-size:15px;font-weight:400;color:var(--ink2)} .cl .i{margin-top:4px;font-size:12px;line-height:16px;color:var(--ink2)}
+.meta{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:12px;color:var(--ink2)}
+.legend{display:flex;align-items:center;gap:24px;margin-top:24px;font-size:12px;color:var(--ink2)} .legend span{display:flex;align-items:center;gap:8px}
+.tables{display:grid;grid-template-columns:1fr 1fr;gap:32px;margin-top:12px}
+.tb{padding:16px;background:var(--panel);border:1px solid var(--line);border-radius:2px}
+.tb h2{font-size:15px;line-height:20px;font-weight:700} .tb .sub{margin-top:2px;font-size:12px;line-height:16px;color:var(--ink2)}
+.g{display:grid;grid-template-columns:1fr 144px 128px 184px;column-gap:12px;align-items:center}
+.g>*{min-height:40px;display:flex;align-items:center;border-bottom:1px solid var(--line)} .g .h{min-height:28px;margin-top:8px;border-bottom:1px solid var(--line2);font-size:11px;font-weight:500;color:var(--ink2)}
+.g .r{justify-content:flex-end;text-align:right} .g .r span{margin-left:4px;color:var(--ink2)}
+.ax{position:relative;align-self:stretch;margin:0 12px} .ax span{position:absolute;bottom:4px;transform:translateX(-50%)}
+.iv{position:relative;align-self:stretch;margin:0 12px;background:linear-gradient(90deg,var(--line) 1px,#0000 0) 0 0/50% 100%;border-right:1px solid var(--line)}
+.iv .ho,.iv .pt,.iv .dv{position:absolute;top:50%}
+.ho{height:6px;margin-top:-7px;background:var(--ink)} .pt{width:2px;height:14px;margin:-11px 0 0 -1px;background:var(--ink);outline:1px solid var(--panel)} .dv{height:6px;margin-top:2px;border:1px solid var(--hint);background:var(--panel)}
+.clip{position:absolute;left:-12px;top:50%;margin-top:-8px;font-size:12px;line-height:16px;color:var(--ink2)}
+details{margin-top:8px;font-size:12px} summary{color:var(--blue);font-weight:500}
+.note{margin-top:8px;font-size:12px;line-height:16px;color:var(--ink2)}
+</style>
+</head>
+<body>
+<div class="app">
+<header class="bar">
+  <span class="mark">Pharos</span>
+  <nav class="scr" aria-label="Screens"><a href="#">Map</a><a href="#">Inbox</a><a href="#">Approvals <span class="kb" title="1 awaiting your decision"><b>1</b></span></a><a href="#" aria-current="page">Evaluation</a></nav>
+  <div class="src"><span><i class="dot"></i>AIS <b>recorded</b></span><span><i class="dot"></i>Weather <b>recorded</b></span><span>Sim <b>14 Nov 08:05Z</b> · pinned</span><button class="btn">Go to <kbd>⌘K</kbd></button></div>
+</header>
+<main class="ev" aria-label="Evaluation">
+  <h1>Evaluation</h1>
+  <p class="s">Measured with live model calls. The held-out sets ran once, after the prompts were frozen and the run was pre-registered; the dev sets are the ones we tuned against.</p>
+  <section class="claims" aria-label="Headline results, held-out">
+    <div class="cl"><div class="n">32 <span>of</span> 32</div><div>answers where every number is a tool fact</div><div class="i">95% interval 89.3% to 100%</div></div>
+    <div class="cl"><div class="n">23 <span>of</span> 24</div><div>answers judged correct</div><div class="i">95% interval 79.8% to 99.3%</div></div>
+    <div class="cl"><div class="n">0 <span>of</span> 156</div><div>emails auto-accepted with a wrong critical field</div><div class="i">none observed; at most 2.4% (95%)</div></div>
+    <div class="cl"><div class="n">1,170 <span>of</span> 1,182</div><div>critical quote fields read correctly</div><div class="i">95% interval 98.2% to 99.4%</div></div>
+  </section>
+  <div class="meta"><span class="tag">held-out, run once</span><span class="tag">live run</span><span><span class="mono">claude-haiku-5-5</span> · 16 Nov 15:40Z · published 17 Nov 00:36Z</span></div>
+  <div class="legend">
+    <span><span style="position:relative;width:24px;height:14px"><i class="ho" style="position:absolute;left:0;right:0;top:4px"></i><i class="pt" style="position:absolute;left:12px;top:0;margin:0"></i></span>held-out, with 95% interval</span>
+    <span><i class="dv" style="width:24px;margin:0"></i>dev</span>
+    <span>Small sets give wide intervals; the bars show how wide. Every bar in a column shares one axis.</span>
+  </div>
+  <div class="tables">
+    <section class="tb" aria-labelledby="ext">
+      <h2 id="ext">Quote extraction</h2>
+      <p class="sub">prompt <span class="mono">extract-quote/v2</span> · 156 held-out emails, 84 dev · 6.0 s per email, mean</p>
+      <div class="g">
+        <span class="h">Accuracy</span><span class="h r">Held-out</span><span class="h r">Dev</span><span class="h ax"><span style="left:0">50%</span><span style="left:50%">75%</span><span style="left:100%">100%</span></span>
+        <span>Critical-field accuracy</span><span class="r">1,170 of 1,182 <span>99.0%</span></span><span class="r s">646 of 651 · 99.2%</span><span class="iv"><i class="ho" style="left:96.4%;width:2.4%"></i><i class="pt" style="left:98%"></i><i class="dv" style="left:96.4%;width:3.0%"></i></span>
+        <span>Quote precision</span><span class="r">126 of 126 <span>100%</span></span><span class="r s">70 of 70 · 100%</span><span class="iv"><i class="ho" style="left:94%;width:6%"></i><i class="pt" style="left:100%"></i><i class="dv" style="left:89.6%;width:10.4%"></i></span>
+        <span>Quote recall</span><span class="r">126 of 127 <span>99.2%</span></span><span class="r s">70 of 71 · 98.6%</span><span class="iv"><i class="ho" style="left:91.4%;width:8.4%"></i><i class="pt" style="left:98.4%"></i><i class="dv" style="left:84.8%;width:14.8%"></i></span>
+        <span>Not-a-quote precision</span><span class="r">29 of 30 <span>96.7%</span></span><span class="r s">13 of 14 · 92.9%</span><span class="iv"><i class="ho" style="left:66.6%;width:32.2%"></i><i class="pt" style="left:93.4%"></i><i class="dv" style="left:37%;width:60.4%"></i></span>
+        <span>Not-a-quote recall</span><span class="r">29 of 29 <span>100%</span></span><span class="r s">13 of 13 · 100%</span><span class="iv"><i class="ho" style="left:76.6%;width:23.4%"></i><i class="pt" style="left:100%"></i><i class="dv" style="left:54.4%;width:45.6%"></i></span>
+        <span class="h">Should be zero</span><span class="h"></span><span class="h"></span><span class="h ax"><span style="left:0">0%</span><span style="left:50%">25%</span><span style="left:100%">50%</span></span>
+        <span>Unsafe auto-accepts</span><span class="r">0 of 156</span><span class="r s">0 of 84</span><span class="iv"><i class="ho" style="left:0;width:4.8%"></i><i class="pt" style="left:0;margin-left:0"></i><i class="dv" style="left:0;width:8.8%"></i></span>
+        <span>Errors, truncations and refusals</span><span class="r">0 of 156</span><span class="r s">0 of 84</span><span class="iv"><i class="ho" style="left:0;width:4.8%"></i><i class="pt" style="left:0;margin-left:0"></i><i class="dv" style="left:0;width:8.8%"></i></span>
+        <span>Emails sent to a person (workload)</span><span class="r">21 of 156 <span>13.5%</span></span><span class="r s">21 of 84 · 25.0%</span><span class="iv"><i class="ho" style="left:18%;width:21.4%"></i><i class="pt" style="left:27%"></i><i class="dv" style="left:34%;width:36.4%"></i></span>
+      </div>
+    </section>
+    <section class="tb" aria-labelledby="qa">
+      <h2 id="qa">Questions and answers</h2>
+      <p class="sub">prompt <span class="mono">agent-system/v5</span> · 32 held-out questions, 33 dev · first progress 1.1 s, answer 3.8 s mean</p>
+      <div class="g">
+        <span class="h">Accuracy and safety</span><span class="h r">Held-out</span><span class="h r">Dev</span><span class="h ax"><span style="left:0">50%</span><span style="left:50%">75%</span><span style="left:100%">100%</span></span>
+        <span>Grounded answers (every number a tool fact)</span><span class="r">32 of 32 <span>100%</span></span><span class="r s">33 of 33 · 100%</span><span class="iv"><i class="ho" style="left:78.6%;width:21.4%"></i><i class="pt" style="left:100%"></i><i class="dv" style="left:79.2%;width:20.8%"></i></span>
+        <span>Answer accuracy</span><span class="r">23 of 24 <span>95.8%</span></span><span class="r s">25 of 25 · 100%</span><span class="iv"><i class="ho" style="left:59.6%;width:39%"></i><i class="pt" style="left:91.6%"></i><i class="dv" style="left:73.4%;width:26.6%"></i></span>
+        <span>Abstains when it cannot know</span><span class="r">4 of 4 <span>100%</span></span><span class="r s">4 of 4 · 100%</span><span class="iv"><i class="ho" style="left:2%;width:98%"></i><i class="pt" style="left:100%"></i><i class="dv" style="left:2%;width:98%"></i></span>
+        <span>Injection resisted</span><span class="r">2 of 2 <span>100%</span></span><span class="r s">3 of 3 · 100%</span><span class="iv"><span class="clip" aria-label="interval starts below the axis">‹</span><i class="ho" style="left:0;width:100%"></i><i class="pt" style="left:100%"></i><i class="dv" style="left:0;width:100%"></i></span>
+      </div>
+      <details><summary>5 more: no action when none is needed, proposed option is the best one, unauthorised actions (0 of 32), answers repaired by the release gate, errors (0 of 32)</summary></details>
+      <p class="note">‹ marks an interval that starts below the axis: with 2 to 4 questions, a perfect score still has a wide interval.</p>
+    </section>
+  </div>
+</main>
+</div>
+</body>
+</html>

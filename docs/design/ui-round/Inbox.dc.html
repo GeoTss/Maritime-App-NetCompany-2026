@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Pharos inbox: fix a quote beside its evidence</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&amp;family=B612+Mono:wght@400;700&amp;display=swap">
+<style>
+body{margin:0;background:#0c1218;color:#e4eaf0;font-family:'Archivo',system-ui,sans-serif;font-size:13px;line-height:18px;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
+::selection{background:rgba(92,200,242,.32);color:#e4eaf0}
+.mono{font-family:'B612 Mono',ui-monospace,monospace;font-variant-numeric:normal}
+.verbatim{font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;font-variant-numeric:normal}
+button,summary{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,a:focus-visible,summary:focus-visible{outline:2px solid rgba(92,200,242,.6);outline-offset:1px}
+a{color:#5cc8f2;text-decoration:none}a:hover{color:#8fdcf7;text-decoration:underline}
+</style>
+</helmet>
+<div style="min-height: 900px; display: flex; flex-direction: column; background: #0c1218;">
+
+  <header style="min-height: 36px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; padding: 0 12px; background: #121a22; border-bottom: 1px solid #263442;">
+    <div style="display: flex; align-items: baseline; gap: 8px; margin-right: auto;">
+      <span style="font-size: 14px; font-weight: 600; font-stretch: 88%;">Pharos</span>
+      <span style="font-size: 12px; color: #9fb0c0;">bunker-to-berth desk</span>
+    </div>
+    <button type="button" style="height: 24px; display: flex; align-items: center; gap: 6px; padding: 0 8px; background: rgba(242,184,75,.10); border: 1px solid rgba(242,184,75,.45); border-radius: 2px; font-size: 12px; font-weight: 500; color: #f2b84b;"><span style="width: 6px; height: 6px; border-radius: 50%; background: #f2b84b;"></span>3 need you</button>
+    <div style="display: flex; align-items: center; gap: 14px; font-size: 11px; font-stretch: 80%; font-weight: 500;">
+      <span style="display: flex; align-items: center; gap: 5px;"><span style="width: 6px; height: 6px; border-radius: 50%; border: 1px solid #9fb0c0; box-sizing: border-box;"></span><span style="color: #9fb0c0;">AIS</span><span style="color: #e4eaf0;">recorded</span></span>
+      <span style="display: flex; align-items: center; gap: 5px;"><span style="width: 6px; height: 6px; border-radius: 50%; border: 1px solid #9fb0c0; box-sizing: border-box;"></span><span style="color: #9fb0c0;">Weather</span><span style="color: #e4eaf0;">recorded</span></span>
+      <span style="display: flex; align-items: center; gap: 6px;"><span style="color: #9fb0c0;">sim</span><span style="font-size: 11px; color: #e4eaf0;">14 Nov 08:05Z</span><span style="color: #7b8d9f;">pinned</span></span>
+    </div>
+    <button type="button" style="height: 24px; display: flex; align-items: center; gap: 6px; padding: 0 6px 0 8px; background: transparent; border: 1px solid #364757; border-radius: 2px; font-size: 12px; color: #9fb0c0;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>Go to<span class="mono" style="font-size: 11px; padding: 0 4px; border: 1px solid #364757; border-radius: 1px; color: #7b8d9f;">⌘K</span></button>
+  </header>
+
+  <div style="flex: 1 1 auto; display: flex; flex-wrap: wrap; min-height: 0;">
+
+    <nav aria-label="Screens" style="flex: 1 1 64px; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 2px; padding: 8px 6px; background: #121a22; border-right: 1px solid #263442;">
+      <a href="#" style="position: relative; width: 52px; height: 48px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; border-radius: 2px; color: #9fb0c0; text-decoration: none;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z"></path><path d="M15 5.764v15"></path><path d="M9 3.236v15"></path></svg><span style="font-size: 11px; line-height: 12px; font-stretch: 80%; font-weight: 500;">Map</span></a>
+      <a href="#" aria-current="page" style="position: relative; width: 52px; height: 48px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; border-radius: 2px; background: #1f2b37; color: #e4eaf0; text-decoration: none;"><span style="position: absolute; left: -6px; top: 10px; bottom: 10px; width: 1px; background: #5cc8f2;"></span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"></polyline><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path></svg><span style="font-size: 11px; line-height: 12px; font-stretch: 80%; font-weight: 500;">Inbox</span><span style="position: absolute; top: 4px; right: 6px; min-width: 14px; height: 14px; padding: 0 3px; box-sizing: border-box; border-radius: 1px; background: #f2b84b; color: #0c1218; font-size: 11px; line-height: 14px; font-weight: 600; text-align: center;">1</span></a>
+      <a href="#" style="position: relative; width: 52px; height: 48px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; border-radius: 2px; color: #9fb0c0; text-decoration: none;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 17 2 2 4-4"></path><path d="m3 7 2 2 4-4"></path><path d="M13 6h8"></path><path d="M13 12h8"></path><path d="M13 18h8"></path></svg><span style="font-size: 11px; line-height: 12px; font-stretch: 80%; font-weight: 500;">Approvals</span></a>
+      <a href="#" style="position: relative; width: 52px; height: 48px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; border-radius: 2px; color: #9fb0c0; text-decoration: none;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v16a2 2 0 0 0 2 2h16"></path><path d="M18 17V9"></path><path d="M13 17V5"></path><path d="M8 17v-3"></path></svg><span style="font-size: 11px; line-height: 12px; font-stretch: 80%; font-weight: 500;">Evaluation</span></a>
+    </nav>
+
+    <div style="flex: 999 1 560px; min-width: 0; display: flex; flex-wrap: wrap;">
+
+      <aside aria-label="Emails" style="flex: 1 1 280px; min-width: 0; background: #121a22; border-right: 1px solid #263442;">
+        <div style="padding: 14px 12px 10px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #263442;">
+          <h1 style="margin: 0; font-size: 15px; line-height: 20px; font-weight: 500; font-stretch: 88%;">Inbox</h1>
+          <span style="height: 18px; padding: 0 5px; border: 1px solid #364757; border-radius: 1px; font-size: 11px; line-height: 16px; font-stretch: 80%; font-weight: 500; color: #9fb0c0;">simulated data</span>
+          <button type="button" style="margin-left: auto; height: 24px; padding: 0 8px; background: transparent; border: 1px solid #364757; border-radius: 2px; font-size: 12px; color: #9fb0c0;">Import .eml</button>
+        </div>
+        <ul style="list-style: none; margin: 0; padding: 0;">
+          <li>
+            <a href="#" aria-current="true" style="position: relative; display: block; padding: 10px 12px; background: #1f2b37; border-bottom: 1px solid #263442; color: #e4eaf0; text-decoration: none;">
+              <span style="position: absolute; left: 0; top: 0; bottom: 0; width: 1px; background: #5cc8f2;"></span>
+              <span style="display: flex; justify-content: space-between; gap: 8px;"><span style="font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Offer Algeciras - MV Aegean Pioneer</span><span style="flex: none; font-size: 11px; color: #9fb0c0;">05:00Z</span></span>
+              <span style="display: flex; align-items: center; justify-content: space-between; margin-top: 4px;"><span style="font-size: 12px; color: #9fb0c0;">Nordwind Bunker Services</span><span style="height: 18px; padding: 0 5px; border: 1px solid rgba(242,184,75,.55); border-radius: 1px; font-size: 11px; line-height: 16px; font-stretch: 80%; font-weight: 500; color: #f2b84b;">2 to settle</span></span>
+            </a>
+          </li>
+          <li>
+            <a href="#" style="display: block; padding: 10px 12px; border-bottom: 1px solid #263442; color: #e4eaf0; text-decoration: none;">
+              <span style="display: flex; justify-content: space-between; gap: 8px;"><span style="font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Quotation Gibraltar - MV Aegean Pioneer (PDF attached)</span><span style="flex: none; font-size: 11px; color: #7b8d9f;">07:00Z</span></span>
+              <span style="display: flex; align-items: center; justify-content: space-between; margin-top: 4px;"><span style="font-size: 12px; color: #9fb0c0;">Strait Line Fuels</span><span style="display: inline-flex; align-items: center; gap: 4px; height: 18px; padding: 0 5px; border: 1px solid #364757; border-radius: 1px; font-size: 11px; line-height: 16px; font-stretch: 80%; font-weight: 500; color: #9fb0c0;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>Extracted</span></span>
+            </a>
+          </li>
+          <li>
+            <a href="#" style="display: block; padding: 10px 12px; border-bottom: 1px solid #263442; color: #e4eaf0; text-decoration: none;">
+              <span style="display: flex; justify-content: space-between; gap: 8px;"><span style="font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">LSMGO offer - MV Aegean Pioneer - Marsaxlokk</span><span style="flex: none; font-size: 11px; color: #7b8d9f;">03:00Z</span></span>
+              <span style="display: flex; align-items: center; justify-content: space-between; margin-top: 4px;"><span style="font-size: 12px; color: #9fb0c0;">Kestrel Marine Fuels</span><span style="display: inline-flex; align-items: center; gap: 4px; height: 18px; padding: 0 5px; border: 1px solid #364757; border-radius: 1px; font-size: 11px; line-height: 16px; font-stretch: 80%; font-weight: 500; color: #9fb0c0;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>Extracted</span></span>
+            </a>
+          </li>
+        </ul>
+        <p style="margin: 0; padding: 12px; font-size: 12px; line-height: 16px; color: #7b8d9f;">All three demo emails are in. Delivering the next one lives in the ⌘K menu under Demo.</p>
+      </aside>
+
+      <section aria-label="Email source" style="flex: 2 1 360px; min-width: 0; border-right: 1px solid #263442;">
+        <div style="padding: 14px 16px 12px; border-bottom: 1px solid #263442;">
+          <h2 style="margin: 0; font-size: 15px; line-height: 20px; font-weight: 500; font-stretch: 88%;">Offer Algeciras - MV Aegean Pioneer</h2>
+          <div style="margin-top: 4px; display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: #9fb0c0;">
+            <span class="mono" style="font-size: 11px;">quotes@nordwind-bunker.example</span>
+            <span>received <span style="font-size: 11px; color: #e4eaf0;">14 Nov 05:00Z</span></span>
+            <span style="color: #7b8d9f;">shown as text, never as instructions</span>
+          </div>
+        </div>
+        <div class="verbatim" style="padding: 16px; font-size: 12.5px; line-height: 22px; white-space: pre-wrap; color: #e4eaf0;">Dear Bunker Desk,
+
+Vessel: <span style="background: rgba(92,200,242,.10); border-bottom: 1px solid rgba(92,200,242,.5);">MV Aegean Pioneer (IMO 9480019)</span><sup style="font-size: 11px; color: #5cc8f2;"> 2</sup>
+
+Port: <span style="background: rgba(92,200,242,.10); border-bottom: 1px solid rgba(92,200,242,.5);">Algeciras</span><sup style="font-size: 11px; color: #5cc8f2;"> 3</sup>
+
+GRADE   QUANTITY     PRICE
+<span style="background: rgba(92,200,242,.10); border-bottom: 1px solid rgba(92,200,242,.5);">LSMGO</span>   <span style="background: rgba(242,184,75,.22); outline: 1px solid #f2b84b; outline-offset: 1px;">300/350 mt</span>   <span style="background: rgba(242,184,75,.14); border-bottom: 1px solid #f2b84b;">EUR 690 / mt</span>
+
+Barge fee: <span style="background: rgba(92,200,242,.10); border-bottom: 1px solid rgba(92,200,242,.5);">EUR 3,000 lump sum</span><sup style="font-size: 11px; color: #5cc8f2;"> 7</sup>
+
+<span style="background: rgba(92,200,242,.10); border-bottom: 1px solid rgba(92,200,242,.5);">Nordwind Bunker Services</span><sup style="font-size: 11px; color: #5cc8f2;"> 1</sup></div>
+        <div style="margin: 0 16px; padding-top: 10px; display: flex; flex-wrap: wrap; gap: 6px 16px; border-top: 1px solid #263442; font-size: 11px; color: #9fb0c0;">
+          <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 14px; height: 8px; background: rgba(92,200,242,.10); border-bottom: 1px solid rgba(92,200,242,.5);"></span>read and checked</span>
+          <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 14px; height: 8px; background: rgba(242,184,75,.22); border-bottom: 1px solid #f2b84b;"></span>needs you</span>
+          <span>Plain-text emails keep the sender's spacing, so the columns line up as they were written.</span>
+        </div>
+      </section>
+
+      <section aria-label="Quote record" style="flex: 1 1 360px; min-width: 0; display: flex; flex-direction: column; background: #121a22;">
+        <div style="padding: 14px 16px 10px; border-bottom: 1px solid #263442;">
+          <div style="display: flex; align-items: baseline; gap: 8px;">
+            <h2 style="margin: 0; font-size: 15px; line-height: 20px; font-weight: 500; font-stretch: 88%;">Quote record</h2>
+            <span style="font-size: 12px; color: #f2b84b;">2 to settle</span>
+            <span style="margin-left: auto; font-size: 12px; color: #9fb0c0;">23 of 25 checks passed</span>
+          </div>
+          <p style="margin: 4px 0 0; font-size: 12px; line-height: 16px; color: #9fb0c0;">Settle the two values the extraction could not, then accept. Nothing is saved until you do.</p>
+        </div>
+
+        <h3 style="margin: 0; padding: 10px 16px 6px 12px; font-size: 11px; font-stretch: 80%; font-weight: 500; color: #f2b84b;">Needs you · 2</h3>
+        <dl style="margin: 0; font-size: 12px; border-top: 1px solid #263442;">
+          <div style="padding: 10px 16px 12px 12px; border-bottom: 1px solid #263442; background: #18222c; box-shadow: inset 0 1px 0 #f2b84b, inset 0 -1px 0 #f2b84b;">
+            <div style="display: grid; grid-template-columns: 22px 104px minmax(0, 1fr); align-items: center;"><span style="font-size: 11px; color: #f2b84b;">5</span><dt style="font-size: 11px; font-stretch: 80%; font-weight: 500; color: #f2b84b;">Quantity</dt><dd style="margin: 0;">The email offers <span class="verbatim" style="font-size: 12px;">300/350 mt</span>. Which is on offer?</dd></div>
+            <div role="radiogroup" aria-label="Quantity" style="margin: 8px 0 0 126px; display: flex; flex-wrap: wrap; border: 1px solid #364757; border-radius: 2px; width: fit-content;">
+              <button type="button" role="radio" aria-checked="true" style="height: 28px; padding: 0 12px; background: #1f2b37; border: 0; border-right: 1px solid #364757; font-size: 12px; font-weight: 500; box-shadow: inset 0 -2px 0 #5cc8f2;">300 mt</button>
+              <button type="button" role="radio" aria-checked="false" style="height: 28px; padding: 0 12px; background: transparent; border: 0; border-right: 1px solid #364757; font-size: 12px; color: #9fb0c0;">350 mt</button>
+              <button type="button" role="radio" aria-checked="false" style="height: 28px; padding: 0 12px; background: transparent; border: 0; font-size: 12px; color: #9fb0c0;">Other…</button>
+            </div>
+          </div>
+          <div style="padding: 10px 16px 12px 12px; border-bottom: 1px solid #263442;">
+            <div style="display: grid; grid-template-columns: 22px 104px minmax(0, 1fr); align-items: center;"><span style="font-size: 11px; color: #f2b84b;">6</span><dt style="font-size: 11px; font-stretch: 80%; font-weight: 500; color: #f2b84b;">Price</dt><dd style="margin: 0;">Read <span class="verbatim" style="font-size: 12px;">EUR 690 / mt</span> as 690 EUR per tonne?</dd></div>
+            <div role="radiogroup" aria-label="Price unit" style="margin: 8px 0 0 126px; display: flex; flex-wrap: wrap; border: 1px solid #364757; border-radius: 2px; width: fit-content;">
+              <button type="button" role="radio" aria-checked="false" style="height: 28px; padding: 0 12px; background: transparent; border: 0; border-right: 1px solid #364757; font-size: 12px; color: #9fb0c0;">Yes, per tonne</button>
+              <button type="button" role="radio" aria-checked="false" style="height: 28px; padding: 0 12px; background: transparent; border: 0; font-size: 12px; color: #9fb0c0;">No, correct it…</button>
+            </div>
+          </div>
+        </dl>
+        <h3 style="margin: 0; padding: 14px 16px 6px 12px; font-size: 11px; font-stretch: 80%; font-weight: 500; color: #9fb0c0;">Matches the email · 5</h3>
+        <dl style="margin: 0; font-size: 12px; border-top: 1px solid #263442;">
+          <div style="display: grid; grid-template-columns: 22px 104px minmax(0, 1fr) 16px; align-items: center; min-height: 32px; padding: 0 16px 0 12px; border-bottom: 1px solid #263442;"><span style="font-size: 11px; color: #5cc8f2;">1</span><dt style="font-size: 11px; font-stretch: 80%; font-weight: 500; color: #9fb0c0;">Supplier</dt><dd style="margin: 0;">Nordwind Bunker Services</dd><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7b8d9f" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-label="checked" role="img"><path d="M20 6 9 17l-5-5"></path></svg></div>
+          <div style="display: grid; grid-template-columns: 22px 104px minmax(0, 1fr) 16px; align-items: center; min-height: 32px; padding: 0 16px 0 12px; border-bottom: 1px solid #263442;"><span style="font-size: 11px; color: #5cc8f2;">2</span><dt style="font-size: 11px; font-stretch: 80%; font-weight: 500; color: #9fb0c0;">Vessel</dt><dd style="margin: 0;">MV Aegean Pioneer <span class="mono" style="font-size: 11px; color: #7b8d9f;">9480019</span></dd><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7b8d9f" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-label="checked" role="img"><path d="M20 6 9 17l-5-5"></path></svg></div>
+          <div style="display: grid; grid-template-columns: 22px 104px minmax(0, 1fr) 16px; align-items: center; min-height: 32px; padding: 0 16px 0 12px; border-bottom: 1px solid #263442;"><span style="font-size: 11px; color: #5cc8f2;">3</span><dt style="font-size: 11px; font-stretch: 80%; font-weight: 500; color: #9fb0c0;">Port</dt><dd style="margin: 0;">Algeciras <span class="mono" style="font-size: 11px; color: #7b8d9f;">ESALG</span></dd><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7b8d9f" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-label="checked" role="img"><path d="M20 6 9 17l-5-5"></path></svg></div>
+          <div style="display: grid; grid-template-columns: 22px 104px minmax(0, 1fr) 16px; align-items: center; min-height: 32px; padding: 0 16px 0 12px; border-bottom: 1px solid #263442;"><span style="font-size: 11px; color: #5cc8f2;">4</span><dt style="font-size: 11px; font-stretch: 80%; font-weight: 500; color: #9fb0c0;">Grade</dt><dd style="margin: 0;">LSMGO</dd><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7b8d9f" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-label="checked" role="img"><path d="M20 6 9 17l-5-5"></path></svg></div>
+          <div style="display: grid; grid-template-columns: 22px 104px minmax(0, 1fr) 16px; align-items: center; min-height: 32px; padding: 0 16px 0 12px; border-bottom: 1px solid #263442;"><span style="font-size: 11px; color: #5cc8f2;">7</span><dt style="font-size: 11px; font-stretch: 80%; font-weight: 500; color: #9fb0c0;">Barge fee</dt><dd style="margin: 0;">EUR 3,000 lump sum</dd><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7b8d9f" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-label="checked" role="img"><path d="M20 6 9 17l-5-5"></path></svg></div>
+        </dl>
+        <h3 style="margin: 0; padding: 14px 16px 6px 12px; font-size: 11px; font-stretch: 80%; font-weight: 500; color: #9fb0c0;">Not in the email · 2</h3>
+        <dl style="margin: 0; font-size: 12px; border-top: 1px solid #263442;">
+          <div style="display: grid; grid-template-columns: 22px 104px minmax(0, 1fr) auto; align-items: center; min-height: 32px; padding: 0 16px 0 12px; border-bottom: 1px solid #263442;"><span></span><dt style="font-size: 11px; font-stretch: 80%; font-weight: 500; color: #9fb0c0;">Valid until</dt><dd style="margin: 0; color: #7b8d9f;">not in the email</dd><a href="#" style="font-size: 12px;">Add</a></div>
+          <div style="display: grid; grid-template-columns: 22px 104px minmax(0, 1fr) auto; align-items: center; min-height: 32px; padding: 0 16px 0 12px; border-bottom: 1px solid #263442;"><span></span><dt style="font-size: 11px; font-stretch: 80%; font-weight: 500; color: #9fb0c0;">Delivery window</dt><dd style="margin: 0; color: #7b8d9f;">not in the email</dd><a href="#" style="font-size: 12px;">Add</a></div>
+        </dl>
+
+        <details style="margin: 0 16px; border-bottom: 1px solid #263442;">
+          <summary style="height: 36px; display: flex; align-items: center; gap: 8px; list-style: none; font-size: 12px; color: #9fb0c0;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg>All 25 checks, by field</summary>
+        </details>
+
+        <div style="margin-top: auto; padding: 12px 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; border-top: 1px solid #364757;">
+          <span style="flex: 1 1 180px; font-size: 12px; line-height: 16px; color: #9fb0c0;">1 of 2 settled. The quote joins the bunker plan once you accept it.</span>
+          <button type="button" style="height: 28px; padding: 0 10px; background: transparent; border: 1px solid #364757; border-radius: 2px; font-size: 12px; font-weight: 500;">Reject quote</button>
+          <button type="button" disabled style="height: 28px; padding: 0 12px; background: #1f2b37; border: 1px solid #364757; border-radius: 2px; font-size: 12px; font-weight: 500; opacity: .5; cursor: not-allowed;">Accept corrected quote</button>
+        </div>
+      </section>
+
+      <aside aria-label="Assistant, collapsed" style="flex: 0 0 44px; display: flex; flex-direction: column; align-items: center; gap: 10px; padding-top: 10px; background: #121a22; border-left: 1px solid #263442;">
+        <button type="button" aria-label="Open the assistant" style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: #1f2b37; border: 1px solid #364757; border-radius: 2px; color: #e4eaf0;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></button>
+        <span style="writing-mode: vertical-rl; font-size: 11px; font-stretch: 80%; font-weight: 500; color: #9fb0c0;">Assistant</span>
+      </aside>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

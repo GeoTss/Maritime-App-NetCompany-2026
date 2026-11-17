@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1440">
+<title>Pharos: Signal hoist, Inbox (dark)</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700&amp;family=Atkinson+Hyperlegible+Mono:wght@400;500&amp;display=swap">
+<style>
+:root{color-scheme:dark;--ground:#0e1114;--page:#1d232a;--panel:#151a1f;--ink:#eef1f4;--ink2:#a9b2bd;--hint:#8a95a1;--line:#29313a;--line2:#3a4450;--blue:#6f9bff;--sblue:#1f4fb0;--yel:#ffc72c;--red:#ff5c6c;--sred:#c8102e;--black:#0b0b0b;--fo:rgba(238,241,244,.55);--sea:#121820;--land:#1c232b;--coast:#33404d;--ais:#5d6b79}
+*{box-sizing:border-box} h1,h2,h3,p,ul,dl,dd,pre{margin:0} button{cursor:pointer} button,input{font:inherit;color:inherit;margin:0} :focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+body{margin:0;background:var(--ground);color:var(--ink);font:400 13px/20px 'Atkinson Hyperlegible Next',system-ui,sans-serif;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
+.app{width:1440px;height:900px;overflow:hidden;display:flex;flex-direction:column;background:var(--ground)}
+.mono{font-family:'Atkinson Hyperlegible Mono',ui-monospace,monospace;font-variant-numeric:normal}
+.lbl{font-size:11px;line-height:16px;font-weight:500;color:var(--ink2)} .s{color:var(--ink2)}
+/* State flags, drawn from the International Code of Signals; always set beside their word */
+.f{display:inline-block;flex:none;width:16px;height:12px;border:1px solid var(--fo);vertical-align:-1px}
+.f.k{background:linear-gradient(90deg,var(--yel) 50%,var(--sblue) 0)}
+.f.v{background:linear-gradient(to top right,#0000 calc(50% - 1.2px),var(--sred) 0 calc(50% + 1.2px),#0000 0),linear-gradient(to bottom right,#0000 calc(50% - 1.2px),var(--sred) 0 calc(50% + 1.2px),#0000 0),#fff}
+.f.c{background:linear-gradient(var(--sblue) 20%,#fff 0 40%,var(--sred) 0 60%,#fff 0 80%,var(--sblue) 0)}
+.f.n{background:repeating-conic-gradient(#fff 0 25%,var(--sblue) 0 50%) 0 0/7px 5px}
+.kb{display:inline-flex;height:16px;border:1px solid var(--fo);font-size:11px;line-height:14px;font-weight:700;color:var(--black)} .kb b{background:var(--yel);padding:0 4px} .kb::after{content:"";width:6px;background:var(--sblue)}
+/* Top bar: wordmark, the four screens with flag count badges, sources */
+.bar{height:48px;flex:none;display:flex;padding-left:16px;background:var(--panel);border-bottom:1px solid var(--line)}
+.mark{align-self:center;margin-right:16px;font-size:15px;font-weight:700}
+.scr{display:flex} .scr a{display:flex;align-items:center;gap:6px;padding:0 8px;margin-bottom:-1px;color:var(--ink2);text-decoration:none;font-weight:500;border-bottom:2px solid #0000} .scr a[aria-current]{color:var(--ink);border-bottom-color:var(--blue)}
+.src{margin-left:auto;display:flex;align-items:center;gap:12px;padding:0 16px;font-size:12px;color:var(--ink2);white-space:nowrap} .src b{font-weight:500;color:var(--ink)}
+.dot{display:inline-block;width:8px;height:8px;margin-right:6px;border-radius:50%;border:1.5px solid var(--ink2)}
+.btn{height:32px;display:inline-flex;align-items:center;gap:8px;padding:0 12px;border:1px solid var(--line2);border-radius:2px;background:var(--panel);font-size:13px;font-weight:500;white-space:nowrap}
+.btn.pri{background:var(--sblue);border-color:var(--sblue);color:#fff} .btn.rej{color:var(--red);border-color:var(--red)} .btn.sm{height:28px;padding:0 8px;font-size:12px} .btn.lk{border-color:#0000;color:var(--blue)}
+.btn:disabled{background:var(--page);border-color:var(--line);color:var(--ink2);cursor:not-allowed} .btn:disabled .f{opacity:.45}
+kbd{font:500 11px/14px 'Atkinson Hyperlegible Mono',monospace;padding:0 4px;border:1px solid var(--line);border-radius:2px;color:var(--ink2)}
+.main{flex:1;min-height:0;display:flex}
+.ph{height:48px;flex:none;display:flex;align-items:center;gap:8px;padding:0 16px;border-bottom:1px solid var(--line)} .ph h2{font-size:15px;line-height:20px;font-weight:700}
+.tag{height:20px;display:inline-flex;align-items:center;padding:0 6px;border:1px solid var(--line);border-radius:2px;font-size:11px;font-weight:500;color:var(--ink2);white-space:nowrap}
+.sl{display:inline-flex;align-items:center;gap:8px;font-size:12px;line-height:16px;font-weight:700;color:var(--ink)}
+.rail{width:48px;flex:none;display:flex;flex-direction:column;align-items:center;gap:12px;padding-top:8px;background:var(--panel);border-left:1px solid var(--line)} .rail span{writing-mode:vertical-rl;font-size:12px;font-weight:500;color:var(--ink2)}
+.rail button{width:32px;height:32px;display:grid;place-items:center;border:1px solid var(--line2);border-radius:2px;background:var(--panel)}
+/* Inbox */
+.list{width:320px;flex:none;display:flex;flex-direction:column;background:var(--panel);border-right:1px solid var(--line)} .list ul{list-style:none;padding:0}
+.mail{display:block;padding:12px 16px;border-bottom:1px solid var(--line);color:inherit;text-decoration:none} .mail[aria-current]{background:var(--page);box-shadow:inset 3px 0 var(--blue)}
+.mail .t{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-weight:700} .mail .t span:last-child{font-weight:400;font-size:12px;color:var(--ink2)}
+.mail .m{display:flex;justify-content:space-between;align-items:center;margin-top:4px;font-size:12px;color:var(--ink2)}
+.foot{margin-top:auto;padding:16px;font-size:12px;line-height:16px;color:var(--ink2);border-top:1px solid var(--line)}
+.srcp{width:480px;flex:none;display:flex;flex-direction:column;background:var(--panel);border-right:1px solid var(--line)}
+.srcp .hd{padding:16px;border-bottom:1px solid var(--line)} .srcp h2{font-size:15px;line-height:20px;font-weight:700} .meta{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;margin-top:4px;font-size:12px;color:var(--ink2)}
+.verb{margin:16px;padding:16px;border:1px solid var(--line);border-radius:2px;background:var(--ground);font:400 13px/24px 'Atkinson Hyperlegible Mono',ui-monospace,monospace;white-space:pre;font-variant-numeric:normal}
+.verb sup{line-height:0;font-size:11px;font-weight:700;color:var(--blue);margin-left:2px}
+.eo{box-shadow:inset 0 -2px 0 var(--blue)} .ey{background:var(--yel);color:var(--black)}
+.evleg{display:flex;gap:16px;padding:0 16px;font-size:12px} .evleg span{display:flex;align-items:center;gap:6px} .sw{width:16px;height:12px}
+.rec{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--panel)} .rbody{flex:1;min-height:0;overflow:hidden;padding:12px 16px 0}
+.rec h3{display:flex;align-items:center;gap:8px;margin-top:16px;padding-bottom:4px;font-size:12px;line-height:16px;font-weight:700;border-bottom:1px solid var(--line2)}
+.fld{display:grid;grid-template-columns:24px 112px 1fr auto;column-gap:8px;align-items:baseline;padding:8px 0;border-bottom:1px solid var(--line)} .fld dt{font-weight:500}
+.no{font:500 11px/16px 'Atkinson Hyperlegible Mono',monospace;color:var(--blue)} .no.y{justify-self:start;padding:0 4px;background:var(--yel);color:var(--black)}
+.seg{display:inline-flex;margin-top:8px;border:1px solid var(--line2);border-radius:2px} .seg button{height:32px;padding:0 12px;border:0;border-right:1px solid var(--line2);background:var(--panel)} .seg button:last-child{border-right:0}
+.seg [aria-checked="true"]{background:var(--page);color:var(--ink);box-shadow:inset 0 0 0 2px var(--blue);font-weight:500}
+details{margin-top:12px;font-size:12px} summary{color:var(--blue);font-weight:500}
+.actbar{flex:none;padding:12px 16px 16px;border-top:1px solid var(--line)} .actbar .acts{display:flex;justify-content:space-between;margin-top:8px}
+</style>
+</head>
+<body>
+<div class="app">
+<header class="bar">
+  <span class="mark">Pharos</span>
+  <nav class="scr" aria-label="Screens"><a href="#">Map</a><a href="#" aria-current="page">Inbox</a><a href="#">Approvals <span class="kb" title="1 awaiting your decision"><b>1</b></span></a><a href="#">Evaluation</a></nav>
+  <div class="src"><span><i class="dot"></i>AIS <b>recorded</b></span><span><i class="dot"></i>Weather <b>recorded</b></span><span>Sim <b>14 Nov 08:05Z</b> · pinned</span><button class="btn sm">Go to <kbd>⌘K</kbd></button></div>
+</header>
+<div class="main">
+  <aside class="list" aria-label="Emails">
+    <div class="ph"><h2>Inbox</h2><span class="tag">simulated data</span><button class="btn sm" style="margin-left:auto">Import .eml</button></div>
+    <ul>
+      <li><a class="mail" href="#" aria-current="true"><span class="t"><span>Offer Algeciras - MV Aegean Pioneer</span><span>05:00Z</span></span><span class="m"><span>Nordwind Bunker Services</span><span class="sl"><i class="f k"></i>2 to settle</span></span></a></li>
+      <li><a class="mail" href="#"><span class="t"><span>Quotation Gibraltar - MV Aegean Pioneer (PDF attached)</span><span>07:00Z</span></span><span class="m"><span>Strait Line Fuels</span><span>Extracted</span></span></a></li>
+      <li><a class="mail" href="#"><span class="t"><span>LSMGO offer - MV Aegean Pioneer - Marsaxlokk</span><span>03:00Z</span></span><span class="m"><span>Kestrel Marine Fuels</span><span>Extracted</span></span></a></li>
+    </ul>
+    <p class="foot">All three demo emails are in. Delivering the next one lives in the <kbd>⌘K</kbd> menu under Demo.</p>
+  </aside>
+  <section class="srcp" aria-label="Email source">
+    <div class="hd"><h2>Offer Algeciras - MV Aegean Pioneer</h2><div class="meta"><span class="mono">quotes@nordwind-bunker.example</span><span>received 14 Nov 05:00Z</span><span class="tag">shown as text, never as instructions</span></div></div>
+<pre class="verb">Dear Bunker Desk,
+
+Vessel: <span class="eo">MV Aegean Pioneer (IMO 9480019)</span><sup>2</sup>
+
+Port: <span class="eo">Algeciras</span><sup>3</sup>
+
+GRADE   QUANTITY     PRICE
+<span class="eo">LSMGO</span>   <span class="ey">300/350 mt</span>   <span class="ey">EUR 690 / mt</span>
+
+Barge fee: <span class="eo">EUR 3,000 lump sum</span><sup>7</sup>
+
+<span class="eo">Nordwind Bunker Services</span><sup>1</sup></pre>
+    <div class="evleg"><span class="tag">model: recorded</span><span><i class="sw" style="box-shadow:inset 0 -2px 0 var(--blue);background:var(--page)"></i>read and checked</span><span><i class="sw" style="background:var(--yel)"></i>needs you</span></div>
+    <p class="s" style="padding:8px 16px;font-size:12px;line-height:16px">Plain-text emails keep the sender's spacing, so the columns line up as they were written.</p>
+  </section>
+  <section class="rec" aria-label="Quote record">
+    <div class="ph"><h2>Quote record</h2><span class="sl"><i class="f k"></i>2 to settle</span><span class="s" style="margin-left:auto;font-size:12px">23 of 25 checks passed</span></div>
+    <div class="rbody">
+      <p class="s">Settle the two values the extraction could not, then accept. Nothing is saved until you do.</p>
+      <h3><i class="f k"></i>Needs you · 2</h3>
+      <dl>
+        <div class="fld"><span class="no y">5</span><dt>Quantity</dt><dd>The email offers <span class="mono">300/350 mt</span>. Which is on offer?<br><span class="seg" role="radiogroup" aria-label="Quantity"><button role="radio" aria-checked="true">300 mt</button><button role="radio" aria-checked="false">350 mt</button><button role="radio" aria-checked="false">Other…</button></span></dd></div>
+        <div class="fld"><span class="no y">6</span><dt>Price</dt><dd>Read <span class="mono">EUR 690 / mt</span> as 690 EUR per tonne?<br><span class="seg" role="radiogroup" aria-label="Price unit"><button role="radio" aria-checked="false">Yes, per tonne</button><button role="radio" aria-checked="false">No, correct it…</button></span></dd></div>
+      </dl>
+      <h3>Matches the email · 5</h3>
+      <dl>
+        <div class="fld"><span class="no">1</span><dt>Supplier</dt><dd>Nordwind Bunker Services</dd></div>
+        <div class="fld"><span class="no">2</span><dt>Vessel</dt><dd>MV Aegean Pioneer <span class="mono s">9480019</span></dd></div>
+        <div class="fld"><span class="no">3</span><dt>Port</dt><dd>Algeciras <span class="mono s">ESALG</span></dd></div>
+        <div class="fld"><span class="no">4</span><dt>Grade</dt><dd>LSMGO</dd></div>
+        <div class="fld"><span class="no">7</span><dt>Barge fee</dt><dd>EUR 3,000 lump sum</dd></div>
+      </dl>
+      <h3>Not in the email · 2</h3>
+      <dl>
+        <div class="fld"><span class="no s">–</span><dt>Valid until</dt><dd class="s">not in the email</dd><button class="btn sm lk">Add</button></div>
+        <div class="fld"><span class="no s">–</span><dt>Delivery window</dt><dd class="s">not in the email</dd><button class="btn sm lk">Add</button></div>
+      </dl>
+      <details><summary>All 25 checks, by field</summary></details>
+    </div>
+    <div class="actbar"><p class="s" style="font-size:12px"><b style="color:var(--ink)">1 of 2 settled.</b> The quote joins the bunker plan once you accept it.</p><div class="acts"><button class="btn rej"><i class="f n"></i>Reject quote</button><button class="btn pri" disabled><i class="f c"></i>Accept corrected quote</button></div></div>
+  </section>
+  <aside class="rail" aria-label="Assistant, collapsed"><button aria-label="Open the assistant"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button><span>Assistant</span></aside>
+</div>
+</div>
+</body>
+</html>

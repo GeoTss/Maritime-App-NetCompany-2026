@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Pharos: confirm the purchase order</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&amp;family=B612+Mono:wght@400;700&amp;display=swap">
+<style>
+body{margin:0;background:#0c1218;color:#e4eaf0;font-family:'Archivo',system-ui,sans-serif;font-size:13px;line-height:18px;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
+.fact{text-decoration:underline dotted #5cc8f2;text-underline-offset:3px;text-decoration-thickness:1px}
+button{font:inherit;color:inherit;cursor:pointer}
+</style>
+</helmet>
+<div style="width: 640px; height: 460px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; background: rgba(12,18,24,.8); background-image: linear-gradient(rgba(12,18,24,.82), rgba(12,18,24,.82)), linear-gradient(90deg, #121a22 0 30%, #0c1218 30% 100%);">
+  <div role="alertdialog" aria-modal="true" aria-labelledby="t" aria-describedby="d" style="width: 540px; box-sizing: border-box; background: #18222c; border: 1px solid #364757; border-radius: 3px; box-shadow: 0 8px 24px rgba(0,0,0,.45);">
+    <div style="padding: 16px 18px 0;">
+      <div style="font-size: 11px; font-stretch: 80%; font-weight: 500; color: #9fb0c0;">Approve purchase order</div>
+      <h2 id="t" style="margin: 4px 0 0; font-size: 18px; line-height: 23px; font-weight: 500; font-stretch: 88%; text-wrap: balance;">Order 300 mt LSMGO from Kestrel Marine Fuels at Marsaxlokk?</h2>
+    </div>
+    <dl style="margin: 14px 18px 0; display: grid; grid-template-columns: 150px minmax(0, 1fr); border-top: 1px solid #263442; font-size: 13px;">
+      <dt style="padding: 7px 0; border-bottom: 1px solid #263442; font-size: 11px; font-stretch: 80%; font-weight: 500; color: #9fb0c0;">For</dt>
+      <dd style="margin: 0; padding: 7px 0; border-bottom: 1px solid #263442;">MV Aegean Pioneer, voyage AP-2611</dd>
+      <dt style="padding: 7px 0; border-bottom: 1px solid #263442; font-size: 11px; font-stretch: 80%; font-weight: 500; color: #9fb0c0;">Total delivered cost</dt>
+      <dd style="margin: 0; padding: 7px 0; border-bottom: 1px solid #263442;"><span class="fact">USD 233,942.91</span> <span style="color: #9fb0c0;">· effective <span class="fact" style="color: #e4eaf0;">779.81 USD/mt</span></span></dd>
+      <dt style="padding: 7px 0; border-bottom: 1px solid #263442; font-size: 11px; font-stretch: 80%; font-weight: 500; color: #9fb0c0;">Against the runner-up</dt>
+      <dd style="margin: 0; padding: 7px 0; border-bottom: 1px solid #263442;"><span class="fact" style="color: #3ddc97;">USD 5,310.37</span> less than Nordwind at Algeciras</dd>
+      <dt style="padding: 7px 0; border-bottom: 1px solid #263442; font-size: 11px; font-stretch: 80%; font-weight: 500; color: #9fb0c0;">Delay to the voyage</dt>
+      <dd style="margin: 0; padding: 7px 0; border-bottom: 1px solid #263442;"><span class="fact">11.12 h</span></dd>
+    </dl>
+    <p id="d" style="margin: 12px 18px 0; font-size: 12px; line-height: 17px; color: #9fb0c0;">This creates the purchase order in the ERP simulator. The confirmation to Kestrel is drafted and stays a draft: nothing is sent to the supplier.</p>
+    <div style="padding: 16px 18px; display: flex; justify-content: flex-end; gap: 8px;">
+      <button type="button" autofocus style="height: 28px; padding: 0 12px; background: #1f2b37; border: 1px solid #364757; border-radius: 2px; font-size: 12px; font-weight: 500; outline: 2px solid rgba(92,200,242,.6); outline-offset: 1px;">Keep it pending</button>
+      <button type="button" style="height: 28px; padding: 0 14px; background: #f4f1e6; color: #0c1218; border: 1px solid #f4f1e6; border-radius: 2px; font-size: 12px; font-weight: 600;">Approve and create the order</button>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":640,"height":460}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>
