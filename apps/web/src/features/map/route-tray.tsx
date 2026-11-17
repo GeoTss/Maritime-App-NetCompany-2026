@@ -1,12 +1,12 @@
 /**
  * The route comparison: one row per candidate route, every number a fact chip from
- * `RoutePlanResponse.facts`. A number with no fact shows a dash; nothing is read from
+ * `RoutePlanView.facts`. A number with no fact shows a dash; nothing is read from
  * `result.options` for display. The tray is a non-modal vaul drawer with snap points, scoped to
  * the map canvas, so the map stays usable behind it.
  */
 import { Cancel01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import type { Fact, RoutePlanResponse } from "@pharos/shared";
+import type { Fact, RoutePlanView } from "@pharos/shared";
 import { FactChip } from "@/components/fact-chip";
 import { Button } from "@/components/ui/button";
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/drawer";
@@ -77,7 +77,7 @@ const COLUMNS: { metric: OptionMetric; label: string; kind?: "time" }[] = [
 
 const numeric = "text-right tabular-nums whitespace-nowrap";
 
-export function RouteComparison({ plan }: { plan: RoutePlanResponse }) {
+export function RouteComparison({ plan }: { plan: RoutePlanView }) {
   const { facts, result } = plan;
   const load = loadFacts(facts);
   return (
@@ -223,7 +223,7 @@ export function RouteTray({
   onSnapChange,
   onClose,
 }: {
-  plan: RoutePlanResponse;
+  plan: RoutePlanView;
   container: HTMLElement | null;
   snap: number | string | null;
   onSnapChange: (snap: number | string | null) => void;

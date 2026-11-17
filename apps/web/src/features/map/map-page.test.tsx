@@ -2,7 +2,7 @@ import type { Fact } from "@pharos/shared";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { forwardRef, type ReactNode, useImperativeHandle } from "react";
-import { MemoryRouter } from "react-router";
+import { MemoryRouter, useLocation } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CommandMenuProvider } from "@/components/command-menu";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -11,7 +11,9 @@ import { CongestionLayer, congestionSourceText } from "./congestion-layer";
 import {
   CONGESTION,
   HAZARDS,
+  makeBunkerPlan,
   makePlan,
+  makeStoredRoutePlan,
   PORTS,
   TRAFFIC,
   VESSEL_DETAIL,
@@ -96,9 +98,17 @@ function stubApi({
       if (path.startsWith("/api/weather"))
         return weather === "none" ? json({ error: "no_weather_snapshot" }, 404) : json(weatherView);
       if (path === "/api/route-plan") return json(makePlan());
+      if (path === "/api/route-plans/2") return json(makeStoredRoutePlan(2));
+      if (path === "/api/bunker-plans/1") return json(makeBunkerPlan());
       return json({ error: "not_found" }, 404);
     }),
   );
+}
+
+/** The address the page has written, so a test can read what Clear left behind. */
+function LocationProbe() {
+  const location = useLocation();
+  return <output data-testid="location">{location.search}</output>;
 }
 
 function renderPage(initial = "/") {
@@ -108,6 +118,7 @@ function renderPage(initial = "/") {
         <CommandMenuProvider>
           <MemoryRouter initialEntries={[initial]}>
             <MapPage />
+            <LocationProbe />
           </MemoryRouter>
         </CommandMenuProvider>
       </TooltipProvider>
@@ -298,6 +309,109 @@ describe("MapPage", () => {
       true,
     );
     expect(calls.filter((c) => c.method !== "GET")).toEqual([]);
+  });
+});
+
+describe("stored plans from the address", () => {
+  it("draws the stored route plan from ?routePlan= without posting", async () => {
+    renderPage("/?vessel=1&routePlan=2");
+    expect(await screen.findByTestId("route-row-B")).toBeTruthy();
+    expect(calls.some((c) => c.method === "POST")).toBe(false);
+    expect(calls.some((c) => c.path === "/api/route-plans/2")).toBe(true);
+    expect(screen.getByText("Showing route plan 2")).toBeTruthy();
+    expect(screen.getByTestId("layer-route-recommended")).toBeTruthy();
+  });
+
+  it("lights the bunker plan's ports by rank from ?bunkerPlan=", async () => {
+    renderPage("/?vessel=1&bunkerPlan=1");
+    expect(await screen.findByText("Showing bunker plan 1 · 3 options")).toBeTruthy();
+    const best = await screen.findByTestId("bunker-port-MTMLA-kestrel");
+    expect(best.getAttribute("data-best")).toBe("true");
+    expect(best.textContent).toContain("1 · Kestrel Marine Fuels, Marsaxlokk");
+    // The total is the plan's own fact, as a chip.
+    expect(
+      best.querySelector('[data-fact-id="f_plan_bunkering_1_options.0.totalCostUsd"]'),
+    ).not.toBeNull();
+    expect(screen.getByTestId("bunker-port-ESALG-nordwind").getAttribute("data-best")).toBe(
+      "false",
+    );
+    expect(screen.getByTestId("bunker-port-GIGIB-straitline").getAttribute("data-best")).toBe(
+      "false",
+    );
+    expect(screen.getByText("Ranked by total delivered cost")).toBeTruthy();
+    expect(calls.filter((c) => c.method !== "GET")).toEqual([]);
+  });
+
+  it("says a missing plan out loud and keeps the map", async () => {
+    renderPage("/?bunkerPlan=999");
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("Plan 999 could not be found");
+    expect(within(alert).getByRole("button", { name: "Clear the plan from the map" })).toBeTruthy();
+    // Every other layer still draws.
+    expect(await screen.findByTestId("fleet-vessel-1")).toBeTruthy();
+    expect(screen.getByTestId("map")).toBeTruthy();
+    expect(screen.queryByTestId("bunker-port-MTMLA-kestrel")).toBeNull();
+  });
+
+  it("Clear drops the plan parameter and keeps the selection", async () => {
+    renderPage("/?vessel=1&bunkerPlan=1");
+    await screen.findByTestId("bunker-port-MTMLA-kestrel");
+    fireEvent.click(screen.getByRole("button", { name: "Clear the plan from the map" }));
+    await waitFor(() => expect(screen.getByTestId("location").textContent).toBe("?vessel=1"));
+    expect(screen.queryByTestId("bunker-port-MTMLA-kestrel")).toBeNull();
+    expect(screen.queryByText(/Showing bunker plan/)).toBeNull();
+    expect(screen.getByRole("region", { name: "Vessel panel" })).toBeTruthy();
+  });
+
+  it("Clear on a stored route plan closes its tray and keeps the selection", async () => {
+    renderPage("/?vessel=1&routePlan=2");
+    await screen.findByTestId("route-row-B");
+    // `hidden`: while the tray is open, vaul's dialog marks the rest of the map aria-hidden.
+    fireEvent.click(
+      screen.getByRole("button", { name: "Clear the plan from the map", hidden: true }),
+    );
+    await waitFor(() => expect(screen.getByTestId("location").textContent).toBe("?vessel=1"));
+    await waitFor(() => expect(screen.queryByTestId("route-row-B")).toBeNull());
+    expect(screen.getByRole("region", { name: "Vessel panel" })).toBeTruthy();
+  });
+
+  it("folds the vessel panel while the route tray is open on a wide screen", async () => {
+    renderPage("/?vessel=1&routePlan=2");
+    await screen.findByTestId("route-row-B");
+    // `hidden`: while the tray is open, vaul's dialog marks the rest of the map aria-hidden.
+    const panel = screen.getByRole("region", { name: "Vessel panel", hidden: true });
+    // One header row: the name, Expand and Close; the body is folded away.
+    expect(panel.getAttribute("data-folded")).toBe("true");
+    expect(within(panel).getByRole("heading", { level: 2, hidden: true }).textContent).toBe(
+      "MV Aegean Pioneer",
+    );
+    expect(within(panel).queryByText("Fuel on board")).toBeNull();
+    expect(within(panel).queryByText(/IMO/)).toBeNull();
+    fireEvent.click(within(panel).getByRole("button", { name: "Expand", hidden: true }));
+    expect(await within(panel).findByText("Fuel on board")).toBeTruthy();
+    expect(within(panel).getByRole("button", { name: "Fold", hidden: true })).toBeTruthy();
+  });
+
+  it("planning again replaces the stored route plan and drops it from the address", async () => {
+    renderPage("/?vessel=1&routePlan=2");
+    await screen.findByTestId("route-row-B");
+    const panel = screen.getByRole("region", { name: "Vessel panel", hidden: true });
+    fireEvent.click(within(panel).getByRole("button", { name: "Expand", hidden: true }));
+    fireEvent.click(
+      await within(panel).findByRole("button", { name: "Plan route again", hidden: true }),
+    );
+    await waitFor(() => expect(calls.filter((c) => c.method === "POST")).toHaveLength(1));
+    await waitFor(() => expect(screen.getByTestId("location").textContent).toBe("?vessel=1"));
+    expect(await screen.findByTestId("route-row-B")).toBeTruthy();
+    expect(screen.queryByText("Showing route plan 2")).toBeNull();
+  });
+
+  it("selecting another vessel drops a stored route plan", async () => {
+    renderPage("/?vessel=1&routePlan=2");
+    await screen.findByTestId("route-row-B");
+    fireEvent.click(screen.getByTestId("fleet-vessel-2"));
+    await waitFor(() => expect(screen.getByTestId("location").textContent).toBe("?vessel=2"));
+    await waitFor(() => expect(screen.queryByTestId("route-row-B")).toBeNull());
   });
 });
 

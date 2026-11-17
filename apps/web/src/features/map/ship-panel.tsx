@@ -2,7 +2,7 @@
  * A public AIS ship. Its name and destination are untrusted text. AIS draught and load condition
  * are cited facts once a route is planned; before that, only the raw last AIS report is shown.
  */
-import type { AisTrafficView, PortView, RoutePlanResponse } from "@pharos/shared";
+import type { AisTrafficView, PortView, RoutePlanView } from "@pharos/shared";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,15 +28,18 @@ export function ShipPanel({
   onPlan,
   onClose,
   className,
+  fold,
 }: {
   ship: AisTrafficView;
   ports: PortView[];
-  plan: RoutePlanResponse | null;
+  plan: RoutePlanView | null;
   planning: boolean;
   planError: unknown;
   onPlan: (unlocode: string) => void;
   onClose: () => void;
   className?: string;
+  /** Folds the panel to its header row (while the route tray is open on a wide screen). */
+  fold?: { folded: boolean; onFoldedChange: (folded: boolean) => void };
 }) {
   const [destination, setDestination] = useState<string>("");
   const load = plan ? loadFacts(plan.facts) : null;
@@ -44,6 +47,7 @@ export function ShipPanel({
     <PanelFrame
       label="Ship panel"
       className={className}
+      fold={fold}
       onClose={onClose}
       title={<UntrustedText text={ship.name} fallback="Unnamed ship" />}
       subtitle={

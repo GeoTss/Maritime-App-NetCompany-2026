@@ -8,7 +8,8 @@ import { createRouter } from "@/routes";
 
 /**
  * Root of the ops console: server state, tooltips, routes and the one toaster. Toasts sit at the
- * top center, under the 36 px status strip, so they never cover the assistant's composer.
+ * bottom left, clear of the 44 px nav rail, away from the map's plan chip and the assistant's
+ * composer, and leave after 4 s.
  */
 export function App() {
   const [queryClient] = useState(createQueryClient);
@@ -17,7 +18,12 @@ export function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider delayDuration={300}>
         <RouterProvider router={router} />
-        <Toaster position="top-center" offset={{ top: 44 }} mobileOffset={{ top: 44 }} />
+        <Toaster
+          position="bottom-left"
+          duration={4000}
+          offset={{ left: 52, bottom: 16 }}
+          mobileOffset={{ left: 52, bottom: 16 }}
+        />
       </TooltipProvider>
     </QueryClientProvider>
   );

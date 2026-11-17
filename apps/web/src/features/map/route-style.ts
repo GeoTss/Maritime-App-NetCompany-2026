@@ -1,9 +1,9 @@
-import type { RoutePlanResponse } from "@pharos/shared";
+import type { RoutePlanView } from "@pharos/shared";
 
 /** How a candidate is drawn and keyed in the tray. Infeasible wins over every other role. */
 export type RouteRole = "recommended" | "planned" | "infeasible" | "other";
 
-export function routeRole(plan: RoutePlanResponse, optionIndex: number): RouteRole {
+export function routeRole(plan: RoutePlanView, optionIndex: number): RouteRole {
   const option = plan.result.options[optionIndex];
   if (!option) return "other";
   if (!option.feasible) return "infeasible";

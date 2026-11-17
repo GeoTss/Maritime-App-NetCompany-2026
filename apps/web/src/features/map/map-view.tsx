@@ -1,14 +1,16 @@
 /**
- * The MapLibre canvas: offline basemap, the five layers, and framing. All layers are children of
- * one `Map`; the parent decides what is visible and selected.
+ * The MapLibre canvas: offline basemap, the five layers, a plan (route or bunker) when there is
+ * one, and framing. All layers are children of one `Map`; the parent decides what is visible and
+ * selected.
  */
 import type {
   AisTrafficList,
+  BunkerPlanView,
   HazardZoneList,
   LatLon,
   PortCongestionList,
   PortList,
-  RoutePlanResponse,
+  RoutePlanView,
   SourceMode,
   VesselSummary,
   WeatherView,
@@ -31,6 +33,7 @@ import {
   type MapColors,
   readMapColors,
 } from "./basemap-style";
+import { BunkerPlanLayer, bunkerPlanBounds } from "./bunker-plan-layer";
 import { CongestionLayer } from "./congestion-layer";
 import { FleetLayer } from "./fleet-layer";
 import { HazardLayer } from "./hazard-layer";
@@ -62,7 +65,9 @@ export interface MapViewProps {
   congestion: PortCongestionList["items"];
   ports: PortList["items"];
   weather: WeatherView | undefined;
-  plan: RoutePlanResponse | null;
+  plan: RoutePlanView | null;
+  /** A stored bunker plan from the address: its ports, ringed by rank. */
+  bunkerPlan: BunkerPlanView | null;
   track: LatLon[] | null;
   selectedVesselId: number | null;
   selectedMmsi: string | null;
@@ -108,6 +113,7 @@ export function MapView(props: MapViewProps) {
     ports,
     weather,
     plan,
+    bunkerPlan,
     track,
     selectedVesselId,
     selectedMmsi,
@@ -147,7 +153,7 @@ export function MapView(props: MapViewProps) {
     const map = ref.current;
     if (framedFirst.current || !loaded || !ready || !map) return;
     framedFirst.current = true;
-    if (selectedVesselId !== null || selectedMmsi !== null || plan) return;
+    if (selectedVesselId !== null || selectedMmsi !== null || plan || bunkerPlan) return;
     if (map.getContainer().clientWidth >= NARROW_CANVAS_PX) return;
     const alerted = vessels.filter((v) => v.alerts.length > 0);
     const points: [number, number][] = [
@@ -214,18 +220,49 @@ export function MapView(props: MapViewProps) {
     [onSelectShip],
   );
 
-  // Frame a new plan: every candidate, clear of the tray and the panel.
+  // Frame a new plan: every candidate, clear of the layer switches, the tray and the panel.
   const bounds = plan ? planBounds(plan) : null;
   const planId = plan?.calculationId ?? null;
   // biome-ignore lint/correctness/useExhaustiveDependencies: frame once per plan, not on every inset change.
   useEffect(() => {
     if (!bounds) return;
     ref.current?.fitBounds(bounds as LngLatBoundsLike, {
-      padding: { top: 56, left: 24, bottom: inset.bottom + 24, right: inset.right + 24 },
+      padding: {
+        top: inset.top + 24,
+        left: 24,
+        bottom: inset.bottom + 24,
+        right: inset.right + 24,
+      },
       duration: reduce ? 0 : 600,
       maxZoom: 7,
     });
   }, [planId]);
+
+  // Frame a bunker plan once the fleet is in: the vessel and every option's port, clear of the
+  // overlays. Once per plan; clearing it and showing it again frames it again.
+  const bunkerId = bunkerPlan?.calculationId ?? null;
+  const framedBunker = useRef<number | null>(null);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: frame once per plan, when the vessel can be placed.
+  useEffect(() => {
+    if (!bunkerPlan) {
+      framedBunker.current = null;
+      return;
+    }
+    if (!ready || framedBunker.current === bunkerPlan.calculationId) return;
+    const box = bunkerPlanBounds(bunkerPlan, vessels);
+    if (!box) return;
+    framedBunker.current = bunkerPlan.calculationId;
+    ref.current?.fitBounds(box, {
+      padding: {
+        top: inset.top + 24,
+        left: 24,
+        bottom: inset.bottom + 24,
+        right: inset.right + 24,
+      },
+      duration: reduce ? 0 : 600,
+      maxZoom: 7,
+    });
+  }, [bunkerId, ready]);
 
   // Fly to a selection made from the command menu, into the part of the map no panel covers.
   // biome-ignore lint/correctness/useExhaustiveDependencies: fly once per focus, not on inset changes.
@@ -262,6 +299,7 @@ export function MapView(props: MapViewProps) {
     inset.right,
     inset.top,
     selectedVesselId,
+    bunkerPlan,
   ]);
   useEffect(() => {
     const map = loaded ? ref.current?.getMap() : undefined;
@@ -314,6 +352,7 @@ export function MapView(props: MapViewProps) {
             aisMode={aisMode}
           />
         ) : null}
+        {bunkerPlan ? <BunkerPlanLayer plan={bunkerPlan} /> : null}
         {layers.fleet ? (
           <FleetLayer vessels={vessels} selectedId={selectedVesselId} onSelect={onSelectVessel} />
         ) : null}

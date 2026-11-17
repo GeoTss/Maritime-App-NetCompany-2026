@@ -3,7 +3,7 @@
  * in --go, the current plan dashed in --plan, an infeasible route dotted in --alarm, the rest thin
  * in --plan. Without a plan, a selected vessel's planned track is drawn dashed.
  */
-import type { LatLon, RoutePlanResponse } from "@pharos/shared";
+import type { LatLon, RoutePlanView } from "@pharos/shared";
 import { useMemo } from "react";
 import { Layer, Source } from "react-map-gl/maplibre";
 import type { MapColors } from "./basemap-style";
@@ -28,7 +28,7 @@ export function RouteLayer({
   track,
   colors,
 }: {
-  plan: RoutePlanResponse | null;
+  plan: RoutePlanView | null;
   track: LatLon[] | null;
   colors: MapColors;
 }) {
@@ -83,7 +83,7 @@ export function RouteLayer({
 }
 
 /** The plan's bounding box, for framing the map: drawing geometry, not a result. */
-export function planBounds(plan: RoutePlanResponse): [[number, number], [number, number]] | null {
+export function planBounds(plan: RoutePlanView): [[number, number], [number, number]] | null {
   const pts = plan.candidates.flatMap((c) => c.points);
   if (pts.length === 0) return null;
   const lons = pts.map((p) => p.lon);

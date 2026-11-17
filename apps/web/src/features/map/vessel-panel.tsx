@@ -9,7 +9,7 @@
  */
 import { Alert02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import type { FobProjection, RoutePlanResponse, VesselSummary } from "@pharos/shared";
+import type { FobProjection, RoutePlanView, VesselSummary } from "@pharos/shared";
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import { ErrorState } from "@/components/error-state";
 import { DataTag } from "@/components/source-badge";
@@ -118,14 +118,17 @@ export function VesselPanel({
   onPlan,
   onClose,
   className,
+  fold,
 }: {
   vessel: VesselSummary;
-  plan: RoutePlanResponse | null;
+  plan: RoutePlanView | null;
   planning: boolean;
   planError: unknown;
   onPlan: () => void;
   onClose: () => void;
   className?: string;
+  /** Folds the panel to its header row (while the route tray is open on a wide screen). */
+  fold?: { folded: boolean; onFoldedChange: (folded: boolean) => void };
 }) {
   const detail = useVesselDetail(vessel.id);
   const voyage = useVoyage(vessel.voyageId);
@@ -138,6 +141,7 @@ export function VesselPanel({
     <PanelFrame
       label="Vessel panel"
       className={className}
+      fold={fold}
       onClose={onClose}
       title={vessel.name}
       subtitle={

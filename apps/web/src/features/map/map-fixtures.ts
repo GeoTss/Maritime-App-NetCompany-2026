@@ -4,12 +4,15 @@
  */
 import type {
   AisTrafficList,
+  BunkerOptionView,
+  BunkerPlanView,
   Fact,
   HazardZoneList,
   PortCongestionList,
   PortList,
   RouteOptionResult,
   RoutePlanResponse,
+  RoutePlanView,
   VesselDetail,
   VesselSummary,
   VoyageDetail,
@@ -376,5 +379,139 @@ export function makePlan(opts: { omitFact?: (fact: Fact) => boolean } = {}): Rou
     },
     facts: kept,
     computeMs: 80,
+  };
+}
+
+/** A stored route plan as `GET /api/route-plans/:id` serves it: the plan above, compute time unknown. */
+export function makeStoredRoutePlan(calculationId: number): RoutePlanView {
+  return { ...makePlan(), calculationId, computeMs: null };
+}
+
+const bunkerFact = (
+  index: number,
+  option: { optionId: string; supplier: string; port: { name: string } },
+  field: string,
+  name: string,
+  value: number,
+  unit: string,
+): Fact => ({
+  id: `f_plan_bunkering_1_options.${index}.${field}`,
+  label: `${option.optionId} (${option.supplier}, ${option.port.name}): ${name}`,
+  value,
+  unit,
+  provenance: {
+    source: "calculation",
+    calculationId: 1,
+    calculator: "planBunkers",
+    path: `options[${index}].${field}`,
+  },
+});
+
+const bunkerOption = (
+  index: number,
+  o: Pick<BunkerOptionView, "optionId" | "supplier" | "port" | "rank" | "feasible" | "best"> & {
+    price: number;
+    total: number;
+    delay: number;
+  },
+): BunkerOptionView => {
+  const headlinePrice = bunkerFact(
+    index,
+    o,
+    "headlinePriceUsdPerMt",
+    "headline price",
+    o.price,
+    "USD/mt",
+  );
+  const totalCost = bunkerFact(index, o, "totalCostUsd", "total delivered cost", o.total, "USD");
+  const delay = bunkerFact(index, o, "delayHours", "delay", o.delay, "h");
+  return {
+    optionId: o.optionId,
+    supplier: o.supplier,
+    port: o.port,
+    rank: o.rank,
+    feasible: o.feasible,
+    best: o.best,
+    headlinePrice,
+    totalCost,
+    delay,
+    rows: [
+      { name: "headline price", fact: headlinePrice },
+      { name: "total delivered cost", fact: totalCost },
+      { name: "delay", fact: delay },
+    ],
+  };
+};
+
+/**
+ * Bunker plan 1 for MV Aegean Pioneer, in rank order: Kestrel at Marsaxlokk (best), Nordwind at
+ * Algeciras and Strait Line at Gibraltar (two ports a few kilometres apart).
+ */
+export function makeBunkerPlan(): BunkerPlanView {
+  return {
+    calculationId: 1,
+    grade: "LSMGO",
+    vesselId: 1,
+    voyageNo: "AP-2611",
+    options: [
+      bunkerOption(0, {
+        optionId: "MTMLA-kestrel",
+        supplier: "Kestrel Marine Fuels",
+        port: { id: 3, name: "Marsaxlokk", unlocode: "MTMLA", position: { lat: 35.88, lon: 14.5 } },
+        rank: 1,
+        feasible: true,
+        best: true,
+        price: 738,
+        total: 233942.91,
+        delay: 11.12,
+      }),
+      bunkerOption(1, {
+        optionId: "ESALG-nordwind",
+        supplier: "Nordwind Bunker Services",
+        port: {
+          id: 5,
+          name: "Algeciras",
+          unlocode: "ESALG",
+          position: { lat: 36.1408, lon: -5.4562 },
+        },
+        rank: 2,
+        feasible: true,
+        best: false,
+        price: 745.2,
+        total: 239253.28,
+        delay: 14.96,
+      }),
+      bunkerOption(2, {
+        optionId: "GIGIB-straitline",
+        supplier: "Strait Line Fuels",
+        port: {
+          id: 6,
+          name: "Gibraltar",
+          unlocode: "GIGIB",
+          position: { lat: 36.1408, lon: -5.3536 },
+        },
+        rank: 3,
+        feasible: true,
+        best: false,
+        price: 712,
+        total: 250081.36,
+        delay: 36.32,
+      }),
+    ],
+    marginVsRunnerUp: {
+      id: "f_plan_bunkering_1_marginVsRunnerUpUsd",
+      label:
+        "LSMGO, best option MTMLA-kestrel: Margin of the best option over the runner-up, in total cost",
+      value: 5310.37,
+      unit: "USD",
+      provenance: {
+        source: "derived",
+        operation: "subtract",
+        operands: [
+          "f_plan_bunkering_1_options.1.totalCostUsd",
+          "f_plan_bunkering_1_options.0.totalCostUsd",
+        ],
+      },
+    },
   };
 }

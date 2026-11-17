@@ -4,12 +4,14 @@
  */
 import {
   AisTrafficList,
+  BunkerPlanView,
   HazardZoneList,
   listOf,
   PlanRouteSpeedInput,
   PortCongestionList,
   PortList,
   RoutePlanResponse,
+  RoutePlanView,
   VesselDetail,
   VesselSummary,
   VoyageDetail,
@@ -85,6 +87,27 @@ export function useWeather(step: number, enabled = true) {
   const noSnapshot = isApiFailure(query.error) && query.error.status === 404;
   return { ...query, noSnapshot };
 }
+
+/**
+ * A stored route plan by its calculation id (`?routePlan=`), exactly as it was calculated: a GET,
+ * never a new plan. A stored calculation does not change, so it is read once.
+ */
+export const useStoredRoutePlan = (id: number | null) =>
+  useQuery({
+    queryKey: queryKeys.routePlan(id ?? 0),
+    queryFn: ({ signal }) => api.get(`/api/route-plans/${id}`, RoutePlanView, { signal }),
+    enabled: id !== null,
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+
+/** A stored bunker plan by its calculation id (`?bunkerPlan=`): every option in rank order. */
+export const useBunkerPlan = (id: number | null) =>
+  useQuery({
+    queryKey: queryKeys.bunkerPlan(id ?? 0),
+    queryFn: ({ signal }) => api.get(`/api/bunker-plans/${id}`, BunkerPlanView, { signal }),
+    enabled: id !== null,
+    staleTime: Number.POSITIVE_INFINITY,
+  });
 
 /** `POST /api/route-plan`. Only ever `mutate`d from a Plan route button. */
 export function usePlanRoute() {

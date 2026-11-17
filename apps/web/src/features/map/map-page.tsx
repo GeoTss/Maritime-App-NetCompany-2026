@@ -2,9 +2,12 @@
  * The map screen: offline basemap with AIS traffic, the managed fleet, weather, hazards and port
  * queues; a panel for the selected fleet vessel or public ship; the route tray after a plan.
  *
- * Selection lives in the address (`?vessel=<id>` or `?mmsi=<mmsi>`) so a view can be shared.
- * Selecting never calls the network beyond GETs: `POST /api/route-plan` only runs from a Plan
- * route button, and a different selection discards the previous plan.
+ * Selection lives in the address (`?vessel=<id>` or `?mmsi=<mmsi>`) so a view can be shared, and
+ * so does a stored plan to draw (`?routePlan=<id>`, `?bunkerPlan=<id>`): an answer links to the
+ * exact calculation it cited, read with a GET, never planned again. Selecting never calls the
+ * network beyond GETs: `POST /api/route-plan` only runs from a Plan route button, which replaces a
+ * stored route plan, and a different selection discards the previous route plan. A bunker plan
+ * stays until its own Clear.
  */
 import { MapsIcon, Radar01Icon, ShipIcon } from "@hugeicons/core-free-icons";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -12,6 +15,7 @@ import { useSearchParams } from "react-router";
 import { type CommandGroupDef, useRegisterCommands } from "@/components/command-menu";
 import { useMediaQuery } from "@/lib/motion";
 import { useSourceStatus } from "@/lib/queries";
+import { BunkerPlanLegend } from "./bunker-plan-layer";
 import {
   DEFAULT_LAYERS,
   LAYER_LABEL,
@@ -22,22 +26,29 @@ import {
 } from "./layer-toggles";
 import {
   publicShips,
+  useBunkerPlan,
   useCongestion,
   useHazards,
   usePlanRoute,
   usePorts,
+  useStoredRoutePlan,
   useTraffic,
   useVessels,
   useVoyage,
   useWeather,
 } from "./map-data";
 import { type MapFocus, MapView } from "./map-view";
+import { PlanChip, planChipText } from "./plan-chip";
 import { RouteTray, TRAY_SNAPS } from "./route-tray";
 import { ShipPanel } from "./ship-panel";
 import { VesselPanel } from "./vessel-panel";
 
 const EMPTY: never[] = [];
 const PANEL_WIDTH_PX = 332;
+
+/** A calculation id from the address, or null when absent or not a whole number. */
+const idParam = (value: string | null): number | null =>
+  value && /^\d+$/.test(value) ? Number(value) : null;
 
 /** The element's rendered height, kept current (the layer switches wrap and grow). */
 function useElementHeight(el: HTMLElement | null): number {
@@ -71,9 +82,12 @@ export function MapPage() {
   const weather = useWeather(step);
   const planner = usePlanRoute();
 
-  const vesselParam = params.get("vessel");
-  const selectedVesselId = vesselParam && /^\d+$/.test(vesselParam) ? Number(vesselParam) : null;
+  const selectedVesselId = idParam(params.get("vessel"));
   const selectedMmsi = selectedVesselId === null ? params.get("mmsi") : null;
+  const routePlanId = idParam(params.get("routePlan"));
+  const bunkerPlanId = idParam(params.get("bunkerPlan"));
+  const storedRoute = useStoredRoutePlan(routePlanId);
+  const bunker = useBunkerPlan(bunkerPlanId);
 
   const vesselItems = vessels.data?.items ?? EMPTY;
   const trafficItems = useMemo(
@@ -85,7 +99,9 @@ export function MapPage() {
   const ship = trafficItems.find((s) => s.mmsi === selectedMmsi) ?? null;
   const voyage = useVoyage(vessel?.voyageId);
 
-  const plan = planner.data ?? null;
+  // A stored plan from the address, else the one just planned.
+  const plan = storedRoute.data ?? planner.data ?? null;
+  const bunkerPlan = bunker.data ?? null;
   const { reset: resetPlan } = planner;
   const subjectKey = vessel ? `v${vessel.id}` : ship ? `s${ship.mmsi}` : "";
   // biome-ignore lint/correctness/useExhaustiveDependencies: a plan belongs to the subject it was made for.
@@ -94,21 +110,76 @@ export function MapPage() {
     setSnap(TRAY_SNAPS[1]);
   }, [subjectKey, resetPlan]);
 
+  /** Edits the address in place (replace): the other parameters stay as they are. */
+  const editParams = useCallback(
+    (edit: (next: URLSearchParams) => void) =>
+      setParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          edit(next);
+          return next;
+        },
+        { replace: true },
+      ),
+    [setParams],
+  );
+  // A route plan belongs to the subject it was made for: another selection drops it.
+  const select = useCallback(
+    (key: "vessel" | "mmsi", value: string) =>
+      editParams((next) => {
+        if (next.get(key) !== value) next.delete("routePlan");
+        next.delete(key === "vessel" ? "mmsi" : "vessel");
+        next.set(key, value);
+      }),
+    [editParams],
+  );
   const selectVessel = useCallback(
     (id: number, fly?: { lat: number; lon: number }) => {
-      setParams({ vessel: String(id) }, { replace: true });
+      select("vessel", String(id));
       if (fly) setFocus({ ...fly, key: `v${id}-${Date.now()}` });
     },
-    [setParams],
+    [select],
   );
   const selectShip = useCallback(
     (mmsi: string, fly?: { lat: number; lon: number }) => {
-      setParams({ mmsi }, { replace: true });
+      select("mmsi", mmsi);
       if (fly) setFocus({ ...fly, key: `s${mmsi}-${Date.now()}` });
     },
-    [setParams],
+    [select],
   );
-  const clearSelection = useCallback(() => setParams({}, { replace: true }), [setParams]);
+  const clearSelection = useCallback(
+    () =>
+      editParams((next) => {
+        for (const key of ["vessel", "mmsi", "routePlan"]) next.delete(key);
+      }),
+    [editParams],
+  );
+  const clearPlan = useCallback(
+    (key: "routePlan" | "bunkerPlan") => editParams((next) => next.delete(key)),
+    [editParams],
+  );
+  /** Plans again (a POST): a new plan replaces the stored one the address was showing. */
+  const planAgain = (input: Parameters<typeof planner.mutate>[0]) => {
+    if (routePlanId !== null) clearPlan("routePlan");
+    planner.mutate(input);
+  };
+  const closeTray = () => {
+    if (routePlanId !== null) clearPlan("routePlan");
+    planner.reset();
+  };
+
+  // While the route tray is open on a wide screen the panel folds to its header row, so the plan
+  // has the map; Expand opens it again for that plan.
+  const [expandedFor, setExpandedFor] = useState<number | null>(null);
+  const planKey = plan?.calculationId ?? null;
+  const fold =
+    wide && plan
+      ? {
+          folded: expandedFor !== planKey,
+          onFoldedChange: (folded: boolean) => setExpandedFor(folded ? null : planKey),
+        }
+      : undefined;
+  const panelFolded = fold?.folded ?? false;
 
   const toggleLayer = useCallback(
     (key: LayerKey, on: boolean) => setLayers((l) => ({ ...l, [key]: on })),
@@ -192,7 +263,33 @@ export function MapPage() {
   const panelClass = wide
     ? "pointer-events-auto absolute top-2 right-2 z-10 w-[332px] max-w-[calc(100%-1rem)]"
     : "pointer-events-auto absolute inset-x-2 bottom-2 z-10 max-h-[55%]";
-  const panelStyle = wide ? { bottom: `calc(${trayFraction * 100}% + 8px)` } : undefined;
+  // Folded, the panel is its header row and needs no height of its own.
+  const panelStyle =
+    wide && !panelFolded ? { bottom: `calc(${trayFraction * 100}% + 8px)` } : undefined;
+  // The switches and plan chips stop short of the panel on a wide screen, wrapping instead.
+  const topRowStyle =
+    wide && showPanel ? { maxWidth: `calc(100% - ${PANEL_WIDTH_PX + 8}px)` } : undefined;
+
+  const track = plan ? null : (voyage.data?.plannedTrack ?? null);
+  const chips = [
+    routePlanId !== null
+      ? {
+          key: "routePlan" as const,
+          ...planChipText("route", routePlanId, storedRoute, `Showing route plan ${routePlanId}`),
+        }
+      : null,
+    bunkerPlanId !== null
+      ? {
+          key: "bunkerPlan" as const,
+          ...planChipText(
+            "bunker",
+            bunkerPlanId,
+            bunker,
+            `Showing bunker plan ${bunkerPlanId} · ${bunkerPlan?.options.length ?? 0} option${bunkerPlan?.options.length === 1 ? "" : "s"}`,
+          ),
+        }
+      : null,
+  ].filter((c) => c !== null);
 
   return (
     <div ref={setContainer} className="relative h-full min-h-[24rem] overflow-hidden bg-ink-950">
@@ -206,13 +303,14 @@ export function MapPage() {
         ports={portItems}
         weather={weather.data}
         plan={plan}
-        track={plan ? null : (voyage.data?.plannedTrack ?? null)}
+        bunkerPlan={bunkerPlan}
+        track={track}
         selectedVesselId={selectedVesselId}
         selectedMmsi={selectedMmsi}
         focus={focus}
         inset={{
           bottom: Math.max(trayFraction * containerHeight, phonePanel),
-          right: wide && showPanel ? PANEL_WIDTH_PX : 0,
+          right: wide && showPanel && !panelFolded ? PANEL_WIDTH_PX : 0,
           top: togglesHeight + 8,
         }}
         ready={(vessels.isSuccess || vessels.isError) && (hazards.isSuccess || hazards.isError)}
@@ -222,17 +320,35 @@ export function MapPage() {
       />
 
       <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-start gap-1.5 p-2">
-        <LayerToggles
+        <div
           ref={setToggles}
-          className="pointer-events-auto"
-          layers={layers}
-          onToggle={toggleLayer}
-          trafficCount={traffic.data ? trafficItems.length : null}
-          weatherStatus={weatherStatus}
-          weather={weather.data}
-          step={step}
-          onStepCommit={setStep}
-        />
+          className="flex max-w-full flex-wrap items-start gap-1.5"
+          style={topRowStyle}
+        >
+          <LayerToggles
+            className="pointer-events-auto"
+            layers={layers}
+            onToggle={toggleLayer}
+            trafficCount={traffic.data ? trafficItems.length : null}
+            weatherStatus={weatherStatus}
+            weather={weather.data}
+            step={step}
+            onStepCommit={setStep}
+          />
+          {chips.length > 0 ? (
+            <div className="pointer-events-auto flex max-w-full flex-col items-start gap-1.5">
+              {chips.map((chip) => (
+                <PlanChip
+                  key={chip.key}
+                  label={chip.label}
+                  failed={chip.failed}
+                  onClear={() => clearPlan(chip.key)}
+                />
+              ))}
+              {bunkerPlan ? <BunkerPlanLegend track={track !== null && track.length >= 2} /> : null}
+            </div>
+          ) : null}
+        </div>
         {failed.length > 0 ? (
           <p
             role="alert"
@@ -251,9 +367,10 @@ export function MapPage() {
               plan={plan}
               planning={planner.isPending}
               planError={planner.error}
-              onPlan={() => planner.mutate({ vessel: vessel.name })}
+              onPlan={() => planAgain({ vessel: vessel.name })}
               onClose={clearSelection}
               className="max-h-full"
+              fold={fold}
             />
           ) : ship ? (
             <ShipPanel
@@ -262,9 +379,10 @@ export function MapPage() {
               plan={plan}
               planning={planner.isPending}
               planError={planner.error}
-              onPlan={(unlocode) => planner.mutate({ vessel: ship.mmsi, destination: unlocode })}
+              onPlan={(unlocode) => planAgain({ vessel: ship.mmsi, destination: unlocode })}
               onClose={clearSelection}
               className="max-h-full"
+              fold={fold}
             />
           ) : null}
         </div>
@@ -284,7 +402,7 @@ export function MapPage() {
           container={container}
           snap={snap}
           onSnapChange={setSnap}
-          onClose={() => planner.reset()}
+          onClose={closeTray}
         />
       ) : null}
     </div>

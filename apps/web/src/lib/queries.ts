@@ -34,6 +34,8 @@ export const queryKeys = {
   hazards: ["hazards"] as const,
   congestion: ["congestion"] as const,
   weather: (step: number) => ["weather", step] as const,
+  routePlan: (id: number) => ["route-plans", id] as const,
+  bunkerPlan: (id: number) => ["bunker-plans", id] as const,
   inbox: ["inbox"] as const,
   inboxItem: (id: number) => ["inbox", id] as const,
   review: ["review"] as const,
