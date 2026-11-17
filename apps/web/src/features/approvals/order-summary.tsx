@@ -1,8 +1,8 @@
 /**
  * What a proposal commits to, as four cited readouts. A purchase order reads its bunker plan's own
  * facts for the proposed option: grade and quantity, headline price, total delivered cost and the
- * delay to the voyage. A voyage instruction reads its route by name and the facts of that route by
- * output path: recommended speed, ETA and total voyage cost. Every number is the API's fact as a
+ * delay to the voyage. A voyage instruction reads its route by name and the facts of that one route
+ * option by output path: recommended speed, ETA and total voyage cost. Every number is the API's fact as a
  * chip; the UI adds none of its own, and a fact that is missing reads "not stated".
  */
 import type { BunkerOptionView, Fact, RecommendationView } from "@pharos/shared";
@@ -19,42 +19,65 @@ export function proposedOption(rec: RecommendationView): BunkerOptionView | null
 export const rowFact = (option: BunkerOptionView | null, name: string): Fact | null =>
   option?.rows.find((r) => r.name === name)?.fact ?? null;
 
-/** A proposal's calculation fact by the end of its output path, e.g. ".speedKn". */
-export function factAtPath(facts: Fact[], suffix: string): Fact | null {
-  return (
-    facts.find(
-      (f) => f.provenance.source === "calculation" && f.provenance.path.endsWith(suffix),
-    ) ?? null
-  );
+const OPTION_PATH = /^options\[(\d+)\]\.([A-Za-z]+)$/;
+
+/**
+ * Reads a proposal's calculation facts of ONE option, by field (`options[i].<field>`). The option
+ * is the single index under which the key fields are cited. If they are cited under more than one
+ * option (another route's total beside this one's), which one the proposal is cannot be told from
+ * the facts, so every field reads null ("not stated") rather than a guess. Facts of other fields
+ * under other options do not matter: only the key fields decide.
+ */
+export function oneOptionFacts(facts: Fact[], keys: readonly string[]) {
+  const byPath = new Map<string, Fact>();
+  const indices = new Set<string>();
+  for (const f of facts) {
+    if (f.provenance.source !== "calculation") continue;
+    const [, index, field] = OPTION_PATH.exec(f.provenance.path) ?? [];
+    if (index === undefined || field === undefined) continue;
+    if (!byPath.has(f.provenance.path)) byPath.set(f.provenance.path, f);
+    if (keys.includes(field)) indices.add(index);
+  }
+  const index = indices.size === 1 ? ([...indices][0] ?? null) : null;
+  return (field: string): Fact | null =>
+    index === null ? null : (byPath.get(`options[${index}].${field}`) ?? null);
 }
 
 /**
  * The facts a purchase order is summarised by: the plan option's when the plan is readable, else
- * the proposal's own facts by output path.
+ * the proposal's own facts of one option (see `oneOptionFacts`).
  */
 export function orderFacts(rec: RecommendationView) {
   const option = proposedOption(rec);
-  const at = (suffix: string) => factAtPath(rec.facts, suffix);
+  const at = oneOptionFacts(rec.facts, [
+    "qtyMt",
+    "headlinePriceUsdPerMt",
+    "totalCostUsd",
+    "delayHours",
+  ]);
   return {
     grade: rec.bunkerPlan?.grade ?? null,
-    quantity: rowFact(option, "quantity") ?? at(".qtyMt"),
-    headlinePrice: option?.headlinePrice ?? at(".headlinePriceUsdPerMt"),
-    totalCost: option?.totalCost ?? at(".totalCostUsd"),
-    delay: option?.delay ?? at(".delayHours"),
-    etsCost: rowFact(option, "EU ETS cost") ?? at(".etsCostUsd"),
-    fuelEuCost: rowFact(option, "FuelEU exposure") ?? at(".fuelEuCostUsd"),
+    quantity: rowFact(option, "quantity") ?? at("qtyMt"),
+    headlinePrice: option?.headlinePrice ?? at("headlinePriceUsdPerMt"),
+    totalCost: option?.totalCost ?? at("totalCostUsd"),
+    delay: option?.delay ?? at("delayHours"),
+    etsCost: rowFact(option, "EU ETS cost") ?? at("etsCostUsd"),
+    fuelEuCost: rowFact(option, "FuelEU exposure") ?? at("fuelEuCostUsd"),
   };
 }
 
-/** The facts a voyage instruction is summarised by, from its route's outputs. */
+/**
+ * The facts a voyage instruction is summarised by: speed, ETA and total voyage cost of one route
+ * option, and that option's EU ETS and FuelEU costs.
+ */
 export function instructionFacts(rec: RecommendationView) {
-  const at = (suffix: string) => factAtPath(rec.facts, suffix);
+  const at = oneOptionFacts(rec.facts, ["speedKn", "eta", "totalCostUsd"]);
   return {
-    speed: at(".speedKn"),
-    eta: at(".eta"),
-    totalCost: at(".totalCostUsd"),
-    etsCost: at(".etsCostUsd"),
-    fuelEuCost: at(".fuelEuCostUsd"),
+    speed: at("speedKn"),
+    eta: at("eta"),
+    totalCost: at("totalCostUsd"),
+    etsCost: at("etsCostUsd"),
+    fuelEuCost: at("fuelEuCostUsd"),
   };
 }
 

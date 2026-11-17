@@ -506,6 +506,89 @@ describe("ApprovalsPage: the decision", () => {
     expect(screen.queryByRole("img", { name: /headline price/ })).toBeNull();
   });
 
+  it("an instruction's readouts come from one route option, never a mix", async () => {
+    // Another route's total cited first: which option is the instruction's cannot be told.
+    const vi = viRec(2);
+    items = [
+      viRec(2, {
+        facts: [
+          routeFact(
+            "options[0].totalCostUsd",
+            "MV Aegean Pioneer, route A: total voyage cost (fuel, EU ETS, FuelEU, vessel time)",
+            398765.4,
+            "USD",
+          ),
+          ...vi.facts,
+        ],
+      }),
+    ];
+    renderPage();
+    const order = await screen.findByRole("region", { name: "The instruction" });
+    const readouts = within(order).getAllByRole("definition");
+    expect(readouts.slice(1).map((d) => d.textContent)).toEqual([
+      "not stated",
+      "not stated",
+      "not stated",
+    ]);
+    expect(chipIds(order)).not.toContain("f_plan_route_speed_5_options.0.totalCostUsd");
+    // The queue row shows no figure it cannot place either.
+    const [row] = within(queue()).getAllByRole("listitem");
+    expect(chipIds(row as HTMLElement)).toEqual([]);
+  });
+
+  it("another route's other facts leave the instruction's readouts in place", async () => {
+    const vi = viRec(2);
+    items = [
+      viRec(2, {
+        facts: [
+          routeFact("options[0].distanceNm", "MV Aegean Pioneer, route A: distance", 2390, "nm"),
+          routeFact(
+            "options[0].etsCostUsd",
+            "MV Aegean Pioneer, route A: EU ETS cost",
+            9900,
+            "USD",
+          ),
+          ...vi.facts,
+        ],
+      }),
+    ];
+    renderPage();
+    const order = await screen.findByRole("region", { name: "The instruction" });
+    expect(
+      within(order)
+        .getAllByRole("definition")
+        .slice(1)
+        .map((d) => chipIds(d)),
+    ).toEqual([
+      ["f_plan_route_speed_5_options.1.speedKn"],
+      ["f_plan_route_speed_5_options.1.eta"],
+      ["f_plan_route_speed_5_options.1.totalCostUsd"],
+    ]);
+    // The footnote's EU ETS is the same option's, not route A's cited first.
+    expect(chipIds(order)).toContain("f_plan_route_speed_5_options.1.etsCostUsd");
+    expect(chipIds(order)).not.toContain("f_plan_route_speed_5_options.0.etsCostUsd");
+  });
+
+  it("an order without a readable plan reads its facts from one option only", async () => {
+    const f = (i: number, field: string, value: number, unit: string) =>
+      planFact(`options[${i}].${field}`, `option ${i}: ${field}`, value, unit);
+    items = [
+      rec(1, {
+        bunkerPlan: null,
+        facts: [
+          f(1, "totalCostUsd", 239253.28, "USD"),
+          f(0, "qtyMt", 300, "mt"),
+          f(0, "headlinePriceUsdPerMt", 738, "USD/mt"),
+          f(0, "totalCostUsd", 233942.91, "USD"),
+        ],
+      }),
+    ];
+    renderPage();
+    const order = await screen.findByRole("region", { name: "The order" });
+    expect(chipIds(order)).toEqual([]);
+    expect(order.textContent).toMatch(/not stated/);
+  });
+
   it("draws headline price against total cost for every option", async () => {
     items = [poRec(1)];
     renderPage();
@@ -582,6 +665,43 @@ describe("ApprovalsPage: the decision", () => {
     expect(chart.querySelectorAll("line")).toHaveLength(1);
     expect(screen.queryByText(/less than the runner-up/)).toBeNull();
     expect(document.querySelector('[data-fact-id$="marginVsRunnerUpUsd"]')).toBeNull();
+  });
+
+  it("an order for another option than the plan's best claims no why and no margin", async () => {
+    // propose_action accepts any feasible option: here the runner-up, Nordwind.
+    items = [
+      poRec(1, {
+        optionId: "ESALG-nordwind",
+        optionLabel: "Nordwind Bunker Services at Algeciras",
+        summary: "Order LSMGO for the AP-2611 stem from Nordwind Bunker Services at Algeciras.",
+        expectedSaving: null,
+        expectedSavingUsd: null,
+      }),
+    ];
+    renderPage();
+    const section = await screen.findByRole("region", { name: "The options compared" });
+    expect(screen.queryByRole("heading", { name: /^Why / })).toBeNull();
+    expect(section.textContent).not.toMatch(/less than the runner-up/);
+    expect(section.querySelector('[data-fact-id$="marginVsRunnerUpUsd"]')).toBeNull();
+    // The chart still shows every option, Kestrel still marked as the plan's recommendation.
+    const chart = within(section).getByRole("img", { name: /Ranked by headline price/ });
+    expect(chart.getAttribute("aria-label")).toContain(
+      "Kestrel Marine Fuels at Marsaxlokk: 2nd by headline price, 1st by total delivered cost, recommended",
+    );
+    // The order itself is Nordwind's.
+    const order = screen.getByRole("region", { name: "The order" });
+    expect(chipIds(order)).toContain("f_plan_bunkering_1_options.1.totalCostUsd");
+  });
+
+  it("a plan whose view lacks the best option claims no why and no margin", async () => {
+    // The best option's port is unknown, so the view leaves it out; the margin is still served.
+    const plan = bunkerPlan();
+    items = [poRec(1, { bunkerPlan: { ...plan, options: plan.options.slice(1) } })];
+    renderPage();
+    const section = await screen.findByRole("region", { name: "The options compared" });
+    expect(section.textContent).not.toMatch(/less than the runner-up/);
+    expect(section.querySelector('[data-fact-id$="marginVsRunnerUpUsd"]')).toBeNull();
+    expect(within(section).getByRole("img").querySelectorAll("line")).toHaveLength(2);
   });
 
   it("groups the facts behind it by option with short names", async () => {

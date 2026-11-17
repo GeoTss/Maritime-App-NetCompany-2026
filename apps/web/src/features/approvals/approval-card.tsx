@@ -247,14 +247,18 @@ function DetailMeta({ rec }: { rec: RecommendationView }) {
 /** "Why Kestrel Marine Fuels, not the cheapest price": the plan's options and the runner-up margin. */
 function WhyThisOption({ rec, plan }: { rec: RecommendationView; plan: BunkerPlanView }) {
   const headingId = useId();
-  const chosen = proposedOption(rec) ?? plan.options.find((o) => o.best) ?? null;
+  // The why and the margin are claims about the plan's best option: they are made only when the
+  // order is for that option. An order for another feasible option (propose_action allows it), or
+  // a view that lacks the best option, gets the comparison alone.
+  const chosen = proposedOption(rec);
+  const best = chosen?.best ? chosen : null;
   const cheapest = byHeadlinePrice(plan.options)[0] ?? null;
-  const heading = !chosen
+  const heading = !best
     ? "The options compared"
-    : cheapest && cheapest.optionId !== chosen.optionId
-      ? `Why ${chosen.supplier}, not the cheapest price`
-      : `Why ${chosen.supplier}`;
-  const margin = plan.marginVsRunnerUp;
+    : cheapest && cheapest.optionId !== best.optionId
+      ? `Why ${best.supplier}, not the cheapest price`
+      : `Why ${best.supplier}`;
+  const margin = best ? plan.marginVsRunnerUp : null;
   // The runner-up is the option whose total the margin subtracts from (its first operand).
   const runnerUpTotal =
     margin?.provenance.source === "derived" ? margin.provenance.operands[0] : undefined;
