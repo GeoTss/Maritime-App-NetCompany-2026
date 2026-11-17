@@ -38,6 +38,7 @@ import { proposeAction } from "../ai/tools/propose-action.js";
 import { planRouteSpeedFacts } from "../ai/tools/route-speed.js";
 import { getVesselStatus } from "../ai/tools/vessel-status.js";
 import { createApp } from "../app.js";
+import { proposeFromPlan } from "../approvals/propose.js";
 import { createClock } from "../clock.js";
 import { createErpClient } from "../executor/erp-client.js";
 import { approveRecommendation } from "../executor/execute.js";
@@ -757,6 +758,22 @@ describe.skipIf(!sql)("createDbSource (Postgres)", () => {
       } finally {
         await db`delete from ais_traffic where mmsi = '900000005'`;
       }
+    });
+
+    it("shows a person's purchase order from a route plan with the plan's facts", async () => {
+      const route = await planRouteSpeed(deps, { vessel: "Aegean Pioneer" });
+      const stop = route.response.result.plan?.optionId;
+      if (!stop) throw new Error("the demo route plan recommends a stop");
+      const { recommendationId } = await proposeFromPlan(deps, {
+        type: "purchase_order",
+        calculationId: route.response.calculationId,
+        optionId: stop,
+      });
+      const view = (await source.listRecommendations()).find((r) => r.id === recommendationId);
+      expect(view).toMatchObject({ type: "purchase_order", status: "pending", optionId: stop });
+      expect(view?.optionLabel).toContain("Marsaxlokk");
+      expect(view?.facts.length).toBeGreaterThan(0);
+      expect(view?.gatePassed).toBeNull();
     });
 
     it("serves neither kind of plan under the other's path", async () => {

@@ -256,6 +256,28 @@ export const RecommendationDependency = z
   .strict();
 export type RecommendationDependency = z.infer<typeof RecommendationDependency>;
 
+/**
+ * `POST /api/recommendations`: a person proposes an action from a stored plan without the
+ * assistant (same checks as `propose_action`). The proposal is pending until approved.
+ */
+export const ProposeBody = z
+  .object({
+    type: RecommendationType,
+    calculationId: Id,
+    optionId: z.string().min(1),
+  })
+  .strict();
+export type ProposeBody = z.infer<typeof ProposeBody>;
+
+export const ProposeResult = z
+  .object({
+    recommendationId: Id,
+    /** False when the same proposal was already pending (it is returned, not duplicated). */
+    created: z.boolean(),
+  })
+  .strict();
+export type ProposeResult = z.infer<typeof ProposeResult>;
+
 export const RecommendationView = z.object({
   id: Id,
   type: RecommendationType,

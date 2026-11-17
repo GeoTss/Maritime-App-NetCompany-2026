@@ -62,7 +62,7 @@ function refuseStop(stop: RouteSpeedResult["stopPlans"][number]): string | null 
 }
 
 /** The option the proposal points at, checked against the stored calculation, and its saving. */
-function checkedOption(
+export function checkedOption(
   action: ProposedAction,
   kind: SourceKind,
   outputs: unknown,
@@ -124,10 +124,66 @@ function checkedOption(
   };
 }
 
+/** What a proposal names: its type, the stored plan and the option in it. */
+export type ProposalTarget = Pick<ProposedAction, "type" | "calculationId" | "optionId">;
+
+/**
+ * The stored calculation a proposal comes from, checked: it exists, is of a kind the proposal type
+ * is proposed from, and (for a voyage instruction) belongs to a voyage of ours.
+ */
+export async function proposalSource(
+  sql: ToolContext["sql"],
+  action: ProposalTarget,
+): Promise<{ kind: SourceKind; outputs: unknown }> {
+  const sources = SOURCES[action.type];
+  const [calc] = await sql<{ kind: string; outputs: unknown; voyage_id: number | null }[]>`
+    select kind, outputs, voyage_id from calculations where id = ${action.calculationId}`;
+  if (!calc) throw new Error(`Calculation ${action.calculationId} does not exist.`);
+  const kind = sources.find((k) => k === calc.kind);
+  if (!kind) {
+    throw new Error(
+      `A ${action.type} is proposed from a ${sourceList(sources)} calculation; ` +
+        `calculation ${action.calculationId} is a ${calc.kind}.`,
+    );
+  }
+  // A route plan for a ship seen on AIS has no voyage of ours: never instruct another ship.
+  if (action.type === "voyage_instruction" && calc.voyage_id === null) {
+    throw new Error(OWN_VESSELS_ONLY);
+  }
+  return { kind, outputs: calc.outputs };
+}
+
+/**
+ * The pending recommendation for the target: the existing pending one, or a new row. Never a
+ * second pending row for the same plan, option and type.
+ */
+export async function insertPending(
+  sql: ToolContext["sql"],
+  now: Date,
+  action: ProposalTarget,
+  factRefs: string[],
+  expectedSavingUsd: number | null,
+): Promise<{ id: Id; created: boolean }> {
+  const [existing] = await sql<{ id: number }[]>`
+    select id from recommendations
+    where calculation_id = ${action.calculationId} and option_id = ${action.optionId}
+      and type = ${action.type} and status = 'pending'
+    order by id limit 1`;
+  if (existing) return { id: existing.id, created: false };
+  const [row] = await sql<{ id: number }[]>`
+    insert into recommendations (type, calculation_id, option_id, message_id, fact_refs,
+                                 expected_saving_usd, status, decided_by, decided_at, created_at)
+    values (${action.type}, ${action.calculationId}, ${action.optionId}, null,
+            ${json(factRefs)}::jsonb, ${expectedSavingUsd}, 'pending', null, null,
+            ${now.toISOString()}::timestamptz)
+    returning id`;
+  if (!row) throw new Error("recommendations insert returned no row");
+  return { id: row.id, created: true };
+}
+
 export async function proposeAction(ctx: ToolContext, input: unknown): Promise<ToolResult> {
   return runTool(ctx, TOOL, input, async () => {
     const action = ProposedAction.parse(input);
-    const sources = SOURCES[action.type];
     const unknown = action.factRefs.filter((id) => !ctx.ledger.has(id));
     if (unknown.length > 0) {
       throw new Error(
@@ -135,20 +191,7 @@ export async function proposeAction(ctx: ToolContext, input: unknown): Promise<T
       );
     }
 
-    const [calc] = await ctx.sql<{ kind: string; outputs: unknown; voyage_id: number | null }[]>`
-      select kind, outputs, voyage_id from calculations where id = ${action.calculationId}`;
-    if (!calc) throw new Error(`Calculation ${action.calculationId} does not exist.`);
-    const kind = sources.find((k) => k === calc.kind);
-    if (!kind) {
-      throw new Error(
-        `A ${action.type} is proposed from a ${sourceList(sources)} calculation; ` +
-          `calculation ${action.calculationId} is a ${calc.kind}.`,
-      );
-    }
-    // A route plan for a ship seen on AIS has no voyage of ours: never instruct another ship.
-    if (action.type === "voyage_instruction" && calc.voyage_id === null) {
-      throw new Error(OWN_VESSELS_ONLY);
-    }
+    const { kind, outputs } = await proposalSource(ctx.sql, action);
     // A fact of the calculation: one of its outputs, or a stored input read from its own row.
     const ofCalculation = (id: string) => {
       const p = ctx.ledger.get(id)?.provenance;
@@ -168,25 +211,14 @@ export async function proposeAction(ctx: ToolContext, input: unknown): Promise<T
           "cite only facts of the plan you propose from.",
       );
     }
-    const { expectedSavingUsd } = checkedOption(action, kind, calc.outputs);
-
-    const [existing] = await ctx.sql<{ id: number }[]>`
-      select id from recommendations
-      where calculation_id = ${action.calculationId} and option_id = ${action.optionId}
-        and type = ${action.type} and status = 'pending'
-      order by id limit 1`;
-    let id: Id | undefined = existing?.id;
-    if (id === undefined) {
-      const [row] = await ctx.sql<{ id: number }[]>`
-        insert into recommendations (type, calculation_id, option_id, message_id, fact_refs,
-                                     expected_saving_usd, status, decided_by, decided_at, created_at)
-        values (${action.type}, ${action.calculationId}, ${action.optionId}, null,
-                ${json(action.factRefs)}::jsonb, ${expectedSavingUsd}, 'pending', null, null,
-                ${ctx.now().toISOString()}::timestamptz)
-        returning id`;
-      if (!row) throw new Error("recommendations insert returned no row");
-      id = row.id;
-    }
+    const { expectedSavingUsd } = checkedOption(action, kind, outputs);
+    const { id } = await insertPending(
+      ctx.sql,
+      ctx.now(),
+      action,
+      action.factRefs,
+      expectedSavingUsd,
+    );
     if (!ctx.recommendationIds.includes(id)) ctx.recommendationIds.push(id);
 
     const facts = [
