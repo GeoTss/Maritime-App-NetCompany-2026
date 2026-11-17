@@ -176,6 +176,7 @@ const rec = (id: number, over: Record<string, unknown> = {}) => ({
   order: null,
   instruction: null,
   bunkerPlan: null,
+  dependsOn: null,
   ...over,
 });
 
@@ -1031,7 +1032,13 @@ describe("ApprovalsPage: deciding", () => {
       rec(2, {
         type: "voyage_instruction",
         status: "executed",
-        instruction: { instructionId: 3, candidateId: "via-suez-12.5", speedKn: 12.5, eta: NOW },
+        instruction: {
+          instructionId: 3,
+          candidateId: "via-suez-12.5",
+          speedKn: 12.5,
+          eta: NOW,
+          stop: null,
+        },
       }),
     ];
     renderPage();

@@ -7,7 +7,7 @@
 import { imoWithCheckDigit } from "@pharos/domain";
 import type { ConsumptionCurve, Currency, FuelGrade, GradeAmounts, ShipType } from "@pharos/shared";
 
-export const SEED_VERSION = "phase6-task2-v1";
+export const SEED_VERSION = "joint-plan-v1";
 
 export interface ScenarioPort {
   unlocode: string;
@@ -111,8 +111,12 @@ export const VESSELS: readonly ScenarioVessel[] = [
       cargoMt: 54_000,
       ballastMt: 0,
     },
-    // Tuned: LSMGO 230 -> 275 so the ECA legs are covered (min ROB >= 0) but not with the 2-day margin.
-    currentRobMt: { LSMGO: 275, VLSFO: 620, HSFO: 0 },
+    // Tuned for the joint route-and-bunker planner (apps/api/src/routing/demo-world.test.ts, R1-R6):
+    // LSMGO 275 -> 203, the middle of the passing run 194-211 t. R1 the current plan falls below its
+    // LSMGO margin; R2 no route keeps it at any speed that meets the berth window; R3 the stop at
+    // Marsaxlokk with Kestrel is recommended; R4 a second quote is feasible; R5 the bunker answer is
+    // unchanged; R6 Kestrel's 300 t fits the tank.
+    currentRobMt: { LSMGO: 203, VLSFO: 620, HSFO: 0 },
   },
   {
     name: "MV Thessaly Star",
