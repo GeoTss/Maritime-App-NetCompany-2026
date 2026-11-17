@@ -1,6 +1,10 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
-import { MemoryRouter } from "react-router";
-import { afterEach, describe, expect, it } from "vitest";
+import type { RoutePlanView } from "@pharos/shared";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router";
+import { toast } from "sonner";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createQueryClient } from "@/lib/queries";
 import { makeFuelPlan, makePlan, STOP_NAMES } from "./map-fixtures";
 import { FuelBlindBest, PlanSummary } from "./plan-summary";
 
@@ -8,10 +12,12 @@ afterEach(cleanup);
 
 const renderSummary = (plan = makeFuelPlan(), names = STOP_NAMES) =>
   render(
-    <MemoryRouter>
-      <PlanSummary plan={plan} names={names} />
-      <FuelBlindBest plan={plan} />
-    </MemoryRouter>,
+    <QueryClientProvider client={createQueryClient()}>
+      <MemoryRouter>
+        <PlanSummary plan={plan} names={names} />
+        <FuelBlindBest plan={plan} />
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 
 const chipIds = (el: Element) =>
@@ -99,5 +105,173 @@ describe("PlanSummary", () => {
   it("renders nothing for a ship seen on AIS", () => {
     const { container } = renderSummary(makePlan());
     expect(container.textContent).toBe("");
+  });
+});
+
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+
+/** Where the router is, so a toast's action can be followed. */
+function Where() {
+  const at = useLocation();
+  return <output data-testid="where">{at.pathname + at.search}</output>;
+}
+
+describe("PlanSummary: proposing from the plan", () => {
+  let posts: { path: string; body: unknown; type: string | null }[];
+  let reply: (body: { type: string }) => Response | Promise<Response>;
+
+  beforeEach(() => {
+    posts = [];
+    reply = () => json({ recommendationId: 7, created: true });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string, init?: RequestInit) => {
+        if ((init?.method ?? "GET") !== "POST") return json({ error: "not_found" }, 404);
+        const body = JSON.parse(String(init?.body));
+        posts.push({
+          path: String(input),
+          body,
+          type: new Headers(init?.headers).get("content-type"),
+        });
+        return reply(body);
+      }),
+    );
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  const renderTray = (plan: RoutePlanView = makeFuelPlan()) =>
+    render(
+      <QueryClientProvider client={createQueryClient()}>
+        <MemoryRouter initialEntries={["/?vessel=1"]}>
+          <Routes>
+            <Route path="*" element={<PlanSummary plan={plan} names={STOP_NAMES} />} />
+          </Routes>
+          <Where />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+  const orderButton = () => screen.queryByRole("button", { name: "Propose purchase order" });
+  const instructionButton = () =>
+    screen.getByRole("button", { name: "Propose voyage instruction" });
+
+  /** A fleet vessel's plan that sails route C without a stop. */
+  const routeOnly = () => {
+    const plan = makeFuelPlan();
+    const rec = plan.result.plan;
+    if (!rec) throw new Error("the fixture has a recommended plan");
+    return {
+      ...plan,
+      result: { ...plan.result, plan: { ...rec, kind: "route" as const, optionId: "C" } },
+    };
+  };
+
+  it("a stop plan proposes the stop's purchase order and the voyage instruction", async () => {
+    const plan = makeFuelPlan();
+    renderTray(plan);
+    fireEvent.click(orderButton() as HTMLElement);
+    await waitFor(() => expect(posts).toHaveLength(1));
+    fireEvent.click(instructionButton());
+    await waitFor(() => expect(posts).toHaveLength(2));
+    expect(posts).toEqual([
+      {
+        path: "/api/recommendations",
+        body: {
+          type: "purchase_order",
+          calculationId: plan.calculationId,
+          optionId: "MTMLA-kestrel",
+        },
+        type: "application/json",
+      },
+      {
+        path: "/api/recommendations",
+        body: {
+          type: "voyage_instruction",
+          calculationId: plan.calculationId,
+          optionId: "MTMLA-kestrel",
+        },
+        type: "application/json",
+      },
+    ]);
+  });
+
+  it("a plan without a stop proposes the voyage instruction alone", async () => {
+    const plan = routeOnly();
+    renderTray(plan);
+    expect(screen.getByTestId("plan-title").textContent).toMatch(/^Route C/);
+    expect(orderButton()).toBeNull();
+    fireEvent.click(instructionButton());
+    await waitFor(() =>
+      expect(posts.map((p) => p.body)).toEqual([
+        { type: "voyage_instruction", calculationId: plan.calculationId, optionId: "C" },
+      ]),
+    );
+  });
+
+  it("proposes nothing on render, and offers nothing without a feasible plan", () => {
+    renderTray();
+    expect(posts).toEqual([]);
+    cleanup();
+    renderTray(makeFuelPlan({ infeasible: true }));
+    expect(screen.queryByTestId("plan-propose")).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Propose/ })).toBeNull();
+  });
+
+  it("the toast names the proposal and its action opens it on Approvals", async () => {
+    const success = vi.spyOn(toast, "success");
+    renderTray();
+    fireEvent.click(orderButton() as HTMLElement);
+    await waitFor(() => expect(success).toHaveBeenCalledTimes(1));
+    const [title, options] = success.mock.calls[0] as [
+      string,
+      { description: string; action: { label: string; onClick: () => void } },
+    ];
+    expect(title).toBe("Proposal 7 is waiting for your decision");
+    expect(options.description).toBe("Purchase order: nothing is ordered until you approve it.");
+    expect(options.action.label).toBe("Review and decide");
+    act(() => options.action.onClick());
+    expect(screen.getByTestId("where").textContent).toBe("/approvals?recommendation=7");
+  });
+
+  it("says when the same proposal was already waiting", async () => {
+    const success = vi.spyOn(toast, "success");
+    reply = () => json({ recommendationId: 4, created: false });
+    renderTray();
+    fireEvent.click(instructionButton());
+    await waitFor(() =>
+      expect(success).toHaveBeenCalledWith(
+        "Proposal 4 was already waiting for your decision",
+        expect.objectContaining({
+          description: "Voyage instruction: nothing is sent until you approve it.",
+        }),
+      ),
+    );
+  });
+
+  it("a refusal shows the API's reason in the toast", async () => {
+    const error = vi.spyOn(toast, "error");
+    const reason = "Kestrel Marine Fuels at Marsaxlokk is not a feasible stop in this plan.";
+    reply = () => json({ error: "not_proposable", message: reason }, 409);
+    renderTray();
+    fireEvent.click(orderButton() as HTMLElement);
+    await waitFor(() =>
+      expect(error).toHaveBeenCalledWith("The purchase order was not proposed", {
+        description: reason,
+      }),
+    );
+  });
+
+  it("each button waits while its own request runs", async () => {
+    let release: (r: Response) => void = () => {};
+    reply = () => new Promise<Response>((resolve) => (release = resolve));
+    renderTray();
+    fireEvent.click(orderButton() as HTMLElement);
+    await waitFor(() => expect((orderButton() as HTMLButtonElement).disabled).toBe(true));
+    expect((instructionButton() as HTMLButtonElement).disabled).toBe(false);
+    await act(async () => release(json({ recommendationId: 7, created: true })));
+    await waitFor(() => expect((orderButton() as HTMLButtonElement).disabled).toBe(false));
   });
 });

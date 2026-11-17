@@ -4,13 +4,16 @@
  * in `?recommendation=<id>` (ruling U6), the assistant's deep link: by default the first awaiting
  * proposal, else the newest decided one. A link to a proposal that is not listed says so.
  *
- * Approve and Reject are the only actions here and each asks first. A decision is one POST at a
+ * Approve and Reject are the only decisions here and each asks first. A decision is one POST at a
  * time; deciding pins the selection, so the outcome stays in view. If the proposal was already
  * decided (409) the detail shows the status the API now holds, read from a refetch, never guessed.
+ * An instruction that waits for a purchase order nobody has proposed (or whose order was
+ * rejected) can propose it: the order joins the queue pending and is selected, and nothing is
+ * ordered until it is approved. A refusal (409) says why in a toast.
  * Below 768 px of canvas the queue stacks above the decision.
  */
 import { CheckListIcon } from "@hugeicons/core-free-icons";
-import { DecisionResult, listOf, RecommendationView } from "@pharos/shared";
+import { DecisionResult, listOf, type ProposeBody, RecommendationView } from "@pharos/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useEffect, useId, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router";
@@ -20,7 +23,7 @@ import { ErrorState } from "@/components/error-state";
 import type { Decision } from "@/components/primitives/approval-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api, describeFailure, isApiFailure } from "@/lib/api";
-import { queryKeys } from "@/lib/queries";
+import { queryKeys, useProposeRecommendation } from "@/lib/queries";
 import { ProposalDetail, QueueRow } from "./approval-card";
 import { auditKey } from "./audit-trail";
 
@@ -154,6 +157,29 @@ export function ApprovalsPage() {
     },
   });
 
+  const propose = useProposeRecommendation();
+  const onPropose = (body: ProposeBody) =>
+    propose.mutate(body, {
+      onSuccess: ({ recommendationId: id, created }) => {
+        // The list is refetched by now, so the new order is in the queue: select it.
+        setParams((current) => {
+          const next = new URLSearchParams(current);
+          next.set("recommendation", String(id));
+          return next;
+        });
+        toast.success(
+          created
+            ? `Proposal ${id} is waiting for your decision`
+            : `Proposal ${id} was already waiting for your decision`,
+          { description: "Nothing is ordered until you approve it." },
+        );
+      },
+      onError: (err) =>
+        toast.error("The purchase order was not proposed", {
+          description: describeFailure(err),
+        }),
+    });
+
   const items = list.data?.items;
   const { awaiting, decided } = useMemo(() => queueOrder(items ?? []), [items]);
   const fallback = awaiting[0] ?? decided[0] ?? null;
@@ -263,6 +289,8 @@ export function ApprovalsPage() {
             locked={decide.isPending}
             conflict={conflicts[selected.id] ?? null}
             onDecide={onDecide(selected.id)}
+            proposing={propose.isPending}
+            onPropose={onPropose}
           />
         ) : (
           <div className="flex min-w-0 flex-1 flex-col items-start gap-1.5 px-4 py-5 sm:px-6">

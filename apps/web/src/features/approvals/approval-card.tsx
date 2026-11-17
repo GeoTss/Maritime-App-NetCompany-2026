@@ -15,7 +15,7 @@
  */
 import { AlertCircleIcon, ArrowRight01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import type { BunkerPlanView, Fact, RecommendationView } from "@pharos/shared";
+import type { BunkerPlanView, Fact, ProposeBody, RecommendationView } from "@pharos/shared";
 import { type ReactNode, useId, useMemo, useState } from "react";
 import { Link } from "react-router";
 import { FactChip, FactLedgerProvider } from "@/components/fact-chip";
@@ -32,7 +32,7 @@ import { formatNumber, formatUtc } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { AuditTrail } from "./audit-trail";
 import { ProposalDecision } from "./decision-dialog";
-import { approveHeld, DependencyLine } from "./dependency-line";
+import { approveHeld, DependencyLine, orderToPropose } from "./dependency-line";
 import { DraftsList } from "./drafts-list";
 import {
   instructionFacts,
@@ -509,6 +509,8 @@ export function ProposalDetail({
   locked,
   conflict,
   onDecide,
+  proposing = false,
+  onPropose,
 }: {
   rec: RecommendationView;
   /** The page's one focal effect: on the selected decision while it awaits one. */
@@ -520,8 +522,13 @@ export function ProposalDetail({
   /** Set when a decision found this proposal already decided; the status then comes from a refetch. */
   conflict: string | null;
   onDecide: (decision: Decision) => Promise<unknown>;
+  /** A proposal made from this one (an instruction's purchase order) is in flight. */
+  proposing?: boolean;
+  /** Proposes the purchase order an instruction waits for, when none is live. */
+  onPropose?: (body: ProposeBody) => void;
 }) {
   const headingId = useId();
+  const order = onPropose ? orderToPropose(rec) : null;
   const plan = rec.bunkerPlan;
   const ledger = useMemo(() => [...rec.facts, ...(plan ? planFacts(plan) : [])], [rec.facts, plan]);
   const isOrder = rec.type === "purchase_order";
@@ -554,7 +561,17 @@ export function ProposalDetail({
               </h2>
               <DetailMeta rec={rec} />
               <OrderSummary rec={rec} className="mt-5" />
-              {rec.dependsOn ? <DependencyLine dep={rec.dependsOn} className="mt-3" /> : null}
+              {rec.dependsOn ? (
+                <DependencyLine
+                  dep={rec.dependsOn}
+                  propose={
+                    order && onPropose
+                      ? { pending: proposing, onPropose: () => onPropose(order) }
+                      : null
+                  }
+                  className="mt-3"
+                />
+              ) : null}
               {isOrder && plan && plan.options.length > 0 ? (
                 <WhyThisOption rec={rec} plan={plan} />
               ) : null}

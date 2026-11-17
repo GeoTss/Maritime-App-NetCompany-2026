@@ -1,7 +1,9 @@
 import type { RoutePlanView } from "@pharos/shared";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { afterEach, describe, expect, it } from "vitest";
+import { createQueryClient } from "@/lib/queries";
 import { makeFuelPlan, makePlan } from "./map-fixtures";
 import { RouteComparison, RouteTray } from "./route-tray";
 
@@ -9,9 +11,11 @@ afterEach(cleanup);
 
 const renderComparison = (plan: RoutePlanView = makePlan()) =>
   render(
-    <MemoryRouter>
-      <RouteComparison plan={plan} />
-    </MemoryRouter>,
+    <QueryClientProvider client={createQueryClient()}>
+      <MemoryRouter>
+        <RouteComparison plan={plan} />
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 
 const rowFor = (id: string) => {

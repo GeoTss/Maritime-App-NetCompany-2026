@@ -3,8 +3,9 @@
  *
  * - `PlanSummary`: the recommended plan first. For a bunker stop: the port and quote, speed, ETA,
  *   the berth window, the plan total, what the stop adds against the best route ignoring fuel, the
- *   next feasible quote and the margin over it, and the stop card. With no recommended plan it says
- *   "No feasible plan" and why, quote by quote, in words.
+ *   next feasible quote and the margin over it, and the stop card. Under it, the proposals the plan
+ *   implies (the stop's purchase order, the voyage instruction), pending until approved. With no
+ *   recommended plan it says "No feasible plan" and why, quote by quote, in words.
  * - `FuelBlindBest`: the best route ignoring fuel on board, marked with the vessel-alert flag and
  *   "Runs short of <grade>" when it falls below a margin, with where.
  *
@@ -17,6 +18,7 @@ import { StateFlag } from "@/components/primitives/state-flag";
 import { possessive } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { FactCell } from "./fact-cell";
+import { ProposeFromPlan } from "./propose-from-plan";
 import {
   ARRIVE_BY_FIELD,
   breakpointRobFact,
@@ -298,6 +300,7 @@ export function PlanSummary({ plan, names }: { plan: RoutePlanView; names?: Stop
       </dl>
       <AddsAndNext plan={plan} names={names} />
       {stop ? <StopCard plan={plan} index={track.index} destination={plan.destination} /> : null}
+      <ProposeFromPlan calculationId={plan.calculationId} plan={result.plan} />
     </section>
   );
 }

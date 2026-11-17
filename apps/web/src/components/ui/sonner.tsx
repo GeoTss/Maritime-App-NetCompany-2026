@@ -36,6 +36,9 @@ const Toaster = ({ ...props }: ToasterProps) => {
         classNames: {
           toast: "cn-toast font-sans text-xs",
           description: "text-text-2!",
+          /* A toast's action goes somewhere: beacon text, as a link, never a solid button. */
+          actionButton:
+            "bg-transparent! px-1! text-beacon! underline-offset-3 hover:underline focus-visible:ring-2! focus-visible:ring-beacon/40!",
         },
       }}
       {...props}

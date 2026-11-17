@@ -1,6 +1,7 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
+import { toast } from "sonner";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { createQueryClient } from "@/lib/queries";
@@ -291,6 +292,7 @@ interface Call {
 let calls: Call[];
 let items: ReturnType<typeof rec>[];
 let decide: (id: number, verb: string) => Response | Promise<Response>;
+let propose: (body: unknown) => Response | Promise<Response>;
 
 const DRAFT = {
   id: 1,
@@ -313,6 +315,7 @@ beforeEach(() => {
     rec(2, { type: "voyage_instruction", summary: "Slow to 12.5 kn.", expectedSavingUsd: -300 }),
   ];
   decide = () => json({}, 500);
+  propose = () => json({}, 500);
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: string, init?: RequestInit) => {
@@ -325,6 +328,8 @@ beforeEach(() => {
         body: typeof init?.body === "string" ? init.body : null,
         type: headers.get("content-type"),
       });
+      if (path === "/api/recommendations" && method === "POST")
+        return propose(JSON.parse(String(init?.body)));
       if (path === "/api/recommendations") return json({ items });
       const m = /^\/api\/recommendations\/(\d+)\/(approve|reject)$/.exec(path);
       if (m && method === "POST") return decide(Number(m[1]), m[2] as string);
@@ -349,6 +354,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 function renderPage(initial = "/approvals") {
@@ -1225,7 +1231,7 @@ describe("ApprovalsPage: an instruction that waits for its purchase order", () =
     renderPage();
     const line = await screen.findByTestId("dependency-line");
     expect(line.textContent).toBe(
-      "Waits for the purchase order: Kestrel Marine Fuels at Marsaxlokk none proposed yet",
+      "Waits for the purchase order: Kestrel Marine Fuels at Marsaxlokk none proposed yet Propose the purchase order",
     );
     expect(screen.getByTestId("approve-blocked").textContent).toBe(
       "Approve opens once a purchase order for Kestrel Marine Fuels at Marsaxlokk is proposed and approved.",
@@ -1253,5 +1259,107 @@ describe("ApprovalsPage: an instruction that waits for its purchase order", () =
     await detail();
     const awaiting = screen.getByRole("region", { name: /Awaiting your decision/ });
     expect(rowIds(awaiting)).toEqual([1, 3, 4, 2]);
+  });
+});
+
+describe("ApprovalsPage: proposing the order an instruction waits for", () => {
+  const proposeButton = () => screen.queryByRole("button", { name: "Propose the purchase order" });
+
+  it("offers it only while no order is live", async () => {
+    // None proposed yet.
+    items = [stopRec(5, { recommendationId: null, status: null })];
+    renderPage("/approvals?recommendation=5");
+    await screen.findByTestId("dependency-line");
+    expect(proposeButton()).not.toBeNull();
+    cleanup();
+    // The last order was rejected: it can be proposed again, and the old one still opens.
+    items = [stopRec(5, { status: "rejected" }), stopOrderRec(4, { status: "rejected" })];
+    renderPage("/approvals?recommendation=5");
+    const line = await screen.findByTestId("dependency-line");
+    expect(proposeButton()).not.toBeNull();
+    expect(within(line).getByRole("link", { name: "Open proposal 4" })).toBeTruthy();
+    cleanup();
+    // An order awaits approval: the line opens it and proposes nothing.
+    items = [stopRec(5, {}), stopOrderRec(4)];
+    renderPage("/approvals?recommendation=5");
+    await screen.findByTestId("dependency-line");
+    expect(proposeButton()).toBeNull();
+    cleanup();
+    // Approved order, or a decided instruction: nothing to propose.
+    items = [stopRec(5, { status: "approved", satisfied: true })];
+    renderPage("/approvals?recommendation=5");
+    await screen.findByTestId("dependency-line");
+    expect(proposeButton()).toBeNull();
+    cleanup();
+    items = [{ ...stopRec(5, { recommendationId: null, status: null }), status: "rejected" }];
+    renderPage("/approvals?recommendation=5");
+    await screen.findByTestId("dependency-line");
+    expect(proposeButton()).toBeNull();
+    expect(posts()).toEqual([]);
+  });
+
+  it("posts the stop's order from the instruction's plan, then selects the new order", async () => {
+    const success = vi.spyOn(toast, "success");
+    items = [stopRec(5, { recommendationId: null, status: null })];
+    propose = () => {
+      items = [stopRec(5, { recommendationId: 9, status: "pending" }), stopOrderRec(9)];
+      return json({ recommendationId: 9, created: true });
+    };
+    renderPage("/approvals?recommendation=5");
+    await screen.findByTestId("dependency-line");
+    fireEvent.click(proposeButton() as HTMLElement);
+    await waitFor(async () => expect(await detailId()).toBe(9));
+    expect(posts()).toEqual([
+      {
+        method: "POST",
+        path: "/api/recommendations",
+        body: JSON.stringify({
+          type: "purchase_order",
+          calculationId: 5,
+          optionId: "MTMLA-kestrel",
+        }),
+        type: "application/json",
+      },
+    ]);
+    expect((await detail()).dataset.status).toBe("pending");
+    expect(rowIds(screen.getByRole("region", { name: /Awaiting your decision/ }))).toEqual([9, 5]);
+    expect(success).toHaveBeenCalledWith(
+      "Proposal 9 is waiting for your decision",
+      expect.objectContaining({ description: "Nothing is ordered until you approve it." }),
+    );
+  });
+
+  it("an order that was already waiting is selected and says so", async () => {
+    const success = vi.spyOn(toast, "success");
+    items = [stopRec(5, { status: "rejected" }), stopOrderRec(4, { status: "rejected" })];
+    propose = () => {
+      items = [...items, stopOrderRec(8)];
+      return json({ recommendationId: 8, created: false });
+    };
+    renderPage("/approvals?recommendation=5");
+    await screen.findByTestId("dependency-line");
+    fireEvent.click(proposeButton() as HTMLElement);
+    await waitFor(async () => expect(await detailId()).toBe(8));
+    expect(success).toHaveBeenCalledWith(
+      "Proposal 8 was already waiting for your decision",
+      expect.anything(),
+    );
+  });
+
+  it("a refusal shows the API's reason and keeps the instruction in view", async () => {
+    const error = vi.spyOn(toast, "error");
+    const reason = "Kestrel Marine Fuels at Marsaxlokk is not feasible in route plan 5.";
+    items = [stopRec(5, { recommendationId: null, status: null })];
+    propose = () => json({ error: "not_proposable", message: reason }, 409);
+    renderPage("/approvals?recommendation=5");
+    await screen.findByTestId("dependency-line");
+    fireEvent.click(proposeButton() as HTMLElement);
+    await waitFor(() =>
+      expect(error).toHaveBeenCalledWith("The purchase order was not proposed", {
+        description: reason,
+      }),
+    );
+    expect(await detailId()).toBe(5);
+    expect((proposeButton() as HTMLButtonElement).disabled).toBe(false);
   });
 });
