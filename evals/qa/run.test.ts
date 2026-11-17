@@ -4,23 +4,28 @@ import { readdirSync, readFileSync } from "node:fs";
 import { copyFile, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { APIError } from "@anthropic-ai/sdk";
 import { connectTestDb, testDbLabel } from "@pharos/db/testing";
 import type { Fact } from "@pharos/shared";
 import { afterAll, describe, expect, it, vi } from "vitest";
-import type { LlmFetch } from "../../apps/api/src/ai/llm.js";
+import { AgentError, runAgent } from "../../apps/api/src/ai/agent.js";
+import { captureLlmCall } from "../../apps/api/src/ai/call-capture.js";
+import { createLlm, type LlmFetch, ReplayMissError } from "../../apps/api/src/ai/llm.js";
 import {
   lastToolResult,
   type ScriptedRequest,
   scriptedFetch,
+  scriptedMessage,
   textReply,
   toolCall,
 } from "../../apps/api/src/ai/scripted-llm.js";
-import { prepareAskFixture } from "../../apps/api/src/ask/demo-fixture.js";
+import { ASK_FIXTURE_NOW, prepareAskFixture } from "../../apps/api/src/ask/demo-fixture.js";
 import { DID_NOT_FINISH, INTERRUPT_EXIT } from "../extraction/run.js";
 import { readLedger } from "../lib/budget.js";
 import { appendPass, HeldoutRerunError, readPasses } from "../lib/heldout-passes.js";
 import {
   changedTables,
+  classifyAskError,
   ESTIMATE_PER_QUESTION_USD,
   guardedFingerprints,
   LEDGER_RUN,
@@ -429,6 +434,40 @@ if (!sql) {
 describe.skipIf(!sql)("Q&A runner on a database", () => {
   afterAll(async () => {
     await sql?.end();
+  });
+
+  it("the Q&A runner's error kinds are unchanged", async () => {
+    const kindOf = async (script: Parameters<typeof scriptedFetch>[0]) => {
+      await prepareAskFixture(sql as NonNullable<typeof sql>);
+      const llm = createLlm({
+        mode: "live",
+        apiKey: "test-key",
+        recordingsDir: "/nonexistent",
+        onCall: captureLlmCall,
+        fetch: scriptedFetch(script).fetch,
+      });
+      const err = await runAgent(
+        {
+          sql: sql as NonNullable<typeof sql>,
+          llm,
+          config: { agentModel: "claude-haiku-5-5", agentEffort: "medium", llmFallbacks: false },
+          now: () => ASK_FIXTURE_NOW,
+        },
+        "Where?",
+      ).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(AgentError);
+      return classifyAskError(err);
+    };
+    expect(await kindOf([scriptedMessage(1, [], "refusal")])).toBe("refusal");
+    expect(await kindOf([scriptedMessage(1, [{ type: "text", text: "cut" }], "max_tokens")])).toBe(
+      "truncation",
+    );
+    expect(await kindOf([scriptedMessage(1, [{ type: "text", text: "" }])])).toBe("agent_error");
+    expect(classifyAskError(new ReplayMissError("k", "/p"))).toBe("replay_miss");
+    expect(classifyAskError(new APIError(529, undefined, "overloaded", new Headers()))).toBe(
+      "api_error",
+    );
+    expect(classifyAskError(new Error("boom"))).toBeNull();
   });
 
   const budget = async (capUsd: number) => {
