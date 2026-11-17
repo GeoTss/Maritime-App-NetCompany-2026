@@ -9,6 +9,7 @@ import type { RecommendationStatus, RecommendationView } from "@pharos/shared";
 type RecommendationType = RecommendationView["type"];
 
 import type { ReactNode } from "react";
+import { type FlagKind, StateFlag } from "@/components/primitives/state-flag";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,6 +40,26 @@ export const RECOMMENDATION_STATUS: Record<RecommendationStatus, { text: string;
   failed: { text: "failed", tone: "text-alarm" },
 };
 
+/** The flag that stands beside each status word (none for the in-between states). */
+export const RECOMMENDATION_FLAG: Partial<Record<RecommendationStatus, FlagKind>> = {
+  pending: "K",
+  approved: "C",
+  executed: "C",
+  rejected: "N",
+};
+
+/** A status word with its flag beside it. */
+export function StatusWord({ status, text }: { status: RecommendationStatus; text?: string }) {
+  const s = RECOMMENDATION_STATUS[status];
+  const flag = RECOMMENDATION_FLAG[status];
+  return (
+    <span className={cn("inline-flex items-center gap-1.5 whitespace-nowrap", s.tone)}>
+      {flag ? <StateFlag kind={flag} /> : null}
+      {text ?? s.text}
+    </span>
+  );
+}
+
 export function ApprovalCard({
   type,
   status,
@@ -66,7 +87,6 @@ export function ApprovalCard({
   focal?: boolean;
   className?: string;
 }) {
-  const s = RECOMMENDATION_STATUS[status];
   return (
     <article
       data-status={status}
@@ -75,7 +95,9 @@ export function ApprovalCard({
       {focal && status === "pending" ? <BorderBeam size={64} duration={8} /> : null}
       <header className="flex min-h-9 flex-wrap items-center gap-x-2 gap-y-1 border-b border-line px-3 py-1.5">
         <span className="text-xs text-text-2 font-label">{RECOMMENDATION_KIND[type]}</span>
-        <span className={cn("text-xs whitespace-nowrap", s.tone)}>{s.text}</span>
+        <span className="text-xs">
+          <StatusWord status={status} />
+        </span>
         {tags ? (
           <span className="ml-auto flex items-center gap-1.5 whitespace-nowrap">{tags}</span>
         ) : null}

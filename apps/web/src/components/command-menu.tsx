@@ -145,10 +145,24 @@ export function CommandMenu() {
         <CommandList>
           <CommandEmpty>Nothing matches. Try a vessel name, an MMSI or a port code.</CommandEmpty>
           <CommandGroup heading="Screens">
-            {[...SCREENS, ...DEV_SCREENS].map((s) => (
+            {SCREENS.map((s) => (
               <CommandItem
                 key={s.path}
                 value={`screen ${s.label}`}
+                keywords={s.keywords}
+                onSelect={() => run(() => navigate(s.path))}
+              >
+                <HugeiconsIcon icon={s.icon} strokeWidth={1.75} />
+                {s.label}
+              </CommandItem>
+            ))}
+          </CommandGroup>
+          <CommandSeparator />
+          <CommandGroup heading="Developer">
+            {DEV_SCREENS.map((s) => (
+              <CommandItem
+                key={s.path}
+                value={`developer ${s.label}`}
                 keywords={s.keywords}
                 onSelect={() => run(() => navigate(s.path))}
               >

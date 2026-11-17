@@ -9,6 +9,7 @@ import type { HazardZoneList } from "@pharos/shared";
 import circle from "@turf/circle";
 import { useMemo } from "react";
 import { Layer, Marker, Source } from "react-map-gl/maplibre";
+import { StateFlag } from "@/components/primitives/state-flag";
 import { DataTag } from "@/components/source-badge";
 import { UntrustedText } from "@/components/untrusted-text";
 import { cn } from "@/lib/utils";

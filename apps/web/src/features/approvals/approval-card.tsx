@@ -23,7 +23,7 @@ import { FactText } from "@/components/fact-text";
 import {
   type Decision,
   RECOMMENDATION_KIND,
-  RECOMMENDATION_STATUS,
+  StatusWord,
 } from "@/components/primitives/approval-card";
 import { DataTag } from "@/components/source-badge";
 import { BorderBeam } from "@/components/ui/border-beam";
@@ -93,7 +93,6 @@ function rowFigures(rec: RecommendationView): Figure[] {
 }
 
 export function QueueRow({ rec, selected }: { rec: RecommendationView; selected: boolean }) {
-  const status = RECOMMENDATION_STATUS[rec.status];
   const figures = rowFigures(rec);
   return (
     <li
@@ -105,7 +104,7 @@ export function QueueRow({ rec, selected }: { rec: RecommendationView; selected:
       <div className="flex flex-col gap-1 px-3 py-2.5">
         <span className="flex items-center gap-2 text-2xs font-medium font-label">
           <span className="text-text-2">{RECOMMENDATION_KIND[rec.type]}</span>
-          <span className={status.tone}>{status.text}</span>
+          <StatusWord status={rec.status} />
         </span>
         {/* The whole row selects (the link's ::after covers it); its chips sit above and open. */}
         <Link
@@ -184,11 +183,10 @@ function approveInWords(rec: RecommendationView): string {
 
 function DetailHeader({ rec }: { rec: RecommendationView }) {
   const pending = rec.status === "pending";
-  const status = RECOMMENDATION_STATUS[rec.status];
   return (
     <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-2xs font-medium font-label">
       <span className="text-text-2">{RECOMMENDATION_KIND[rec.type]}</span>
-      <span className={status.tone}>{pending ? "awaiting your decision" : status.text}</span>
+      <StatusWord status={rec.status} text={pending ? "awaiting your decision" : undefined} />
       <span className={cn("ml-auto", rec.gatePassed === false ? "text-alarm" : "text-text-3")}>
         {rec.gatePassed === null
           ? "release gate: not asked"

@@ -366,6 +366,20 @@ describe("ApprovalsPage: the queue", () => {
     expect(posts()).toEqual([]);
   });
 
+  it("a flag sits beside each status word, hidden from assistive technology", async () => {
+    items = [rec(1), rec(3, { status: "rejected" })];
+    renderPage();
+    await detail();
+    const flagBeside = (word: string, kind: string) => {
+      const el = screen.getAllByText(word)[0]?.closest("span");
+      const svg = el?.querySelector("svg");
+      expect(svg?.getAttribute("data-flag")).toBe(kind);
+      expect(svg?.getAttribute("aria-hidden")).toBe("true");
+    };
+    flagBeside("awaiting approval", "K");
+    flagBeside("rejected", "N");
+  });
+
   it("selects the first awaiting proposal by default and follows ?recommendation=", async () => {
     items = [rec(3, { status: "rejected" }), rec(2), rec(1)];
     renderPage();

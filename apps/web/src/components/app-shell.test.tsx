@@ -1,5 +1,5 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -48,6 +48,23 @@ describe("app shell", () => {
     expect(await screen.findByRole("heading", { name: heading })).toBeTruthy();
     expect(screen.getByRole("navigation", { name: "Screens" })).toBeTruthy();
     expect(screen.getByText("Pharos")).toBeTruthy();
+  });
+
+  it("the top bar has four screen links, the active one marked", async () => {
+    renderAt("/inbox");
+    const nav = await screen.findByRole("navigation", { name: "Screens" });
+    const links = within(nav).getAllByRole("link");
+    expect(links.map((l) => l.getAttribute("href"))).toEqual([
+      "/",
+      "/inbox",
+      "/approvals",
+      "/evaluation",
+    ]);
+    expect(within(nav).getByRole("link", { name: /Inbox/ }).getAttribute("aria-current")).toBe(
+      "page",
+    );
+    expect(within(nav).getByRole("link", { name: /Map/ }).getAttribute("aria-current")).toBeNull();
+    expect(screen.getByRole("banner")).toBeTruthy();
   });
 
   it("an unknown address says so and offers the way back", async () => {

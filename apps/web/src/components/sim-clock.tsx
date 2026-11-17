@@ -1,5 +1,5 @@
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { formatUtc, formatUtcTime } from "@/lib/format";
+import { formatUtc } from "@/lib/format";
 import { useSimClock } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 
@@ -38,7 +38,7 @@ export function SimClock({ className }: { className?: string }) {
         >
           <span className="text-text-3 font-label">sim</span>
           <time dateTime={data.now} className="text-text-1">
-            {formatUtcTime(data.now)}
+            {formatUtc(data.now)}
           </time>
           {data.pinned ? <span className="text-caution">pinned</span> : null}
         </span>

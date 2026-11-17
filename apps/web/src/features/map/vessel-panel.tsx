@@ -7,11 +7,10 @@
  * only when its fact is null; next port and its ETA read "—" when their facts are null (the
  * voyage view's own "next" rule differs, so it is not used); the UI derives nothing.
  */
-import { Alert02Icon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
 import type { FobProjection, RoutePlanView, VesselSummary } from "@pharos/shared";
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import { ErrorState } from "@/components/error-state";
+import { StateFlag } from "@/components/primitives/state-flag";
 import { DataTag } from "@/components/source-badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -178,12 +177,7 @@ export function VesselPanel({
           <ul className="flex flex-col gap-1" data-testid="vessel-alerts">
             {vessel.alerts.map((a) => (
               <li key={a} className="flex items-start gap-1.5 text-text-1">
-                <HugeiconsIcon
-                  icon={Alert02Icon}
-                  strokeWidth={2}
-                  aria-hidden
-                  className="mt-0.5 size-3.5 shrink-0 text-caution"
-                />
+                <StateFlag kind="V" className="mt-1" />
                 <span>{alertText(a)}</span>
               </li>
             ))}

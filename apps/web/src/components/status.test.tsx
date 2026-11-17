@@ -93,9 +93,9 @@ describe("SimClock", () => {
       ),
     );
     wrap(<SimClock />);
-    await waitFor(() => expect(screen.getByText("08:05Z")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("14 Nov 08:05Z")).toBeTruthy());
     expect(screen.getByText("pinned")).toBeTruthy();
-    expect(screen.getByText("08:05Z").closest("time")?.getAttribute("dateTime")).toBe(
+    expect(screen.getByText("14 Nov 08:05Z").closest("time")?.getAttribute("dateTime")).toBe(
       "2026-11-14T08:05:00Z",
     );
   });

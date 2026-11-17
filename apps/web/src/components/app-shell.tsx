@@ -1,5 +1,5 @@
 /**
- * Every screen shares this frame: the 36 px status strip, the 44 px nav rail, the screen canvas
+ * Every screen shares this frame: the 48 px top bar, the screen canvas
  * and the assistant dock (resizable and collapsible from 768 px; a bottom drawer below that).
  */
 import { AiChat02Icon } from "@hugeicons/core-free-icons";
@@ -8,8 +8,7 @@ import { usePanelRef } from "react-resizable-panels";
 import { Outlet } from "react-router";
 import { CommandMenu, CommandMenuProvider } from "@/components/command-menu";
 import { EmptyState } from "@/components/empty-state";
-import { NavRail } from "@/components/nav-rail";
-import { StatusStrip } from "@/components/status-strip";
+import { TopBar } from "@/components/top-bar";
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/drawer";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { useMediaQuery } from "@/lib/motion";
@@ -51,9 +50,8 @@ export function AppShell({ dock }: { dock?: ReactNode }) {
   return (
     <CommandMenuProvider>
       <div className="grid h-dvh grid-cols-[minmax(0,1fr)] grid-rows-[auto_1fr] overflow-hidden bg-ink-950 text-text-1">
-        <StatusStrip dockOpen={wide ? dockOpen : drawerOpen} onToggleDock={toggleDock} />
+        <TopBar dockOpen={wide ? dockOpen : drawerOpen} onToggleDock={toggleDock} />
         <div className="flex min-h-0">
-          <NavRail />
           {wide ? (
             <ResizablePanelGroup orientation="horizontal" className="min-w-0 flex-1">
               <ResizablePanel id="canvas" minSize="40%">
