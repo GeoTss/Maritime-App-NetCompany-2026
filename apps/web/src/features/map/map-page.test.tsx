@@ -152,8 +152,7 @@ describe("MapPage", () => {
     const thumb = await screen.findByRole("slider", { name: "Wave forecast time" });
     expect(thumb.getAttribute("aria-valuetext")).toBe("14 Nov 08:00Z");
     const ticks = screen.getByTestId("day-ticks").textContent ?? "";
-    expect(ticks.startsWith("14 Nov")).toBe(true);
-    expect(ticks).toContain("15 Nov");
+    expect(ticks).toContain("24 Nov");
     expect(screen.getByTestId("wave-legend").textContent).toBe("Wave height0 to 3+ m");
   });
 

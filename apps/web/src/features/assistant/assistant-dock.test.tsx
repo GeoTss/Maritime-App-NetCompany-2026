@@ -259,7 +259,7 @@ describe("AssistantDock", () => {
     await ask("Who is cheapest?");
     const row = await screen.findByRole("alert");
     expect(row.textContent).toContain(
-      "This question has no recorded reply. Start a new conversation and pick a suggested question.",
+      "This question has no recorded reply. Use New conversation at the top of this panel, then pick a suggested question.",
     );
     expect(row.textContent).not.toMatch(/replay_miss|request key|llm-recordings|LLM_MODE/);
 

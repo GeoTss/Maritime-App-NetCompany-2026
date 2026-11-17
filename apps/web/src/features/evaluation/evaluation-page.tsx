@@ -356,7 +356,7 @@ function Headline({ suites }: { suites: Suite[] }) {
   return (
     <section
       aria-label="Headline results, held-out"
-      className="mb-8 grid grid-cols-[repeat(auto-fit,minmax(14rem,1fr))] border border-line bg-ink-900"
+      className="mb-8 grid grid-cols-2 @4xl:grid-cols-4 border border-line bg-ink-900"
     >
       {CLAIMS.map((c) => {
         const m = held.find((s) => s.suite === c.suite)?.metrics.find((x) => x.key === c.key);

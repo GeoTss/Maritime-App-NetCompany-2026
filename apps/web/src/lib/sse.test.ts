@@ -117,7 +117,7 @@ describe("askStream", () => {
     await askStream(request, (e) => http.push(e), new AbortController().signal);
     expect(http).toEqual([{ type: "error", message: REPLAY_MISS_MESSAGE }]);
     expect(REPLAY_MISS_MESSAGE).toBe(
-      "This question has no recorded reply. Start a new conversation and pick a suggested question.",
+      "This question has no recorded reply. Use New conversation at the top of this panel, then pick a suggested question.",
     );
     expect(REPLAY_MISS_MESSAGE).not.toMatch(/replay_miss|key|\/|LLM_MODE/);
     // Other errors keep the API's own sentence.

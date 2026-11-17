@@ -86,11 +86,7 @@ function TurnView({ turn, onRetry }: { turn: Turn; onRetry: () => void }) {
           <div className="flex flex-col items-start gap-1.5">
             <p className="max-w-[60ch] text-xs/relaxed text-text-1">{turn.error}</p>
             {/* A replay miss repeats on every retry (nothing is recorded for the question). */}
-            {replayMiss ? (
-              <Button variant="outline" size="sm" onClick={resetAssistant}>
-                New conversation
-              </Button>
-            ) : (
+            {replayMiss ? null : (
               <Button variant="outline" size="sm" onClick={onRetry}>
                 <HugeiconsIcon icon={Refresh01Icon} strokeWidth={2} data-icon="inline-start" />
                 Try again

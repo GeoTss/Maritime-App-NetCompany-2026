@@ -82,7 +82,10 @@ export function WeatherLayer({ weather, colors }: { weather: WeatherView; colors
           paint={{
             "circle-color": WAVE_RAMP(colors),
             "circle-radius": ["interpolate", ["linear"], ["get", "h"], 0, 1.5, 2, 4, 5, 8],
-            "circle-opacity": ["interpolate", ["linear"], ["get", "h"], 0.5, 0.45, 4, 1],
+            "circle-opacity": ["interpolate", ["linear"], ["get", "h"], 0.5, 0.7, 4, 1],
+            "circle-stroke-width": 1,
+            "circle-stroke-color": colors.wave2,
+            "circle-stroke-opacity": 0.8,
           }}
         />
       </Source>

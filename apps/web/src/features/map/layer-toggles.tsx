@@ -187,15 +187,31 @@ export function LayerToggles({
                 }}
               />
               <div className="relative h-4 text-2xs text-text-3" data-testid="day-ticks">
-                {dayTicks(weather.stepTimes).map((t) => (
-                  <span
-                    key={t.index}
-                    className="absolute top-0 -translate-x-1/2 first:translate-x-0 last:-translate-x-full"
-                    style={{ left: `${(t.index / Math.max(weather.steps - 1, 1)) * 100}%` }}
-                  >
-                    {t.label}
-                  </span>
-                ))}
+                {(() => {
+                  const ticks = dayTicks(weather.stepTimes);
+                  // Every other day is labelled (counting back from the last, which stays right-aligned);
+                  // the rest keep a small tick so no day disappears.
+                  return ticks.map((t, i) => {
+                    const labelled = (ticks.length - 1 - i) % 2 === 0;
+                    const last = i === ticks.length - 1;
+                    return (
+                      <span
+                        key={t.index}
+                        className={cn(
+                          "absolute top-0 whitespace-nowrap",
+                          last ? "-translate-x-full" : "-translate-x-1/2",
+                        )}
+                        style={{ left: `${(t.index / Math.max(weather.steps - 1, 1)) * 100}%` }}
+                      >
+                        {labelled ? (
+                          t.label
+                        ) : (
+                          <i aria-hidden className="block h-1 w-px bg-text-3" />
+                        )}
+                      </span>
+                    );
+                  });
+                })()}
               </div>
               <div
                 className="flex items-center gap-2 text-2xs text-text-2"

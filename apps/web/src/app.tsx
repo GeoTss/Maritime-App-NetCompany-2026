@@ -19,10 +19,10 @@ export function App() {
       <TooltipProvider delayDuration={300}>
         <RouterProvider router={router} />
         <Toaster
-          position="bottom-left"
+          position="top-center"
           duration={4000}
-          offset={{ left: 52, bottom: 16 }}
-          mobileOffset={{ left: 52, bottom: 16 }}
+          offset={{ top: 56 }}
+          mobileOffset={{ top: 56 }}
         />
       </TooltipProvider>
     </QueryClientProvider>
