@@ -47,7 +47,7 @@ type Tx = Parameters<Parameters<Sql["begin"]>[1]>[0];
 
 const iso = (d: Date | string): string => new Date(d).toISOString();
 const json = (value: unknown): string => JSON.stringify(value);
-const clock = (deps: ReviewDeps) => (deps.now ?? (() => new Date()))();
+const clock = (deps: ReviewDeps) => deps.now();
 const dayStart = (day: string | null): string | null =>
   day === null ? null : `${day}T00:00:00.000Z`;
 

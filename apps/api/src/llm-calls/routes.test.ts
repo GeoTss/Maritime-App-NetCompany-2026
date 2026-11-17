@@ -4,7 +4,8 @@ import { LlmCallView, listOf } from "@pharos/shared";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { type CallMetrics, recordLlmCall } from "../ai/llm.js";
 import { createApp } from "../app.js";
-import { createFixtureSource } from "../read/fixtures.js";
+import { createClock } from "../clock.js";
+import { createFixtureSource, FIXTURE_ANCHOR } from "../read/fixtures.js";
 import { LLM_CALLS_LIMIT } from "./routes.js";
 
 const sql = await connectTestDb("llm_calls_routes");
@@ -20,6 +21,7 @@ describe.skipIf(!sql)("GET /api/llm-calls (Postgres)", () => {
   const db: Sql = sql;
   const app = createApp({
     llmMode: "replay",
+    clock: createClock(FIXTURE_ANCHOR),
     pingDb: async () => true,
     read: createFixtureSource(),
     llmCalls: { sql: db },

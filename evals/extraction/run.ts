@@ -813,7 +813,13 @@ async function runCase(
   const servedMark = ctx.guard?.served.length ?? 0;
   const exchangeMark = ctx.exchanges.length;
   const log: string[] = [];
-  const deps: IngestDeps = { sql, extractor: ctx.extractor, log: (m) => log.push(m) };
+  // The eval database is not the pinned demo: ingestion stamps rows with the wall clock.
+  const deps: IngestDeps = {
+    sql,
+    extractor: ctx.extractor,
+    now: () => new Date(),
+    log: (m) => log.push(m),
+  };
 
   const t0 = performance.now();
   const ingested = await ingestRaw(deps, c.raw, "upload");

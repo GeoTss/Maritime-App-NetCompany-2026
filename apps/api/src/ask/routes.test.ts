@@ -16,7 +16,8 @@ import {
   toolCall,
 } from "../ai/scripted-llm.js";
 import { createApp } from "../app.js";
-import { createFixtureSource } from "../read/fixtures.js";
+import { createClock } from "../clock.js";
+import { createFixtureSource, FIXTURE_ANCHOR } from "../read/fixtures.js";
 import { ASK_FIXTURE_NOW, prepareAskFixture } from "./demo-fixture.js";
 
 const sql = await connectTestDb("ask_routes");
@@ -58,6 +59,7 @@ describe.skipIf(!sql)("POST /api/ask (Postgres)", () => {
     };
     const app = createApp({
       llmMode: "live",
+      clock: createClock(FIXTURE_ANCHOR),
       pingDb: async () => true,
       read: createFixtureSource(),
       ask,
@@ -290,6 +292,7 @@ describe.skipIf(!sql)("POST /api/ask (Postgres)", () => {
   it("is not mounted without ask deps", async () => {
     const app = createApp({
       llmMode: "replay",
+      clock: createClock(FIXTURE_ANCHOR),
       pingDb: async () => true,
       read: createFixtureSource(),
     });

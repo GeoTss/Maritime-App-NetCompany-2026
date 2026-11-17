@@ -1,4 +1,9 @@
-import { buildDemoBunkerPlanInput, DEMO_SCENARIO, generateWorld } from "@pharos/db";
+import {
+  buildDemoBunkerPlanInput,
+  DEFAULT_WORLD_SEED,
+  DEMO_SCENARIO,
+  generateWorld,
+} from "@pharos/db";
 import { legsForRoute, planBunkers } from "@pharos/domain";
 import {
   AuditEventList,
@@ -17,11 +22,16 @@ import {
 import { describe, expect, it } from "vitest";
 import { createApp } from "../app.js";
 import { createClock } from "../clock.js";
-import { createFixtureSource, FIXTURE_ANCHOR, FIXTURE_SEED } from "./fixtures.js";
+import { createFixtureSource, FIXTURE_ANCHOR } from "./fixtures.js";
 import { createReadRoutes } from "./routes.js";
 import type { ReadSource } from "./source.js";
 
-const app = createApp({ llmMode: "replay", pingDb: async () => true, read: createFixtureSource() });
+const app = createApp({
+  llmMode: "replay",
+  clock: createClock(null),
+  pingDb: async () => true,
+  read: createFixtureSource(),
+});
 
 async function get(path: string) {
   const res = await app.request(path);
@@ -71,7 +81,7 @@ describe("id parsing", () => {
   const source = {
     getVessel: anyId,
   } as unknown as ReadSource;
-  const routes = createReadRoutes(source);
+  const routes = createReadRoutes(source, createClock(FIXTURE_ANCHOR));
 
   it("accepts the largest Postgres integer id, 2147483647", async () => {
     const res = await routes.request("/vessels/2147483647");
@@ -88,7 +98,7 @@ describe("id parsing", () => {
 });
 
 describe("fixture content", () => {
-  const world = generateWorld({ seed: FIXTURE_SEED, anchor: FIXTURE_ANCHOR });
+  const world = generateWorld({ seed: DEFAULT_WORLD_SEED, anchor: FIXTURE_ANCHOR });
 
   it("has eight vessels", async () => {
     const { items } = listOf(VesselSummary).parse((await get("/api/vessels")).body);
@@ -201,7 +211,7 @@ describe("console read routes (fixture source)", () => {
   });
 
   it("GET /api/ports is a PortList of the world's ports", async () => {
-    const world = generateWorld({ seed: FIXTURE_SEED, anchor: FIXTURE_ANCHOR });
+    const world = generateWorld({ seed: DEFAULT_WORLD_SEED, anchor: FIXTURE_ANCHOR });
     const { res, body } = await get("/api/ports");
     expect(res.status).toBe(200);
     const { items } = PortList.parse(body);
@@ -236,7 +246,7 @@ describe("console read routes (fixture source)", () => {
   );
 
   it("gives every voyage detail a planned track from its route legs' waypoints", async () => {
-    const world = generateWorld({ seed: FIXTURE_SEED, anchor: FIXTURE_ANCHOR });
+    const world = generateWorld({ seed: DEFAULT_WORLD_SEED, anchor: FIXTURE_ANCHOR });
     const { items } = listOf(VoyageSummary).parse((await get("/api/voyages")).body);
     for (const v of items) {
       const detail = VoyageDetail.parse((await get(`/api/voyages/${v.id}`)).body);

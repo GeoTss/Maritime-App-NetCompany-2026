@@ -11,10 +11,12 @@
  * tokens and cost, stored tool calls, facts, recommendations. No model judges anything and no
  * accuracy score is computed (CLAUDE.md rule 5); answer quality is for human review.
  */
+
 import { mkdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import type { Sql } from "@pharos/db";
+import { DEFAULT_WORLD_SEED } from "@pharos/db";
 import { connectTestDb } from "@pharos/db/testing";
 import { AskResponse } from "@pharos/shared";
 import type { AgentConfig } from "../../apps/api/src/ai/agent.js";
@@ -23,9 +25,10 @@ import { createLlm, type LlmFetch } from "../../apps/api/src/ai/llm.js";
 import { costUsd } from "../../apps/api/src/ai/pricing.js";
 import { createApp } from "../../apps/api/src/app.js";
 import { prepareAskFixture } from "../../apps/api/src/ask/demo-fixture.js";
+import { createClock } from "../../apps/api/src/clock.js";
 import { DEFAULT_RECORDINGS_DIR } from "../../apps/api/src/config.js";
 import { createDbSource } from "../../apps/api/src/read/db-source.js";
-import { FIXTURE_ANCHOR, FIXTURE_SEED } from "../../apps/api/src/read/fixtures.js";
+import { FIXTURE_ANCHOR } from "../../apps/api/src/read/fixtures.js";
 import {
   appendSpend,
   assertBudget,
@@ -577,6 +580,7 @@ async function runCompareCore(
     });
     const app = createApp({
       llmMode: "live",
+      clock: createClock(FIXTURE_ANCHOR),
       pingDb: async () => true,
       read: createDbSource(sql, () => FIXTURE_ANCHOR),
       ask: { sql, llm, config, now: () => FIXTURE_ANCHOR },
@@ -657,7 +661,7 @@ async function runCompareCore(
     finishedAt: finishedAt.toISOString(),
     note: NO_SCORE_NOTE,
     config: {
-      seed: FIXTURE_SEED,
+      seed: DEFAULT_WORLD_SEED,
       anchor: FIXTURE_ANCHOR.toISOString(),
       agentEffort: AGENT_EFFORT,
       llmFallbacks: false,

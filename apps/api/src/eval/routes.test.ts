@@ -4,8 +4,9 @@ import { join } from "node:path";
 import { EvalSummary } from "@pharos/shared";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createApp } from "../app.js";
+import { createClock } from "../clock.js";
 import { DEFAULT_EVAL_SUMMARY_PATH } from "../config.js";
-import { createFixtureSource } from "../read/fixtures.js";
+import { createFixtureSource, FIXTURE_ANCHOR } from "../read/fixtures.js";
 
 /** A published summary as `npm run eval:publish` writes it (made-up scores, for the route only). */
 const SUMMARY: EvalSummary = {
@@ -48,6 +49,7 @@ describe("GET /api/eval/summary", () => {
   const appAt = (summaryPath: string) =>
     createApp({
       llmMode: "replay",
+      clock: createClock(FIXTURE_ANCHOR),
       pingDb: async () => true,
       read: createFixtureSource(),
       evalSummary: { path: summaryPath },

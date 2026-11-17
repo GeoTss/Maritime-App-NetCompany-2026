@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_WORLD_SEED, parseWorldSeed } from "./world-seed.js";
+import { DEFAULT_WORLD_SEED } from "../demo-clock.js";
+import { parseWorldSeed } from "./world-seed.js";
 
 describe("parseWorldSeed", () => {
   it("defaults when unset or blank", () => {

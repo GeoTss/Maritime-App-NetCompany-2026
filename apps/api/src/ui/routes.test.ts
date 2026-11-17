@@ -1,8 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { createApp } from "../app.js";
-import { createFixtureSource } from "../read/fixtures.js";
+import { createClock } from "../clock.js";
+import { createFixtureSource, FIXTURE_ANCHOR } from "../read/fixtures.js";
 
-const app = createApp({ llmMode: "replay", pingDb: async () => true, read: createFixtureSource() });
+const app = createApp({
+  llmMode: "replay",
+  clock: createClock(FIXTURE_ANCHOR),
+  pingDb: async () => true,
+  read: createFixtureSource(),
+});
 
 async function page() {
   const res = await app.request("/");

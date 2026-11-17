@@ -1,5 +1,6 @@
+import { PINNED_NOW_OFFSET_MS, pinnedNow } from "@pharos/db";
 import { describe, expect, it } from "vitest";
-import { createClock, PINNED_NOW_OFFSET_MS, pinnedNow } from "./clock.js";
+import { createClock } from "./clock.js";
 
 const ANCHOR = new Date("2026-11-14T08:00:00.000Z");
 

@@ -1,4 +1,5 @@
 export { createDb, type Db } from "./client.js";
+export { DEFAULT_WORLD_SEED, PINNED_NOW_OFFSET_MS, pinnedNow } from "./demo-clock.js";
 export { loadWorld } from "./load-world.js";
 export { runMigrations } from "./migrate.js";
 export { fleetRoutePlan, type RoutePlan, shipRoutePlan } from "./route-plan.js";

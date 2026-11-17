@@ -1,5 +1,6 @@
 import { isAbsolute, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { DEFAULT_WORLD_SEED } from "@pharos/db";
 import { IsoDateTime, LlmMode } from "@pharos/shared";
 import { z } from "zod";
 import { isPricedModel } from "./ai/pricing.js";
@@ -47,8 +48,6 @@ export const DEFAULT_RECORDINGS_DIR = resolve(REPO_ROOT, "fixtures", "llm-record
 export const SeedOnBoot = z.enum(["reset", "if-empty", "off"]);
 export type SeedOnBoot = z.infer<typeof SeedOnBoot>;
 
-/** Seed of the synthetic world's PRNG (the world is also anchored to boot time). */
-export const DEFAULT_WORLD_SEED = 20261114;
 /** world_meta.seed is a Postgres integer. */
 export const MAX_WORLD_SEED = 2_147_483_647;
 

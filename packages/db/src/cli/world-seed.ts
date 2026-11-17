@@ -1,5 +1,4 @@
-/** Seed of the synthetic world's PRNG when WORLD_SEED is unset. */
-export const DEFAULT_WORLD_SEED = 20261114;
+import { DEFAULT_WORLD_SEED } from "../demo-clock.js";
 
 /** Largest seed accepted: the world_meta.seed column is a Postgres integer. */
 export const MAX_WORLD_SEED = 2_147_483_647;

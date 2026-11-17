@@ -1,13 +1,13 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { generateWorld } from "@pharos/db";
+import { DEFAULT_WORLD_SEED, generateWorld } from "@pharos/db";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { describe, expect, it } from "vitest";
-import { buildDemoEmails, FIXTURE_ANCHOR, FIXTURE_SEED } from "../read/fixtures.js";
+import { buildDemoEmails, FIXTURE_ANCHOR } from "../read/fixtures.js";
 import { EmailParseError, parseEmail } from "./parse-email.js";
 
 const INBOX = new URL("../../../../fixtures/demo-inbox/", import.meta.url);
-const demo = buildDemoEmails(generateWorld({ seed: FIXTURE_SEED, anchor: FIXTURE_ANCHOR }));
+const demo = buildDemoEmails(generateWorld({ seed: DEFAULT_WORLD_SEED, anchor: FIXTURE_ANCHOR }));
 const bytes = (s: string) => new TextEncoder().encode(s);
 
 describe("parseEmail", () => {

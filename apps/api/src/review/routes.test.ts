@@ -1,13 +1,21 @@
 import { readFile } from "node:fs/promises";
-import { currentVoyage, loadWorld, openRequirements, type Sql, seedDatabase } from "@pharos/db";
+import {
+  currentVoyage,
+  DEFAULT_WORLD_SEED,
+  loadWorld,
+  openRequirements,
+  type Sql,
+  seedDatabase,
+} from "@pharos/db";
 import { connectTestDb, testDbLabel } from "@pharos/db/testing";
 import type { ExtractionOutput, QuoteExtraction } from "@pharos/shared";
 import { AuditEventView, ReviewDecision, ReviewItem, ReviewReference } from "@pharos/shared";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { ExtractionError, type Extractor } from "../ai/extract.js";
 import { createApp } from "../app.js";
+import { createClock } from "../clock.js";
 import { type IngestDeps, ingestRaw, processDocument } from "../ingest/workflow.js";
-import { createFixtureSource, FIXTURE_ANCHOR, FIXTURE_SEED } from "../read/fixtures.js";
+import { createFixtureSource, FIXTURE_ANCHOR } from "../read/fixtures.js";
 
 const INBOX = new URL("../../../../fixtures/demo-inbox/", import.meta.url);
 const kestrelRaw = new Uint8Array(await readFile(new URL("01-kestrel-marsaxlokk.eml", INBOX)));
@@ -100,13 +108,14 @@ describe.skipIf(!sql)("review routes (Postgres)", () => {
   const deps: IngestDeps = { sql: db, extractor, now: () => NOW };
   const app = createApp({
     llmMode: "replay",
+    clock: createClock(FIXTURE_ANCHOR),
     pingDb: async () => true,
     read: createFixtureSource(),
     review: { ...deps, track: (p) => void background.push(p) },
   });
 
   beforeEach(async () => {
-    await seedDatabase(db, { seed: FIXTURE_SEED, anchor: FIXTURE_ANCHOR, mode: "reset" });
+    await seedDatabase(db, { seed: DEFAULT_WORLD_SEED, anchor: FIXTURE_ANCHOR, mode: "reset" });
     produce = kestrelOutput;
     background = [];
   });

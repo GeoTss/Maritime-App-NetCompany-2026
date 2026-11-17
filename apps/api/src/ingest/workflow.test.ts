@@ -1,5 +1,11 @@
 import { readFile } from "node:fs/promises";
-import { DEMO_SCENARIO, generateWorld, type Sql, seedDatabase } from "@pharos/db";
+import {
+  DEFAULT_WORLD_SEED,
+  DEMO_SCENARIO,
+  generateWorld,
+  type Sql,
+  seedDatabase,
+} from "@pharos/db";
 import { connectTestDb, testDbLabel } from "@pharos/db/testing";
 import { parseAmount } from "@pharos/domain";
 import type { ExtractionOutput, QuoteExtraction } from "@pharos/shared";
@@ -9,7 +15,7 @@ import { captureLlmCall } from "../ai/call-capture.js";
 import { createLlmExtractor, ExtractionError, type Extractor } from "../ai/extract.js";
 import { type CallMetrics, createLlm } from "../ai/llm.js";
 import { DEFAULT_RECORDINGS_DIR } from "../config.js";
-import { buildDemoEmails, FIXTURE_ANCHOR, FIXTURE_SEED } from "../read/fixtures.js";
+import { buildDemoEmails, FIXTURE_ANCHOR } from "../read/fixtures.js";
 import { writtenIn } from "./evaluate.js";
 import { DEMO_RECORDING_CONFIG } from "./record-demo-extractions.js";
 import {
@@ -92,7 +98,7 @@ function fakeExtractor(produce: () => ExtractionOutput | Promise<ExtractionOutpu
 }
 
 describe("demo email as-written values parse with the domain normaliser", () => {
-  const demo = buildDemoEmails(generateWorld({ seed: FIXTURE_SEED, anchor: FIXTURE_ANCHOR }));
+  const demo = buildDemoEmails(generateWorld({ seed: DEFAULT_WORLD_SEED, anchor: FIXTURE_ANCHOR }));
   for (const key of ["kestrel", "straitline"] as const) {
     it(`${key}: price, quantity and barge fee`, () => {
       const e = demo.find((d) => d.option.supplierKey === key);
@@ -146,7 +152,7 @@ describe.skipIf(!sql)("ingestion workflow (Postgres)", () => {
   const deps = (extractor: Extractor): IngestDeps => ({ sql: db, extractor, now: () => NOW });
 
   beforeEach(async () => {
-    await seedDatabase(db, { seed: FIXTURE_SEED, anchor: FIXTURE_ANCHOR, mode: "reset" });
+    await seedDatabase(db, { seed: DEFAULT_WORLD_SEED, anchor: FIXTURE_ANCHOR, mode: "reset" });
   });
 
   interface ExtractionRow {
@@ -535,7 +541,9 @@ describe.skipIf(!sql)("ingestion workflow (Postgres)", () => {
       onCall: captureLlmCall,
     });
     const d = deps(createLlmExtractor(llm, DEMO_RECORDING_CONFIG));
-    const demo = buildDemoEmails(generateWorld({ seed: FIXTURE_SEED, anchor: FIXTURE_ANCHOR }));
+    const demo = buildDemoEmails(
+      generateWorld({ seed: DEFAULT_WORLD_SEED, anchor: FIXTURE_ANCHOR }),
+    );
     const cases = [
       ["01-kestrel-marsaxlokk.eml", "kestrel"],
       ["02-straitline-gibraltar.eml", "straitline"],
@@ -757,7 +765,7 @@ describe.skipIf(!sql)("ingestion workflow: attachments (Postgres)", () => {
   const NOW = new Date("2026-11-14T08:05:00.000Z");
 
   beforeEach(async () => {
-    await seedDatabase(db, { seed: FIXTURE_SEED, anchor: FIXTURE_ANCHOR, mode: "reset" });
+    await seedDatabase(db, { seed: DEFAULT_WORLD_SEED, anchor: FIXTURE_ANCHOR, mode: "reset" });
   });
 
   /** A 1x1 PNG: the page of a scanned quote, with no text layer. */

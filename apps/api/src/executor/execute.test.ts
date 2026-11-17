@@ -1,5 +1,6 @@
 import {
   buildDemoBunkerPlanInput,
+  DEFAULT_WORLD_SEED,
   DEMO_SCENARIO,
   loadWorld,
   type Sql,
@@ -23,7 +24,7 @@ import { planBunkering } from "../ai/tools/plan-bunkering.js";
 import { proposeAction } from "../ai/tools/propose-action.js";
 import { planRouteSpeedFacts } from "../ai/tools/route-speed.js";
 import { ASK_FIXTURE_NOW, insertDemoQuotes, prepareAskFixture } from "../ask/demo-fixture.js";
-import { FIXTURE_ANCHOR, FIXTURE_SEED } from "../read/fixtures.js";
+import { FIXTURE_ANCHOR } from "../read/fixtures.js";
 import { createErpClient, type ErpFetch } from "./erp-client.js";
 import {
   approveRecommendation,
@@ -229,7 +230,7 @@ describe.skipIf(!sql)("executor (Postgres)", () => {
 
     // Reboot: a new world (new anchor, ids restarted), the same ERP store.
     const anchor = new Date(FIXTURE_ANCHOR.getTime() + 26 * 3_600_000);
-    await seedDatabase(db, { seed: FIXTURE_SEED, anchor, mode: "reset" });
+    await seedDatabase(db, { seed: DEFAULT_WORLD_SEED, anchor, mode: "reset" });
     await insertDemoQuotes(db);
     const ctx = createToolContext({ sql: db, now: () => anchor });
     const planned = await planBunkering(ctx, { vessel: "Aegean Pioneer" });
@@ -257,7 +258,7 @@ describe.skipIf(!sql)("executor (Postgres)", () => {
 
     // Restart with DEMO_ANCHOR pinned and SEED_ON_BOOT=reset: the same anchor, ids restarted,
     // the same ERP store. A key built from the anchor would replay the rehearsal's order.
-    await seedDatabase(db, { seed: FIXTURE_SEED, anchor: FIXTURE_ANCHOR, mode: "reset" });
+    await seedDatabase(db, { seed: DEFAULT_WORLD_SEED, anchor: FIXTURE_ANCHOR, mode: "reset" });
     await insertDemoQuotes(db);
     const ctx = createToolContext({ sql: db, now: () => ASK_FIXTURE_NOW });
     const planned = await planBunkering(ctx, { vessel: "Aegean Pioneer" });

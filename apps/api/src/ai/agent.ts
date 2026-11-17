@@ -35,7 +35,7 @@ export interface AgentDeps {
   llm: { client: Anthropic };
   config: AgentConfig;
   /** Clock for the tools ("now") and row timestamps. Never reaches the prompt. */
-  now?: () => Date;
+  now: () => Date;
   log?: (message: string) => void;
   /** Called when each tool call starts (ms 0) and finishes (elapsed ms); names no input or output. */
   onProgress?: (event: ToolProgress) => void;
@@ -247,7 +247,7 @@ export async function runAgent(
   conversationId?: Id | null,
 ): Promise<AskResult> {
   const { sql } = deps;
-  const now = deps.now ?? (() => new Date());
+  const now = deps.now;
 
   let convId: Id;
   let history: MessageParam[] = [];

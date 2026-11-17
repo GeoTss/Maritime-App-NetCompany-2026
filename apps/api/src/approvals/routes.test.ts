@@ -8,8 +8,9 @@ import { planBunkering } from "../ai/tools/plan-bunkering.js";
 import { proposeAction } from "../ai/tools/propose-action.js";
 import { createApp } from "../app.js";
 import { ASK_FIXTURE_NOW, prepareAskFixture } from "../ask/demo-fixture.js";
+import { createClock } from "../clock.js";
 import { createErpClient } from "../executor/erp-client.js";
-import { createFixtureSource } from "../read/fixtures.js";
+import { createFixtureSource, FIXTURE_ANCHOR } from "../read/fixtures.js";
 
 const sql = await connectTestDb("approvals_routes");
 
@@ -41,10 +42,12 @@ describe.skipIf(!sql)("approval routes (Postgres)", () => {
     const erpApp = createErpApp({ now: () => ASK_FIXTURE_NOW });
     app = createApp({
       llmMode: "replay",
+      clock: createClock(FIXTURE_ANCHOR),
       pingDb: async () => true,
       read: createFixtureSource(),
       approvals: {
         sql: db,
+        now: () => ASK_FIXTURE_NOW,
         erp: createErpClient("http://erp.test", (input, init) => erpApp.request(input, init)),
       },
     });

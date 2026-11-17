@@ -36,7 +36,7 @@ export interface ExecutorDeps {
   sql: Sql;
   erp: ErpClient;
   /** Clock for decision, order and audit timestamps. */
-  now?: () => Date;
+  now: () => Date;
   log?: (message: string) => void;
 }
 
@@ -80,7 +80,7 @@ type Tx = Parameters<Parameters<Sql["begin"]>[1]>[0];
 /** timestamptz parameter: postgres.js does not serialise a Date in an untyped position. */
 const iso = (d: Date): string => d.toISOString();
 const json = (value: unknown): string => JSON.stringify(value);
-const clock = (deps: ExecutorDeps) => (deps.now ?? (() => new Date()))();
+const clock = (deps: ExecutorDeps) => deps.now();
 
 async function audit(
   tx: Tx,

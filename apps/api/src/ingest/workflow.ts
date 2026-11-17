@@ -20,7 +20,7 @@ export interface IngestDeps {
   sql: Sql;
   extractor: Extractor;
   /** Clock for row timestamps (and receivedAt when the email has no Date header). */
-  now?: () => Date;
+  now: () => Date;
   /** Told about extractions that end `failed`; the message is stored on the row either way. */
   log?: (message: string) => void;
 }
@@ -32,7 +32,7 @@ export interface IngestResult {
   duplicate: boolean;
 }
 
-const clock = (deps: IngestDeps) => (deps.now ?? (() => new Date()))();
+const clock = (deps: IngestDeps) => deps.now();
 
 /** timestamptz parameter: postgres.js does not serialise a Date in an untyped position. */
 const iso = (d: Date): string => d.toISOString();

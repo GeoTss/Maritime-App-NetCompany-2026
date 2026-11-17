@@ -1,6 +1,6 @@
-import { DEMO_SCENARIO, generateWorld } from "@pharos/db";
+import { DEFAULT_WORLD_SEED, DEMO_SCENARIO, generateWorld } from "@pharos/db";
 import { describe, expect, it } from "vitest";
-import { FIXTURE_ANCHOR, FIXTURE_SEED } from "../read/fixtures.js";
+import { FIXTURE_ANCHOR } from "../read/fixtures.js";
 import {
   checkPriceBand,
   latestMarketPrice,
@@ -11,7 +11,7 @@ import {
   resolveVessel,
 } from "./resolve.js";
 
-const world = generateWorld({ seed: FIXTURE_SEED, anchor: FIXTURE_ANCHOR });
+const world = generateWorld({ seed: DEFAULT_WORLD_SEED, anchor: FIXTURE_ANCHOR });
 const pioneer = world.vessels.find((v) => v.imo === DEMO_SCENARIO.vesselImo);
 const portId = (code: string) => world.ports.find((p) => p.unlocode === code)?.id;
 

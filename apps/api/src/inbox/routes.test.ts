@@ -2,13 +2,14 @@ import { copyFile, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { type Sql, seedDatabase } from "@pharos/db";
+import { DEFAULT_WORLD_SEED, pinnedNow, type Sql, seedDatabase } from "@pharos/db";
 import { connectTestDb, testDbLabel } from "@pharos/db/testing";
 import { DeliverResult, UploadResult } from "@pharos/shared";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Extractor } from "../ai/extract.js";
 import { createApp } from "../app.js";
-import { createFixtureSource, FIXTURE_ANCHOR, FIXTURE_SEED } from "../read/fixtures.js";
+import { createClock } from "../clock.js";
+import { createFixtureSource, FIXTURE_ANCHOR } from "../read/fixtures.js";
 import { DEMO_INBOX_DIR, type InboxDeps } from "./routes.js";
 
 const FILES = ["01-kestrel-marsaxlokk.eml", "02-straitline-gibraltar.eml"];
@@ -52,12 +53,14 @@ describe.skipIf(!sql)("inbox routes (Postgres)", () => {
       sql: db,
       extractor,
       inboxDir,
+      now: () => pinnedNow(FIXTURE_ANCHOR),
       track: (p) => {
         background.push(p);
       },
     };
     return createApp({
       llmMode: "replay",
+      clock: createClock(FIXTURE_ANCHOR),
       pingDb: async () => true,
       read: createFixtureSource(),
       inbox,
@@ -65,7 +68,7 @@ describe.skipIf(!sql)("inbox routes (Postgres)", () => {
   };
 
   beforeEach(async () => {
-    await seedDatabase(db, { seed: FIXTURE_SEED, anchor: FIXTURE_ANCHOR, mode: "reset" });
+    await seedDatabase(db, { seed: DEFAULT_WORLD_SEED, anchor: FIXTURE_ANCHOR, mode: "reset" });
     inboxDir = await mkdtemp(join(tmpdir(), "pharos-inbox-"));
     for (const f of FILES) await copyFile(join(DEMO_INBOX_DIR, f), join(inboxDir, f));
     background = [];

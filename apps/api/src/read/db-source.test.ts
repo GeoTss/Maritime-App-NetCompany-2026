@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { generateWorld, type Sql, seedDatabase } from "@pharos/db";
+import { DEFAULT_WORLD_SEED, generateWorld, type Sql, seedDatabase } from "@pharos/db";
 import { connectTestDb, testDbLabel } from "@pharos/db/testing";
 import {
   BunkerPlan,
@@ -28,6 +28,7 @@ import { proposeAction } from "../ai/tools/propose-action.js";
 import { planRouteSpeedFacts } from "../ai/tools/route-speed.js";
 import { getVesselStatus } from "../ai/tools/vessel-status.js";
 import { createApp } from "../app.js";
+import { createClock } from "../clock.js";
 import { createErpClient } from "../executor/erp-client.js";
 import { approveRecommendation } from "../executor/execute.js";
 import { DEMO_INBOX_DIR } from "../inbox/routes.js";
@@ -38,7 +39,6 @@ import {
   createFixtureSource,
   demoExtraction,
   FIXTURE_ANCHOR,
-  FIXTURE_SEED,
 } from "./fixtures.js";
 
 const NOW = new Date("2026-11-14T08:05:00.000Z");
@@ -54,7 +54,7 @@ if (!sql) {
 describe.skipIf(!sql)("createDbSource (Postgres)", () => {
   if (!sql) return;
   const db: Sql = sql;
-  const world = generateWorld({ seed: FIXTURE_SEED, anchor: FIXTURE_ANCHOR });
+  const world = generateWorld({ seed: DEFAULT_WORLD_SEED, anchor: FIXTURE_ANCHOR });
   const kestrel = buildDemoEmails(world).find((e) => e.option.supplierKey === "kestrel");
   const extractor: Extractor = {
     model: "claude-haiku-5-5",
@@ -67,11 +67,13 @@ describe.skipIf(!sql)("createDbSource (Postgres)", () => {
   const ingest: IngestDeps = { sql: db, extractor, now: () => NOW };
   const app = createApp({
     llmMode: "replay",
+    clock: createClock(FIXTURE_ANCHOR),
     pingDb: async () => true,
     read: createDbSource(db, () => NOW),
   });
   const fixtures = createApp({
     llmMode: "replay",
+    clock: createClock(FIXTURE_ANCHOR),
     pingDb: async () => true,
     read: createFixtureSource(),
   });
@@ -82,7 +84,7 @@ describe.skipIf(!sql)("createDbSource (Postgres)", () => {
   let calculationId: number;
 
   beforeAll(async () => {
-    await seedDatabase(db, { seed: FIXTURE_SEED, anchor: FIXTURE_ANCHOR, mode: "reset" });
+    await seedDatabase(db, { seed: DEFAULT_WORLD_SEED, anchor: FIXTURE_ANCHOR, mode: "reset" });
     const raw = (name: string) =>
       readFile(join(DEMO_INBOX_DIR, name)).then((b) => new Uint8Array(b));
     kestrelDocId = (await ingestRaw(ingest, await raw("01-kestrel-marsaxlokk.eml"), "demo_inbox"))

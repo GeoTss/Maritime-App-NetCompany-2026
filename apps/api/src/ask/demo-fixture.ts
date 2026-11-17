@@ -6,11 +6,17 @@
  * Replay keys are hashes of the request bodies, which carry serial ids (calculation ids in fact
  * ids). Building the database the same way every time keeps those ids, and so the keys, stable.
  */
-import { DEMO_SCENARIO, generateWorld, type Sql, seedDatabase } from "@pharos/db";
+import {
+  DEFAULT_WORLD_SEED,
+  DEMO_SCENARIO,
+  generateWorld,
+  pinnedNow,
+  type Sql,
+  seedDatabase,
+} from "@pharos/db";
 import { loadRecordedSources } from "@pharos/integrations";
 import type { Id } from "@pharos/shared";
-import { pinnedNow } from "../clock.js";
-import { buildDemoEmails, FIXTURE_ANCHOR, FIXTURE_SEED } from "../read/fixtures.js";
+import { buildDemoEmails, FIXTURE_ANCHOR } from "../read/fixtures.js";
 
 /** The question Task 9's live smoke asks. */
 export const DEMO_QUESTION = "Where should Aegean Pioneer bunker, and who should we buy from?";
@@ -23,7 +29,7 @@ export const DEMO_QUOTE_SUPPLIERS = ["kestrel", "straitline"] as const;
 
 /** Inserts the two demo quotes (with one line each) and returns their ids in insertion order. */
 export async function insertDemoQuotes(sql: Sql): Promise<Id[]> {
-  const world = generateWorld({ seed: FIXTURE_SEED, anchor: FIXTURE_ANCHOR });
+  const world = generateWorld({ seed: DEFAULT_WORLD_SEED, anchor: FIXTURE_ANCHOR });
   const emails = buildDemoEmails(world);
   const [requirement] = await sql<{ id: number }[]>`
     select r.id from bunker_requirements r join voyages v on v.id = r.voyage_id
@@ -59,7 +65,7 @@ export async function insertDemoQuotes(sql: Sql): Promise<Id[]> {
  * synthetic hazard as observed at the anchor, and inserts the two demo quotes.
  */
 export async function prepareAskFixture(sql: Sql): Promise<Id[]> {
-  await seedDatabase(sql, { seed: FIXTURE_SEED, anchor: FIXTURE_ANCHOR, mode: "reset" });
+  await seedDatabase(sql, { seed: DEFAULT_WORLD_SEED, anchor: FIXTURE_ANCHOR, mode: "reset" });
   await loadRecordedSources(sql, { anchor: FIXTURE_ANCHOR });
   return insertDemoQuotes(sql);
 }

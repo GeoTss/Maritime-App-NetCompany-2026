@@ -3,7 +3,14 @@
  * from generateWorld + domain calculators or DEMO_SCENARIO; nothing is typed by hand.
  */
 
-import { buildDemoBunkerPlanInput, DEMO_SCENARIO, generateWorld, type World } from "@pharos/db";
+import {
+  buildDemoBunkerPlanInput,
+  DEFAULT_WORLD_SEED,
+  DEMO_SCENARIO,
+  generateWorld,
+  pinnedNow,
+  type World,
+} from "@pharos/db";
 import { planBunkers } from "@pharos/domain";
 import type {
   ExtractionOutput,
@@ -13,12 +20,10 @@ import type {
   RecommendationView,
 } from "@pharos/shared";
 import { convert } from "html-to-text";
-import { pinnedNow } from "../clock.js";
 import { BUNKER_SAVING_PATH, bunkerOptionViewFacts, bunkerScope } from "../facts/bunker.js";
 import type { ReadSource } from "./source.js";
 import { buildPorts, buildVessels, buildVoyages, must } from "./world-views.js";
 
-export const FIXTURE_SEED = 20261114;
 export const FIXTURE_ANCHOR = new Date("2026-11-14T08:00:00Z");
 
 const HOUR_MS = 3_600_000;
@@ -390,7 +395,7 @@ function buildRecommendation(world: World): RecommendationView {
 // ---------- source ----------
 
 export function createFixtureSource(): ReadSource {
-  const world = generateWorld({ seed: FIXTURE_SEED, anchor: FIXTURE_ANCHOR });
+  const world = generateWorld({ seed: DEFAULT_WORLD_SEED, anchor: FIXTURE_ANCHOR });
   const vessels = buildVessels(world, pinnedNow(FIXTURE_ANCHOR));
   const voyages = buildVoyages(world);
   const inbox = buildInbox(world);

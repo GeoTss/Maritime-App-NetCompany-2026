@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { createSql, type Sql } from "@pharos/db";
+import { createSql, pinnedNow, type Sql } from "@pharos/db";
 import {
   AIS_BOXES,
   type AisProvider,
@@ -64,9 +64,6 @@ async function supervise(
     if (!signal.aborted) await abortableSleep(RESTART_DELAY_MS, signal);
   }
 }
-
-/** The pinned clock's now(): anchor + 5 min, frozen (the same as the API's). */
-const pinnedNow = (anchor: Date) => new Date(anchor.getTime() + 5 * 60_000);
 
 /**
  * Pinned demo: no real-time AIS and no live fetch. The recorded sources are loaded once at the

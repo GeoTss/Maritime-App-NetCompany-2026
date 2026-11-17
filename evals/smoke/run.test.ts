@@ -1,7 +1,7 @@
 import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { seedDatabase } from "@pharos/db";
+import { DEFAULT_WORLD_SEED, pinnedNow, seedDatabase } from "@pharos/db";
 import { connectTestDb, testDbLabel } from "@pharos/db/testing";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import { captureLlmCall } from "../../apps/api/src/ai/call-capture.js";
@@ -9,12 +9,13 @@ import { createLlmExtractor } from "../../apps/api/src/ai/extract.js";
 import { createLlm } from "../../apps/api/src/ai/llm.js";
 import { createApp } from "../../apps/api/src/app.js";
 import { ASK_RECORDING_CONFIG } from "../../apps/api/src/ask/record-demo-ask.js";
+import { createClock } from "../../apps/api/src/clock.js";
 import { DEFAULT_RECORDINGS_DIR } from "../../apps/api/src/config.js";
 import { createErpClient } from "../../apps/api/src/executor/erp-client.js";
 import { DEMO_INBOX_DIR } from "../../apps/api/src/inbox/routes.js";
 import { DEMO_RECORDING_CONFIG } from "../../apps/api/src/ingest/record-demo-extractions.js";
 import { createDbSource } from "../../apps/api/src/read/db-source.js";
-import { FIXTURE_ANCHOR, FIXTURE_SEED } from "../../apps/api/src/read/fixtures.js";
+import { FIXTURE_ANCHOR } from "../../apps/api/src/read/fixtures.js";
 import { createErpApp } from "../../services/erp-sim/src/app.js";
 import { BudgetError, ledgerTotal, readLedger } from "../lib/budget.js";
 import { RUN_CAP_USD, runSmoke, type SmokeResult } from "./run.js";
@@ -42,7 +43,7 @@ describe.skipIf(!sql)("live smoke runner (in-process, replay)", () => {
   const background: Promise<void>[] = [];
 
   beforeEach(async () => {
-    await seedDatabase(db, { seed: FIXTURE_SEED, anchor: FIXTURE_ANCHOR, mode: "reset" });
+    await seedDatabase(db, { seed: DEFAULT_WORLD_SEED, anchor: FIXTURE_ANCHOR, mode: "reset" });
   });
   // A run that stops early (a rewritten status) leaves its delivery's extraction running. Let it
   // finish inside its own test: the next reset truncates with RESTART IDENTITY, and a leftover
@@ -64,6 +65,7 @@ describe.skipIf(!sql)("live smoke runner (in-process, replay)", () => {
     const erp = createErpApp();
     const app = createApp({
       llmMode: "replay",
+      clock: createClock(FIXTURE_ANCHOR),
       pingDb: async () => true,
       models: {
         extractModel: DEMO_RECORDING_CONFIG.extractModel,
@@ -74,16 +76,18 @@ describe.skipIf(!sql)("live smoke runner (in-process, replay)", () => {
         sql: db,
         extractor: createLlmExtractor(llm, DEMO_RECORDING_CONFIG),
         inboxDir: DEMO_INBOX_DIR,
+        now: () => pinnedNow(FIXTURE_ANCHOR),
         track: (processing) => background.push(processing),
       },
       ask: {
         sql: db,
         llm,
         config: ASK_RECORDING_CONFIG,
-        now: () => new Date(FIXTURE_ANCHOR.getTime() + 5 * 60_000),
+        now: () => pinnedNow(FIXTURE_ANCHOR),
       },
       approvals: {
         sql: db,
+        now: () => pinnedNow(FIXTURE_ANCHOR),
         erp: createErpClient("http://erp.test", (url, init) => erp.request(url, init)),
       },
       llmCalls: { sql: db },

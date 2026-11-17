@@ -4,8 +4,8 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { generateWorld } from "@pharos/db";
-import { buildDemoEmails, FIXTURE_ANCHOR, FIXTURE_SEED } from "../apps/api/src/read/fixtures.js";
+import { DEFAULT_WORLD_SEED, generateWorld } from "@pharos/db";
+import { buildDemoEmails, FIXTURE_ANCHOR } from "../apps/api/src/read/fixtures.js";
 
 export const DEMO_INBOX_DIR = join(import.meta.dirname, "../fixtures/demo-inbox");
 const DESK_ADDRESS = "bunker-desk@pharos-demo.example";
@@ -25,7 +25,7 @@ function rfc5322Date(d: Date): string {
 }
 
 export function buildDemoInboxFiles(): { name: string; content: Buffer }[] {
-  const world = generateWorld({ seed: FIXTURE_SEED, anchor: FIXTURE_ANCHOR });
+  const world = generateWorld({ seed: DEFAULT_WORLD_SEED, anchor: FIXTURE_ANCHOR });
   const emails = buildDemoEmails(world);
   return FILES.map(({ name, index }) => {
     const e = emails[index];

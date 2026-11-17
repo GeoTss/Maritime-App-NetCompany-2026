@@ -14,7 +14,8 @@ import { createToolContext } from "../ai/tools/common.js";
 import { planRouteSpeedFacts } from "../ai/tools/route-speed.js";
 import { createApp } from "../app.js";
 import { ASK_FIXTURE_NOW, prepareAskFixture } from "../ask/demo-fixture.js";
-import { createFixtureSource } from "../read/fixtures.js";
+import { createClock } from "../clock.js";
+import { createFixtureSource, FIXTURE_ANCHOR } from "../read/fixtures.js";
 import { TRAFFIC_LIMIT } from "./routes.js";
 
 const sql = await connectTestDb("live_routes");
@@ -30,6 +31,7 @@ describe.skipIf(!sql)("live routes (Postgres)", () => {
   const db: Sql = sql;
   const app = createApp({
     llmMode: "replay",
+    clock: createClock(FIXTURE_ANCHOR),
     pingDb: async () => true,
     read: createFixtureSource(),
     live: { sql: db, now: () => ASK_FIXTURE_NOW },
@@ -167,6 +169,7 @@ describe.skipIf(!sql)("live routes (Postgres)", () => {
       await empty`truncate weather_snapshots restart identity cascade`;
       const bare = createApp({
         llmMode: "replay",
+        clock: createClock(FIXTURE_ANCHOR),
         pingDb: async () => true,
         read: createFixtureSource(),
         live: { sql: empty, now: () => ASK_FIXTURE_NOW },
@@ -191,6 +194,7 @@ describe.skipIf(!sql)("live routes (Postgres)", () => {
   it("is not mounted without deps.live", async () => {
     const bare = createApp({
       llmMode: "replay",
+      clock: createClock(FIXTURE_ANCHOR),
       pingDb: async () => true,
       read: createFixtureSource(),
     });

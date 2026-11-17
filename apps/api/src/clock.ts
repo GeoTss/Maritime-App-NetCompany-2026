@@ -5,8 +5,7 @@
  * every run and recorded model replies replay. Unpinned, it is the wall clock.
  */
 
-/** How far after the anchor a pinned clock stands (the same offset as the demo-ask fixture). */
-export const PINNED_NOW_OFFSET_MS = 5 * 60_000;
+import { pinnedNow } from "@pharos/db";
 
 export interface Clock {
   /** The pinned demo anchor, or null when the clock is the wall clock. */
@@ -14,9 +13,6 @@ export interface Clock {
   now: () => Date;
   pinned: boolean;
 }
-
-/** The frozen `now` of a clock pinned at `anchor`. */
-export const pinnedNow = (anchor: Date): Date => new Date(anchor.getTime() + PINNED_NOW_OFFSET_MS);
 
 export function createClock(demoAnchor: Date | null): Clock {
   if (demoAnchor === null) {
