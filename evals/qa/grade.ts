@@ -172,8 +172,11 @@ export function statesRoute(answer: string, id: string): boolean {
   );
 }
 
-/** A required fact whose value is a route id ("<ship>: recommended route"). */
-const ROUTE_ID = /: recommended route$/;
+/**
+ * A required fact whose value is a route id: "<ship>: recommended route" (keys written before the
+ * joint route-and-bunker planner) or "<ship>: best route ignoring fuel on board".
+ */
+const ROUTE_ID = /: (?:recommended route|best route ignoring fuel on board)$/;
 
 /** A required fact whose value is the plan's best option id. */
 const BEST_OPTION = /\bbest option\b/i;

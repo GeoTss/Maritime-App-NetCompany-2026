@@ -18,6 +18,7 @@ import {
   fleetRoutePlan,
   fobProjectionInput,
   generateWorld,
+  latestOffers,
   openRequirements,
   optionIdFor,
   type RoutePlan,
@@ -245,7 +246,13 @@ export function qaPlan(world: World) {
       qtyMt: line.qtyMt,
     });
   }
-  const result = planBunkers(buildBunkerPlanInput(world, voyage.id, offers, requirement.grade));
+  // As plan_bunkering builds it: fuel on board on the recorded weather, seeded port waits.
+  const result = planBunkers(
+    buildBunkerPlanInput(world, voyage.id, offers, requirement.grade, {
+      weather: qaLive(world).weather,
+      congestion: "seed",
+    }),
+  );
   return { result, names };
 }
 
@@ -348,7 +355,17 @@ export function qaRoute(world: World, subject: "fleet" | "ais", vessel: string):
   let ship: AisTraffic | null = null;
   if (subject === "fleet") {
     const voyage = must(currentVoyage(world, vesselOf(world, vessel).id), `voyage of ${vessel}`);
-    plan = fleetRoutePlan(world, voyage.id, seaGraph, live.weather, zones);
+    // As plan_route_speed builds it on the pinned clock: seeded port waits, and the valid quotes
+    // for the open requirement as stop candidates (no order is approved during a Q&A run).
+    const requirement = openRequirements(world, voyage.id)[0];
+    const offers = requirement
+      ? latestOffers(world, voyage.id, requirement.grade, QA_NOW, false)
+      : [];
+    plan = fleetRoutePlan(world, voyage.id, seaGraph, live.weather, zones, {
+      congestion: "seed",
+      offers,
+      fixedOrder: null,
+    });
   } else {
     ship =
       vessel === "real"
@@ -730,10 +747,9 @@ function proposedOption(world: World, spec: QuestionSpec): string | null {
       spec.facts.find((f): f is Extract<FactRef, { src: "route" }> => f.src === "route"),
       "route fact to propose",
     );
-    return must(
-      qaRoute(world, ref.subject, ref.vessel).result.bestCandidateId,
-      "best route for the proposal",
-    );
+    // The instruction sails the recommended plan (a stop plan when the route needs one).
+    const { result } = qaRoute(world, ref.subject, ref.vessel);
+    return must(result.plan?.optionId ?? result.bestCandidateId, "plan for the proposal");
   }
   return must(qaPlan(world).result.bestOptionId, "best option for the proposal");
 }

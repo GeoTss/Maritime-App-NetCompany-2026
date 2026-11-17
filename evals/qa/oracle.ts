@@ -30,7 +30,9 @@ const spoken = (label: string): string =>
 
 /** A route id is written as a route ("route B"), as the grader requires. */
 const spokenValue = (r: QaRequiredFact): string =>
-  /: recommended route$/.test(r.label) ? `route ${r.value}` : shown(r.value);
+  /: (?:recommended route|best route ignoring fuel on board)$/.test(r.label)
+    ? `route ${r.value}`
+    : shown(r.value);
 
 const unitText = (unit: string | null): string =>
   unit === null ? "" : unit === "%" ? "%" : ` ${unit}`;
