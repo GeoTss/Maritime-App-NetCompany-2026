@@ -22,7 +22,7 @@ import {
   type ToolResult,
 } from "@pharos/shared";
 import { calcFact, dbFact } from "../../facts/core.js";
-import { findVessel, insertCalculation, runTool, type ToolContext } from "./common.js";
+import { addSubject, findVessel, insertCalculation, runTool, type ToolContext } from "./common.js";
 import { defineTool } from "./define.js";
 
 export const TOOL = "get_emissions";
@@ -34,6 +34,7 @@ export function getEmissions(ctx: ToolContext, input: EmissionsInput): Promise<T
   return runTool(ctx, TOOL, input, async () => {
     const world = await loadWorld(ctx.sql);
     const vessel = findVessel(world, input.vessel);
+    addSubject(ctx, { kind: "vessel", vesselId: vessel.id });
     const voyage = currentVoyage(world, vessel.id);
     if (!voyage) {
       return {

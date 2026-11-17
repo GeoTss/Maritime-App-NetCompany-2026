@@ -8,7 +8,16 @@
  */
 import type { Sql, World } from "@pharos/db";
 import { DOMAIN_CODE_VERSION, isoDayAfter } from "@pharos/domain";
-import type { Calculation, Fact, FactId, Id, Quote, ToolResult, Vessel } from "@pharos/shared";
+import type {
+  AskSubject,
+  Calculation,
+  Fact,
+  FactId,
+  Id,
+  Quote,
+  ToolResult,
+  Vessel,
+} from "@pharos/shared";
 import { resolveVessel } from "../../ingest/resolve.js";
 
 export interface ToolCallLog {
@@ -29,6 +38,8 @@ export interface ToolContext {
   calls: ToolCallLog[];
   /** Recommendations `propose_action` created or returned during this ask. */
   recommendationIds: Id[];
+  /** The ships this ask's tools resolved, in order of first appearance (see `addSubject`). */
+  subjects: AskSubject[];
   /** Runs tool calls one at a time, in call order, so serial ids do not depend on timing. */
   serial: <T>(fn: () => Promise<T>) => Promise<T>;
 }
@@ -45,12 +56,25 @@ export function createToolContext(opts: {
     ledger: new Map((opts.priorFacts ?? []).map((f) => [f.id, f])),
     calls: [],
     recommendationIds: [],
+    subjects: [],
     serial: (fn) => {
       const run = tail.then(fn, fn);
       tail = run.catch(() => {});
       return run;
     },
   };
+}
+
+/**
+ * Records a ship the ask is about, once. A side effect on the context only, never on a tool
+ * result (those are replay-keyed). Call it after the ship is resolved, so a failed call adds none.
+ */
+export function addSubject(ctx: Pick<ToolContext, "subjects">, subject: AskSubject): void {
+  const same = (s: AskSubject) =>
+    s.kind === "vessel"
+      ? subject.kind === "vessel" && subject.vesselId === s.vesselId
+      : subject.kind === "ais" && subject.mmsi === s.mmsi;
+  if (!ctx.subjects.some(same)) ctx.subjects.push(subject);
 }
 
 /**

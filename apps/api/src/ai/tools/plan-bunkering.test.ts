@@ -314,6 +314,30 @@ describe.skipIf(!sql)("plan_bunkering (Postgres)", () => {
     );
   });
 
+  it("bunker plan for all vessels yields subjects in plan order", async () => {
+    await db`
+      insert into bunker_requirements (voyage_id, grade, qty_mt, status, created_at)
+      values ((select id from voyages where voyage_no = 'CH-2613'), 'VLSFO', 400, 'open',
+              ${ASK_FIXTURE_NOW.toISOString()}::timestamptz)`;
+    const c = ctx();
+    await planBunkering(c, {});
+    const world = await loadWorld(db);
+    const id = (n: string) => world.vessels.find((v) => v.name.endsWith(n))?.id;
+    expect(c.subjects).toEqual([
+      { kind: "vessel", vesselId: id("Aegean Pioneer") },
+      { kind: "vessel", vesselId: id("Coral Horizon") },
+    ]);
+  });
+
+  it("a named vessel is the subject; an unknown one records none", async () => {
+    const c = ctx();
+    await planBunkering(c, { vessel: "Aegean Pioneer" });
+    expect(c.subjects).toHaveLength(1);
+    const failed = ctx();
+    await expect(planBunkering(failed, { vessel: "Flying Dutchman" })).rejects.toThrow();
+    expect(failed.subjects).toEqual([]);
+  });
+
   it("with no vessel and no open requirement anywhere it returns a fact-free result", async () => {
     await db`update bunker_requirements set status = 'ordered' where status = 'open'`;
     const result = await planBunkering(ctx(), {});

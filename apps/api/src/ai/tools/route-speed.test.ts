@@ -182,6 +182,36 @@ describe.skipIf(!sql)("plan_route_speed (Postgres)", () => {
     expect(JSON.stringify(out.facts)).not.toContain("computeMs");
   });
 
+  it("route plan for a fleet vessel yields a vessel subject", async () => {
+    const c = ctx();
+    await planRouteSpeedFacts(c, { vessel: "Aegean Pioneer" });
+    const world = await loadWorld(db);
+    const id = world.vessels.find((v) => v.name.endsWith("Aegean Pioneer"))?.id;
+    expect(c.subjects).toEqual([{ kind: "vessel", vesselId: id }]);
+  });
+
+  it("route plan for a public ship yields an ais subject", async () => {
+    const world = await loadWorld(db);
+    const ship = recordedLiveData({ anchor: FIXTURE_ANCHOR, ports: world.ports })
+      .traffic.filter(
+        (t) =>
+          t.name?.trim() &&
+          (t.shipType === "cargo" || t.shipType === "tanker") &&
+          (t.sogKn ?? 0) >= 8,
+      )
+      .sort((a, b) => a.mmsi.localeCompare(b.mmsi))[0];
+    if (!ship) throw new Error("no suitable ship in the capture");
+    const c = ctx();
+    await planRouteSpeedFacts(c, { vessel: ship.mmsi, destination: "Rotterdam" });
+    expect(c.subjects).toEqual([{ kind: "ais", mmsi: ship.mmsi }]);
+  });
+
+  it("a route plan that throws records no subject", async () => {
+    const c = ctx();
+    await expect(planRouteSpeedFacts(c, { vessel: "No Such Ship" })).rejects.toThrow();
+    expect(c.subjects).toEqual([]);
+  });
+
   it("unknown ship or port is a tool error", async () => {
     const before = await count();
     const c = ctx();

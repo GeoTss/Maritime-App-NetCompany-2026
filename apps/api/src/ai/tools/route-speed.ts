@@ -7,7 +7,7 @@
 import { PlanRouteSpeedInput, type ToolResult } from "@pharos/shared";
 import { ROUTE_TOOL, routePlanFacts } from "../../routing/facts.js";
 import { planRouteSpeed } from "../../routing/plan.js";
-import { runTool, type ToolContext } from "./common.js";
+import { addSubject, runTool, type ToolContext } from "./common.js";
 import { defineTool } from "./define.js";
 
 export const TOOL = ROUTE_TOOL;
@@ -19,6 +19,8 @@ export function planRouteSpeedFacts(ctx: ToolContext, input: PlanRouteSpeedInput
   return runTool(ctx, TOOL, input, async (): Promise<ToolResult> => {
     const planned = await planRouteSpeed({ sql: ctx.sql, now: ctx.now }, input);
     const { response } = planned;
+    if (planned.vesselId !== null) addSubject(ctx, { kind: "vessel", vesselId: planned.vesselId });
+    else if (planned.mmsi !== null) addSubject(ctx, { kind: "ais", mmsi: planned.mmsi });
     return {
       facts: routePlanFacts(planned),
       data: {

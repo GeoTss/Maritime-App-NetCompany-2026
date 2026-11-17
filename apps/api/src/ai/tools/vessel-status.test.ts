@@ -1,4 +1,4 @@
-import { DEMO_SCENARIO, type Sql } from "@pharos/db";
+import { DEMO_SCENARIO, loadWorld, type Sql } from "@pharos/db";
 import { connectTestDb, testDbLabel } from "@pharos/db/testing";
 import { DOMAIN_CODE_VERSION } from "@pharos/domain";
 import { Fact, FactId, FobProjection, VesselStatusInput } from "@pharos/shared";
@@ -128,6 +128,18 @@ describe.skipIf(!sql)("get_vessel_status (Postgres)", () => {
     );
     expect(c.calls[0]).toMatchObject({ tool: "get_vessel_status", isError: true });
     expect(c.ledger.size).toBe(0);
+  });
+
+  it("records the resolved vessel as the ask's subject; a failed call records none", async () => {
+    const c = ctx();
+    await getVesselStatus(c, { vessel: "Aegean Pioneer" });
+    await getVesselStatus(c, { vessel: "Aegean Pioneer" });
+    const world = await loadWorld(db);
+    const id = world.vessels.find((v) => v.name.endsWith("Aegean Pioneer"))?.id;
+    expect(c.subjects).toEqual([{ kind: "vessel", vesselId: id }]);
+    const failed = ctx();
+    await expect(getVesselStatus(failed, { vessel: "MV Nonexistent" })).rejects.toThrow();
+    expect(failed.subjects).toEqual([]);
   });
 
   it("the tool result text is the ToolResult JSON", async () => {

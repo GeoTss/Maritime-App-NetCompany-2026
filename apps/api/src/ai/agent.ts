@@ -356,5 +356,6 @@ export async function runAgent(
     gate,
     recommendationIds: ctx.recommendationIds,
     llmCallIds,
+    subjects: ctx.subjects,
   };
 }

@@ -23,6 +23,7 @@ const response = (over: Record<string, unknown> = {}) => ({
   facts: [fact("f_price", 612.5, "USD/mt")],
   recommendationIds: [],
   llmCallIds: [1],
+  subjects: [],
   gate,
   ...over,
 });

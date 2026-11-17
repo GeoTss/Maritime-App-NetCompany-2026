@@ -213,6 +213,7 @@ describe("Phase 2 contracts", () => {
       },
       recommendationIds: [],
       llmCallIds: [3, 4],
+      subjects: [],
     });
     expect(r.answer).toBeNull();
     expect(r.gate.ungroundedNumbers).toEqual(["8,000"]);
@@ -488,6 +489,7 @@ describe("Phase 4 ask events, recommendations and drafts", () => {
     },
     recommendationIds: [],
     llmCallIds: [],
+    subjects: [],
   };
 
   it("AskResponse.gate carries the attempts, each 1 or 2", () => {
@@ -497,6 +499,22 @@ describe("Phase 4 ask events, recommendations and drafts", () => {
       gate: { ...response.gate, attempts: [{ attempt: 3, passed: true, ungroundedCount: 0 }] },
     };
     expect(AskResponse.safeParse(bad).success).toBe(false);
+  });
+
+  it("AskResponse carries subjects: a vessel or an AIS ship, nothing else", () => {
+    const subjects = [
+      { kind: "vessel", vesselId: 3 },
+      { kind: "ais", mmsi: "244123456" },
+    ];
+    expect(AskResponse.parse({ ...response, subjects }).subjects).toEqual(subjects);
+    expect(AskResponse.safeParse({ ...response, subjects: undefined }).success).toBe(false);
+    for (const bad of [
+      { kind: "vessel", vesselId: 3, extra: 1 },
+      { kind: "ais", mmsi: "" },
+      { kind: "port", portId: 1 },
+    ]) {
+      expect(AskResponse.safeParse({ ...response, subjects: [bad] }).success).toBe(false);
+    }
   });
 
   it("AskResponse (HTTP) counts the withheld numbers and never carries them", () => {

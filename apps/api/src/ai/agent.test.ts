@@ -2,7 +2,7 @@ import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
-import type { Sql } from "@pharos/db";
+import { loadWorld, type Sql } from "@pharos/db";
 import { connectTestDb, testDbLabel } from "@pharos/db/testing";
 import { AskResult, type Fact } from "@pharos/shared";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
@@ -335,6 +335,31 @@ describe.skipIf(!sql)("runAgent (Postgres)", () => {
     const stored = await messagesOf(res.conversationId);
     expect(stored.map((m) => m.role)).toEqual(["user", "tool", "tool", "assistant"]);
     expect(stored[1]?.content).toMatchObject({ tool: "plan_bunkering", isError: false });
+  });
+
+  it("an answer with no ship tool has no subjects", async () => {
+    const { deps } = scriptedDeps([
+      toolCall(1, "list_quotes", {}),
+      textReply(2, "There are quotes on file."),
+    ]);
+    const res = await runAgent(deps, "What quotes are on file?");
+    expect(res.subjects).toEqual([]);
+  });
+
+  it("subjects are the ships the tools resolved, in order, without duplicates", async () => {
+    const { deps } = scriptedDeps([
+      toolCall(1, "plan_bunkering", { vessel: "Aegean Pioneer" }),
+      toolCall(2, "get_emissions", { vessel: "Aegean Pioneer" }),
+      toolCall(3, "get_vessel_status", { vessel: "Coral Horizon" }),
+      textReply(4, "Done."),
+    ]);
+    const res = await runAgent(deps, "Compare the two vessels.");
+    const world = await loadWorld(db);
+    const id = (n: string) => world.vessels.find((v) => v.name.endsWith(n))?.id;
+    expect(res.subjects).toEqual([
+      { kind: "vessel", vesselId: id("Aegean Pioneer") },
+      { kind: "vessel", vesselId: id("Coral Horizon") },
+    ]);
   });
 
   it("a follow-up in the same conversation may cite facts from an earlier turn", async () => {

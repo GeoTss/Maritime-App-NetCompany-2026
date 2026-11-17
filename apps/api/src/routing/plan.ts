@@ -51,6 +51,8 @@ export interface PlannedRoute {
   snapshot: { id: Id; modelRun: Date } | null;
   /** The active hazard rows the plan was built with (labels are untrusted text). */
   hazards: NavHazard[];
+  /** Set when the subject is a fleet vessel. */
+  vesselId: Id | null;
   /** Set when the subject is an AIS ship, not a fleet vessel. */
   mmsi: string | null;
   /** The AIS ship's reported speed over ground (kn) when it reports one; null for a fleet vessel. */
@@ -184,6 +186,7 @@ export async function planRouteSpeed(
 
   let plan: RoutePlan;
   let voyageId: Id | null = null;
+  let vesselId: Id | null = null;
   let mmsi: string | null = null;
   let sogKn: number | null = null;
   let ship: AisTraffic | null = null;
@@ -193,6 +196,7 @@ export async function planRouteSpeed(
       const voyage = currentVoyage(world, vessel.id);
       if (!voyage) throw new RoutePlanError(`${vessel.name} has no current voyage to plan.`);
       voyageId = voyage.id;
+      vesselId = vessel.id;
       plan = fleetRoutePlan(world, voyage.id, g, weather, zones);
     } else {
       ship = await findShip(deps.sql, input.vessel);
@@ -246,6 +250,7 @@ export async function planRouteSpeed(
     plan,
     snapshot,
     hazards,
+    vesselId,
     mmsi,
     sogKn,
     ship: ship ? { draughtM: ship.draughtM, updatedAt: ship.updatedAt } : null,

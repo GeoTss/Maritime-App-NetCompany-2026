@@ -14,7 +14,7 @@ import {
 } from "@pharos/shared";
 import { calcFact } from "../../facts/core.js";
 import { VESSEL_TOOL, vesselRowFacts } from "../../facts/vessel.js";
-import { findVessel, json, runTool, type ToolContext } from "./common.js";
+import { addSubject, findVessel, json, runTool, type ToolContext } from "./common.js";
 import { defineTool } from "./define.js";
 
 export const TOOL = VESSEL_TOOL;
@@ -23,6 +23,7 @@ export function getVesselStatus(ctx: ToolContext, input: VesselStatusInput): Pro
   return runTool(ctx, TOOL, input, async () => {
     const world = await loadWorld(ctx.sql);
     const vessel = findVessel(world, input.vessel);
+    addSubject(ctx, { kind: "vessel", vesselId: vessel.id });
     const row = vesselRowFacts(world, vessel, ctx.now());
     const facts: Fact[] = [row.name, row.imo];
     const voyage = currentVoyage(world, vessel.id);

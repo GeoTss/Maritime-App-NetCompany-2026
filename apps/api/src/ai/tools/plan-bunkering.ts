@@ -28,7 +28,14 @@ import {
 } from "@pharos/shared";
 import { bunkerPlanFacts, BUNKER_TOOL as TOOL } from "../../facts/bunker.js";
 import { dbFact } from "../../facts/core.js";
-import { findVessel, insertCalculation, quoteExpiry, runTool, type ToolContext } from "./common.js";
+import {
+  addSubject,
+  findVessel,
+  insertCalculation,
+  quoteExpiry,
+  runTool,
+  type ToolContext,
+} from "./common.js";
 import { defineTool } from "./define.js";
 
 type PlanOutcome =
@@ -164,6 +171,7 @@ async function planVessel(ctx: ToolContext, world: World, vessel: Vessel): Promi
     .sort((a, b) => a.receivedAt.getTime() - b.receivedAt.getTime() || a.id - b.id);
 
   const multi = requirements.length > 1;
+  addSubject(ctx, { kind: "vessel", vesselId: vessel.id });
   const outcomes: PlanOutcome[] = [];
   for (const r of requirements) {
     outcomes.push(await planRequirement(ctx, world, vessel.name, voyage, r, quotes, multi));

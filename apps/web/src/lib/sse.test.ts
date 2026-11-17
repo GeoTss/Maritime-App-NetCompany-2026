@@ -9,6 +9,7 @@ const response: AskResponse = {
   facts: [],
   recommendationIds: [],
   llmCallIds: [3],
+  subjects: [],
   gate: { passed: true, repaired: false, ungroundedCount: 0, attempts: [] },
 };
 

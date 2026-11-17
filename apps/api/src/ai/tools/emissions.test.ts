@@ -1,4 +1,4 @@
-import type { Sql } from "@pharos/db";
+import { loadWorld, type Sql } from "@pharos/db";
 import { connectTestDb, testDbLabel } from "@pharos/db/testing";
 import { ciiRating, co2Tonnes, etsCost, projectFuelOnBoard } from "@pharos/domain";
 import {
@@ -144,6 +144,16 @@ describe.skipIf(!sql)("get_emissions (Postgres)", () => {
   });
 
   it("an unknown vessel is a tool error", async () => {
-    await expect(getEmissions(ctx(), { vessel: "Flying Dutchman" })).rejects.toThrow();
+    const c = ctx();
+    await expect(getEmissions(c, { vessel: "Flying Dutchman" })).rejects.toThrow();
+    expect(c.subjects).toEqual([]);
+  });
+
+  it("records the vessel as the ask's subject", async () => {
+    const c = ctx();
+    await getEmissions(c, { vessel: "Aegean Pioneer" });
+    const world = await loadWorld(db);
+    const id = world.vessels.find((v) => v.name.endsWith("Aegean Pioneer"))?.id;
+    expect(c.subjects).toEqual([{ kind: "vessel", vesselId: id }]);
   });
 });

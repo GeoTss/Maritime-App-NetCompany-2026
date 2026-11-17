@@ -277,6 +277,16 @@ export const GateSummary = z
   .strict();
 export type GateSummary = z.infer<typeof GateSummary>;
 
+/**
+ * A ship an answer is about, as the tools resolved it: a fleet vessel, or a public ship seen on AIS.
+ * "Show on map" reads these instead of guessing from the answer text.
+ */
+export const AskSubject = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("vessel"), vesselId: Id }).strict(),
+  z.object({ kind: z.literal("ais"), mmsi: z.string().min(1) }).strict(),
+]);
+export type AskSubject = z.infer<typeof AskSubject>;
+
 const askFields = {
   conversationId: Id,
   messageId: Id,
@@ -285,6 +295,8 @@ const askFields = {
   facts: z.array(Fact),
   recommendationIds: z.array(Id),
   llmCallIds: z.array(Id),
+  /** The ships the tools resolved for this answer, deduplicated, in order of first appearance. */
+  subjects: z.array(AskSubject),
 };
 
 /** What `runAgent` returns inside the API (and to the Q&A runner): the full gate. Never sent. */
