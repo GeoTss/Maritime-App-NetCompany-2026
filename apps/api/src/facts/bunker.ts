@@ -282,7 +282,7 @@ function marginFact(
   ]);
   return {
     id: factId(BUNKER_TOOL, c.calculationId, BUNKER_MARGIN_PATH),
-    label: `${c.scope}Margin of the best option over the runner-up (${runnerUp.option.optionId}), in total cost`,
+    label: `${c.scope}Margin of the best option over the runner-up, in total cost`,
     value: margin.value,
     unit: margin.unit,
     provenance: { source: "derived", operation: "subtract", operands: [runnerUpId, bestId] },

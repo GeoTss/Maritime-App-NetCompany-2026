@@ -208,6 +208,7 @@ describe("bunkerPlanView", () => {
     expect(m?.id).toBe("f_plan_bunkering_7_marginVsRunnerUpUsd");
     expect(m?.value).toBe(250);
     expect(m?.unit).toBe("USD");
+    expect(m?.label).toBe("Margin of the best option over the runner-up, in total cost");
     expect(m?.provenance).toEqual({
       source: "derived",
       operation: "subtract",
