@@ -165,6 +165,16 @@ test("demo story: six steps", async ({ page }) => {
       page.locator('[data-testid^="hazard-"] [data-kind="synthetic"]').first(),
     ).toBeVisible();
     await expect(page.getByRole("button", { name: "Aegean Pioneer, has an alert" })).toBeVisible();
+    // The alert is the one fuel calculation's: LSMGO runs out before arrival at the planned speed
+    // (the panel reads "LSMGO runs out before arrival at the planned speed"). GET only.
+    if (!LIVE) {
+      const vessels = (await (await page.request.get("/api/vessels")).json()) as {
+        items: { name: string; alerts: string[] }[];
+      };
+      expect(vessels.items.find((v) => v.name === "MV Aegean Pioneer")?.alerts).toEqual([
+        "lsmgo_runs_out",
+      ]);
+    }
   });
   await shot(page, 1, "map");
   if (STOP_AFTER === "map") {
@@ -351,13 +361,21 @@ test("demo story: six steps", async ({ page }) => {
     page.locator('[data-testid^="route-row-"]:not([data-testid="route-row-baseline"])'),
   ).toHaveCount(3);
   if (LIVE) {
-    // Live weather and hazards decide the winner: exactly one recommendation, and not the
-    // infeasible baseline-like row A.
-    const recommended = page.locator('[data-testid^="route-row-"][data-role="recommended"]');
-    await expect(recommended).toHaveCount(1);
-    await expect(recommended).not.toHaveAttribute("data-testid", "route-row-A");
+    // Live weather, quotes and hazards decide: a recommended plan, or "No feasible plan".
+    await expect(page.getByTestId("plan-summary").or(page.getByTestId("no-plan"))).toBeVisible();
   } else {
-    await expect(page.getByTestId("route-row-B")).toHaveAttribute("data-role", "recommended");
+    // The joint plan: the best route ignoring fuel (B) runs short of LSMGO, so the recommended
+    // plan calls at Marsaxlokk for Kestrel's quote; the stop, the fuel curve and the map marker.
+    const summary = page.getByTestId("plan-summary");
+    await expect(summary).toBeVisible();
+    await expect(summary.getByTestId("plan-title")).toContainText("Marsaxlokk");
+    await expect(summary.getByTestId("plan-title")).toContainText("Kestrel Marine Fuels");
+    await expect(summary.getByTestId("stop-card")).toBeVisible();
+    await expect(summary.getByTestId("plan-adds")).toBeVisible();
+    await expect(page.getByTestId("fuel-blind-best-summary")).toContainText("Runs short of LSMGO");
+    await expect(page.getByTestId("fuel-curve")).toBeVisible();
+    await expect(page.getByTestId("stop-marker")).toBeVisible();
+    await expect(page.getByTestId("route-row-B")).toHaveAttribute("data-role", "infeasible");
   }
   const chipSel = '[data-slot="fact-chip"]';
   await expect(
@@ -398,7 +416,12 @@ test("demo story: six steps", async ({ page }) => {
   await expect(page.getByText(/Route options:.*to\s+Rotterdam/i)).toBeVisible();
   await shot(page, 4, "public-ship-route");
 
-  await ask(page, INSTRUCT_Q, "4 instruct");
+  const turn3 = await ask(page, INSTRUCT_Q, "4 instruct");
+  await expect(
+    turn3
+      .getByRole("article", { name: /Proposal \d+/ })
+      .getByRole("link", { name: "Review and decide" }),
+  ).toBeVisible();
 
   // 5. Approvals ------------------------------------------------------------------------------
   await nav(page, "/approvals");
@@ -421,6 +444,22 @@ test("demo story: six steps", async ({ page }) => {
     await page.getByRole("alertdialog").getByRole("button", { name: confirm, exact: true }).click();
     return detail;
   };
+  // The instruction sails the plan with the bunker stop: it waits for the purchase order of the
+  // stop's quote, so its Approve is disabled until that order is approved (GET-only click).
+  if (!LIVE) {
+    await queue
+      .locator("li[data-recommendation-id]")
+      .filter({ hasText: /Voyage instruction/ })
+      .first()
+      .getByRole("link")
+      .click();
+    const waits = detail.getByTestId("dependency-line");
+    await expect(waits).toHaveAttribute("data-satisfied", "false");
+    await expect(waits).toContainText("Kestrel Marine Fuels at Marsaxlokk");
+    await expect(
+      detail.getByRole("button", { name: /^Approve voyage instruction/ }),
+    ).toBeDisabled();
+  }
   const po = await decide(/Purchase order/, "Approve and create the order");
   await expect(po.getByText(/Purchase order\s+PO-\S+/)).toBeVisible({ timeout: 60_000 });
   // Drafts and the audit trail open from their own disclosures (GET-only clicks: no POST, so
