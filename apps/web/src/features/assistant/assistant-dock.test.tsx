@@ -361,6 +361,23 @@ describe("AssistantDock", () => {
     expect(location()).toBe("/");
   });
 
+  it("on the map, a vessel answer that cites no plan stays put but offers Show on map (ruling T5-a)", async () => {
+    askReply = () =>
+      sse([
+        progress("get_vessel_status", "started"),
+        progress("get_vessel_status", "finished", 12),
+        frame({
+          type: "answer",
+          response: response({ subjects: [{ kind: "vessel", vesselId: 1 }] }),
+        }),
+      ]);
+    renderDock("/?vessel=2");
+    await ask("How is Aegean Pioneer?");
+    const link = await screen.findByRole("link", { name: /Show on map/ });
+    expect(link.getAttribute("href")).toBe("/?vessel=1");
+    expect(location()).toBe("/?vessel=2");
+  });
+
   it("shows on map every answer with a link, not only route answers", async () => {
     askReply = () =>
       sse([

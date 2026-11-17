@@ -3,9 +3,10 @@
  * number a fact chip) and the composer. No answer text streams before the release gate passes it.
  * The dock proposes nothing by itself: a proposal it makes is decided on the approvals screen.
  *
- * Ruling U4: when an answer arrives while the map is on screen (`/`), the dock moves the map to the
- * answer's ship and plan (`replace`, so Back is not filled with answers). Elsewhere the answer only
- * offers "Show on map".
+ * Ruling U4: when an answer that cites a plan arrives while the map is on screen (`/`), the dock
+ * moves the map to the answer's ship and plan (`replace`, so Back is not filled with answers).
+ * Elsewhere, and for an answer that cites no plan (ruling T5-a), the answer only offers "Show on
+ * map".
  */
 import { AiChat02Icon, Alert02Icon, Refresh01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -16,7 +17,7 @@ import { DataTag } from "@/components/source-badge";
 import { Button } from "@/components/ui/button";
 import { queryKeys, useHealth } from "@/lib/queries";
 import { AnswerMessage } from "./answer-message";
-import { answerMapLink } from "./answer-plan";
+import { answerMapLink, answerPlan } from "./answer-plan";
 import { ask, isRunning, resetAssistant, retry, type Turn, useAssistant } from "./assistant-store";
 import { Composer } from "./composer";
 import { ProgressTrace } from "./progress-trace";
@@ -41,9 +42,10 @@ function ModelMode() {
 }
 
 /**
- * Ruling U4: an answer that arrives while the map is on screen moves the map to its link. Answers
- * already shown when the dock mounted (the phone drawer opening again) have arrived before: they
- * never navigate. A withheld answer never does.
+ * Ruling U4: an answer that arrives while the map is on screen moves the map to its link. Ruling
+ * T5-a: only an answer that cites a plan does; one that only names a ship never moves the map by
+ * itself. Answers already shown when the dock mounted (the phone drawer opening again) have arrived
+ * before: they never navigate. A withheld answer never does.
  */
 function useDrawArrivingAnswers(turns: Turn[]) {
   const navigate = useNavigate();
@@ -57,6 +59,7 @@ function useDrawArrivingAnswers(turns: Turn[]) {
       if (turn.response === null || handled.has(turn.id)) continue;
       handled.add(turn.id);
       if (pathname !== "/" || turn.response.answer === null) continue;
+      if (answerPlan(turn.response) === null) continue;
       const link = answerMapLink(turn.response);
       if (link !== null) navigate(link, { replace: true });
     }
