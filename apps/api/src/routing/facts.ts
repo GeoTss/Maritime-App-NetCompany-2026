@@ -11,7 +11,14 @@
  */
 import type { RoutePlan } from "@pharos/db";
 import { type DraughtCondition, loadFactor } from "@pharos/domain";
-import type { AisTraffic, Fact, Id, RouteSpeedInput, RouteSpeedResult } from "@pharos/shared";
+import type {
+  AisTraffic,
+  Fact,
+  Id,
+  NavHazard,
+  RouteSpeedInput,
+  RouteSpeedResult,
+} from "@pharos/shared";
 import { calcFact, dbFact, factId } from "../facts/core.js";
 import type { PlannedRoute } from "./plan.js";
 
@@ -357,8 +364,19 @@ export function routeFactOfRow(
   );
 }
 
+/**
+ * What `routePlanFacts` reads: a live `PlannedRoute`, or a stored plan rebuilt from its calculation
+ * (the read view, `GET /api/route-plans/:id`). The hazards are only looked up by id for their label.
+ */
+export type RoutePlanFactsInput = Pick<PlannedRoute, "snapshot" | "mmsi" | "sogKn" | "ship"> & {
+  response: Pick<PlannedRoute["response"], "calculationId" | "result">;
+  plan: RouteFactPlan &
+    Pick<RoutePlan, "avoidedHazardIds"> & { input: Pick<RouteSpeedInput, "hazards"> };
+  hazards: Pick<NavHazard, "id" | "label">[];
+};
+
 /** Facts for the reported hazards the plan touches or goes round (labels are untrusted text). */
-function hazardFacts(planned: PlannedRoute, S: string): Fact[] {
+function hazardFacts(planned: RoutePlanFactsInput, S: string): Fact[] {
   const { plan, response, hazards } = planned;
   const calculationId = response.calculationId;
   const best = response.result.options.find(
@@ -421,7 +439,7 @@ function hazardFacts(planned: PlannedRoute, S: string): Fact[] {
  * serves them: the plan's rows, the AIS ship name (untrusted text, a value only) and its reported
  * speed over ground, and the hazards.
  */
-export function routePlanFacts(planned: PlannedRoute): Fact[] {
+export function routePlanFacts(planned: RoutePlanFactsInput): Fact[] {
   const { response, plan, snapshot, mmsi, sogKn, ship } = planned;
   const calculationId = response.calculationId;
   const S = subjectLabel(plan, mmsi);

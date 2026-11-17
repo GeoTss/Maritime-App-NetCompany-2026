@@ -1,11 +1,13 @@
 import type {
   AuditEventView,
+  BunkerPlanView,
   Id,
   InboxItem,
   InboxItemDetail,
   PortView,
   QuoteView,
   RecommendationView,
+  RoutePlanView,
   VesselDetail,
   VesselSummary,
   VoyageDetail,
@@ -29,4 +31,11 @@ export interface ReadSource {
   listPorts(): Promise<PortView[]>;
   /** Audit events in the order they happened, all of them or one recommendation's. */
   listAuditEvents(recommendationId: Id | null): Promise<AuditEventView[]>;
+  /** A stored bunker plan, whole; null when there is no readable bunker plan with this id. */
+  getBunkerPlan(calculationId: Id): Promise<BunkerPlanView | null>;
+  /**
+   * A stored fleet-vessel route plan, rebuilt from the stored calculation; null when there is no
+   * readable route plan with this id, or it is an AIS ship's.
+   */
+  getRoutePlan(calculationId: Id): Promise<RoutePlanView | null>;
 }

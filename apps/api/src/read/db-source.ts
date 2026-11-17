@@ -5,7 +5,8 @@
  * are re-derived from the calculation it references, never from stored model text: a bunker
  * plan's option facts, or a route plan's approved-route facts as `plan_route_speed` returned them.
  * Its gate origin is the stored gate result of the answer that proposed it; its order state comes
- * from purchase_orders.
+ * from purchase_orders. A stored bunker or route plan is served whole the same way, from its
+ * calculation, with the facts its tool returned.
  */
 import { loadWorld, type Sql } from "@pharos/db";
 import {
@@ -13,10 +14,13 @@ import {
   AuditEventView as AuditEventViewSchema,
   BunkerPlan,
   BunkerPlanInput,
+  type BunkerPlanView,
   CheckResult,
+  ConsumptionCurve,
   type ErpSyncStatus,
   ExtractionOutput,
   type Fact,
+  HazardZone,
   type Id,
   type InboxItem,
   type InboxItemDetail,
@@ -25,12 +29,25 @@ import {
   type QuoteView,
   type RecommendationView,
   RouteCandidate,
+  type RoutePlanView,
   RouteSpeedResult,
   ShipType,
 } from "@pharos/shared";
 import { z } from "zod";
-import { BUNKER_SAVING_PATH, bunkerOptionViewFacts, bunkerScope } from "../facts/bunker.js";
-import { routeFactOfRow, routeSpeedFactRows, subjectLabel } from "../routing/facts.js";
+import {
+  BUNKER_SAVING_PATH,
+  type BunkerFactContext,
+  bunkerOptionViewFacts,
+  bunkerPlanView,
+  bunkerScope,
+} from "../facts/bunker.js";
+import {
+  type RoutePlanFactsInput,
+  routeFactOfRow,
+  routePlanFacts,
+  routeSpeedFactRows,
+  subjectLabel,
+} from "../routing/facts.js";
 import type { ReadSource } from "./source.js";
 import { buildVessels, buildVoyages } from "./world-views.js";
 
@@ -156,6 +173,7 @@ interface RecommendationRow {
   kind: string;
   inputs: unknown;
   outputs: unknown;
+  vessel_id: number | null;
   voyage_no: string | null;
   gate_passed: boolean | null;
   order_id: number | null;
@@ -174,17 +192,53 @@ const ROUTE_SAVING_PATH = "savingVsBaselineUsd";
 const factAt = (facts: Fact[], path: string): Fact | null =>
   facts.find((f) => f.provenance.source === "calculation" && f.provenance.path === path) ?? null;
 
-/** What the view reads of a stored route calculation's inputs (see routing/plan.ts). */
+/** What the views read of a stored route calculation's inputs (see routing/plan.ts). */
 const RouteCalculationInputs = z.object({
   subject: z.string().min(1),
   mmsi: z.string().nullable(),
   destination: z.string().min(1),
   profile: z.union([z.literal("own"), ShipType]),
+  avoidedHazardIds: z.array(z.string()),
   optimiser: z.object({
     candidates: z.array(RouteCandidate),
     arriveBy: IsoDateTime.nullable(),
+    curve: ConsumptionCurve,
+    hazards: z.array(HazardZone),
   }),
 });
+
+/** A stored route calculation, parsed once for the approval view and the route-plan view. */
+interface StoredRoutePlan {
+  /** The plan as the route facts read it, rebuilt from the stored inputs. */
+  plan: RoutePlanFactsInput["plan"];
+  result: RouteSpeedResult;
+  /** The AIS ship's MMSI; null for a fleet vessel. */
+  mmsi: string | null;
+}
+
+/**
+ * Parses a stored route calculation: its inputs (subject, destination, profile, the hazards it goes
+ * round, and the optimiser's candidates, berth window, curve and hazard zones) and its result. An
+ * AIS ship's load condition is not rebuilt: its plan is not served (ruling U5) and the option view
+ * shows no load facts. Null when the calculation is unreadable.
+ */
+function storedRoutePlan(row: { inputs: unknown; outputs: unknown }): StoredRoutePlan | null {
+  const stored = RouteCalculationInputs.safeParse(row.inputs);
+  const result = RouteSpeedResult.safeParse(row.outputs);
+  if (!stored.success || !result.success) return null;
+  const { subject, mmsi, destination, profile, avoidedHazardIds, optimiser } = stored.data;
+  return {
+    plan: {
+      subject,
+      profile,
+      destination: { name: destination },
+      input: optimiser,
+      avoidedHazardIds,
+    },
+    result: result.data,
+    mmsi,
+  };
+}
 
 /**
  * A route plan's proposed route: a summary without numbers, the route's description, and that
@@ -198,34 +252,164 @@ function routeOptionView(
   outputs: unknown,
   optionId: string,
 ): { summary: string; optionLabel: string; facts: Fact[] } | null {
-  const stored = RouteCalculationInputs.safeParse(inputs);
-  const result = RouteSpeedResult.safeParse(outputs);
-  if (!stored.success || !result.success) return null;
-  const { subject, mmsi, destination, profile, optimiser } = stored.data;
-  const index = result.data.options.findIndex((o) => o.candidateId === optionId);
-  const at = optimiser.candidates.findIndex((c) => c.id === optionId);
-  const candidate = optimiser.candidates[at];
+  const stored = storedRoutePlan({ inputs, outputs });
+  if (!stored) return null;
+  const { plan, result, mmsi } = stored;
+  const { candidates } = plan.input;
+  const index = result.options.findIndex((o) => o.candidateId === optionId);
+  const at = candidates.findIndex((c) => c.id === optionId);
+  const candidate = candidates[at];
   if (index < 0 || !candidate) return null;
-  const plan = { subject, profile, destination: { name: destination }, input: optimiser };
   const keep = new Set([
     `inputs.optimiser.candidates.${at}.label`,
     "inputs.optimiser.arriveBy",
-    ...(optionId === result.data.bestCandidateId ? ["bestCandidateId", ROUTE_SAVING_PATH] : []),
+    ...(optionId === result.bestCandidateId ? ["bestCandidateId", ROUTE_SAVING_PATH] : []),
   ]);
-  const facts = routeSpeedFactRows(plan, result.data, null, { mmsi })
+  const facts = routeSpeedFactRows(plan, result, null, { mmsi })
     .filter((row) => row.path.startsWith(`options[${index}].`) || keep.has(row.path))
     .map((row) => routeFactOfRow(calculationId, row));
   return {
-    summary: `Instruct ${subjectLabel(plan, mmsi)} to ${destination}: ${candidate.label} (route ${optionId}).`,
+    summary: `Instruct ${subjectLabel(plan, mmsi)} to ${plan.destination.name}: ${candidate.label} (route ${optionId}).`,
     optionLabel: candidate.label,
     facts,
   };
 }
 
+/**
+ * A stored fleet-vessel route plan as `POST /api/route-plan` served it, rebuilt from stored data
+ * only: the calculation's inputs and outputs, and the forecast start of the snapshot stored with
+ * it. Null for another kind of calculation, an unreadable one, or an AIS ship's plan (ruling U5).
+ */
+async function routePlan(sql: Sql, id: Id): Promise<RoutePlanView | null> {
+  const [row] = await sql<
+    {
+      id: number;
+      inputs: unknown;
+      outputs: unknown;
+      weather_snapshot_id: number | null;
+      model_run: string | Date | null;
+    }[]
+  >`
+    select c.id, c.inputs, c.outputs, c.weather_snapshot_id, w.model_run
+    from calculations c left join weather_snapshots w on w.id = c.weather_snapshot_id
+    where c.id = ${id} and c.kind = 'route_speed'`;
+  const stored = row ? storedRoutePlan(row) : null;
+  if (!row || !stored || stored.mmsi !== null) return null;
+  const { plan, result } = stored;
+  const snapshot =
+    row.weather_snapshot_id === null || row.model_run === null
+      ? null
+      : { id: row.weather_snapshot_id, modelRun: new Date(row.model_run) };
+  // A hazard's label is cited from its nav_hazards row, read by the ids the stored plan names;
+  // the zone itself (centre, keep-out radius) is the stored optimiser input's.
+  const ids = [
+    ...new Set([...plan.input.hazards.map((zone) => zone.id), ...plan.avoidedHazardIds]),
+  ];
+  const hazards =
+    ids.length === 0
+      ? []
+      : await sql<{ id: string; label: string }[]>`
+          select id, label from nav_hazards where id in ${sql(ids)}`;
+  return {
+    calculationId: row.id,
+    weatherSnapshotId: row.weather_snapshot_id,
+    subject: plan.subject,
+    destination: plan.destination.name,
+    candidates: plan.input.candidates,
+    result,
+    facts: routePlanFacts({
+      response: { calculationId: row.id, result },
+      plan,
+      snapshot,
+      hazards,
+      mmsi: null,
+      sogKn: null,
+      ship: null,
+    }),
+    computeMs: null,
+  };
+}
+
+/** The supplier names and ports a stored bunker plan's views name its options by. */
+interface BunkerLookups {
+  supplierNames: Map<Id, string>;
+  ports: Map<Id, PortView>;
+}
+
+async function bunkerLookups(sql: Sql): Promise<BunkerLookups> {
+  const suppliers = await sql<{ id: number; name: string }[]>`select id, name from suppliers`;
+  return {
+    supplierNames: new Map(suppliers.map((s) => [s.id, s.name])),
+    ports: new Map((await ports(sql)).map((p) => [p.id, p])),
+  };
+}
+
+/** A calculation row with its voyage's vessel and number (null when it has no voyage). */
+interface PlanCalculationRow {
+  id: number;
+  kind: string;
+  inputs: unknown;
+  outputs: unknown;
+  vessel_id: number | null;
+  voyage_no: string | null;
+}
+
+/**
+ * A stored bunker plan, parsed once for the approval card and the plan view: its input, the
+ * context its facts are built from (the ids and labels `plan_bunkering` gave them) and the whole
+ * plan. Null when the calculation is not a readable bunker plan.
+ */
+function storedBunkerPlan(
+  row: PlanCalculationRow,
+  lookups: BunkerLookups,
+): { input: BunkerPlanInput; context: BunkerFactContext; view: BunkerPlanView } | null {
+  if (row.kind !== "bunker_plan") return null;
+  const input = BunkerPlanInput.safeParse(row.inputs);
+  const plan = BunkerPlan.safeParse(row.outputs);
+  if (!input.success || !plan.success) return null;
+  const offer = (optionId: string) => input.data.options.find((o) => o.optionId === optionId);
+  const names = (optionId: string) => {
+    const o = offer(optionId);
+    if (!o) return { supplier: "?", port: "?" };
+    return {
+      supplier: lookups.supplierNames.get(o.supplierId) ?? `supplier ${o.supplierId}`,
+      port: lookups.ports.get(o.portId)?.name ?? `port ${o.portId}`,
+    };
+  };
+  const context: BunkerFactContext = {
+    calculationId: row.id,
+    plan: plan.data,
+    // Every option id of one plan carries the same grade prefix (or none): any one gives the scope.
+    scope: bunkerScope(input.data.grade, plan.data.options[0]?.optionId ?? ""),
+    names,
+    displacementMt: input.data.curve.load?.displacementMt ?? null,
+  };
+  const view = bunkerPlanView(context, {
+    grade: input.data.grade,
+    vesselId: row.vessel_id,
+    voyageNo: row.voyage_no,
+    port: (optionId) => {
+      const o = offer(optionId);
+      const p = o ? lookups.ports.get(o.portId) : undefined;
+      return p ? { id: p.id, name: p.name, unlocode: p.unlocode, position: p.position } : null;
+    },
+  });
+  return { input: input.data, context, view };
+}
+
+async function bunkerPlan(sql: Sql, id: Id): Promise<BunkerPlanView | null> {
+  const [row] = await sql<PlanCalculationRow[]>`
+    select c.id, c.kind, c.inputs, c.outputs, vo.vessel_id, vo.voyage_no
+    from calculations c left join voyages vo on vo.id = c.voyage_id
+    where c.id = ${id}`;
+  if (!row) return null;
+  return storedBunkerPlan(row, await bunkerLookups(sql))?.view ?? null;
+}
+
 async function recommendations(sql: Sql, id?: Id): Promise<RecommendationView[]> {
   const rows = await sql<RecommendationRow[]>`
     select r.id, r.type, r.status, r.calculation_id, r.option_id, r.fact_refs,
-           r.expected_saving_usd, c.kind, c.inputs, c.outputs, vo.voyage_no,
+           r.expected_saving_usd, c.kind, c.inputs, c.outputs, vo.vessel_id, vo.voyage_no,
            (m.content -> 'gate' ->> 'passed')::boolean as gate_passed,
            po.id as order_id, po.erp_po_number, po.erp_sync_status,
            vi.id as instruction_id, vi.candidate_id as instruction_candidate_id,
@@ -244,14 +428,7 @@ async function recommendations(sql: Sql, id?: Id): Promise<RecommendationView[]>
     ${id === undefined ? sql`` : sql`where r.id = ${id}`}
     order by r.id desc`;
   if (rows.length === 0) return [];
-  const names = async (table: "suppliers" | "ports") =>
-    new Map(
-      (await sql<{ id: number; name: string }[]>`select id, name from ${sql(table)}`).map((r) => [
-        r.id,
-        r.name,
-      ]),
-    );
-  const [supplierNames, portNames] = [await names("suppliers"), await names("ports")];
+  const lookups = await bunkerLookups(sql);
 
   return rows.map((r): RecommendationView => {
     // The saving's fact, when the proposal has a saving.
@@ -266,7 +443,7 @@ async function recommendations(sql: Sql, id?: Id): Promise<RecommendationView[]>
       expectedSavingUsd: r.expected_saving_usd,
       factRefs: r.fact_refs,
       gatePassed: r.gate_passed,
-      // Task 3 builds the stored plan view; until then no recommendation carries one.
+      // Only a readable purchase order carries its plan (set below).
       bunkerPlan: null,
       order:
         r.order_id === null || r.erp_sync_status === null
@@ -298,12 +475,18 @@ async function recommendations(sql: Sql, id?: Id): Promise<RecommendationView[]>
       }
       return { ...base, ...view, expectedSaving: savingOf(view.facts, ROUTE_SAVING_PATH) };
     }
-    const input = BunkerPlanInput.safeParse(r.inputs);
-    const plan = BunkerPlan.safeParse(r.outputs);
-    const offer = input.success
-      ? input.data.options.find((o) => o.optionId === r.option_id)
-      : undefined;
-    if (r.kind !== "bunker_plan" || !input.success || !plan.success || !offer) {
+    const stored = storedBunkerPlan(
+      {
+        id: r.calculation_id,
+        kind: r.kind,
+        inputs: r.inputs,
+        outputs: r.outputs,
+        vessel_id: r.vessel_id,
+        voyage_no: r.voyage_no,
+      },
+      lookups,
+    );
+    if (!stored?.input.options.some((o) => o.optionId === r.option_id)) {
       return {
         ...base,
         summary: `Option ${r.option_id} of calculation ${r.calculation_id} (not a readable bunker plan).`,
@@ -312,35 +495,19 @@ async function recommendations(sql: Sql, id?: Id): Promise<RecommendationView[]>
         facts: [],
       };
     }
-    const options = input.data.options;
-    const names = (optionId: string) => {
-      const o = options.find((x) => x.optionId === optionId);
-      if (!o) return { supplier: "?", port: "?" };
-      return {
-        supplier: supplierNames.get(o.supplierId) ?? `supplier ${o.supplierId}`,
-        port: portNames.get(o.portId) ?? `port ${o.portId}`,
-      };
-    };
     // The plan's facts for the option, with the ids and labels `plan_bunkering` gave them, so the
     // facts the agent cited when it proposed the option resolve here unchanged.
-    const facts = bunkerOptionViewFacts(
-      {
-        calculationId: r.calculation_id,
-        plan: plan.data,
-        scope: bunkerScope(input.data.grade, r.option_id),
-        names,
-        displacementMt: input.data.curve.load?.displacementMt ?? null,
-      },
-      r.option_id,
-    );
-    const { supplier, port } = names(r.option_id);
+    const facts = bunkerOptionViewFacts(stored.context, r.option_id);
+    const { supplier, port } = stored.context.names(r.option_id);
     const stem = r.voyage_no ? ` for the ${r.voyage_no} stem` : "";
     return {
       ...base,
-      summary: `Order ${input.data.grade}${stem} from ${supplier} at ${port}.`,
+      summary: `Order ${stored.input.grade}${stem} from ${supplier} at ${port}.`,
       optionLabel: `${supplier} at ${port}`,
       expectedSaving: savingOf(facts, BUNKER_SAVING_PATH),
       facts,
+      // The whole plan behind a purchase order, built by the plan view's own builder.
+      bunkerPlan: r.type === "purchase_order" ? stored.view : null,
     };
   });
 }
@@ -419,5 +586,7 @@ export function createDbSource(sql: Sql, now: () => Date): ReadSource {
     worldAnchor: () => worldAnchor(sql),
     listPorts: () => ports(sql),
     listAuditEvents: (recommendationId) => auditEvents(sql, recommendationId),
+    getBunkerPlan: (id) => bunkerPlan(sql, id),
+    getRoutePlan: (id) => routePlan(sql, id),
   };
 }

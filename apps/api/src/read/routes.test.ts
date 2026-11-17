@@ -7,6 +7,7 @@ import {
 import { legsForRoute, planBunkers } from "@pharos/domain";
 import {
   AuditEventList,
+  BunkerPlanView,
   InboxItem,
   InboxItemDetail,
   listOf,
@@ -242,6 +243,68 @@ describe("console read routes (fixture source)", () => {
       expect(body).toMatchObject({ error: "invalid_request" });
     },
   );
+
+  it("GET /api/bunker-plans/:id serves the purchase order's whole plan, best option first", async () => {
+    const world = generateWorld({ seed: DEFAULT_WORLD_SEED, anchor: FIXTURE_ANCHOR });
+    const { items } = listOf(RecommendationView).parse((await get("/api/recommendations")).body);
+    const rec = items.find((r) => r.type === "purchase_order");
+    const { res, body } = await get(`/api/bunker-plans/${rec?.calculationId}`);
+    expect(res.status).toBe(200);
+    const plan = BunkerPlanView.parse(body);
+    const vessel = world.vessels.find((v) => v.imo === DEMO_SCENARIO.vesselImo);
+    expect(plan).toMatchObject({
+      calculationId: rec?.calculationId,
+      grade: DEMO_SCENARIO.requirement.grade,
+      vesselId: vessel?.id,
+      voyageNo: DEMO_SCENARIO.voyageNo,
+    });
+    expect(plan.options[0]?.best).toBe(true);
+    expect(plan.options[0]?.optionId).toBe(rec?.optionId);
+    expect(plan.options).toHaveLength(DEMO_SCENARIO.options.length);
+    const rows = plan.options.flatMap((o) => o.rows);
+    expect(rows.length).toBeGreaterThan(0);
+    for (const r of rows) expect(r.fact.id.startsWith("f_plan_bunkering_")).toBe(true);
+    // Each option's port is the world's port row.
+    for (const o of plan.options) {
+      const port = world.ports.find((p) => p.id === o.port.id);
+      expect(o.port).toEqual({
+        id: port?.id,
+        name: port?.name,
+        unlocode: port?.unlocode,
+        position: { lat: port?.lat, lon: port?.lon },
+      });
+    }
+  });
+
+  it("GET /api/bunker-plans/999 404s", async () => {
+    const { res, body } = await get("/api/bunker-plans/999");
+    expect(res.status).toBe(404);
+    expect(body).toEqual({ error: "not_found" });
+  });
+
+  it("GET /api/route-plans/:id 404s on the bunker plan's id (the fixtures store no route plan)", async () => {
+    const { items } = listOf(RecommendationView).parse((await get("/api/recommendations")).body);
+    const rec = items.find((r) => r.type === "purchase_order");
+    const { res, body } = await get(`/api/route-plans/${rec?.calculationId}`);
+    expect(res.status).toBe(404);
+    expect(body).toEqual({ error: "not_found" });
+  });
+
+  it("gives the purchase order its bunker plan, the one GET /api/bunker-plans serves", async () => {
+    const { items } = listOf(RecommendationView).parse((await get("/api/recommendations")).body);
+    const rec = items.find((r) => r.type === "purchase_order");
+    expect(rec?.bunkerPlan).not.toBeNull();
+    expect(rec?.bunkerPlan?.calculationId).toBe(rec?.calculationId);
+    expect(rec?.bunkerPlan).toEqual((await get(`/api/bunker-plans/${rec?.calculationId}`)).body);
+    // The option facts on the card are the plan's rows for that option, under the same ids.
+    const option = rec?.bunkerPlan?.options.find((o) => o.optionId === rec.optionId);
+    const rowIds = new Set(option?.rows.map((r) => r.fact.id));
+    for (const f of rec?.facts ?? []) {
+      if (f.provenance.source === "calculation" && f.provenance.path.startsWith("options[")) {
+        expect(rowIds.has(f.id)).toBe(true);
+      }
+    }
+  });
 
   it("gives every voyage detail a planned track from its route legs' waypoints", async () => {
     const world = generateWorld({ seed: DEFAULT_WORLD_SEED, anchor: FIXTURE_ANCHOR });

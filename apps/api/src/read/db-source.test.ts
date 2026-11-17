@@ -1,9 +1,21 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { DEFAULT_WORLD_SEED, generateWorld, type Sql, seedDatabase } from "@pharos/db";
+import {
+  DEFAULT_WORLD_SEED,
+  DEMO_SCENARIO,
+  generateWorld,
+  type Sql,
+  seedDatabase,
+} from "@pharos/db";
 import { connectTestDb, testDbLabel } from "@pharos/db/testing";
 import {
+  insertWeatherSnapshot,
+  latestWeatherSnapshot,
+  loadRecordedSources,
+} from "@pharos/integrations";
+import {
   BunkerPlan,
+  BunkerPlanView,
   type Fact,
   FobProjection,
   InboxItem,
@@ -12,6 +24,7 @@ import {
   QuoteView,
   RecommendationView,
   RouteCandidate,
+  RoutePlanView,
   RouteSpeedResult,
   VesselDetail,
   VesselSummary,
@@ -33,6 +46,8 @@ import { createErpClient } from "../executor/erp-client.js";
 import { approveRecommendation } from "../executor/execute.js";
 import { DEMO_INBOX_DIR } from "../inbox/routes.js";
 import { type IngestDeps, ingestRaw, processDocument } from "../ingest/workflow.js";
+import { routePlanFacts } from "../routing/facts.js";
+import { planRouteSpeed } from "../routing/plan.js";
 import { createDbSource } from "./db-source.js";
 import {
   buildDemoEmails,
@@ -82,6 +97,8 @@ describe.skipIf(!sql)("createDbSource (Postgres)", () => {
   let pendingDocId: number;
   let recId: number;
   let calculationId: number;
+  /** The facts plan_bunkering returned for `calculationId`. */
+  let bunkerToolFacts: Fact[];
 
   beforeAll(async () => {
     await seedDatabase(db, { seed: DEFAULT_WORLD_SEED, anchor: FIXTURE_ANCHOR, mode: "reset" });
@@ -97,6 +114,7 @@ describe.skipIf(!sql)("createDbSource (Postgres)", () => {
     const ctx = createToolContext({ sql: db, now: () => NOW });
     const planned = await planBunkering(ctx, { vessel: "Aegean Pioneer" });
     calculationId = (planned.data as { calculationId: number }).calculationId;
+    bunkerToolFacts = planned.facts;
     const best = planned.facts.find((f) => f.id.endsWith("_bestOptionId"));
     const proposed = await proposeAction(ctx, {
       type: "purchase_order",
@@ -296,14 +314,19 @@ describe.skipIf(!sql)("createDbSource (Postgres)", () => {
     );
   });
 
-  it.each(["vessels", "voyages", "inbox", "quotes", "recommendations"])(
-    "404s on an unknown /api/%s id",
-    async (path) => {
-      const { res, body } = await get(app, `/api/${path}/999999`);
-      expect(res.status).toBe(404);
-      expect(body).toEqual({ error: "not_found" });
-    },
-  );
+  it.each([
+    "vessels",
+    "voyages",
+    "inbox",
+    "quotes",
+    "recommendations",
+    "bunker-plans",
+    "route-plans",
+  ])("404s on an unknown /api/%s id", async (path) => {
+    const { res, body } = await get(app, `/api/${path}/999999`);
+    expect(res.status).toBe(404);
+    expect(body).toEqual({ error: "not_found" });
+  });
 
   // Runs last: approves the first recommendation and adds a second one.
   describe("gate origin and order state", () => {
@@ -518,6 +541,167 @@ describe.skipIf(!sql)("createDbSource (Postgres)", () => {
       expect(items.filter((r) => r.type === "purchase_order").map((r) => r.instruction)).toEqual(
         items.filter((r) => r.type === "purchase_order").map(() => null),
       );
+    });
+  });
+
+  // Runs last: loads the recorded weather snapshot, AIS capture and synthetic hazard, so a route
+  // plan cites a forecast and goes round a hazard.
+  describe("stored plan views", () => {
+    const source = createDbSource(db, () => NOW);
+    const deps = { sql: db, now: () => NOW };
+
+    beforeAll(async () => {
+      await loadRecordedSources(db, { anchor: FIXTURE_ANCHOR });
+    });
+
+    it("serves a stored bunker plan with its voyage, its ports and the facts plan_bunkering returned", async () => {
+      const { res, body } = await get(app, `/api/bunker-plans/${calculationId}`);
+      expect(res.status).toBe(200);
+      const plan = BunkerPlanView.parse(body);
+      const [voyage] = await db<{ vessel_id: number; voyage_no: string }[]>`
+        select vo.vessel_id, vo.voyage_no
+        from calculations c join voyages vo on vo.id = c.voyage_id
+        where c.id = ${calculationId}`;
+      expect(plan).toMatchObject({
+        calculationId,
+        grade: DEMO_SCENARIO.requirement.grade,
+        vesselId: voyage?.vessel_id,
+        voyageNo: voyage?.voyage_no,
+      });
+      expect(plan.voyageNo).toBe(DEMO_SCENARIO.voyageNo);
+      expect(plan.options[0]?.best).toBe(true);
+      const ports = await db<
+        { id: number; name: string; unlocode: string; lat: number; lon: number }[]
+      >`select id, name, unlocode, lat, lon from ports`;
+      for (const o of plan.options) {
+        const p = ports.find((x) => x.id === o.port.id);
+        expect(o.port).toEqual({
+          id: p?.id,
+          name: p?.name,
+          unlocode: p?.unlocode,
+          position: { lat: p?.lat, lon: p?.lon },
+        });
+      }
+      // Every row the tool returned is the tool's own fact; only the effective price is the view's.
+      const tool = new Map(bunkerToolFacts.map((f) => [f.id, f]));
+      const rows = plan.options.flatMap((o) => o.rows);
+      expect(rows.filter((r) => !tool.has(r.fact.id)).map((r) => r.name)).toEqual(
+        plan.options.map(() => "effective price (total cost per mt)"),
+      );
+      for (const r of rows.filter((x) => tool.has(x.fact.id))) {
+        expect(r.fact).toEqual(tool.get(r.fact.id));
+      }
+      expect(await source.getBunkerPlan(calculationId)).toEqual(plan);
+    });
+
+    it("gives each purchase order its whole plan and each voyage instruction none", async () => {
+      const { items } = listOf(RecommendationView).parse(
+        (await get(app, "/api/recommendations")).body,
+      );
+      const orders = items.filter((r) => r.type === "purchase_order");
+      expect(orders.length).toBeGreaterThan(0);
+      for (const r of orders) {
+        expect(r.bunkerPlan).not.toBeNull();
+        expect(r.bunkerPlan?.calculationId).toBe(r.calculationId);
+        expect(r.bunkerPlan).toEqual(await source.getBunkerPlan(r.calculationId));
+      }
+      const instructions = items.filter((r) => r.type === "voyage_instruction");
+      expect(instructions.length).toBeGreaterThan(0);
+      for (const r of instructions) expect(r.bunkerPlan).toBeNull();
+    });
+
+    it.each(["Thessaly Star", "Aegean Pioneer"])(
+      "rebuilds %s's stored route plan exactly as it was planned, facts in the same order",
+      async (vessel) => {
+        const planned = await planRouteSpeed(deps, { vessel });
+        expect(planned.vesselId).not.toBeNull();
+        expect(planned.snapshot).not.toBeNull();
+        const id = planned.response.calculationId;
+        const facts = routePlanFacts(planned);
+        const view = await source.getRoutePlan(id);
+        expect(view).toEqual({ ...planned.response, facts, computeMs: null });
+        expect(view?.facts.map((f) => f.id)).toEqual(facts.map((f) => f.id));
+        const served = await get(app, `/api/route-plans/${id}`);
+        expect(served.res.status).toBe(200);
+        expect(RoutePlanView.parse(served.body)).toEqual(view);
+      },
+    );
+
+    it("cites the hazard's label from nav_hazards and its radius and the forecast from the stored plan", async () => {
+      const planned = await planRouteSpeed(deps, { vessel: "Thessaly Star" });
+      expect(planned.plan.avoidedHazardIds).toContain("synthetic:1");
+      const id = planned.response.calculationId;
+      const view = await source.getRoutePlan(id);
+      const byLabel = (label: string) => view?.facts.find((f) => f.label === label);
+      expect(byLabel("Reported hazard synthetic:1")?.provenance).toEqual({
+        source: "db",
+        table: "nav_hazards",
+        rowId: "synthetic:1",
+        field: "label",
+      });
+      expect(byLabel("Reported hazard synthetic:1: keep-out radius")?.provenance).toMatchObject({
+        source: "db",
+        table: "calculations",
+        rowId: id,
+      });
+      expect(byLabel("Weather forecast start (UTC)")?.provenance).toEqual({
+        source: "weather",
+        snapshotId: planned.snapshot?.id,
+        modelRun: planned.snapshot?.modelRun.toISOString(),
+      });
+    });
+
+    it("reads plan time from the stored plan, not from a newer forecast or a moved hazard", async () => {
+      const planned = await planRouteSpeed(deps, { vessel: "Thessaly Star" });
+      const expected = { ...planned.response, facts: routePlanFacts(planned), computeMs: null };
+      const latest = await latestWeatherSnapshot(db);
+      if (!latest) throw new Error("no weather snapshot");
+      const later = new Date(new Date(latest.grid.startAt).getTime() + 6 * 3_600_000);
+      await insertWeatherSnapshot(db, {
+        grid: { ...latest.grid, startAt: later.toISOString() },
+        source: "test-newer",
+        fetchedAt: NOW,
+      });
+      const [hazard] = await db<{ lat: number; radius_nm: number | null }[]>`
+        select lat, radius_nm from nav_hazards where id = 'synthetic:1'`;
+      await db`update nav_hazards set lat = lat + 1, radius_nm = 99 where id = 'synthetic:1'`;
+      try {
+        expect(await source.getRoutePlan(planned.response.calculationId)).toEqual(expected);
+      } finally {
+        await db`
+          update nav_hazards set lat = ${hazard?.lat ?? 0}, radius_nm = ${hazard?.radius_nm ?? null}
+          where id = 'synthetic:1'`;
+      }
+    });
+
+    it("serves no AIS ship's route plan (ruling U5)", async () => {
+      await db`
+        insert into ais_traffic (mmsi, name, ship_type, lat, lon, sog_kn, destination, updated_at)
+        values ('900000005', 'Plan View Test', 'tanker', 36, 5, 12, null,
+                ${NOW.toISOString()}::timestamptz)`;
+      try {
+        const planned = await planRouteSpeed(deps, {
+          vessel: "900000005",
+          destination: "Rotterdam",
+        });
+        expect(planned.mmsi).toBe("900000005");
+        const id = planned.response.calculationId;
+        expect(await source.getRoutePlan(id)).toBeNull();
+        const { res, body } = await get(app, `/api/route-plans/${id}`);
+        expect(res.status).toBe(404);
+        expect(body).toEqual({ error: "not_found" });
+      } finally {
+        await db`delete from ais_traffic where mmsi = '900000005'`;
+      }
+    });
+
+    it("serves neither kind of plan under the other's path", async () => {
+      const route = await planRouteSpeed(deps, { vessel: "Aegean Pioneer" });
+      const routeId = route.response.calculationId;
+      expect(await source.getRoutePlan(calculationId)).toBeNull();
+      expect(await source.getBunkerPlan(routeId)).toBeNull();
+      expect((await get(app, `/api/route-plans/${calculationId}`)).res.status).toBe(404);
+      expect((await get(app, `/api/bunker-plans/${routeId}`)).res.status).toBe(404);
     });
   });
 });

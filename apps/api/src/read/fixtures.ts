@@ -13,6 +13,7 @@ import {
 } from "@pharos/db";
 import { planBunkers } from "@pharos/domain";
 import type {
+  BunkerPlanView,
   ExtractionOutput,
   InboxItem,
   InboxItemDetail,
@@ -20,7 +21,13 @@ import type {
   RecommendationView,
 } from "@pharos/shared";
 import { convert } from "html-to-text";
-import { BUNKER_SAVING_PATH, bunkerOptionViewFacts, bunkerScope } from "../facts/bunker.js";
+import {
+  BUNKER_SAVING_PATH,
+  type BunkerFactContext,
+  bunkerOptionViewFacts,
+  bunkerPlanView,
+  bunkerScope,
+} from "../facts/bunker.js";
 import type { ReadSource } from "./source.js";
 import { buildPorts, buildVessels, buildVoyages, must } from "./world-views.js";
 
@@ -331,41 +338,71 @@ function buildQuotes(world: World): QuoteView[] {
   }));
 }
 
-// ---------- recommendation ----------
+// ---------- bunker plan and recommendation ----------
 
 const CALCULATION_ID = 1;
 
-/** The demo plan's best option as the approval view shows it, built by the view's own builder. */
-function buildRecommendation(world: World): RecommendationView {
+/** The demo bunker plan, stored as calculation 1. */
+interface FixtureBunkerPlan {
+  /** What its facts are built from. */
+  context: BunkerFactContext;
+  /** The whole plan as the plan view shows it. */
+  view: BunkerPlanView;
+}
+
+/** The demo bunker plan, built by the views' own builders. */
+function buildBunkerPlan(world: World): FixtureBunkerPlan {
   const input = buildDemoBunkerPlanInput(world);
   const plan = planBunkers(input);
-  const bestId = must(plan.bestOptionId, "best bunker option");
-  const names = (optionId: string) => {
-    const option = must(
+  const option = (optionId: string) =>
+    must(
       input.options.find((o) => o.optionId === optionId),
       "plan option",
     );
-    return {
-      supplier: must(
-        world.suppliers.find((s) => s.id === option.supplierId),
-        "option supplier",
-      ).name,
-      port: must(
-        world.ports.find((p) => p.id === option.portId),
-        "option port",
-      ).name,
-    };
+  const portOf = (optionId: string) =>
+    must(
+      world.ports.find((p) => p.id === option(optionId).portId),
+      "option port",
+    );
+  const names = (optionId: string) => ({
+    supplier: must(
+      world.suppliers.find((s) => s.id === option(optionId).supplierId),
+      "option supplier",
+    ).name,
+    port: portOf(optionId).name,
+  });
+  const context: BunkerFactContext = {
+    calculationId: CALCULATION_ID,
+    plan,
+    scope: bunkerScope(input.grade, must(plan.bestOptionId, "best bunker option")),
+    names,
+    displacementMt: input.curve.load?.displacementMt ?? null,
   };
-  const facts = bunkerOptionViewFacts(
-    {
-      calculationId: CALCULATION_ID,
-      plan,
-      scope: bunkerScope(input.grade, bestId),
-      names,
-      displacementMt: input.curve.load?.displacementMt ?? null,
-    },
-    bestId,
+  const vessel = must(
+    world.vessels.find((v) => v.imo === DEMO_SCENARIO.vesselImo),
+    "demo vessel",
   );
+  const voyage = must(
+    world.voyages.find((v) => v.voyageNo === DEMO_SCENARIO.voyageNo && v.vesselId === vessel.id),
+    "demo voyage",
+  );
+  const view = bunkerPlanView(context, {
+    grade: input.grade,
+    vesselId: vessel.id,
+    voyageNo: voyage.voyageNo,
+    port: (optionId) => {
+      const p = portOf(optionId);
+      return { id: p.id, name: p.name, unlocode: p.unlocode, position: { lat: p.lat, lon: p.lon } };
+    },
+  });
+  return { context, view };
+}
+
+/** The demo plan's best option as the approval view shows it, built by the view's own builder. */
+function buildRecommendation(stored: FixtureBunkerPlan): RecommendationView {
+  const { plan, names } = stored.context;
+  const bestId = must(plan.bestOptionId, "best bunker option");
+  const facts = bunkerOptionViewFacts(stored.context, bestId);
   const { supplier, port } = names(bestId);
   // The plan's saving fact: there is one exactly when the plan has a saving.
   const saving =
@@ -389,7 +426,7 @@ function buildRecommendation(world: World): RecommendationView {
     gatePassed: null,
     order: null,
     instruction: null,
-    bunkerPlan: null,
+    bunkerPlan: stored.view,
   };
 }
 
@@ -401,7 +438,8 @@ export function createFixtureSource(): ReadSource {
   const voyages = buildVoyages(world);
   const inbox = buildInbox(world);
   const quotes = buildQuotes(world);
-  const recommendation = buildRecommendation(world);
+  const bunkerPlan = buildBunkerPlan(world);
+  const recommendation = buildRecommendation(bunkerPlan);
   const ports = buildPorts(world);
 
   return {
@@ -419,5 +457,8 @@ export function createFixtureSource(): ReadSource {
     listPorts: async () => ports,
     // The fixture recommendation is still pending: nothing has been decided, so nothing is audited.
     listAuditEvents: async () => [],
+    getBunkerPlan: async (id) => (id === CALCULATION_ID ? bunkerPlan.view : null),
+    // The fixtures store no route plan.
+    getRoutePlan: async () => null,
   };
 }

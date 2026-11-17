@@ -16,11 +16,21 @@ export function parseId(raw: string): number | null {
 }
 
 /**
- * The read API (mounted under /api): vessels, voyages, inbox, quotes, recommendations, plus the
- * console's clock, ports and audit trail. `clock` is the request clock.
+ * The read API (mounted under /api): vessels, voyages, inbox, quotes, recommendations, stored
+ * bunker and route plans, plus the console's clock, ports and audit trail. `clock` is the request
+ * clock.
  */
 export function createReadRoutes(read: ReadSource, clock: Clock) {
   const app = new Hono();
+
+  /** `GET /<path>/:id`: the item, or 404 with the `notFound` body. */
+  const byId = <T>(path: string, get: (id: number) => Promise<T | null>) => {
+    app.get(`/${path}/:id`, async (c) => {
+      const id = parseId(c.req.param("id"));
+      const item = id === null ? null : await get(id);
+      return item === null ? c.json(notFound, 404) : c.json(item);
+    });
+  };
 
   const resource = <T>(
     path: string,
@@ -28,11 +38,7 @@ export function createReadRoutes(read: ReadSource, clock: Clock) {
     get: (id: number) => Promise<T | null>,
   ) => {
     app.get(`/${path}`, async (c) => c.json({ items: await list() }));
-    app.get(`/${path}/:id`, async (c) => {
-      const id = parseId(c.req.param("id"));
-      const item = id === null ? null : await get(id);
-      return item === null ? c.json(notFound, 404) : c.json(item);
-    });
+    byId(path, get);
   };
 
   resource(
@@ -60,6 +66,9 @@ export function createReadRoutes(read: ReadSource, clock: Clock) {
     () => read.listRecommendations(),
     (id) => read.getRecommendation(id),
   );
+  // Stored plans by calculation id: what an answer cited, served as it was computed.
+  byId("bunker-plans", (id) => read.getBunkerPlan(id));
+  byId("route-plans", (id) => read.getRoutePlan(id));
 
   /** The served world's anchor and the clock every request reads. */
   app.get("/clock", async (c) => {
