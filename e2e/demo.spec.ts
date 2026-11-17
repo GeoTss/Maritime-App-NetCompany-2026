@@ -83,7 +83,7 @@ async function ask(page: Page, question: string, label: string) {
   await expect(
     turn
       .getByRole("status")
-      .filter({ hasText: /tools? called|Checked \d+ source/ })
+      .filter({ hasText: /tools? called|^Ran / })
       .first(),
   ).toBeVisible({ timeout: 120_000 });
   timings.push({ step: `${label}: first progress`, ms: Date.now() - t0 });
@@ -93,7 +93,7 @@ async function ask(page: Page, question: string, label: string) {
   timings.push({ step: `${label}: answer`, ms: Date.now() - t0 });
   await expect(turn.locator('[role="alert"]')).toHaveCount(0);
   // A withheld answer shows a different gate line: only a fully sourced answer passes.
-  await expect(turn.getByTestId("gate-line")).toHaveText(/all numbers sourced/);
+  await expect(turn.getByTestId("gate-line")).toHaveText(/Every number above is a tool fact/);
   return turn;
 }
 
@@ -337,14 +337,15 @@ test("demo story: six steps", async ({ page }) => {
   await shot(page, 3, "bunker-answer");
   await page.keyboard.press("Escape");
   await expect(
-    turn1.getByRole("link", { name: /Proposal \d+ waiting for your decision/ }),
+    turn1
+      .getByRole("article", { name: /Proposal \d+/ })
+      .getByRole("link", { name: "Review and decide" }),
   ).toBeVisible();
 
   // 4. Route and speed ------------------------------------------------------------------------
+  // The answer cites its stored route plan: the map draws it and opens its tray (no re-plan).
   await ask(page, ROUTE_Q, "4 route ask");
-  await page.getByRole("button", { name: "Aegean Pioneer, has an alert" }).click();
   await timed("4 plan route", async () => {
-    await page.getByRole("button", { name: "Plan route", exact: true }).click();
     await expect(page.getByTestId("plan-load")).toBeVisible({ timeout: 60_000 });
   });
   await expect(
@@ -403,23 +404,36 @@ test("demo story: six steps", async ({ page }) => {
   // 5. Approvals ------------------------------------------------------------------------------
   await nav(page, "/approvals");
   await expect(page.getByRole("heading", { name: "Approvals", level: 1 })).toBeVisible();
+  // Pick a proposal from the queue; the decision view beside it holds the approve bar.
+  const queue = page.getByRole("complementary", { name: "Approval queue" });
+  const detail = page
+    .getByRole("article")
+    .filter({ has: page.getByRole("region", { name: /^(If you approve|Outcome)$/ }) });
   const decide = async (kind: RegExp, confirm: string) => {
-    const card = page.locator('[id^="rec-"]').filter({ hasText: kind }).first();
-    await card.getByRole("button", { name: "Approve" }).first().click();
+    await queue
+      .locator("li[data-recommendation-id]")
+      .filter({ hasText: kind })
+      .first()
+      .getByRole("link")
+      .click();
+    await detail
+      .getByRole("button", { name: /^Approve (purchase order|voyage instruction)/ })
+      .click();
     await page.getByRole("alertdialog").getByRole("button", { name: confirm, exact: true }).click();
-    return card;
+    return detail;
   };
-  const po = await decide(/purchase order/i, "Approve");
+  const po = await decide(/Purchase order/, "Approve and create the order");
   await expect(po.getByText(/Purchase order\s+PO-\S+/)).toBeVisible({ timeout: 60_000 });
-  // A decided card folds to its outcome; its drafts and audit trail open from one disclosure
-  // (a GET-only click: no POST, so the replay keys do not change).
-  await po.getByRole("button", { name: /Facts, drafted messages and audit trail/ }).click();
+  // Drafts and the audit trail open from their own disclosures (GET-only clicks: no POST, so
+  // the replay keys do not change).
+  await po.getByRole("button", { name: /^Drafted messages/ }).click();
   await expect(po.getByText("draft, not sent").first()).toBeVisible();
+  await po.getByRole("button", { name: /^Audit trail/ }).click();
   await expect(
     po.getByRole("region", { name: "Audit trail" }).getByRole("listitem").first(),
   ).toBeVisible();
   await shot(page, 5, "approvals-po");
-  const vi = await decide(/voyage instruction/i, "Approve");
+  const vi = await decide(/Voyage instruction/, "Approve and record the instruction");
   await expect(vi.getByText(/Instruction recorded/)).toBeVisible({ timeout: 60_000 });
   await shot(page, 5, "approvals-instruction");
 
