@@ -10,6 +10,7 @@ import {
   PlanRouteSpeedInput,
   PortCongestionList,
   PortList,
+  QuoteView,
   RoutePlanResponse,
   RoutePlanView,
   VesselDetail,
@@ -18,6 +19,7 @@ import {
   WeatherView,
 } from "@pharos/shared";
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 import { api, isApiFailure } from "@/lib/api";
 import { queryKeys } from "@/lib/queries";
 
@@ -74,6 +76,31 @@ export const usePorts = () =>
     queryFn: ({ signal }) => api.get("/api/ports", PortList, { signal }),
     staleTime: Number.POSITIVE_INFINITY,
   });
+
+const QuoteList = listOf(QuoteView);
+
+/**
+ * Supplier and port names of the quotes a route plan's stops are for, by quote id: text for the
+ * tray, never a number. Read only while a plan has stop plans.
+ */
+export function useStopNames(enabled: boolean) {
+  const query = useQuery({
+    queryKey: queryKeys.quotes,
+    queryFn: ({ signal }) => api.get("/api/quotes", QuoteList, { signal }),
+    enabled,
+    staleTime: 60_000,
+  });
+  return useMemo(
+    () =>
+      new Map(
+        (query.data?.items ?? []).map((q) => [
+          q.id,
+          { supplier: q.supplierName, port: q.portName },
+        ]),
+      ),
+    [query.data],
+  );
+}
 
 /** One forecast step. A 404 means there is no snapshot at all: the layer is off, not failing. */
 export function useWeather(step: number, enabled = true) {

@@ -345,7 +345,7 @@ export function MapView(props: MapViewProps) {
         <NavigationControl position="bottom-left" showCompass={false} />
         {layers.weather && weather ? <WeatherLayer weather={weather} colors={colors} /> : null}
         {layers.hazards ? <HazardLayer hazards={hazards} colors={colors} /> : null}
-        <RouteLayer plan={plan} track={track} colors={colors} />
+        <RouteLayer plan={plan} track={track} colors={colors} ports={ports} />
         {layers.traffic ? (
           <TrafficLayer traffic={traffic} colors={colors} selectedMmsi={selectedMmsi} />
         ) : null}

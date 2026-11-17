@@ -38,6 +38,7 @@ import {
   useHazards,
   usePlanRoute,
   usePorts,
+  useStopNames,
   useStoredRoutePlan,
   useTraffic,
   useVessels,
@@ -123,6 +124,7 @@ export function MapPage() {
 
   // A stored plan from the address, else the one just planned.
   const plan = storedRoute.data ?? planner.data ?? null;
+  const stopNames = useStopNames((plan?.result.stopPlans.length ?? 0) > 0);
   const bunkerPlan = bunker.data ?? null;
   const { reset: resetPlan } = planner;
   const subjectKey = vessel ? `v${vessel.id}` : ship ? `s${ship.mmsi}` : "";
@@ -478,6 +480,7 @@ export function MapPage() {
       {plan ? (
         <RouteTray
           plan={plan}
+          names={stopNames}
           container={container}
           snap={snap}
           onSnapChange={setSnap}

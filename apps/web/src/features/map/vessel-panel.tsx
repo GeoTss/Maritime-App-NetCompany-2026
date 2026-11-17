@@ -23,16 +23,17 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { describeFailure } from "@/lib/api";
 import { formatNumber, formatUtc } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { FactCell } from "./fact-cell";
 import { useVesselDetail, useVoyage } from "./map-data";
 import { Field, PanelFrame, Section } from "./panel-frame";
 import { loadFacts } from "./route-facts";
-import { FactCell } from "./route-tray";
 
 const GRADES = ["LSMGO", "VLSFO", "HSFO"] as const;
 
 const ALERT_TEXT: Record<string, string> = {
   lsmgo_below_margin_for_eca:
     "Low-sulphur fuel (LSMGO) would fall below the safety margin before leaving the emission control area",
+  lsmgo_runs_out: "LSMGO runs out before arrival at the planned speed",
 };
 
 /** Machine flag to a sentence: known flags are worded, unknown ones are made readable. */

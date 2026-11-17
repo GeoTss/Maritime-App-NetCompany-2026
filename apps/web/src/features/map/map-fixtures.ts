@@ -13,6 +13,8 @@ import type {
   RouteOptionResult,
   RoutePlanResponse,
   RoutePlanView,
+  StopPlanResult,
+  TrackFuel,
   VesselDetail,
   VesselSummary,
   VoyageDetail,
@@ -400,6 +402,308 @@ export function makePlan(opts: { omitFact?: (fact: Fact) => boolean } = {}): Rou
 /** A stored route plan as `GET /api/route-plans/:id` serves it: the plan above, compute time unknown. */
 export function makeStoredRoutePlan(calculationId: number): RoutePlanView {
   return { ...makePlan(), calculationId, computeMs: null };
+}
+
+/** A route-plan fact at an output path, with the id `plan_route_speed` would give it. */
+const routeCalcFact = (
+  path: string,
+  label: string,
+  value: number | string | boolean,
+  unit: string | null,
+): Fact => ({
+  id: `f_plan_${path.replace(/\[(\d+)\]/g, ".$1")}`,
+  label: `MV Aegean Pioneer: ${label}`,
+  value,
+  unit,
+  provenance: { source: "calculation", calculationId: 1, calculator: "route_speed", path },
+});
+
+type Rob = { LSMGO: number; VLSFO: number; HSFO: number };
+const bp = (
+  kind: TrackFuel["breakpoints"][number]["kind"],
+  nm: number,
+  at: string,
+  rob: Rob,
+): TrackFuel["breakpoints"][number] => ({
+  kind,
+  nm,
+  at,
+  position: { lat: 33 + nm / 1000, lon: 27 - nm / 200 },
+  robMt: rob,
+});
+
+const noCheck = {
+  neededMt: 0,
+  marginMt: 0,
+  minRobMt: 0,
+  shortfallMt: 0,
+  belowMarginAt: null,
+  runsDryAt: null,
+};
+
+/** Route B or C ignoring fuel on board: LSMGO falls below its 30 mt margin and runs dry. */
+const shortFuel = (endNm: number): TrackFuel => ({
+  breakpoints: [
+    bp("start", 0, "2026-11-14T08:00:00.000Z", { LSMGO: 140, VLSFO: 620, HSFO: 0 }),
+    bp("grade_change", 150, "2026-11-14T21:30:00.000Z", { LSMGO: 140, VLSFO: 610, HSFO: 0 }),
+    bp("end", endNm, "2026-11-26T15:01:46.466Z", { LSMGO: -38.5, VLSFO: 610, HSFO: 0 }),
+  ],
+  grades: {
+    LSMGO: {
+      neededMt: 178.5,
+      marginMt: 30,
+      minRobMt: -38.5,
+      shortfallMt: 68.5,
+      belowMarginAt: {
+        nm: 2511,
+        at: "2026-11-23T10:00:00.000Z",
+        position: { lat: 46.2, lon: -8.1 },
+        robMt: 30,
+      },
+      runsDryAt: { nm: 2890, at: "2026-11-24T22:00:00.000Z", position: { lat: 48.9, lon: -5.6 } },
+    },
+    VLSFO: { ...noCheck, neededMt: 10, marginMt: 28, minRobMt: 610 },
+    HSFO: noCheck,
+  },
+  keepsMargins: false,
+  probes: [],
+});
+
+/** A stop at Marsaxlokk (or another port): LSMGO jumps by the 300 mt bought. */
+const stopFuel = (stopNm: number, endNm: number): TrackFuel => ({
+  breakpoints: [
+    bp("start", 0, "2026-11-14T08:00:00.000Z", { LSMGO: 140, VLSFO: 620, HSFO: 0 }),
+    bp("grade_change", 150, "2026-11-14T21:30:00.000Z", { LSMGO: 140, VLSFO: 610, HSFO: 0 }),
+    bp("stop_arrival", stopNm, "2026-11-17T20:00:00.000Z", { LSMGO: 82, VLSFO: 610, HSFO: 0 }),
+    bp("stop_departure", stopNm, "2026-11-18T08:30:00.000Z", { LSMGO: 381, VLSFO: 610, HSFO: 0 }),
+    bp("end", endNm, "2026-11-26T09:30:00.000Z", { LSMGO: 172.4, VLSFO: 610, HSFO: 0 }),
+  ],
+  grades: {
+    LSMGO: { ...noCheck, neededMt: 267.6, marginMt: 31, minRobMt: 82 },
+    VLSFO: { ...noCheck, neededMt: 10, marginMt: 28, minRobMt: 610 },
+    HSFO: noCheck,
+  },
+  keepsMargins: true,
+  probes: [],
+});
+
+const stopPlan = (
+  optionId: string,
+  quoteId: number,
+  unlocode: string,
+  over: Partial<StopPlanResult> = {},
+): StopPlanResult => ({
+  optionId,
+  quoteId,
+  unlocode,
+  speedKn: 11.5,
+  distanceNm: 3210,
+  steamingHours: 278,
+  hours: 290.5,
+  seaWeatherDelayHours: 8.2,
+  eta: "2026-11-26T09:30:00.000Z",
+  stop: {
+    arriveAt: "2026-11-17T20:00:00.000Z",
+    waitingHours: 4,
+    weatherDelayHours: 2.5,
+    bunkeringHours: 6,
+    departAt: "2026-11-18T08:30:00.000Z",
+    beyondForecast: false,
+  },
+  fuel: stopFuel(1020, 3210),
+  fuelMt: { LSMGO: 267.6, VLSFO: 10, HSFO: 0 },
+  co2T: 890,
+  fuelCostUsd: 190000,
+  timeCostUsd: 200000,
+  etsCostUsd: 26000,
+  fuelEuCostUsd: 5400,
+  voyageCostUsd: 421400,
+  bunkerFuelCostUsd: 221400,
+  bargeFeeUsd: 3000,
+  totalCostUsd: 645800,
+  qtyMt: 300,
+  hazardIds: [],
+  feasible: true,
+  reasons: [],
+  ...over,
+});
+
+/** Quote ids of the stop plans, for `GET /api/quotes` names. */
+export const STOP_NAMES = new Map([
+  [11, { supplier: "Kestrel Marine Fuels", port: "Marsaxlokk" }],
+  [12, { supplier: "Nordwind Bunker Services", port: "Algeciras" }],
+  [13, { supplier: "Strait Line Fuels", port: "Gibraltar" }],
+]);
+
+/**
+ * Aegean Pioneer with its fuel on board: the best route ignoring fuel (B) runs short of LSMGO, and
+ * the recommended plan calls at Marsaxlokk for Kestrel's quote; Nordwind at Algeciras is the next
+ * feasible quote. `infeasible`: every quote's stop plan fails, so there is no recommended plan.
+ */
+export function makeFuelPlan(
+  opts: { infeasible?: boolean; beyondForecast?: boolean; omitFact?: (fact: Fact) => boolean } = {},
+): RoutePlanView {
+  const base = makePlan();
+  const [a, b, c] = base.result.options as [
+    RouteOptionResult,
+    RouteOptionResult,
+    RouteOptionResult,
+  ];
+  const short = { feasible: false, reasons: ["insufficient_fuel" as const] };
+  const options = [
+    a,
+    { ...b, ...short, fuel: shortFuel(3128.8) },
+    { ...c, ...short, fuel: shortFuel(3334.3) },
+  ];
+  const kestrel = stopPlan("MTMLA-kestrel", 11, "MTMLA", {
+    stop: {
+      arriveAt: "2026-11-17T20:00:00.000Z",
+      waitingHours: 4,
+      weatherDelayHours: 2.5,
+      bunkeringHours: 6,
+      departAt: "2026-11-18T08:30:00.000Z",
+      beyondForecast: opts.beyondForecast ?? false,
+    },
+  });
+  const nordwind = stopPlan("ESALG-nordwind", 12, "ESALG", {
+    distanceNm: 3260,
+    totalCostUsd: 652100,
+    fuel: stopFuel(1890, 3260),
+  });
+  const straitline = stopPlan("GIGIB-straitline", 13, "GIGIB", {
+    totalCostUsd: 661000,
+    feasible: false,
+    reasons: ["outside_delivery_window"],
+  });
+  const stopPlans = opts.infeasible
+    ? [
+        { ...kestrel, feasible: false, reasons: ["misses_arrive_by" as const] },
+        {
+          ...nordwind,
+          feasible: false,
+          reasons: ["insufficient_fuel" as const, "outside_delivery_window" as const],
+        },
+        { ...straitline, feasible: false, reasons: ["no_sea_route" as const] },
+      ]
+    : [kestrel, nordwind, straitline];
+
+  const facts: Fact[] = [...base.facts];
+  for (const i of [1, 2]) {
+    const X = i === 1 ? "B" : "C";
+    const g = `options[${i}].fuel.grades.LSMGO`;
+    facts.push(
+      routeCalcFact(`${g}.belowMarginAt.nm`, `route ${X}, LSMGO below its margin from`, 2511, "nm"),
+      routeCalcFact(
+        `${g}.belowMarginAt.at`,
+        `route ${X}, LSMGO below its margin at (UTC)`,
+        "2026-11-23T10:00:00.000Z",
+        null,
+      ),
+      routeCalcFact(`${g}.runsDryAt.nm`, `route ${X}, LSMGO runs dry at`, 2890, "nm"),
+      routeCalcFact(`${g}.marginMt`, `route ${X}, LSMGO safety margin`, 30, "mt"),
+      routeCalcFact(
+        `options[${i}].fuel.breakpoints[2].robMt.LSMGO`,
+        `route ${X}, LSMGO on board at Rotterdam`,
+        -38.5,
+        "mt",
+      ),
+    );
+  }
+  stopPlans.forEach((s, i) => {
+    const P = `${s.optionId}`;
+    const p = (field: string) => `stopPlans[${i}].${field}`;
+    const units: [string, number | string, string | null][] = [
+      ["eta", s.eta, null],
+      ["hours", s.hours, "h"],
+      ["totalCostUsd", s.totalCostUsd, "USD"],
+      ["voyageCostUsd", s.voyageCostUsd, "USD"],
+      ["bunkerFuelCostUsd", s.bunkerFuelCostUsd, "USD"],
+      ["bargeFeeUsd", s.bargeFeeUsd, "USD"],
+      ["speedKn", s.speedKn, "kn"],
+      ["qtyMt", s.qtyMt, "mt"],
+    ];
+    for (const [field, value, unit] of units)
+      facts.push(routeCalcFact(p(field), `${P}: ${field}`, value, unit));
+    if (s.stop) {
+      const st = s.stop;
+      facts.push(
+        routeCalcFact(p("stop.arriveAt"), `${P}: arrives at the stop (UTC)`, st.arriveAt, null),
+        routeCalcFact(p("stop.waitingHours"), `${P}: waiting`, st.waitingHours, "h"),
+        routeCalcFact(
+          p("stop.weatherDelayHours"),
+          `${P}: weather delay`,
+          st.weatherDelayHours,
+          "h",
+        ),
+        routeCalcFact(p("stop.bunkeringHours"), `${P}: bunkering`, st.bunkeringHours, "h"),
+        routeCalcFact(p("stop.departAt"), `${P}: departs the stop (UTC)`, st.departAt, null),
+      );
+    }
+    if (s.fuel) {
+      s.fuel.breakpoints.forEach((b, k) => {
+        if (b.kind === "stop_arrival" || b.kind === "stop_departure" || b.kind === "end") {
+          facts.push(
+            routeCalcFact(
+              p(`fuel.breakpoints[${k}].robMt.LSMGO`),
+              `${P}: LSMGO on board, ${b.kind}`,
+              b.robMt.LSMGO,
+              "mt",
+            ),
+          );
+        }
+      });
+      facts.push(
+        routeCalcFact(p("fuel.grades.LSMGO.marginMt"), `${P}: LSMGO safety margin`, 31, "mt"),
+      );
+    }
+  });
+  facts.push({
+    id: "f_plan_arriveBy",
+    label: "MV Aegean Pioneer: berth window closes at Rotterdam (UTC)",
+    value: "2026-11-27T00:00:00.000Z",
+    unit: null,
+    provenance: {
+      source: "db",
+      table: "calculations",
+      rowId: 1,
+      field: "inputs.optimiser.arriveBy",
+    },
+  });
+  const plan = opts.infeasible
+    ? null
+    : {
+        kind: "stop" as const,
+        optionId: "MTMLA-kestrel",
+        addedHours: 21.3,
+        addedUsd: 19850.4,
+        next: { optionId: "ESALG-nordwind", totalCostUsd: 652100, marginUsd: 6300 },
+      };
+  if (plan) {
+    facts.push(
+      routeCalcFact("plan.optionId", "recommended plan", plan.optionId, null),
+      routeCalcFact("plan.addedHours", "recommended plan adds (hours)", plan.addedHours, "h"),
+      routeCalcFact(
+        "plan.addedUsd",
+        "recommended plan adds (USD, excluding the fuel bought)",
+        plan.addedUsd,
+        "USD",
+      ),
+      routeCalcFact("plan.next.optionId", "next feasible plan", plan.next.optionId, null),
+      routeCalcFact(
+        "plan.next.marginUsd",
+        "margin over the next feasible plan",
+        plan.next.marginUsd,
+        "USD",
+      ),
+    );
+  }
+  const kept = opts.omitFact ? facts.filter((f) => !opts.omitFact?.(f)) : facts;
+  return {
+    ...base,
+    computeMs: null,
+    result: { ...base.result, options, baseline: a, stopPlans, plan },
+    facts: kept,
+  };
 }
 
 const bunkerFact = (
