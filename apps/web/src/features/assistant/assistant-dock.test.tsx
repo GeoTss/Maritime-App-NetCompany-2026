@@ -261,7 +261,14 @@ describe("AssistantDock", () => {
     expect(await screen.findByText("model: live")).toBeTruthy();
   });
 
-  it("a route answer offers Show on map, which only navigates", async () => {
+  it("record mode shows model: recording", async () => {
+    health = { llmMode: "record" };
+    renderDock();
+    expect(await screen.findByText("model: recording")).toBeTruthy();
+    expect(screen.queryByText("model: live")).toBeNull();
+  });
+
+  const routeAnswer = (subjects: unknown[]) => {
     askReply = () =>
       sse([
         progress("plan_route_speed", "started"),
@@ -270,18 +277,42 @@ describe("AssistantDock", () => {
           type: "answer",
           response: response({
             answer: "MV Aegean Pioneer should sail at 12.5 kn [f_price].",
+            subjects,
           }),
         }),
       ]);
+  };
+
+  it("show on map uses the first subject (vessel)", async () => {
+    routeAnswer([
+      { kind: "vessel", vesselId: 3 },
+      { kind: "ais", mmsi: "123456789" },
+    ]);
     renderDock();
     await ask("Best route?");
     const link = await screen.findByRole("link", { name: /Show on map/ });
-    await waitFor(() => expect(link.getAttribute("href")).toBe("/?vessel=1"));
+    expect(link.getAttribute("href")).toBe("/?vessel=3");
     expect(screen.getByText(/Press Plan route/)).toBeTruthy();
     fireEvent.click(link);
     expect(calls.filter((c) => c.method === "POST").map((c) => c.path)).toEqual([
       "/api/ask/stream",
     ]);
+  });
+
+  it("show on map uses the first subject (ais)", async () => {
+    routeAnswer([{ kind: "ais", mmsi: "123456789" }]);
+    renderDock();
+    await ask("Best route?");
+    const link = await screen.findByRole("link", { name: /Show on map/ });
+    expect(link.getAttribute("href")).toBe("/?mmsi=123456789");
+  });
+
+  it("show on map has no link without subjects, even when the text names a ship", async () => {
+    routeAnswer([]);
+    renderDock();
+    await ask("Best route?");
+    await screen.findByText(/Aegean Pioneer should sail/);
+    expect(screen.queryByRole("link", { name: /Show on map/ })).toBeNull();
   });
 
   it("links to the proposals an answer created, and renders Markdown as plain text", async () => {

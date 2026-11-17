@@ -119,6 +119,7 @@ export type DataKind =
   | "sample"
   | "live-run"
   | "model-recorded"
+  | "model-recording"
   | "model-live";
 
 const TAG: Record<DataKind, { text: string; title: string; tone: string }> = {
@@ -167,6 +168,12 @@ const TAG: Record<DataKind, { text: string; title: string; tone: string }> = {
     text: "model: recorded",
     title:
       "Answers are replayed from recordings of earlier model calls, so the demo runs offline. Only questions that were recorded have answers.",
+    tone: "border-caution/50 text-caution",
+  },
+  "model-recording": {
+    text: "model: recording",
+    title:
+      "Each question is answered by a live model call and the exchange is saved, so it can be replayed offline later.",
     tone: "border-caution/50 text-caution",
   },
   "model-live": {

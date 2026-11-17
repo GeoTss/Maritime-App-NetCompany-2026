@@ -1,3 +1,4 @@
+import type { Fact } from "@pharos/shared";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { forwardRef, type ReactNode, useImperativeHandle } from "react";
@@ -60,7 +61,13 @@ function withTwin() {
   return { items: [{ ...first, mmsi: VESSELS[0]?.mmsi ?? "999000001" }, ...TRAFFIC.items] };
 }
 
-function stubApi({ weather = "ok" as "ok" | "none", failing = [] as string[], twin = false } = {}) {
+function stubApi({
+  weather = "ok" as "ok" | "none",
+  weatherView = WEATHER,
+  failing = [] as string[],
+  twin = false,
+  detail = VESSEL_DETAIL,
+} = {}) {
   calls = [];
   vi.stubGlobal(
     "fetch",
@@ -80,14 +87,14 @@ function stubApi({ weather = "ok" as "ok" | "none", failing = [] as string[], tw
           ],
         });
       if (path === "/api/vessels") return json({ items: VESSELS });
-      if (path === "/api/vessels/1") return json(VESSEL_DETAIL);
+      if (path === "/api/vessels/1") return json(detail);
       if (path === "/api/voyages/1") return json(VOYAGE);
       if (path === "/api/traffic") return json(twin ? withTwin() : TRAFFIC);
       if (path === "/api/hazards") return json(HAZARDS);
       if (path === "/api/congestion") return json(CONGESTION);
       if (path === "/api/ports") return json(PORTS);
       if (path.startsWith("/api/weather"))
-        return weather === "none" ? json({ error: "no_weather_snapshot" }, 404) : json(WEATHER);
+        return weather === "none" ? json({ error: "no_weather_snapshot" }, 404) : json(weatherView);
       if (path === "/api/route-plan") return json(makePlan());
       return json({ error: "not_found" }, 404);
     }),
@@ -135,6 +142,18 @@ describe("MapPage", () => {
     await waitFor(() => expect(screen.queryByTestId("layer-weather-points")).toBeNull());
   });
 
+  it("forecast label reads stepTimes", async () => {
+    // Irregular times: any start-plus-steps arithmetic would show 08:00Z, not these.
+    const stepTimes = WEATHER.stepTimes.map((_, k) =>
+      new Date(Date.parse("2026-12-01T05:30:00.000Z") + k * 7 * 3_600_000).toISOString(),
+    );
+    stubApi({ weatherView: { ...WEATHER, stepTimes, validAt: stepTimes[0] ?? "" } });
+    renderPage();
+    await waitFor(() =>
+      expect(screen.getByTestId("forecast-time").textContent).toMatch(/1 Dec 05:30Z/),
+    );
+  });
+
   it("a failed hazard or port-queue load is said out loud, not drawn as none", async () => {
     stubApi({ failing: ["/api/hazards", "/api/congestion"] });
     renderPage();
@@ -179,6 +198,44 @@ describe("MapPage", () => {
     renderPage("/?vessel=1");
     expect(await screen.findByRole("region", { name: "Vessel panel" })).toBeTruthy();
     expect(calls.filter((c) => c.method !== "GET")).toEqual([]);
+  });
+
+  it("panel cites fuel on board", async () => {
+    const fact = (id: string, value: number | string, unit: string | null): Fact => ({
+      id,
+      label: id,
+      value,
+      unit,
+      provenance: { source: "db", table: "noon_reports", rowId: 4, field: id },
+    });
+    const facts = {
+      robMt: {
+        LSMGO: fact("f_rob_lsmgo", 275.5, "mt"),
+        VLSFO: fact("f_rob_vlsfo", 620.25, "mt"),
+        HSFO: fact("f_rob_hsfo", 0, "mt"),
+      },
+      voyageNo: fact("f_voyage_no", "AP-2611", null),
+      nextPort: fact("f_next_port", "Piraeus", null),
+      nextPortEta: fact("f_next_eta", "2026-11-16T15:45:07.200Z", null),
+    };
+    stubApi({ detail: { ...VESSEL_DETAIL, facts } });
+    renderPage("/?vessel=1");
+    const panel = await screen.findByRole("region", { name: "Vessel panel" });
+    await waitFor(() => expect(panel.querySelector('[data-fact-id="f_rob_lsmgo"]')).not.toBeNull());
+    for (const id of ["f_rob_vlsfo", "f_rob_hsfo", "f_voyage_no", "f_next_port", "f_next_eta"])
+      expect(panel.querySelector(`[data-fact-id="${id}"]`)).not.toBeNull();
+    // Cited facts never animate: no number-flow element remains for them.
+    expect(panel.querySelector("number-flow-react")).toBeNull();
+  });
+
+  it("panel without voyage facts shows plain values under the simulated tag", async () => {
+    renderPage("/?vessel=1");
+    const panel = await screen.findByRole("region", { name: "Vessel panel" });
+    await waitFor(() => expect(calls.some((c) => c.path === "/api/vessels/1")).toBe(true));
+    expect(panel.querySelector("[data-fact-id]")).toBeNull();
+    expect(panel.textContent).toContain("275");
+    expect(panel.textContent).toContain("AP-2611");
+    expect(within(panel).getByText("simulated data")).toBeTruthy();
   });
 
   it("the alerted vessel carries the ripple and the others do not", async () => {

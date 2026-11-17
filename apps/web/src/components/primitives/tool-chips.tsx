@@ -5,23 +5,23 @@
  */
 import { Alert02Icon, Loading03Icon, Tick02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import type { AskEvent } from "@pharos/shared";
+import type { AgentToolName, AskEvent } from "@pharos/shared";
 import { formatNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
-export type ToolCallState = "running" | "done" | "failed";
+export type ToolCallState = "running" | "done" | "failed" | "stopped";
 
 export interface ToolCall {
-  /** Position in the run, as a string key. */
+  /** The API's call id, which pairs `started` with `finished` or `failed`. */
   id: string;
-  tool: string;
+  tool: AgentToolName;
   state: ToolCallState;
-  /** Duration the API reported on `finished`; null while running. */
+  /** Duration the API reported on `finished` or `failed`; null while running or stopped. */
   ms: number | null;
 }
 
-/** What each agent tool does, for the operator. Unknown tools show their id only. */
-export const TOOL_LABEL: Record<string, string> = {
+/** What each agent tool does, for the operator. Typecheck keeps it complete. */
+export const TOOL_LABEL: Record<AgentToolName, string> = {
   list_fleet: "Fleet list",
   get_vessel_status: "Vessel status",
   list_quotes: "Supplier quotes",
@@ -35,30 +35,32 @@ export const TOOL_LABEL: Record<string, string> = {
 
 type Progress = Extract<AskEvent, { type: "progress" }>;
 
-/** Folds progress events into calls: each finish closes the earliest open start of its tool. */
+/** Folds progress events into calls, one per call id; a finish or failure closes its own call. */
 export function toolCallsFromProgress(events: Progress[]): ToolCall[] {
-  const calls: ToolCall[] = [];
+  const calls = new Map<string, ToolCall>();
   for (const e of events) {
-    if (e.phase === "started") {
-      calls.push({ id: String(calls.length), tool: e.tool, state: "running", ms: null });
-      continue;
-    }
-    const open = calls.find((c) => c.tool === e.tool && c.state === "running");
-    if (open) {
-      open.state = "done";
-      open.ms = e.ms;
-    } else {
-      calls.push({ id: String(calls.length), tool: e.tool, state: "done", ms: e.ms });
-    }
+    const state: ToolCallState =
+      e.phase === "started" ? "running" : e.phase === "failed" ? "failed" : "done";
+    const ms = e.phase === "started" ? null : e.ms;
+    const existing = calls.get(e.callId);
+    if (existing) {
+      existing.state = state;
+      existing.ms = ms;
+    } else calls.set(e.callId, { id: e.callId, tool: e.tool, state, ms });
   }
-  return calls;
+  return [...calls.values()];
 }
 
 /** Marks calls still running when the ask ended in an error. */
 export const failRunning = (calls: ToolCall[]): ToolCall[] =>
-  calls.map((c) => (c.state === "running" ? { ...c, state: "failed" } : c));
+  calls.map((c) => (c.state === "running" ? { ...c, state: "stopped" } : c));
 
-const STATE_ICON = { running: Loading03Icon, done: Tick02Icon, failed: Alert02Icon };
+const STATE_ICON = {
+  running: Loading03Icon,
+  done: Tick02Icon,
+  failed: Alert02Icon,
+  stopped: Alert02Icon,
+};
 
 export function ToolChips({ calls, className }: { calls: ToolCall[]; className?: string }) {
   if (calls.length === 0) return null;
@@ -74,22 +76,23 @@ export function ToolChips({ calls, className }: { calls: ToolCall[]; className?:
               call.state === "running" && "animate-spin text-text-2 motion-reduce:animate-none",
               call.state === "done" && "text-text-3",
               call.state === "failed" && "text-alarm",
+              call.state === "stopped" && "text-text-3",
             )}
           />
-          <span className="shrink-0 text-text-1">{TOOL_LABEL[call.tool] ?? call.tool}</span>
-          {TOOL_LABEL[call.tool] ? (
-            <span className="min-w-0 truncate rounded-sm border border-line bg-ink-850 px-1 font-mono text-2xs text-text-3">
-              {call.tool}
-            </span>
-          ) : null}
+          <span className="shrink-0 text-text-1">{TOOL_LABEL[call.tool]}</span>
+          <span className="min-w-0 truncate rounded-sm border border-line bg-ink-850 px-1 font-mono text-2xs text-text-3">
+            {call.tool}
+          </span>
           <span className="ml-auto shrink-0 text-2xs tabular-nums text-text-3">
             {call.state === "running"
               ? "running"
-              : call.state === "failed"
+              : call.state === "stopped"
                 ? "stopped"
-                : call.ms === null
-                  ? ""
-                  : formatNumber(call.ms, "ms")}
+                : call.state === "failed"
+                  ? "failed"
+                  : call.ms === null
+                    ? ""
+                    : formatNumber(call.ms, "ms")}
           </span>
         </li>
       ))}

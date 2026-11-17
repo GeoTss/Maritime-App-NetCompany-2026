@@ -1,14 +1,15 @@
 /**
  * A fleet vessel: identity, fuel on board per grade, alerts, load (from a plan's facts), the
- * fuel-on-board projection and the Plan route button. Fleet records carry no `facts[]`, so their
- * numbers are animated metrics, labelled as simulated data; only a plan's numbers are fact chips.
+ * fuel-on-board projection and the Plan route button. The vessel detail carries `facts`: fuel on
+ * board, voyage, next port and its ETA are fact chips (cited, never animated). Where a fact is
+ * null (no voyage, no later port call) or the detail has not loaded, the plain value from the
+ * fleet record shows under the "simulated data" tag; the UI derives nothing.
  */
 import { Alert02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { FobProjection, RoutePlanResponse, VesselSummary } from "@pharos/shared";
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import { ErrorState } from "@/components/error-state";
-import { MetricNumber } from "@/components/metric-number";
 import { DataTag } from "@/components/source-badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -128,6 +129,8 @@ export function VesselPanel({
   const voyage = useVoyage(vessel.voyageId);
   const load = plan ? loadFacts(plan.facts) : null;
   const capacity = detail.data?.tankCapacityMt;
+  const facts = detail.data?.facts;
+  const robFacts = facts?.robMt ?? null;
 
   return (
     <PanelFrame
@@ -186,7 +189,11 @@ export function VesselPanel({
         <dl className="flex flex-col gap-1">
           {GRADES.map((g) => (
             <Field key={g} label={g}>
-              <MetricNumber value={vessel.robMt[g]} unit="mt" />
+              {robFacts ? (
+                <FactCell fact={robFacts[g]} />
+              ) : (
+                <span>{formatNumber(vessel.robMt[g], "mt")}</span>
+              )}
               {capacity && capacity[g] > 0 ? (
                 <span className="text-text-3"> of {formatNumber(capacity[g], "mt")}</span>
               ) : null}
@@ -212,11 +219,26 @@ export function VesselPanel({
           {voyage.data ? (
             <>
               <Field label="Voyage">
-                <span className="font-mono text-2xs">{voyage.data.voyageNo}</span>,{" "}
-                {voyage.data.status}
+                {facts?.voyageNo ? (
+                  <FactCell fact={facts.voyageNo} />
+                ) : (
+                  <span className="font-mono text-2xs">{voyage.data.voyageNo}</span>
+                )}
+                , {voyage.data.status}
               </Field>
+              {facts?.nextPort ? (
+                <Field label="Next port">
+                  <FactCell fact={facts.nextPort} />
+                </Field>
+              ) : null}
               <Field label="Next port ETA">
-                {voyage.data.nextEta ? formatUtc(voyage.data.nextEta) : "—"}
+                {facts?.nextPortEta ? (
+                  <FactCell fact={facts.nextPortEta} kind="time" />
+                ) : voyage.data.nextEta ? (
+                  formatUtc(voyage.data.nextEta)
+                ) : (
+                  "—"
+                )}
               </Field>
             </>
           ) : null}

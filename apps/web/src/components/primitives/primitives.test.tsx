@@ -1,35 +1,45 @@
-import type { AskEvent } from "@pharos/shared";
+import { AgentToolName, type AskEvent } from "@pharos/shared";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DecisionButtons } from "@/components/primitives/approval-card";
 import { DiffTable } from "@/components/primitives/diff-table";
 import { ThinkingState } from "@/components/primitives/thinking-state";
-import { ToolChips, toolCallsFromProgress } from "@/components/primitives/tool-chips";
+import { TOOL_LABEL, ToolChips, toolCallsFromProgress } from "@/components/primitives/tool-chips";
 
 afterEach(cleanup);
 
 type Progress = Extract<AskEvent, { type: "progress" }>;
-const p = (tool: Progress["tool"], phase: "started" | "finished", ms = 0): Progress => ({
+const p = (callId: string, tool: Progress["tool"], phase: Progress["phase"], ms = 0): Progress => ({
   type: "progress",
-  callId: `call-${tool}`,
+  callId,
   tool,
   phase,
   ms,
 });
 
 describe("toolCallsFromProgress", () => {
-  it("pairs each finish with the earliest open start of the same tool", () => {
+  it("chips pair by call id: two calls of one tool, the first failing", () => {
     const calls = toolCallsFromProgress([
-      p("list_quotes", "started"),
-      p("plan_bunkering", "started"),
-      p("list_quotes", "started"),
-      p("list_quotes", "finished", 40),
-      p("plan_bunkering", "finished", 310),
+      p("a", "list_quotes", "started"),
+      p("b", "list_quotes", "started"),
+      p("b", "list_quotes", "finished", 40),
+      p("a", "list_quotes", "failed", 12),
     ]);
     expect(calls).toEqual([
-      { id: "0", tool: "list_quotes", state: "done", ms: 40 },
-      { id: "1", tool: "plan_bunkering", state: "done", ms: 310 },
-      { id: "2", tool: "list_quotes", state: "running", ms: null },
+      { id: "a", tool: "list_quotes", state: "failed", ms: 12 },
+      { id: "b", tool: "list_quotes", state: "done", ms: 40 },
+    ]);
+  });
+
+  it("leaves a call running until its own call id closes it", () => {
+    const calls = toolCallsFromProgress([
+      p("a", "plan_bunkering", "started"),
+      p("b", "list_quotes", "started"),
+      p("b", "list_quotes", "finished", 5),
+    ]);
+    expect(calls.map((c) => [c.id, c.state])).toEqual([
+      ["a", "running"],
+      ["b", "done"],
     ]);
   });
 });
@@ -41,6 +51,7 @@ describe("ToolChips", () => {
         calls={[
           { id: "0", tool: "plan_bunkering", state: "done", ms: 310 },
           { id: "1", tool: "get_port_congestion", state: "running", ms: null },
+          { id: "2", tool: "list_quotes", state: "failed", ms: 9 },
         ]}
       />,
     );
@@ -48,6 +59,15 @@ describe("ToolChips", () => {
     expect(screen.getByText("plan_bunkering")).toBeTruthy();
     expect(screen.getByText("310 ms")).toBeTruthy();
     expect(screen.getByText("running")).toBeTruthy();
+  });
+
+  it("failed chip reads failed", () => {
+    render(<ToolChips calls={[{ id: "x", tool: "list_quotes", state: "failed", ms: 9 }]} />);
+    expect(screen.getByText("failed")).toBeTruthy();
+  });
+
+  it("every agent tool has a label", () => {
+    for (const tool of AgentToolName.options) expect(TOOL_LABEL[tool]).toBeTruthy();
   });
 });
 

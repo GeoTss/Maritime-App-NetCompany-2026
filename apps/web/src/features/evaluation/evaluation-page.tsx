@@ -1,7 +1,7 @@
 /**
  * The evaluation page: the measured accuracy of extraction and answers, exactly as published.
  * Counts are "k of N" in the readout voice, the interval is the published 95% interval; nothing
- * is recomputed here and nothing animates. Metrics whose label ends "(expected 0)" read as counts
+ * is recomputed here and nothing animates. Metrics the API marks `expectedZero` read as counts
  * of failures (0 is good), never as a success percentage. Measurements set in Archivo with
  * tabular figures; B612 Mono only for what you would copy: model ids, prompt versions, run times.
  */
@@ -24,8 +24,6 @@ const SUITE_TITLE: Record<Suite["suite"], string> = {
   extraction: "Quote extraction",
   qa: "Questions and answers",
 };
-
-const EXPECTED_ZERO = /\s*\(expected 0\)\s*$/i;
 
 const pct = (rate: number) => formatNumber(rate * 100, "%");
 
@@ -56,8 +54,7 @@ function IntervalBar({ metric }: { metric: Metric }) {
 }
 
 function MetricRow({ metric }: { metric: Metric }) {
-  const expectedZero = EXPECTED_ZERO.test(metric.label);
-  const label = metric.label.replace(EXPECTED_ZERO, "");
+  const { expectedZero, label } = metric;
   const bad = expectedZero && metric.k > 0;
   return (
     <li

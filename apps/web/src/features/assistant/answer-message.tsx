@@ -7,11 +7,10 @@
  */
 import { MapsLocation01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import type { AskResponse, Fact } from "@pharos/shared";
+import type { AskResponse } from "@pharos/shared";
 import { Link } from "react-router";
 import { FactText } from "@/components/fact-text";
 import { cn } from "@/lib/utils";
-import { useVessels } from "../map/map-data";
 import { ProposalLink } from "./proposal-link";
 
 /** Plain-text view of simple Markdown. Citations (`[f_…]`) are untouched. */
@@ -39,24 +38,14 @@ export function gateLine(
   return { text: "all numbers sourced", tone: "text-text-3" };
 }
 
-/** Which map selection (`vessel=` or `mmsi=`) an answer's facts point to, if any. */
-function mapTarget(facts: Fact[], text: string, vessels: { id: number; name: string }[]) {
-  for (const f of facts) {
-    const p = f.provenance;
-    if (p.source === "db" && p.table === "vessels" && typeof p.rowId === "number")
-      return `vessel=${p.rowId}`;
-  }
-  const named = vessels.find((v) => text.includes(v.name));
-  if (named) return `vessel=${named.id}`;
-  for (const f of facts) {
-    if (f.provenance.source === "ais") return `mmsi=${f.provenance.mmsi}`;
-  }
-  return null;
+/** The map selection an answer is about: its first subject, as the API named it. */
+function mapTarget(subject: AskResponse["subjects"][number] | undefined) {
+  if (!subject) return null;
+  return subject.kind === "vessel" ? `vessel=${subject.vesselId}` : `mmsi=${subject.mmsi}`;
 }
 
 function ShowOnMap({ response }: { response: AskResponse }) {
-  const vessels = useVessels();
-  const target = mapTarget(response.facts, response.answer ?? "", vessels.data?.items ?? []);
+  const target = mapTarget(response.subjects[0]);
   if (!target) return null;
   return (
     <div className="flex flex-col gap-1">

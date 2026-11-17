@@ -30,7 +30,8 @@ function ModelMode() {
   const health = useHealth();
   const mode = health.data?.llmMode;
   if (!mode) return null;
-  return <DataTag kind={mode === "replay" ? "model-recorded" : "model-live"} />;
+  const kind = { replay: "model-recorded", record: "model-recording", live: "model-live" } as const;
+  return <DataTag kind={kind[mode]} />;
 }
 
 function TurnView({ turn, onRetry }: { turn: Turn; onRetry: () => void }) {

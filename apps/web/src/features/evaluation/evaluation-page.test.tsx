@@ -181,7 +181,47 @@ describe("EvaluationPage", () => {
     expect(row.textContent).toContain("none observed");
     expect(row.textContent).toContain("95% upper bound 4.4%");
     expect(row.textContent).not.toContain("0.0%");
-    expect(row.textContent).not.toContain("(expected 0)");
+    expect(row.textContent).toContain("Unsafe auto-accepts (expected 0)");
+  });
+
+  it("expected-zero layout reads expectedZero, not the label", async () => {
+    const swap = {
+      ...summary,
+      suites: [
+        {
+          ...summary.suites[0],
+          metrics: [
+            {
+              ...summary.suites[0]?.metrics[0],
+              key: "a",
+              label: "Plain (expected 0)",
+              expectedZero: false,
+            },
+            {
+              ...summary.suites[0]?.metrics[1],
+              key: "b",
+              label: "Hard failures",
+              expectedZero: true,
+            },
+          ],
+        },
+      ],
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => json(swap)),
+    );
+    renderPage();
+    const a = await waitFor(() => {
+      const el = document.querySelector('[data-metric="a"]');
+      expect(el).not.toBeNull();
+      return el as HTMLElement;
+    });
+    const b = document.querySelector('[data-metric="b"]') as HTMLElement;
+    expect(within(a).queryByText("Target is 0; lower is better")).toBeNull();
+    expect(a.textContent).toContain("Plain (expected 0)");
+    expect(within(b).getByText("Target is 0; lower is better")).toBeTruthy();
+    expect(b.textContent).toContain("Hard failures");
   });
 
   it("shows how to publish when no summary exists", async () => {

@@ -1,7 +1,7 @@
 /**
  * Layer switches and the weather forecast slider. Weather is on from the start (the demo's first
  * step shows the wave and wind overlay); it is off, and says why, when the API has no snapshot
- * (404). Counts are animated metrics; the forecast time is a UTC label.
+ * (404). Counts are animated metrics; the forecast time is the API's time for that step, written in UTC.
  */
 import type { WeatherView } from "@pharos/shared";
 import { type Ref, useState } from "react";
@@ -29,13 +29,6 @@ export const LAYER_LABEL: Record<LayerKey, string> = {
   hazards: "Hazards",
   congestion: "Port queues",
 };
-
-/** Label for a forecast step: the snapshot's start plus whole steps, written in UTC. Display only. */
-export function forecastLabel(weather: Pick<WeatherView, "startAt" | "stepHours">, step: number) {
-  const start = Date.parse(weather.startAt);
-  if (Number.isNaN(start)) return "—";
-  return formatUtc(new Date(start + step * weather.stepHours * 3_600_000).toISOString());
-}
 
 export type WeatherStatus = "loading" | "ready" | "none" | "error";
 
@@ -110,7 +103,7 @@ export function LayerToggles({
               <div className="flex items-baseline justify-between gap-4 text-xs">
                 <span className="text-text-2">Forecast for</span>
                 <span data-testid="forecast-time" className="text-text-1">
-                  {forecastLabel(weather, shown)}
+                  {weather.stepTimes[shown] ? formatUtc(weather.stepTimes[shown]) : "—"}
                 </span>
               </div>
               <Slider
