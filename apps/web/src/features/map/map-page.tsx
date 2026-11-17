@@ -11,8 +11,15 @@
  */
 import { MapsIcon, Radar01Icon, ShipIcon } from "@hugeicons/core-free-icons";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { usePanelRef } from "react-resizable-panels";
 import { useSearchParams } from "react-router";
 import { type CommandGroupDef, useRegisterCommands } from "@/components/command-menu";
+import { StateFlag } from "@/components/primitives/state-flag";
+import { Button } from "@/components/ui/button";
+import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/drawer";
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
+import { setDraft } from "@/features/assistant/assistant-store";
+import { useAttention } from "@/lib/attention";
 import { useMediaQuery } from "@/lib/motion";
 import { useSourceStatus } from "@/lib/queries";
 import { BunkerPlanLegend } from "./bunker-plan-layer";
@@ -38,6 +45,7 @@ import {
   useWeather,
 } from "./map-data";
 import { type MapFocus, MapView } from "./map-view";
+import { NeedsYou } from "./needs-you";
 import { PlanChip, planChipText } from "./plan-chip";
 import { RouteTray, TRAY_SNAPS } from "./route-tray";
 import { ShipPanel } from "./ship-panel";
@@ -73,6 +81,10 @@ export function MapPage() {
   const [container, setContainer] = useState<HTMLElement | null>(null);
   const [toggles, setToggles] = useState<HTMLElement | null>(null);
   const [snap, setSnap] = useState<number | string | null>(TRAY_SNAPS[1]);
+  const attention = useAttention();
+  const needsPanel = usePanelRef();
+  const [needsOpen, setNeedsOpen] = useState(true);
+  const [needsDrawer, setNeedsDrawer] = useState(false);
 
   const vessels = useVessels();
   const traffic = useTraffic();
@@ -291,7 +303,44 @@ export function MapPage() {
       : null,
   ].filter((c) => c !== null);
 
-  return (
+  const toggleNeeds = () => {
+    if (!wide) {
+      setNeedsDrawer((o) => !o);
+      return;
+    }
+    const panel = needsPanel.current;
+    if (!panel) return;
+    if (panel.isCollapsed()) panel.expand();
+    else panel.collapse();
+  };
+  const flyToHazard = (id: string) => {
+    const h = hazards.data?.items.find((x) => x.id === id);
+    if (h) setFocus({ lat: h.lat, lon: h.lon, key: `h${id}-${Date.now()}` });
+  };
+  const needs = (
+    <NeedsYou
+      items={attention.items}
+      isPending={attention.isPending}
+      vessels={vesselItems}
+      selectedVesselId={selectedVesselId}
+      onAsk={(q) => {
+        setDraft(q);
+        setNeedsDrawer(false);
+      }}
+      onShowVessel={(id) => {
+        const v = vesselItems.find((x) => x.id === id);
+        selectVessel(id, v?.position ?? undefined);
+        setNeedsDrawer(false);
+      }}
+      onFlyHazard={(id) => {
+        flyToHazard(id);
+        setNeedsDrawer(false);
+      }}
+    />
+  );
+  const needsOpenNow = wide ? needsOpen : needsDrawer;
+
+  const mapScreen = (
     <div ref={setContainer} className="relative h-full min-h-[24rem] overflow-hidden bg-ink-950">
       <h1 className="sr-only">Map</h1>
       <MapView
@@ -325,6 +374,19 @@ export function MapPage() {
           className="flex max-w-full flex-wrap items-start gap-1.5"
           style={topRowStyle}
         >
+          <Button
+            variant="outline"
+            size="sm"
+            className="pointer-events-auto h-8 bg-ink-900"
+            aria-expanded={needsOpenNow}
+            onClick={toggleNeeds}
+          >
+            <StateFlag kind="K" />
+            {wide && needsOpen ? "Hide Needs you" : "Needs you"}
+            {attention.items.length > 0 ? (
+              <b className="font-semibold">{attention.items.length}</b>
+            ) : null}
+          </Button>
           <LayerToggles
             className="pointer-events-auto"
             layers={layers}
@@ -406,5 +468,42 @@ export function MapPage() {
         />
       ) : null}
     </div>
+  );
+
+  if (!wide) {
+    return (
+      <>
+        {mapScreen}
+        <Drawer open={needsDrawer} onOpenChange={setNeedsDrawer}>
+          <DrawerContent className="h-[80vh]">
+            <DrawerTitle className="sr-only">Needs you</DrawerTitle>
+            <DrawerDescription className="sr-only">
+              What waits on you: proposals, alerts, quotes and hazards.
+            </DrawerDescription>
+            {needs}
+          </DrawerContent>
+        </Drawer>
+      </>
+    );
+  }
+  return (
+    <ResizablePanelGroup orientation="horizontal" className="h-full min-w-0">
+      <ResizablePanel
+        id="needs-you"
+        panelRef={needsPanel}
+        defaultSize={280}
+        minSize={220}
+        maxSize="40%"
+        collapsible
+        collapsedSize={0}
+        onResize={(size) => setNeedsOpen(size.inPixels > 0)}
+      >
+        <div className="h-full min-w-0 overflow-hidden border-r border-line">{needs}</div>
+      </ResizablePanel>
+      <ResizableHandle />
+      <ResizablePanel id="map-canvas" minSize="30%">
+        {mapScreen}
+      </ResizablePanel>
+    </ResizablePanelGroup>
   );
 }

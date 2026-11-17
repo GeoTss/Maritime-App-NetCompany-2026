@@ -88,6 +88,20 @@ function stubApi({
             },
           ],
         });
+      if (path === "/api/inbox")
+        return json({
+          items: [
+            {
+              documentId: 7,
+              sender: "quotes@supplier.test",
+              subject: "Kestrel LSMGO quote",
+              receivedAt: "2026-11-14T08:00:00.000Z",
+              kind: "email",
+              extractionStatus: "needs_review",
+            },
+          ],
+        });
+      if (path === "/api/recommendations") return json({ items: [] });
       if (path === "/api/vessels") return json({ items: VESSELS });
       if (path === "/api/vessels/1") return json(detail);
       if (path === "/api/voyages/1") return json(VOYAGE);
@@ -133,6 +147,15 @@ afterEach(() => {
 });
 
 describe("MapPage", () => {
+  it("heads the Needs-you column with the count and lists its items", async () => {
+    renderPage();
+    const column = await screen.findByRole("region", { name: "Needs you" });
+    expect(within(column).getByRole("heading", { name: "Needs you" })).toBeTruthy();
+    await waitFor(() => expect(within(column).getByTestId("needs-count").textContent).toBe("3"));
+    expect(within(column).getByText("Kestrel LSMGO quote")).toBeTruthy();
+    expect(within(column).getByRole("button", { name: "Ask where to bunker" })).toBeTruthy();
+  });
+
   it("no weather snapshot disables the layer", async () => {
     stubApi({ weather: "none" });
     renderPage();

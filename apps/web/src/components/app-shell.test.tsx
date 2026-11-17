@@ -67,6 +67,36 @@ describe("app shell", () => {
     expect(screen.getByRole("banner")).toBeTruthy();
   });
 
+  it("the Inbox badge counts the quotes to review", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) =>
+        String(url) === "/api/inbox"
+          ? new Response(
+              JSON.stringify({
+                items: [
+                  {
+                    documentId: 1,
+                    sender: null,
+                    subject: null,
+                    receivedAt: "2026-11-14T08:00:00.000Z",
+                    kind: "email",
+                    extractionStatus: "needs_review",
+                  },
+                ],
+              }),
+              { status: 200, headers: { "content-type": "application/json" } },
+            )
+          : new Response(JSON.stringify({ error: "not_found" }), { status: 404 }),
+      ),
+    );
+    renderAt("/inbox");
+    const nav = await screen.findByRole("navigation", { name: "Screens" });
+    await waitFor(() =>
+      expect(within(nav).getByRole("link", { name: /Inbox/ }).textContent).toContain("1"),
+    );
+  });
+
   it("an unknown address says so and offers the way back", async () => {
     renderAt("/nowhere");
     expect(await screen.findByText("No screen at this address")).toBeTruthy();

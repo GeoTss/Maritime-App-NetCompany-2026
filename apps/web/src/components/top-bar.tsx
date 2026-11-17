@@ -1,7 +1,5 @@
 import { Search01Icon, SidebarRight01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { InboxItem, listOf, RecommendationView } from "@pharos/shared";
-import { useQuery } from "@tanstack/react-query";
 import { NavLink } from "react-router";
 import { SCREENS, useCommandMenu } from "@/components/command-menu";
 import { StateFlag } from "@/components/primitives/state-flag";
@@ -11,31 +9,16 @@ import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { api } from "@/lib/api";
-import { queryKeys, useSourceStatus } from "@/lib/queries";
+import { useAttention } from "@/lib/attention";
+import { useSourceStatus } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 
-const InboxItems = listOf(InboxItem);
-const Recommendations = listOf(RecommendationView);
-
-/**
- * What needs the operator, per screen. Read from the same lists the Inbox and Approvals screens
- * read (same query keys, so one request serves both); a failed read shows no badge.
- */
+/** What needs the operator, per screen, counted once in `useAttention`. */
 function useNeedsYou(): Record<string, number> {
-  const inbox = useQuery({
-    queryKey: queryKeys.inbox,
-    queryFn: ({ signal }) => api.get("/api/inbox", InboxItems, { signal }),
-    retry: false,
-  });
-  const recs = useQuery({
-    queryKey: queryKeys.recommendations,
-    queryFn: ({ signal }) => api.get("/api/recommendations", Recommendations, { signal }),
-    retry: false,
-  });
+  const { items } = useAttention();
   return {
-    "/inbox": inbox.data?.items.filter((i) => i.extractionStatus === "needs_review").length ?? 0,
-    "/approvals": recs.data?.items.filter((r) => r.status === "pending").length ?? 0,
+    "/inbox": items.filter((i) => i.kind === "quote_review").length,
+    "/approvals": items.filter((i) => i.kind === "proposal").length,
   };
 }
 

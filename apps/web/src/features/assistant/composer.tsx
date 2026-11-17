@@ -1,12 +1,22 @@
 /** The question box: Enter asks, Shift+Enter adds a line. Disabled while an ask runs. */
 import { SentIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { type FormEvent, type KeyboardEvent, useState } from "react";
+import { type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { setDraft, useAssistant } from "./assistant-store";
 
 export function Composer({ onAsk, busy }: { onAsk: (question: string) => void; busy: boolean }) {
   const [text, setText] = useState("");
+  const field = useRef<HTMLTextAreaElement>(null);
+  const { draft } = useAssistant();
+  // A question put here from another screen: shown for the operator to read and send.
+  useEffect(() => {
+    if (draft === null) return;
+    setText(draft);
+    setDraft(null);
+    field.current?.focus();
+  }, [draft]);
   const submit = (e?: FormEvent) => {
     e?.preventDefault();
     if (busy || !text.trim()) return;
@@ -22,6 +32,7 @@ export function Composer({ onAsk, busy }: { onAsk: (question: string) => void; b
   return (
     <form onSubmit={submit} className="flex items-end gap-2 border-t border-line p-2">
       <Textarea
+        ref={field}
         aria-label="Ask the assistant"
         placeholder="Ask about a vessel, a quote, a route…"
         rows={1}

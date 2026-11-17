@@ -21,9 +21,11 @@ export interface Turn {
 interface State {
   turns: Turn[];
   conversationId: number | null;
+  /** A question another screen put in the composer for the operator to read and send. */
+  draft: string | null;
 }
 
-let state: State = { turns: [], conversationId: null };
+let state: State = { turns: [], conversationId: null, draft: null };
 let nextId = 1;
 let controller: AbortController | null = null;
 const listeners = new Set<() => void>();
@@ -59,6 +61,7 @@ export function ask(question: string, onAnswer?: (response: AskResponse) => void
         patch(id, { progress: [...(turn?.progress ?? []), e] });
       } else if (e.type === "answer") {
         set({
+          ...state,
           conversationId: e.response.conversationId,
           turns: state.turns.map((t) =>
             t.id === id ? { ...t, status: "done", response: e.response } : t,
@@ -87,7 +90,12 @@ export function retry(turnId: number, onAnswer?: (response: AskResponse) => void
 export function resetAssistant(): void {
   controller?.abort();
   controller = null;
-  set({ turns: [], conversationId: null });
+  set({ turns: [], conversationId: null, draft: state.draft });
+}
+
+/** Puts a question in the composer (it asks nothing until the operator sends it). */
+export function setDraft(text: string | null): void {
+  set({ ...state, draft: text });
 }
 
 export function useAssistant(): State {
