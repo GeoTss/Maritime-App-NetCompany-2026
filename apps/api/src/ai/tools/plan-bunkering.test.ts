@@ -1,6 +1,7 @@
 import { buildBunkerPlanInput, loadWorld, type Sql } from "@pharos/db";
 import { connectTestDb, testDbLabel } from "@pharos/db/testing";
 import { DOMAIN_CODE_VERSION, planBunkers } from "@pharos/domain";
+import { latestWeatherSnapshot } from "@pharos/integrations";
 import { BunkerPlan, BunkerPlanInput, Fact, FactId, PlanBunkeringInput } from "@pharos/shared";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { ASK_FIXTURE_NOW, prepareAskFixture } from "../../ask/demo-fixture.js";
@@ -115,7 +116,11 @@ describe.skipIf(!sql)("plan_bunkering (Postgres)", () => {
       bargeFee: o.bargeFee,
       qtyMt: o.offeredQtyMt,
     }));
-    expect(buildBunkerPlanInput(world, voyageId, offers)).toEqual(input);
+    // The tool reads fuel on board on the latest weather snapshot, with seeded port waits.
+    const weather = (await latestWeatherSnapshot(db))?.grid ?? null;
+    expect(
+      buildBunkerPlanInput(world, voyageId, offers, undefined, { weather, congestion: "seed" }),
+    ).toEqual(input);
     expect(calc.outputs).toEqual(planBunkers(input));
   });
 

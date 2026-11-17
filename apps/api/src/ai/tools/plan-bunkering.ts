@@ -16,6 +16,7 @@ import {
   type World,
 } from "@pharos/db";
 import { planBunkers } from "@pharos/domain";
+import { latestWeatherSnapshot } from "@pharos/integrations";
 import {
   type BunkerRequirement,
   type Fact,
@@ -69,7 +70,12 @@ async function planRequirement(
     };
   }
 
-  const planInput = buildBunkerPlanInput(world, voyage.id, offers, grade);
+  // Fuel on board at each port from the one fuel calculation, on the latest weather snapshot.
+  const snapshot = await latestWeatherSnapshot(ctx.sql);
+  const planInput = buildBunkerPlanInput(world, voyage.id, offers, grade, {
+    weather: snapshot?.grid ?? null,
+    congestion: ctx.congestion,
+  });
   const plan = planBunkers(planInput);
   const calculationId = await insertCalculation(ctx, {
     kind: "bunker_plan",

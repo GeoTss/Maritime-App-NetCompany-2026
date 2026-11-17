@@ -5,9 +5,14 @@
  * the result as a `route_speed` calculation. All maths is in `packages/domain`.
  */
 import {
+  type BunkerOffer,
+  type CongestionMode,
   currentVoyage,
   fleetRoutePlan,
+  latestOffers,
   loadWorld,
+  offersFromQuotes,
+  openRequirements,
   type RoutePlan,
   type Sql,
   shipRoutePlan,
@@ -26,6 +31,7 @@ import type {
   Vessel,
 } from "@pharos/shared";
 import { findVessel, insertCalculation } from "../ai/tools/common.js";
+import { approvedOrderFor } from "../approvals/orders.js";
 import { resolvePort } from "../ingest/resolve.js";
 import { routeCalculationLoad } from "./facts.js";
 
@@ -40,6 +46,8 @@ export class RoutePlanError extends Error {
 export interface RoutePlanDeps {
   sql: Sql;
   now: () => Date;
+  /** Port waits: "seed" on the pinned demo clock (the default), else the latest AIS reading. */
+  congestion?: CongestionMode;
 }
 
 /** The route-plan response before its facts are attached (`routePlanFacts` builds them). */
@@ -197,7 +205,25 @@ export async function planRouteSpeed(
       if (!voyage) throw new RoutePlanError(`${vessel.name} has no current voyage to plan.`);
       voyageId = voyage.id;
       vesselId = vessel.id;
-      plan = fleetRoutePlan(world, voyage.id, g, weather, zones);
+      // The stop candidates: an approved order fixes the stop to its quote; otherwise every valid
+      // quote for the open requirement is one.
+      const order = await approvedOrderFor(deps.sql, voyage.id);
+      const requirement = openRequirements(world, voyage.id)[0];
+      let offers: BunkerOffer[] = [];
+      const ordered = order?.quoteId ? world.quotes.find((q) => q.id === order.quoteId) : undefined;
+      const orderedGrade = ordered
+        ? world.quoteLines.find((l) => l.quoteId === ordered.id)?.grade
+        : undefined;
+      if (ordered && orderedGrade) {
+        offers = offersFromQuotes(world, [ordered], requirement?.grade ?? orderedGrade, false);
+      } else if (requirement) {
+        offers = latestOffers(world, voyage.id, requirement.grade, deps.now(), false);
+      }
+      plan = fleetRoutePlan(world, voyage.id, g, weather, zones, {
+        congestion: deps.congestion ?? "seed",
+        offers,
+        fixedOrder: order && ordered ? order : null,
+      });
     } else {
       ship = await findShip(deps.sql, input.vessel);
       mmsi = ship.mmsi;

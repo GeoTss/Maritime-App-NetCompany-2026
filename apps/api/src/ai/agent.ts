@@ -8,7 +8,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { BetaToolRunContext } from "@anthropic-ai/sdk/lib/tools/BetaRunnableTool";
 import type { BetaToolRunnerParams } from "@anthropic-ai/sdk/lib/tools/BetaToolRunner";
-import type { Sql } from "@pharos/db";
+import type { CongestionMode, Sql } from "@pharos/db";
 import type {
   AgentToolName,
   AskEvent,
@@ -39,6 +39,8 @@ export interface AgentDeps {
   log?: (message: string) => void;
   /** Called when each tool call starts (ms 0) and finishes (elapsed ms); names no input or output. */
   onProgress?: (event: ToolProgress) => void;
+  /** Port waits for the tools: "seed" on the pinned demo clock (the default), else "latest". */
+  congestion?: CongestionMode;
 }
 
 export type ToolProgress = Omit<Extract<AskEvent, { type: "progress" }>, "type">;
@@ -269,7 +271,7 @@ export async function runAgent(
   }
   await insertMessage(sql, convId, "user", { text: question }, now());
 
-  const ctx = createToolContext({ sql, now, priorFacts });
+  const ctx = createToolContext({ sql, now, priorFacts, congestion: deps.congestion ?? "seed" });
   const tools = withProgress(agentTools(ctx), deps.onProgress);
   /** Every gate pass so far, kept outside the run so a failed repair turn still stores attempt 1. */
   const attempts: GateAttempt[] = [];

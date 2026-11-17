@@ -107,7 +107,7 @@ describe("fixture content", () => {
   it("flags Aegean Pioneer's LSMGO and shows the shortfall in its detail", async () => {
     const { items } = listOf(VesselSummary).parse((await get("/api/vessels")).body);
     const pioneer = items.find((v) => v.name === "MV Aegean Pioneer");
-    expect(pioneer?.alerts).toContain("lsmgo_below_margin_for_eca");
+    expect(pioneer?.alerts).toContain("lsmgo_runs_out");
     const detail = VesselDetail.parse((await get(`/api/vessels/${pioneer?.id}`)).body);
     expect(detail.fobProjection?.shortfallMt.LSMGO).toBeGreaterThan(0);
   });

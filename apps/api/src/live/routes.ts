@@ -3,7 +3,7 @@
  * /weather, /hazards and /sources (mounted under /api). Read-only except that planning stores one
  * calculation.
  */
-import type { Sql } from "@pharos/db";
+import type { CongestionMode, Sql } from "@pharos/db";
 import { activeHazardZones, forecastStepAt } from "@pharos/domain";
 import { latestWeatherSnapshot } from "@pharos/integrations";
 import {
@@ -35,6 +35,8 @@ export const TRAFFIC_LIMIT = 2000;
 export interface LiveDeps {
   sql: Sql;
   now: () => Date;
+  /** Port waits for route plans: "seed" on the pinned demo clock (the default), else "latest". */
+  congestion?: CongestionMode;
 }
 
 const iso = (d: string | Date): string => new Date(d).toISOString();

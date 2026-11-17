@@ -9,6 +9,7 @@
  * calculation, with the facts its tool returned.
  */
 import { loadWorld, type Sql } from "@pharos/db";
+import { latestWeatherSnapshot } from "@pharos/integrations";
 import {
   type AuditEventView,
   AuditEventView as AuditEventViewSchema,
@@ -573,9 +574,18 @@ async function worldAnchor(sql: Sql): Promise<Date | null> {
 
 export function createDbSource(sql: Sql, now: () => Date): ReadSource {
   return {
-    listVessels: async () => buildVessels(await loadWorld(sql), now()).map((v) => v.summary),
+    listVessels: async () =>
+      buildVessels(
+        await loadWorld(sql),
+        now(),
+        (await latestWeatherSnapshot(sql))?.grid ?? null,
+      ).map((v) => v.summary),
     getVessel: async (id) =>
-      buildVessels(await loadWorld(sql), now()).find((v) => v.summary.id === id)?.detail ?? null,
+      buildVessels(
+        await loadWorld(sql),
+        now(),
+        (await latestWeatherSnapshot(sql))?.grid ?? null,
+      ).find((v) => v.summary.id === id)?.detail ?? null,
     listVoyages: async () => buildVoyages(await loadWorld(sql)).map((v) => v.summary),
     getVoyage: async (id) =>
       buildVoyages(await loadWorld(sql)).find((v) => v.summary.id === id)?.detail ?? null,

@@ -6,7 +6,7 @@
  * Their output must be deterministic for the same database state (no wall clock, no random ids),
  * because tool results are part of the next model request and so of its replay key.
  */
-import type { Sql, World } from "@pharos/db";
+import type { CongestionMode, Sql, World } from "@pharos/db";
 import { DOMAIN_CODE_VERSION, isoDayAfter } from "@pharos/domain";
 import type {
   AskSubject,
@@ -42,12 +42,15 @@ export interface ToolContext {
   subjects: AskSubject[];
   /** Runs tool calls one at a time, in call order, so serial ids do not depend on timing. */
   serial: <T>(fn: () => Promise<T>) => Promise<T>;
+  /** Port waits: seeded readings on the pinned demo clock, the latest AIS reading otherwise. */
+  congestion: CongestionMode;
 }
 
 export function createToolContext(opts: {
   sql: Sql;
   now: () => Date;
   priorFacts?: Fact[];
+  congestion?: CongestionMode;
 }): ToolContext {
   let tail: Promise<unknown> = Promise.resolve();
   return {
@@ -57,6 +60,7 @@ export function createToolContext(opts: {
     calls: [],
     recommendationIds: [],
     subjects: [],
+    congestion: opts.congestion ?? "seed",
     serial: (fn) => {
       const run = tail.then(fn, fn);
       tail = run.catch(() => {});

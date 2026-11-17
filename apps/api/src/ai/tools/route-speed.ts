@@ -17,7 +17,7 @@ export const ROUTE_NOTE =
 
 export function planRouteSpeedFacts(ctx: ToolContext, input: PlanRouteSpeedInput) {
   return runTool(ctx, TOOL, input, async (): Promise<ToolResult> => {
-    const planned = await planRouteSpeed({ sql: ctx.sql, now: ctx.now }, input);
+    const planned = await planRouteSpeed({ sql: ctx.sql, now: ctx.now, congestion: ctx.congestion }, input);
     const { response } = planned;
     if (planned.vesselId !== null) addSubject(ctx, { kind: "vessel", vesselId: planned.vesselId });
     else if (planned.mmsi !== null) addSubject(ctx, { kind: "ais", mmsi: planned.mmsi });

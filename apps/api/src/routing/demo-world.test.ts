@@ -92,7 +92,9 @@ describe("demo world: joint route-and-bunker invariants", () => {
     expect(bunker.bestOptionId).toBe("MTMLA-kestrel");
     const best = bunker.options.find((o) => o.optionId === bunker.bestOptionId);
     expect(Math.abs((best?.totalCostUsd ?? 0) - 233942.91134964247)).toBeLessThan(1e-6);
-    expect(Math.abs(bunker.savingVsCheapestHeadlineUsd - 16138.452312674606)).toBeLessThan(1e-6);
+    expect(Math.abs((bunker.savingVsCheapestHeadlineUsd ?? 0) - 16138.452312674606)).toBeLessThan(
+      1e-6,
+    );
   });
 
   it("R6 tank: Kestrel's 300 t fits at Marsaxlokk", () => {

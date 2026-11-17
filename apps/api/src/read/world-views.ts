@@ -3,7 +3,13 @@
  * `loadWorld`) and the fixture source (`generateWorld`). Every number comes from the world rows or
  * a `packages/domain` calculator.
  */
-import { currentVoyage, fobProjectionInput, voyageState, type World } from "@pharos/db";
+import {
+  currentPlanFuel,
+  currentVoyage,
+  fobProjectionInput,
+  voyageState,
+  type World,
+} from "@pharos/db";
 import { legsForRoute, projectFuelOnBoard } from "@pharos/domain";
 import type {
   FobProjection,
@@ -15,10 +21,13 @@ import type {
   VesselSummary,
   VoyageDetail,
   VoyageSummary,
+  WeatherGrid,
 } from "@pharos/shared";
 import { vesselRowFacts } from "../facts/vessel.js";
 
 export const LSMGO_ALERT = "lsmgo_below_margin_for_eca";
+/** LSMGO runs out before arrival on the current plan (a stronger form of LSMGO_ALERT). */
+export const LSMGO_RUNS_OUT = "lsmgo_runs_out";
 
 export function must<T>(v: T | undefined | null, what: string): T {
   if (v === undefined || v === null) throw new Error(`world has no ${what}`);
@@ -31,7 +40,11 @@ function vesselFacts(world: World, vessel: Vessel, now: Date): VesselFacts {
   return { robMt, voyageNo, nextPort, nextPortEta };
 }
 
-export function buildVessels(world: World, now: Date) {
+/**
+ * Fleet views. The LSMGO alert comes from the one fuel calculation on the current plan
+ * (`currentPlanFuel`, on `weather` when there is a snapshot, else calm water).
+ */
+export function buildVessels(world: World, now: Date, weather: WeatherGrid | null = null) {
   const latest = <T extends { vesselId: number }>(
     rows: T[],
     vesselId: number,
@@ -49,14 +62,20 @@ export function buildVessels(world: World, now: Date) {
     const position = latest(world.vesselPositions, vessel.id, (p) => p.ts);
     const voyage = currentVoyage(world, vessel.id);
 
-    // The projection get_vessel_status computes: the same builder, on the voyage's loaded curve.
+    // The panel's per-leg chart still draws the leg-by-leg projection (a follow-up moves it to the
+    // track); the alert below comes from the one fuel calculation, as get_vessel_status's facts do.
     const fob: FobProjection | null = voyage
       ? projectFuelOnBoard(
           fobProjectionInput(world, voyage.id, voyageState(world, voyage.id).remainingLegs),
         )
       : null;
-
-    const alerts = fob?.belowMarginAtLeg.LSMGO != null ? [LSMGO_ALERT] : [];
+    const lsmgo = voyage ? currentPlanFuel(world, voyage.id, weather).grades.LSMGO : null;
+    const alerts =
+      lsmgo?.runsDryAt != null
+        ? [LSMGO_RUNS_OUT]
+        : lsmgo?.belowMarginAt != null
+          ? [LSMGO_ALERT]
+          : [];
     const summary: VesselSummary = {
       id: vessel.id,
       name: vessel.name,
