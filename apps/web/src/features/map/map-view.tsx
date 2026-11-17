@@ -220,49 +220,54 @@ export function MapView(props: MapViewProps) {
     [onSelectShip],
   );
 
-  // Frame a new plan: every candidate, clear of the layer switches, the tray and the panel.
-  const bounds = plan ? planBounds(plan) : null;
+  // A plan's frame: clear of the layer switches, the tray and the panel.
+  const planPadding = {
+    top: inset.top + 24,
+    left: 24,
+    bottom: inset.bottom + 24,
+    right: inset.right + 24,
+  };
+
+  // Frame a route plan once the map has loaded: every candidate. Once per plan (a new inset does
+  // not reframe it); clearing it and showing it again frames it again. The map is created after
+  // the first commit, so a plan already in the cache waits for `loaded` and is marked framed only
+  // once a fit was issued.
   const planId = plan?.calculationId ?? null;
-  // biome-ignore lint/correctness/useExhaustiveDependencies: frame once per plan, not on every inset change.
+  const framedPlan = useRef<number | null>(null);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: frame once per plan, when the map can.
   useEffect(() => {
-    if (!bounds) return;
-    ref.current?.fitBounds(bounds as LngLatBoundsLike, {
-      padding: {
-        top: inset.top + 24,
-        left: 24,
-        bottom: inset.bottom + 24,
-        right: inset.right + 24,
-      },
+    if (!plan) {
+      framedPlan.current = null;
+      return;
+    }
+    const map = ref.current;
+    const bounds = planBounds(plan);
+    if (!loaded || !map || !bounds || framedPlan.current === plan.calculationId) return;
+    map.fitBounds(bounds as LngLatBoundsLike, {
+      padding: planPadding,
       duration: reduce ? 0 : 600,
       maxZoom: 7,
     });
-  }, [planId]);
+    framedPlan.current = plan.calculationId;
+  }, [planId, loaded]);
 
-  // Frame a bunker plan once the fleet is in: the vessel and every option's port, clear of the
-  // overlays. Once per plan; clearing it and showing it again frames it again.
+  // Frame a bunker plan once the map has loaded and the fleet is in: the vessel and every
+  // option's port. Once per plan, by the same rules as a route plan.
   const bunkerId = bunkerPlan?.calculationId ?? null;
   const framedBunker = useRef<number | null>(null);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: frame once per plan, when the vessel can be placed.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: frame once per plan, when the map and the vessel can.
   useEffect(() => {
     if (!bunkerPlan) {
       framedBunker.current = null;
       return;
     }
-    if (!ready || framedBunker.current === bunkerPlan.calculationId) return;
+    const map = ref.current;
+    if (!loaded || !ready || !map || framedBunker.current === bunkerPlan.calculationId) return;
     const box = bunkerPlanBounds(bunkerPlan, vessels);
     if (!box) return;
+    map.fitBounds(box, { padding: planPadding, duration: reduce ? 0 : 600, maxZoom: 7 });
     framedBunker.current = bunkerPlan.calculationId;
-    ref.current?.fitBounds(box, {
-      padding: {
-        top: inset.top + 24,
-        left: 24,
-        bottom: inset.bottom + 24,
-        right: inset.right + 24,
-      },
-      duration: reduce ? 0 : 600,
-      maxZoom: 7,
-    });
-  }, [bunkerId, ready]);
+  }, [bunkerId, ready, loaded]);
 
   // Fly to a selection made from the command menu, into the part of the map no panel covers.
   // biome-ignore lint/correctness/useExhaustiveDependencies: fly once per focus, not on inset changes.
