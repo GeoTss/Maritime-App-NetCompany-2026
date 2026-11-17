@@ -6,7 +6,6 @@
  * and the quotes, `planBunkers` computes each plan, and each plan is stored as a calculation that
  * its facts (and any proposal) point at.
  */
-import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
 import {
   type BunkerOffer,
   buildBunkerPlanInput,
@@ -30,6 +29,7 @@ import {
 import { bunkerPlanFacts, BUNKER_TOOL as TOOL } from "../../facts/bunker.js";
 import { dbFact } from "../../facts/core.js";
 import { findVessel, insertCalculation, quoteExpiry, runTool, type ToolContext } from "./common.js";
+import { defineTool } from "./define.js";
 
 type PlanOutcome =
   | {
@@ -232,19 +232,17 @@ export function planBunkering(ctx: ToolContext, input: PlanBunkeringInput): Prom
   });
 }
 
-export function planBunkeringTool(ctx: ToolContext) {
-  return betaZodTool({
-    name: TOOL,
-    description:
-      "Bunker plans for open fuel requirements: one plan per open requirement (per grade) of a " +
-      "vessel's current voyage, or of every vessel's when no vessel is given. Each plan ranks every " +
-      "received, still-valid supplier quote by total delivered cost (fuel, barge fee, deviation, " +
-      "delay, EU ETS cost and FuelEU Maritime exposure) and checks feasibility (quantity, tank " +
-      "space, safety margin, berth window), on the vessel's consumption at its current load " +
-      "(displacement). Each plan is stored as a calculation; the result gives each plan's " +
-      "calculationId, best option and citable facts per option (with several plans, a plans or " +
-      "vessels list).",
-    inputSchema: PlanBunkeringInput,
-    run: async (input) => JSON.stringify(await planBunkering(ctx, input)),
-  });
-}
+export const planBunkeringDef = defineTool({
+  name: TOOL,
+  description:
+    "Bunker plans for open fuel requirements: one plan per open requirement (per grade) of a " +
+    "vessel's current voyage, or of every vessel's when no vessel is given. Each plan ranks every " +
+    "received, still-valid supplier quote by total delivered cost (fuel, barge fee, deviation, " +
+    "delay, EU ETS cost and FuelEU Maritime exposure) and checks feasibility (quantity, tank " +
+    "space, safety margin, berth window), on the vessel's consumption at its current load " +
+    "(displacement). Each plan is stored as a calculation; the result gives each plan's " +
+    "calculationId, best option and citable facts per option (with several plans, a plans or " +
+    "vessels list).",
+  inputSchema: PlanBunkeringInput,
+  run: planBunkering,
+});

@@ -8,7 +8,8 @@ import { ASK_FIXTURE_NOW, prepareAskFixture } from "../../ask/demo-fixture.js";
 import { FIXTURE_ANCHOR } from "../../read/fixtures.js";
 import { planRouteSpeed, RoutePlanError } from "../../routing/plan.js";
 import { createToolContext } from "./common.js";
-import { planRouteSpeedFacts, planRouteSpeedTool } from "./route-speed.js";
+import { agentTools } from "./registry.js";
+import { planRouteSpeedFacts } from "./route-speed.js";
 
 const sql = await connectTestDb("ask_route_speed");
 
@@ -515,7 +516,13 @@ describe.skipIf(!sql)("plan_route_speed (Postgres)", () => {
   });
 
   it("the tool result text is the ToolResult JSON", async () => {
-    const text = await planRouteSpeedTool(ctx()).run({ vessel: "Aegean Pioneer" });
+    const tools = agentTools(ctx()) as unknown as {
+      name: string;
+      run: (input: unknown) => Promise<string>;
+    }[];
+    const text = await tools
+      .find((t) => t.name === "plan_route_speed")
+      ?.run({ vessel: "Aegean Pioneer" });
     const parsed = JSON.parse(text as string) as { facts: unknown[]; data: unknown };
     expect(parsed.facts.length).toBeGreaterThan(0);
   });

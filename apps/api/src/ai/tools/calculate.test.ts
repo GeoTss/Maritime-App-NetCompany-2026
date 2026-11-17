@@ -4,7 +4,7 @@ import { DOMAIN_CODE_VERSION } from "@pharos/domain";
 import { CalculateInput, Fact } from "@pharos/shared";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { ASK_FIXTURE_NOW, prepareAskFixture } from "../../ask/demo-fixture.js";
-import { calculate, calculateTool } from "./calculate.js";
+import { calculate, calculateDef } from "./calculate.js";
 import { createToolContext, type ToolContext } from "./common.js";
 
 const sql = await connectTestDb("ask_calculate");
@@ -138,17 +138,21 @@ describe.skipIf(!sql)("calculate (Postgres)", () => {
   });
 
   it("its description makes a percentage difference one percent_change call, cited, with no extra divide", () => {
-    const { description } = calculateTool(ctx) as { description?: string };
+    const { description } = calculateDef;
     expect(description).toMatch(/percentage difference is one percent_change call/);
     expect(description).toMatch(/cite the fact it returns and do not also divide/);
   });
 
   it("input is strict: fact ids only, and binary ops take exactly two", () => {
-    const tool = calculateTool(ctx);
     expect(() => CalculateInput.parse({ op: "subtract", operands: [738, 712] })).toThrow();
     expect(() =>
-      tool.parse?.({ op: "subtract", operands: [KESTREL.id, STRAIT.id, EUR_FEE.id] }),
+      calculateDef.inputSchema.parse({
+        op: "subtract",
+        operands: [KESTREL.id, STRAIT.id, EUR_FEE.id],
+      }),
     ).toThrow();
-    expect(() => tool.parse?.({ op: "add", operands: [KESTREL.id], value: 5 })).toThrow();
+    expect(() =>
+      calculateDef.inputSchema.parse({ op: "add", operands: [KESTREL.id], value: 5 }),
+    ).toThrow();
   });
 });

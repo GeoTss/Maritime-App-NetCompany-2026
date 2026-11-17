@@ -4,7 +4,7 @@ import { Fact, FactId, ListFleetInput } from "@pharos/shared";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ASK_FIXTURE_NOW, prepareAskFixture } from "../../ask/demo-fixture.js";
 import { createToolContext } from "./common.js";
-import { listFleet, listFleetTool } from "./list-fleet.js";
+import { listFleet, listFleetDef } from "./list-fleet.js";
 
 const sql = await connectTestDb("ask_list_fleet");
 
@@ -28,7 +28,7 @@ describe.skipIf(!sql)("list_fleet (Postgres)", () => {
 
   it("input takes no fields", () => {
     expect(() => ListFleetInput.parse({ vessel: "Aegean Pioneer" })).toThrow();
-    expect(listFleetTool(ctx()).parse?.({})).toEqual({});
+    expect(listFleetDef.inputSchema.parse({})).toEqual({});
   });
 
   it("returns the 8 seed vessels, each with name, IMO, current voyage number and status", async () => {

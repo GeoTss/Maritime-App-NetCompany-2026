@@ -9,7 +9,6 @@
  * - `voyage_instruction`: one feasible route of a `route_speed` plan of a fleet vessel's voyage
  *   (from `plan_route_speed`); a plan for a ship seen on AIS is refused.
  */
-import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
 import {
   BunkerPlan,
   type Id,
@@ -20,6 +19,7 @@ import {
 } from "@pharos/shared";
 import { dbFact } from "../../facts/core.js";
 import { json, runTool, type ToolContext } from "./common.js";
+import { defineTool } from "./define.js";
 
 export const TOOL = "propose_action";
 
@@ -160,22 +160,20 @@ export async function proposeAction(ctx: ToolContext, input: unknown): Promise<T
   });
 }
 
-export function proposeActionTool(ctx: ToolContext) {
-  return betaZodTool({
-    name: TOOL,
-    description:
-      "Propose an action for a human to approve: a purchase order (type purchase_order) for one " +
-      "feasible option of a stored bunker plan, or a voyage instruction (type voyage_instruction) " +
-      "for one feasible route of a stored route plan of a fleet vessel. Use it only when the " +
-      "operator asks you to decide (where or from whom to buy, which offer to take, a " +
-      "recommendation or an order) or to instruct the master (prepare or issue the voyage " +
-      "instruction, put the route and speed into effect), never when they only look something up, " +
-      "compare, ask which route or speed is best, ask for a calculation or say not to order or " +
-      "instruct yet. Never for a ship seen on AIS. Creates a pending recommendation only: nothing " +
-      "is ordered, changed or sent. Takes the plan's calculationId and optionId (a bunker plan's " +
-      "optionId, or a route plan's route id), and factRefs that are facts of that same plan; " +
-      "quantities, prices, speeds and ETAs come from the stored plan, never from you.",
-    inputSchema: ProposeActionInput,
-    run: async (input) => JSON.stringify(await proposeAction(ctx, input)),
-  });
-}
+export const proposeActionDef = defineTool({
+  name: TOOL,
+  description:
+    "Propose an action for a human to approve: a purchase order (type purchase_order) for one " +
+    "feasible option of a stored bunker plan, or a voyage instruction (type voyage_instruction) " +
+    "for one feasible route of a stored route plan of a fleet vessel. Use it only when the " +
+    "operator asks you to decide (where or from whom to buy, which offer to take, a " +
+    "recommendation or an order) or to instruct the master (prepare or issue the voyage " +
+    "instruction, put the route and speed into effect), never when they only look something up, " +
+    "compare, ask which route or speed is best, ask for a calculation or say not to order or " +
+    "instruct yet. Never for a ship seen on AIS. Creates a pending recommendation only: nothing " +
+    "is ordered, changed or sent. Takes the plan's calculationId and optionId (a bunker plan's " +
+    "optionId, or a route plan's route id), and factRefs that are facts of that same plan; " +
+    "quantities, prices, speeds and ETAs come from the stored plan, never from you.",
+  inputSchema: ProposeActionInput,
+  run: proposeAction,
+});

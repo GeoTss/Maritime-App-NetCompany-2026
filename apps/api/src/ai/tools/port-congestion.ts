@@ -2,12 +2,12 @@
  * `get_port_congestion`: the latest anchorage congestion reading of a port, from AIS when the
  * worker has one and from the desk's seeded figure otherwise. Read-only.
  */
-import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { loadWorld } from "@pharos/db";
 import { type Fact, PortCongestionInput, type ToolResult } from "@pharos/shared";
 import { dbFact } from "../../facts/core.js";
 import { resolvePort } from "../../ingest/resolve.js";
 import { runTool, type ToolContext } from "./common.js";
+import { defineTool } from "./define.js";
 
 export const TOOL = "get_port_congestion";
 
@@ -56,14 +56,12 @@ export function getPortCongestion(ctx: ToolContext, input: PortCongestionInput) 
   });
 }
 
-export function portCongestionTool(ctx: ToolContext) {
-  return betaZodTool({
-    name: TOOL,
-    description:
-      "Latest congestion at a port: vessels at anchor and expected waiting time, with when and " +
-      "from what source it was observed. The figures are observed at the anchorage (AIS) and can " +
-      "differ from the desk's planning figures, which bunker plans use. Returns citable facts.",
-    inputSchema: PortCongestionInput,
-    run: async (input) => JSON.stringify(await getPortCongestion(ctx, input)),
-  });
-}
+export const portCongestionDef = defineTool({
+  name: TOOL,
+  description:
+    "Latest congestion at a port: vessels at anchor and expected waiting time, with when and " +
+    "from what source it was observed. The figures are observed at the anchorage (AIS) and can " +
+    "differ from the desk's planning figures, which bunker plans use. Returns citable facts.",
+  inputSchema: PortCongestionInput,
+  run: getPortCongestion,
+});

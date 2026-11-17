@@ -4,10 +4,10 @@
  * computes, and the result is stored as a calculation with its operand lineage. It returns one
  * derived fact, `f_calc:<calculationId>:value`, that an answer cites like any other.
  */
-import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { CalcError, calculate as domainCalculate } from "@pharos/domain";
 import { CalculateInput, type Fact, type FactId, type ToolResult } from "@pharos/shared";
 import { insertCalculation, runTool, type ToolContext } from "./common.js";
+import { defineTool } from "./define.js";
 
 export const TOOL = "calculate";
 
@@ -70,17 +70,15 @@ export function calculate(ctx: ToolContext, input: CalculateInput): Promise<Tool
   });
 }
 
-export function calculateTool(ctx: ToolContext) {
-  return betaZodTool({
-    name: TOOL,
-    description:
-      "Arithmetic over facts returned earlier in this conversation, for any sum, difference, ratio " +
-      "or percentage the operator asks for. Pass the operation and the operand fact ids (never " +
-      "typed numbers); subtract is a - b, divide a / b, difference |a - b|, percent_change " +
-      "(b - a) / a in %. Units must agree for add, subtract, difference, sum, min and max. " +
-      "A percentage difference is one percent_change call: cite the fact it returns and do not " +
-      "also divide. Returns one derived fact to cite.",
-    inputSchema: CalculateInput,
-    run: async (input) => JSON.stringify(await calculate(ctx, input)),
-  });
-}
+export const calculateDef = defineTool({
+  name: TOOL,
+  description:
+    "Arithmetic over facts returned earlier in this conversation, for any sum, difference, ratio " +
+    "or percentage the operator asks for. Pass the operation and the operand fact ids (never " +
+    "typed numbers); subtract is a - b, divide a / b, difference |a - b|, percent_change " +
+    "(b - a) / a in %. Units must agree for add, subtract, difference, sum, min and max. " +
+    "A percentage difference is one percent_change call: cite the fact it returns and do not " +
+    "also divide. Returns one derived fact to cite.",
+  inputSchema: CalculateInput,
+  run: calculate,
+});

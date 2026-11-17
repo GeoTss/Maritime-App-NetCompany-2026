@@ -5,7 +5,8 @@ import { Fact, FactId, FobProjection, VesselStatusInput } from "@pharos/shared";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ASK_FIXTURE_NOW, prepareAskFixture } from "../../ask/demo-fixture.js";
 import { createToolContext } from "./common.js";
-import { getVesselStatus, vesselStatusTool } from "./vessel-status.js";
+import { agentTools } from "./registry.js";
+import { getVesselStatus, vesselStatusDef } from "./vessel-status.js";
 
 const sql = await connectTestDb("ask_vessel_status");
 
@@ -35,7 +36,7 @@ describe.skipIf(!sql)("get_vessel_status (Postgres)", () => {
 
   it("input is strict: only a vessel name or IMO", () => {
     expect(() => VesselStatusInput.parse({ vessel: "Aegean Pioneer", speedKn: 11 })).toThrow();
-    expect(() => vesselStatusTool(ctx()).parse?.({ vessel: "" })).toThrow();
+    expect(() => vesselStatusDef.inputSchema.parse({ vessel: "" })).toThrow();
   });
 
   it("returns ROB from the latest noon report, the stored FOB projection, next port and ETA", async () => {
@@ -130,7 +131,13 @@ describe.skipIf(!sql)("get_vessel_status (Postgres)", () => {
   });
 
   it("the tool result text is the ToolResult JSON", async () => {
-    const text = await vesselStatusTool(ctx()).run({ vessel: "Aegean Pioneer" });
+    const tools = agentTools(ctx()) as unknown as {
+      name: string;
+      run: (input: unknown) => Promise<string>;
+    }[];
+    const text = await tools
+      .find((t) => t.name === "get_vessel_status")
+      ?.run({ vessel: "Aegean Pioneer" });
     expect(typeof text).toBe("string");
     const parsed = JSON.parse(text as string) as { facts: unknown[]; data: unknown };
     expect(parsed.facts.length).toBeGreaterThan(0);

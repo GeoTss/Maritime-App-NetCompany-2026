@@ -31,6 +31,7 @@ import {
   textReply,
   toolCall,
 } from "./scripted-llm.js";
+import { AGENT_TOOL_DEFS } from "./tools/registry.js";
 
 const throwingFetch: LlmFetch = async () => {
   throw new Error("network must not be called");
@@ -101,17 +102,7 @@ describe("agent request", () => {
   });
 
   it("the prompt lists every registered tool, the route tool avoiding reported hazards", () => {
-    for (const name of [
-      "list_fleet",
-      "get_vessel_status",
-      "list_quotes",
-      "plan_bunkering",
-      "get_emissions",
-      "plan_route_speed",
-      "get_port_congestion",
-      "calculate",
-      "propose_action",
-    ]) {
+    for (const { name } of AGENT_TOOL_DEFS) {
       expect(AGENT_SYSTEM).toMatch(new RegExp(`^- ${name}: `, "m"));
     }
     expect(AGENT_SYSTEM).toMatch(/^- plan_route_speed: .*avoids reported hazards/m);
@@ -235,21 +226,11 @@ describe.skipIf(!sql)("runAgent (Postgres)", () => {
     db<{ id: number; role: string; content: Record<string, unknown> }[]>`
       select id, role, content from messages where conversation_id = ${conversationId} order by id`;
 
-  it("offers the model the nine agent tools, in a fixed order", async () => {
+  it("offers the model every agent tool, in a fixed order", async () => {
     const { deps, requests } = scriptedDeps([textReply(1, "Hello, how can I help?")]);
     await runAgent(deps, "Hi");
     const tools = (requests[0]?.tools ?? []) as { name: string }[];
-    expect(tools.map((t) => t.name)).toEqual([
-      "list_fleet",
-      "get_vessel_status",
-      "list_quotes",
-      "plan_bunkering",
-      "get_emissions",
-      "plan_route_speed",
-      "get_port_congestion",
-      "calculate",
-      "propose_action",
-    ]);
+    expect(tools.map((t) => t.name)).toEqual(AGENT_TOOL_DEFS.map((d) => d.name));
   });
 
   // Tool definitions are part of every request, and recorded replies are keyed on those bytes.

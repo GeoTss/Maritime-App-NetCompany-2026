@@ -4,7 +4,7 @@ import { Fact } from "@pharos/shared";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ASK_FIXTURE_NOW, prepareAskFixture } from "../../ask/demo-fixture.js";
 import { createToolContext } from "./common.js";
-import { getPortCongestion, portCongestionTool } from "./port-congestion.js";
+import { getPortCongestion, portCongestionDef } from "./port-congestion.js";
 
 const sql = await connectTestDb("ask_port_congestion");
 
@@ -73,8 +73,6 @@ describe.skipIf(!sql)("get_port_congestion (Postgres)", () => {
   });
 
   it("the description says the figures are observed at the anchorage", () => {
-    expect((portCongestionTool(ctx()) as unknown as { description: string }).description).toMatch(
-      /observed at the anchorage/,
-    );
+    expect(portCongestionDef.description).toMatch(/observed at the anchorage/);
   });
 });

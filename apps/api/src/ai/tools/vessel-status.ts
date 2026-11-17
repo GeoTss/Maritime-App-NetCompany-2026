@@ -3,7 +3,6 @@
  * over the rest of the voyage (computed by `projectFuelOnBoard`, stored as a calculation), and its
  * next port call.
  */
-import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { currentVoyage, fobProjectionInput, loadWorld, voyageState } from "@pharos/db";
 import { DOMAIN_CODE_VERSION, projectFuelOnBoard } from "@pharos/domain";
 import {
@@ -16,6 +15,7 @@ import {
 import { calcFact } from "../../facts/core.js";
 import { VESSEL_TOOL, vesselRowFacts } from "../../facts/vessel.js";
 import { findVessel, json, runTool, type ToolContext } from "./common.js";
+import { defineTool } from "./define.js";
 
 export const TOOL = VESSEL_TOOL;
 
@@ -99,14 +99,12 @@ export function getVesselStatus(ctx: ToolContext, input: VesselStatusInput): Pro
   });
 }
 
-export function vesselStatusTool(ctx: ToolContext) {
-  return betaZodTool({
-    name: TOOL,
-    description:
-      "Fuel status of one fleet vessel: remaining on board per grade from the latest noon report, " +
-      "the fuel-on-board projection for the rest of the current voyage (fuel needed, safety margin, " +
-      "shortfall per grade), and the next port call with its ETA. Returns citable facts.",
-    inputSchema: VesselStatusInput,
-    run: async (input) => JSON.stringify(await getVesselStatus(ctx, input)),
-  });
-}
+export const vesselStatusDef = defineTool({
+  name: TOOL,
+  description:
+    "Fuel status of one fleet vessel: remaining on board per grade from the latest noon report, " +
+    "the fuel-on-board projection for the rest of the current voyage (fuel needed, safety margin, " +
+    "shortfall per grade), and the next port call with its ETA. Returns citable facts.",
+  inputSchema: VesselStatusInput,
+  run: getVesselStatus,
+});

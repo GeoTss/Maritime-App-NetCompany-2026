@@ -4,7 +4,6 @@
  * as planned (whole-voyage CO₂ over the planned distance). Every number comes from the domain
  * calculators (`co2Tonnes`, `etsCost`, `ciiRating`) and the result is stored as one calculation.
  */
-import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { currentVoyage, fobProjectionInput, loadWorld, voyageState } from "@pharos/db";
 import {
   ciiRating,
@@ -24,6 +23,7 @@ import {
 } from "@pharos/shared";
 import { calcFact, dbFact } from "../../facts/core.js";
 import { findVessel, insertCalculation, runTool, type ToolContext } from "./common.js";
+import { defineTool } from "./define.js";
 
 export const TOOL = "get_emissions";
 
@@ -179,14 +179,12 @@ export function getEmissions(ctx: ToolContext, input: EmissionsInput): Promise<T
   });
 }
 
-export function emissionsTool(ctx: ToolContext) {
-  return betaZodTool({
-    name: TOOL,
-    description:
-      "Emissions of a vessel's current voyage: CO₂ from the fuel still to burn, the EU ETS cost of " +
-      "it (EUR and USD, with coverage and phase-in), and the CII rating of the voyage as planned " +
-      "(attained and required CII). Stores the result as a calculation; returns citable facts.",
-    inputSchema: EmissionsInput,
-    run: async (input) => JSON.stringify(await getEmissions(ctx, input)),
-  });
-}
+export const emissionsDef = defineTool({
+  name: TOOL,
+  description:
+    "Emissions of a vessel's current voyage: CO₂ from the fuel still to burn, the EU ETS cost of " +
+    "it (EUR and USD, with coverage and phase-in), and the CII rating of the voyage as planned " +
+    "(attained and required CII). Stores the result as a calculation; returns citable facts.",
+  inputSchema: EmissionsInput,
+  run: getEmissions,
+});

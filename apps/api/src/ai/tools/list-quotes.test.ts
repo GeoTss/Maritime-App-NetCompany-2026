@@ -5,7 +5,7 @@ import { type Fact, FactId, ListQuotesInput, type ToolResult } from "@pharos/sha
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { ASK_FIXTURE_NOW, prepareAskFixture } from "../../ask/demo-fixture.js";
 import { createToolContext } from "./common.js";
-import { listQuotes, listQuotesTool } from "./list-quotes.js";
+import { listQuotes, listQuotesDef } from "./list-quotes.js";
 
 const sql = await connectTestDb("ask_list_quotes");
 
@@ -48,7 +48,7 @@ describe.skipIf(!sql)("list_quotes (Postgres)", () => {
 
   it("input is strict", () => {
     expect(() => ListQuotesInput.parse({ pricePerMt: 700 })).toThrow();
-    expect(() => listQuotesTool(ctx()).parse?.({ grade: "MGO" })).toThrow();
+    expect(() => listQuotesDef.inputSchema.parse({ grade: "MGO" })).toThrow();
   });
 
   it("lists the received demo quotes with citable facts per quote and per line", async () => {

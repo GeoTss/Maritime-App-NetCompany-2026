@@ -4,7 +4,6 @@
  * (see `quoteExpiry`) are left out unless asked for. A non-USD price also comes in USD, converted
  * by the domain FX helper at the latest reference rate, as a derived fact with its lineage.
  */
-import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { loadWorld } from "@pharos/db";
 import { isoDayAfter, toUsd } from "@pharos/domain";
 import {
@@ -18,6 +17,7 @@ import {
 import { dbFact, factId } from "../../facts/core.js";
 import { resolvePort } from "../../ingest/resolve.js";
 import { findVessel, quoteExpiry, runTool, type ToolContext } from "./common.js";
+import { defineTool } from "./define.js";
 
 export const TOOL = "list_quotes";
 
@@ -211,15 +211,13 @@ export function listQuotes(ctx: ToolContext, input: ListQuotesInput): Promise<To
   });
 }
 
-export function listQuotesTool(ctx: ToolContext) {
-  return betaZodTool({
-    name: TOOL,
-    description:
-      "Supplier quotes on record, optionally for one vessel's voyages, one port or one fuel grade: " +
-      "supplier, port, status, validity, barge fee, and per fuel grade the quantity offered and the " +
-      "price per mt in the quote currency (and in USD for a non-USD quote). Expired quotes are left " +
-      "out unless includeExpired is true. Returns citable facts per quote and per grade.",
-    inputSchema: ListQuotesInput,
-    run: async (input) => JSON.stringify(await listQuotes(ctx, input)),
-  });
-}
+export const listQuotesDef = defineTool({
+  name: TOOL,
+  description:
+    "Supplier quotes on record, optionally for one vessel's voyages, one port or one fuel grade: " +
+    "supplier, port, status, validity, barge fee, and per fuel grade the quantity offered and the " +
+    "price per mt in the quote currency (and in USD for a non-USD quote). Expired quotes are left " +
+    "out unless includeExpired is true. Returns citable facts per quote and per grade.",
+  inputSchema: ListQuotesInput,
+  run: listQuotes,
+});

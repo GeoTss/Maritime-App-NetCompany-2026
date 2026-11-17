@@ -60,8 +60,13 @@ npx playwright test     # the six-step demo story (replay); STORY_SCREENSHOTS=do
 
 1. Input/output Zod schema in `packages/shared`; output carries `facts[]` with IDs and provenance.
 2. Computation lives in `packages/domain`; the tool only loads data and calls it.
-3. Unit test for the tool; at least one golden Q&A question that needs it.
-4. Register it in the tool registry; if write-capable, it must only create a _pending_ recommendation.
+3. In `apps/api/src/ai/tools/<tool>.ts`, export the tool function (it calls `runTool` itself, so the call is logged and its facts reach the ledger) and a `defineTool({ name, description, inputSchema, run })` definition. Add the definition to `AGENT_TOOL_DEFS` in `ai/tools/registry.ts`, **append only**: the order is part of every request, so of every replay key.
+4. Add its name to `AgentToolName` in `packages/shared/src/tools.ts` (also append only; the registry test checks the two agree).
+5. Add its line to the tool list in the agent prompt and bump `PROMPT_VERSION`, under the `eval-bench` protocol (a live smoke eval is required after a prompt change).
+6. Add its label to the web's tool-label map (`apps/web`).
+7. If it returns a new fact unit, add the unit to the release gate.
+8. Unit test for the tool; at least one golden Q&A question that needs it.
+9. If write-capable, it must only create a _pending_ recommendation.
 
 ## UI rules (apps/web)
 

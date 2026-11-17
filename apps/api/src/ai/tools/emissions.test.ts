@@ -12,7 +12,7 @@ import {
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ASK_FIXTURE_NOW, prepareAskFixture } from "../../ask/demo-fixture.js";
 import { createToolContext } from "./common.js";
-import { emissionsTool, getEmissions } from "./emissions.js";
+import { emissionsDef, getEmissions } from "./emissions.js";
 
 const sql = await connectTestDb("ask_emissions");
 
@@ -44,7 +44,7 @@ describe.skipIf(!sql)("get_emissions (Postgres)", () => {
 
   it("input is strict", () => {
     expect(() => EmissionsInput.parse({ vessel: "Aegean Pioneer", year: 2026 })).toThrow();
-    expect(() => emissionsTool(ctx()).parse?.({})).toThrow();
+    expect(() => emissionsDef.inputSchema.parse({})).toThrow();
   });
 
   it("stores an emissions calculation whose outputs are the domain calculators' over its inputs", async () => {

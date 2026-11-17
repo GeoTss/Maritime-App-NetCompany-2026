@@ -7,7 +7,7 @@ import { ASK_FIXTURE_NOW, prepareAskFixture } from "../../ask/demo-fixture.js";
 import { FIXTURE_ANCHOR } from "../../read/fixtures.js";
 import { createToolContext, type ToolContext } from "./common.js";
 import { planBunkering } from "./plan-bunkering.js";
-import { proposeAction, proposeActionTool } from "./propose-action.js";
+import { proposeAction, proposeActionDef } from "./propose-action.js";
 import { planRouteSpeedFacts } from "./route-speed.js";
 import { getVesselStatus } from "./vessel-status.js";
 
@@ -127,16 +127,15 @@ describe.skipIf(!sql)("propose_action (Postgres)", () => {
   });
 
   it("its description limits proposals to questions that ask for a decision", () => {
-    const { description } = proposeActionTool(ctx) as { description?: string };
+    const { description } = proposeActionDef;
     expect(description).toMatch(/only when the operator asks you to decide/);
     expect(description).toMatch(/never when they only look something up, compare/);
   });
 
   it("rejects a model-typed quantity, price or speed (strict input)", () => {
-    const tool = proposeActionTool(ctx);
     for (const extra of [{ qtyMt: 300 }, { pricePerMt: 700 }, { speedKn: 11 }]) {
       expect(() => ProposeActionInput.parse({ ...valid(), ...extra })).toThrow();
-      expect(() => tool.parse?.({ ...valid(), ...extra })).toThrow();
+      expect(() => proposeActionDef.inputSchema.parse({ ...valid(), ...extra })).toThrow();
     }
   });
 

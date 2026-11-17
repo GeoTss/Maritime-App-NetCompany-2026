@@ -31,6 +31,7 @@ import {
   ShipType,
 } from "./primitives.js";
 import { RouteCandidate, RouteSpeedResult } from "./routing.js";
+import { AgentToolName } from "./tools.js";
 
 export const ApiError = z.object({ error: z.string().min(1) });
 export type ApiError = z.infer<typeof ApiError>;
@@ -302,7 +303,7 @@ export const AskEvent = z.discriminatedUnion("type", [
   z
     .object({
       type: z.literal("progress"),
-      tool: z.string().min(1),
+      tool: AgentToolName,
       phase: z.enum(["started", "finished"]),
       ms: z.number().nonnegative(),
     })

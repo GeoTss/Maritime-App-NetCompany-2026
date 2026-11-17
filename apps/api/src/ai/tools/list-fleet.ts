@@ -2,11 +2,11 @@
  * `list_fleet`: the operator's vessels with their IMO and current voyage (number and status),
  * read from the database. No calculation, and no numbers other than the IMO.
  */
-import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { currentVoyage, loadWorld } from "@pharos/db";
 import { type Fact, ListFleetInput, type ToolResult } from "@pharos/shared";
 import { dbFact } from "../../facts/core.js";
 import { runTool, type ToolContext } from "./common.js";
+import { defineTool } from "./define.js";
 
 export const TOOL = "list_fleet";
 
@@ -65,13 +65,11 @@ export function listFleet(ctx: ToolContext, input: ListFleetInput): Promise<Tool
   });
 }
 
-export function listFleetTool(ctx: ToolContext) {
-  return betaZodTool({
-    name: TOOL,
-    description:
-      "The operator's fleet: every vessel with its IMO number, ship type and current voyage " +
-      "(voyage number and status). Returns citable facts per vessel.",
-    inputSchema: ListFleetInput,
-    run: async (input) => JSON.stringify(await listFleet(ctx, input)),
-  });
-}
+export const listFleetDef = defineTool({
+  name: TOOL,
+  description:
+    "The operator's fleet: every vessel with its IMO number, ship type and current voyage " +
+    "(voyage number and status). Returns citable facts per vessel.",
+  inputSchema: ListFleetInput,
+  run: listFleet,
+});

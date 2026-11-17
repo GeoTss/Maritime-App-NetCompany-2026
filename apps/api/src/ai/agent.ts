@@ -8,7 +8,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { BetaToolRunnerParams } from "@anthropic-ai/sdk/lib/tools/BetaToolRunner";
 import type { Sql } from "@pharos/db";
-import type { AskResult, Fact, GateAttempt, GateResult, Id } from "@pharos/shared";
+import type { AgentToolName, AskResult, Fact, GateAttempt, GateResult, Id } from "@pharos/shared";
 import type { AppConfig } from "../config.js";
 import { withCallCapture } from "./call-capture.js";
 import { loadConversationFacts } from "./fact-ledger.js";
@@ -16,16 +16,8 @@ import { FALLBACK_BETA, usesFallbacks } from "./fallbacks.js";
 import { recordLlmCall } from "./llm.js";
 import { AGENT_SYSTEM, PROMPT_VERSION } from "./prompts/agent-system.js";
 import { checkNumbers, citedFactIds } from "./release-gate.js";
-import { calculateTool } from "./tools/calculate.js";
-import { createToolContext, json, type ToolContext } from "./tools/common.js";
-import { emissionsTool } from "./tools/emissions.js";
-import { listFleetTool } from "./tools/list-fleet.js";
-import { listQuotesTool } from "./tools/list-quotes.js";
-import { planBunkeringTool } from "./tools/plan-bunkering.js";
-import { portCongestionTool } from "./tools/port-congestion.js";
-import { proposeActionTool } from "./tools/propose-action.js";
-import { planRouteSpeedTool } from "./tools/route-speed.js";
-import { vesselStatusTool } from "./tools/vessel-status.js";
+import { createToolContext, json } from "./tools/common.js";
+import { type AgentTools, agentTools } from "./tools/registry.js";
 
 export type AgentConfig = Pick<AppConfig, "agentModel" | "agentEffort" | "llmFallbacks">;
 
@@ -41,14 +33,13 @@ export interface AgentDeps {
 }
 
 export interface ToolProgress {
-  tool: string;
+  tool: AgentToolName;
   phase: "started" | "finished";
   ms: number;
 }
 
 type MessageParam = Anthropic.Beta.BetaMessageParam;
 type Message = Anthropic.Beta.BetaMessage;
-type AgentTools = BetaToolRunnerParams["tools"];
 
 /** Fits a non-streaming request; answers are short, the rest is adaptive thinking. */
 const MAX_TOKENS = 16_000;
@@ -91,26 +82,11 @@ export function agentRunnerParams(
   return { ...params, betas: [FALLBACK_BETA], fallbacks: "default" };
 }
 
-/** The tool registry, in a fixed order (it is part of every request, so of its replay key). */
-function agentTools(ctx: ToolContext): AgentTools {
-  return [
-    listFleetTool(ctx),
-    vesselStatusTool(ctx),
-    listQuotesTool(ctx),
-    planBunkeringTool(ctx),
-    emissionsTool(ctx),
-    planRouteSpeedTool(ctx),
-    portCongestionTool(ctx),
-    calculateTool(ctx),
-    proposeActionTool(ctx),
-  ];
-}
-
 /** Reports each tool call's start and end; the tool objects (so the request body) are unchanged. */
 function withProgress(tools: AgentTools, onProgress?: (event: ToolProgress) => void): AgentTools {
   if (!onProgress) return tools;
   return tools.map((tool) => {
-    const inner = tool as { name: string; run: (...args: unknown[]) => unknown };
+    const inner = tool as { name: AgentToolName; run: (...args: unknown[]) => unknown };
     return {
       ...tool,
       run: async (...args: unknown[]) => {

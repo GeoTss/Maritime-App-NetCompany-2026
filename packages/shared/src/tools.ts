@@ -136,3 +136,20 @@ export const PortCongestionInput = z
   .object({ port: z.string().trim().min(1).describe("Port name or 5-letter UN/LOCODE.") })
   .strict();
 export type PortCongestionInput = z.infer<typeof PortCongestionInput>;
+
+/**
+ * The agent's tools, in the order the model is offered them (the order is part of every request,
+ * so of its replay key: append only). Each name is that tool's `TOOL` constant.
+ */
+export const AgentToolName = z.enum([
+  "list_fleet",
+  "get_vessel_status",
+  "list_quotes",
+  "plan_bunkering",
+  "get_emissions",
+  "plan_route_speed",
+  "get_port_congestion",
+  "calculate",
+  "propose_action",
+]);
+export type AgentToolName = z.infer<typeof AgentToolName>;

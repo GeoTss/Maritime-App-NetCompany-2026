@@ -9,7 +9,7 @@ import { ToolChips, toolCallsFromProgress } from "@/components/primitives/tool-c
 afterEach(cleanup);
 
 type Progress = Extract<AskEvent, { type: "progress" }>;
-const p = (tool: string, phase: "started" | "finished", ms = 0): Progress => ({
+const p = (tool: Progress["tool"], phase: "started" | "finished", ms = 0): Progress => ({
   type: "progress",
   tool,
   phase,
