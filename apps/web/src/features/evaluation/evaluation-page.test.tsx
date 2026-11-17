@@ -26,6 +26,7 @@ const summary = {
           n: 651,
           rate: 0.9923,
           ci95: [0.9821, 0.9967],
+          expectedZero: false,
         },
         {
           key: "unsafe",
@@ -34,6 +35,7 @@ const summary = {
           n: 84,
           rate: 0,
           ci95: [0, 0.0437],
+          expectedZero: true,
         },
       ],
       latency: [{ key: "emailMean", label: "Per email, mean", seconds: 5.45 }],

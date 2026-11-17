@@ -4,7 +4,7 @@
  * calculation.
  */
 import type { Sql } from "@pharos/db";
-import { activeHazardZones } from "@pharos/domain";
+import { activeHazardZones, forecastStepAt } from "@pharos/domain";
 import { latestWeatherSnapshot } from "@pharos/integrations";
 import {
   type AisTrafficList,
@@ -136,6 +136,9 @@ export function createLiveRoutes(deps: LiveDeps) {
         400,
       );
     }
+    const stepTimes = Array.from({ length: steps }, (_, k) =>
+      forecastStepAt(grid, k).toISOString(),
+    );
     const view: WeatherView = {
       snapshotId: snapshot.id,
       source: snapshot.source,
@@ -145,6 +148,8 @@ export function createLiveRoutes(deps: LiveDeps) {
       stepHours: grid.stepHours,
       steps,
       step,
+      validAt: stepTimes[step] as string,
+      stepTimes,
       points: grid.points.map((p) => ({
         lat: p.lat,
         lon: p.lon,

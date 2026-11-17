@@ -5,12 +5,15 @@ import {
   AskEvent,
   AskResponse,
   AskResult,
+  AUDIT_KINDS,
   AuditEventView,
   BunkerOptionResult,
   CalculateInput,
   ConsumptionCurve,
   DecisionBody,
   DraftedMessage,
+  DraftedMessageList,
+  DraftedMessageView,
   EmissionsInput,
   ErpOrderRequest,
   EvalSummary,
@@ -912,7 +915,7 @@ describe("Phase 6 contracts", () => {
     const row = {
       id: 1,
       recommendationId: 2,
-      kind: "approved",
+      kind: "recommendation.approved",
       actor: "operator",
       detail: {},
       at: "2026-11-14T08:05:00.000Z",
@@ -940,7 +943,15 @@ describe("Phase 6 contracts", () => {
       runAt: "2026-11-16T10:00:00.000Z",
       mode: "live",
       metrics: [
-        { key: "grounded", label: "Grounded answers", k: 33, n: 33, rate: 1, ci95: [0.89, 1] },
+        {
+          key: "grounded",
+          label: "Grounded answers",
+          k: 33,
+          n: 33,
+          rate: 1,
+          ci95: [0.89, 1],
+          expectedZero: false,
+        },
       ],
       latency: [{ key: "answerMean", label: "Answer, mean", seconds: 4.6 }],
       costUsdPerItem: 0.001,
@@ -955,6 +966,64 @@ describe("Phase 6 contracts", () => {
     expect(() => EvalSummary.parse({ ...ok, suites: [bad] })).toThrow();
   });
 
+  it("EvalSummary without expectedZero fails to parse", () => {
+    const { expectedZero: _drop, ...metric } = {
+      key: "errors",
+      label: "Errors",
+      k: 0,
+      n: 5,
+      rate: 0,
+      ci95: null,
+      expectedZero: true,
+    };
+    const suite = {
+      suite: "qa",
+      split: "dev",
+      label: "x",
+      model: "m",
+      promptVersion: "p",
+      runAt: "2026-11-16T10:00:00.000Z",
+      mode: "live",
+      metrics: [metric],
+      latency: [],
+      costUsdPerItem: 0.001,
+    };
+    const r = EvalSummary.safeParse({ generatedAt: "2026-11-16T10:05:00.000Z", suites: [suite] });
+    expect(r.success).toBe(false);
+    expect(r.error?.issues.some((i) => i.path.includes("expectedZero"))).toBe(true);
+  });
+
+  it("DraftedMessageView takes an ISO time and is strict", () => {
+    const row = {
+      id: 1,
+      recommendationId: 2,
+      kind: "supplier_confirmation",
+      to: "a@b.c",
+      subject: "s",
+      body: "b",
+      status: "draft",
+      createdAt: "2026-11-16T10:00:00.000Z",
+    };
+    expect(DraftedMessageView.parse(row)).toEqual(row);
+    expect(() => DraftedMessageView.parse({ ...row, extra: 1 })).toThrow();
+    expect(() => DraftedMessageView.parse({ ...row, createdAt: "yesterday" })).toThrow();
+    expect(DraftedMessageList.parse({ items: [row] }).items).toHaveLength(1);
+  });
+
+  it("AuditEventView keys kind on AUDIT_KINDS and is strict", () => {
+    const row = {
+      id: 1,
+      recommendationId: null,
+      kind: AUDIT_KINDS[0],
+      actor: "ops",
+      detail: null,
+      at: "2026-11-16T10:00:00.000Z",
+    };
+    expect(AuditEventView.parse(row).kind).toBe(AUDIT_KINDS[0]);
+    expect(() => AuditEventView.parse({ ...row, kind: "made.up" })).toThrow();
+    expect(() => AuditEventView.parse({ ...row, extra: 1 })).toThrow();
+  });
+
   it("EvalSummary accepts a held-out entry", () => {
     const suite = {
       suite: "extraction",
@@ -964,7 +1033,17 @@ describe("Phase 6 contracts", () => {
       promptVersion: "extract/v3",
       runAt: "2026-11-16T10:00:00.000Z",
       mode: "live",
-      metrics: [{ key: "errors", label: "Errors", k: 0, n: 156, rate: 0, ci95: [0, 0.02] }],
+      metrics: [
+        {
+          key: "errors",
+          label: "Errors",
+          k: 0,
+          n: 156,
+          rate: 0,
+          ci95: [0, 0.02],
+          expectedZero: true,
+        },
+      ],
       latency: [],
       costUsdPerItem: 0.001,
     };

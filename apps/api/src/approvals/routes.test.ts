@@ -1,6 +1,6 @@
 import type { Sql } from "@pharos/db";
 import { connectTestDb, testDbLabel } from "@pharos/db/testing";
-import { DecisionResult } from "@pharos/shared";
+import { DecisionResult, DraftedMessageList } from "@pharos/shared";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { createErpApp } from "../../../../services/erp-sim/src/app.js";
 import { createToolContext } from "../ai/tools/common.js";
@@ -168,7 +168,7 @@ describe.skipIf(!sql)("approval routes (Postgres)", () => {
     expect(await before.json()).toEqual({ items: [] });
     await post(`/api/recommendations/${recId}/approve`);
     const res = await app.request(`/api/recommendations/${recId}/drafts`);
-    const body = (await res.json()) as { items: { kind: string; status: string }[] };
+    const body = DraftedMessageList.parse(await res.json());
     expect(body.items.map((d) => [d.kind, d.status])).toEqual([
       ["supplier_confirmation", "draft"],
       ["master_instruction", "draft"],

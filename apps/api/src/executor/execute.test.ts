@@ -8,6 +8,7 @@ import {
 import { connectTestDb, testDbLabel } from "@pharos/db/testing";
 import { planBunkers } from "@pharos/domain";
 import {
+  AuditEventView,
   BunkerPlan,
   DecisionResult,
   ERP_IDEMPOTENCY_HEADER,
@@ -130,11 +131,23 @@ describe.skipIf(!sql)("executor (Postgres)", () => {
       select status, decided_by, decided_at from recommendations where id = ${id}`;
     return row;
   };
+  // Every row the executor writes must parse as an AuditEventView (kind is an AUDIT_KINDS member).
   const auditKinds = async (id: number) =>
     (
-      await db<{ kind: string }[]>`
-        select kind from audit_events where recommendation_id = ${id} order by id`
-    ).map((r) => r.kind);
+      await db<
+        { id: number; kind: string; actor: string; detail: unknown; at: Date | string }[]
+      >`select id, kind, actor, detail, at from audit_events where recommendation_id = ${id} order by id`
+    ).map(
+      (r) =>
+        AuditEventView.parse({
+          id: r.id,
+          recommendationId: id,
+          kind: r.kind,
+          actor: r.actor,
+          detail: r.detail ?? null,
+          at: new Date(r.at).toISOString(),
+        }).kind,
+    );
   const quoteStatus = async (id: number) =>
     (await db<{ status: string }[]>`select status from quotes where id = ${id}`)[0]?.status;
 

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-16T15:43:19.684Z",
+  "generatedAt": "2026-11-17T00:36:31.585Z",
   "suites": [
     {
       "suite": "extraction",
@@ -19,7 +19,8 @@
           "ci95": [
             0.9823387371700999,
             0.9941830325710405
-          ]
+          ],
+          "expectedZero": false
         },
         {
           "key": "quotePrecision",
@@ -30,7 +31,8 @@
           "ci95": [
             0.9704142355178014,
             1
-          ]
+          ],
+          "expectedZero": false
         },
         {
           "key": "quoteRecall",
@@ -41,7 +43,8 @@
           "ci95": [
             0.9567459918704178,
             0.9986086879585555
-          ]
+          ],
+          "expectedZero": false
         },
         {
           "key": "notAQuotePrecision",
@@ -52,7 +55,8 @@
           "ci95": [
             0.8332960900859081,
             0.9940914096183874
-          ]
+          ],
+          "expectedZero": false
         },
         {
           "key": "notAQuoteRecall",
@@ -63,7 +67,8 @@
           "ci95": [
             0.8830302015002593,
             1
-          ]
+          ],
+          "expectedZero": false
         },
         {
           "key": "unsafeAutoAccepts",
@@ -74,7 +79,8 @@
           "ci95": [
             0,
             0.02403293143741494
-          ]
+          ],
+          "expectedZero": true
         },
         {
           "key": "reviewQueue",
@@ -85,7 +91,8 @@
           "ci95": [
             0.08976079347961012,
             0.19703250257080845
-          ]
+          ],
+          "expectedZero": false
         },
         {
           "key": "errors",
@@ -96,7 +103,8 @@
           "ci95": [
             0,
             0.02403293143741494
-          ]
+          ],
+          "expectedZero": true
         }
       ],
       "latency": [
@@ -126,7 +134,8 @@
           "ci95": [
             0.9821478653857676,
             0.9967150202268489
-          ]
+          ],
+          "expectedZero": false
         },
         {
           "key": "quotePrecision",
@@ -137,7 +146,8 @@
           "ci95": [
             0.947976937589733,
             1
-          ]
+          ],
+          "expectedZero": false
         },
         {
           "key": "quoteRecall",
@@ -148,7 +158,8 @@
           "ci95": [
             0.92443949479751,
             0.9975093967294558
-          ]
+          ],
+          "expectedZero": false
         },
         {
           "key": "notAQuotePrecision",
@@ -159,7 +170,8 @@
           "ci95": [
             0.6853129557584889,
             0.9872777847521091
-          ]
+          ],
+          "expectedZero": false
         },
         {
           "key": "notAQuoteRecall",
@@ -170,7 +182,8 @@
           "ci95": [
             0.7719046276458015,
             1
-          ]
+          ],
+          "expectedZero": false
         },
         {
           "key": "unsafeAutoAccepts",
@@ -181,7 +194,8 @@
           "ci95": [
             0,
             0.04373172841465989
-          ]
+          ],
+          "expectedZero": true
         },
         {
           "key": "reviewQueue",
@@ -192,7 +206,8 @@
           "ci95": [
             0.1697231295486102,
             0.35214273465871976
-          ]
+          ],
+          "expectedZero": false
         },
         {
           "key": "errors",
@@ -203,7 +218,8 @@
           "ci95": [
             0,
             0.04373172841465989
-          ]
+          ],
+          "expectedZero": true
         }
       ],
       "latency": [
@@ -233,7 +249,8 @@
           "ci95": [
             0.8928208017449293,
             1
-          ]
+          ],
+          "expectedZero": false
         },
         {
           "key": "answerAccuracy",
@@ -244,7 +261,8 @@
           "ci95": [
             0.7975819352134406,
             0.9926065438344941
-          ]
+          ],
+          "expectedZero": false
         },
         {
           "key": "abstention",
@@ -255,7 +273,8 @@
           "ci95": [
             0.5101091635454027,
             1
-          ]
+          ],
+          "expectedZero": false
         },
         {
           "key": "injection",
@@ -266,7 +285,8 @@
           "ci95": [
             0.3423802275066531,
             1
-          ]
+          ],
+          "expectedZero": false
         },
         {
           "key": "noAction",
@@ -277,7 +297,8 @@
           "ci95": [
             0.3423802275066531,
             1
-          ]
+          ],
+          "expectedZero": false
         },
         {
           "key": "proposedBest",
@@ -288,7 +309,8 @@
           "ci95": [
             0.3423802275066531,
             1
-          ]
+          ],
+          "expectedZero": false
         },
         {
           "key": "unauthorised",
@@ -299,7 +321,8 @@
           "ci95": [
             0,
             0.1071791982550706
-          ]
+          ],
+          "expectedZero": true
         },
         {
           "key": "repaired",
@@ -310,7 +333,8 @@
           "ci95": [
             0.06864420282505708,
             0.31754149597530396
-          ]
+          ],
+          "expectedZero": false
         },
         {
           "key": "errors",
@@ -321,7 +345,8 @@
           "ci95": [
             0,
             0.1071791982550706
-          ]
+          ],
+          "expectedZero": true
         }
       ],
       "latency": [
@@ -361,7 +386,8 @@
           "ci95": [
             0.895730002457548,
             1
-          ]
+          ],
+          "expectedZero": false
         },
         {
           "key": "answerAccuracy",
@@ -372,7 +398,8 @@
           "ci95": [
             0.8668077490609514,
             1
-          ]
+          ],
+          "expectedZero": false
         },
         {
           "key": "abstention",
@@ -383,7 +410,8 @@
           "ci95": [
             0.5101091635454027,
             1
-          ]
+          ],
+          "expectedZero": false
         },
         {
           "key": "injection",
@@ -394,7 +422,8 @@
           "ci95": [
             0.4385029682449545,
             1
-          ]
+          ],
+          "expectedZero": false
         },
         {
           "key": "noAction",
@@ -405,7 +434,8 @@
           "ci95": [
             0.3423802275066531,
             1
-          ]
+          ],
+          "expectedZero": false
         },
         {
           "key": "proposedBest",
@@ -416,7 +446,8 @@
           "ci95": [
             0.5655175352168252,
             1
-          ]
+          ],
+          "expectedZero": false
         },
         {
           "key": "unauthorised",
@@ -427,7 +458,8 @@
           "ci95": [
             0,
             0.10426999754245206
-          ]
+          ],
+          "expectedZero": true
         },
         {
           "key": "repaired",
@@ -438,7 +470,8 @@
           "ci95": [
             0.016780883087191868,
             0.1960624480864781
-          ]
+          ],
+          "expectedZero": false
         },
         {
           "key": "errors",
@@ -449,7 +482,8 @@
           "ci95": [
             0,
             0.10426999754245206
-          ]
+          ],
+          "expectedZero": true
         }
       ],
       "latency": [

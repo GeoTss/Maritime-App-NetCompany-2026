@@ -151,8 +151,14 @@ describe.skipIf(!sql)("live routes (Postgres)", () => {
     expect(view.forecastStart).toBe(view.startAt);
     expect(view).not.toHaveProperty("modelRun");
     expect(view.points.length).toBeGreaterThan(0);
+    // The weather view states each step's time, so the console computes none.
+    expect(view.stepTimes).toHaveLength(view.steps);
+    expect(view.validAt).toBe(view.stepTimes[view.step]);
+    expect(view.stepTimes[0]).toBe(view.startAt);
     const later = WeatherView.parse(await (await app.request("/api/weather?step=3")).json());
     expect(later.step).toBe(3);
+    expect(later.validAt).toBe(later.stepTimes[3]);
+    expect(later.validAt).not.toBe(view.validAt);
     expect((await app.request(`/api/weather?step=${view.steps}`)).status).toBe(400);
     expect((await app.request("/api/weather?step=x")).status).toBe(400);
     const empty = await connectTestDb("live_routes_empty");

@@ -5,6 +5,7 @@ import {
   AisTraffic,
   AuditEvent,
   CheckResult,
+  DraftedMessage,
   ExtractionStatus,
   GateAttempt,
   LlmCall,
@@ -425,6 +426,10 @@ export const WeatherView = z
     stepHours: z.number().positive(),
     steps: z.number().int().positive(),
     step: z.number().int().nonnegative(),
+    /** The served step's time (UTC): `stepTimes[step]`. */
+    validAt: IsoDateTime,
+    /** Every step's time (UTC), `steps` entries: startAt + k x stepHours. */
+    stepTimes: z.array(IsoDateTime),
     points: z.array(
       z
         .object({
@@ -488,10 +493,16 @@ export const PortList = listOf(PortView);
 export type PortList = z.infer<typeof PortList>;
 
 /** One audit-log row as the console shows it. */
-export const AuditEventView = AuditEvent.omit({ at: true }).extend({ at: IsoDateTime });
+export const AuditEventView = AuditEvent.omit({ at: true }).extend({ at: IsoDateTime }).strict();
 export type AuditEventView = z.infer<typeof AuditEventView>;
 export const AuditEventList = listOf(AuditEventView);
 export type AuditEventList = z.infer<typeof AuditEventList>;
+
+/** A drafted message as the API serves it: the executor's draft with an ISO time. Pharos never sends it. */
+export const DraftedMessageView = DraftedMessage.extend({ createdAt: IsoDateTime }).strict();
+export type DraftedMessageView = z.infer<typeof DraftedMessageView>;
+export const DraftedMessageList = listOf(DraftedMessageView);
+export type DraftedMessageList = z.infer<typeof DraftedMessageList>;
 
 /** `GET /api/review/reference`: the choices a reviewer picks from when correcting a quote. */
 export const ReviewReference = z
@@ -535,6 +546,8 @@ export const EvalSummary = z
                   n: z.number().int().nonnegative(),
                   rate: z.number().min(0).max(1).nullable(),
                   ci95: Ci95.nullable(),
+                  /** True for the metrics whose right answer is 0 (errors, unauthorised actions, unsafe auto-accepts). */
+                  expectedZero: z.boolean(),
                 })
                 .strict()
                 .refine((m) => m.k <= m.n, { message: "k must not exceed n" }),

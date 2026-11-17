@@ -436,10 +436,28 @@ export const Message = z.object({
 });
 export type Message = z.infer<typeof Message>;
 
+/** Every kind of audit row the executor (`executor/execute.ts`) and the review (`review/decide.ts`) write. */
+export const AUDIT_KINDS = [
+  "recommendation.approved",
+  "recommendation.rejected",
+  "recommendation.retried",
+  "recommendation.executed",
+  "recommendation.failed",
+  "order.created",
+  "order.pushed",
+  "order.sync_failed",
+  "drafts.created",
+  "voyage.instructed",
+  "extraction.accepted",
+  "extraction.rejected",
+  "extraction.retried",
+] as const;
+export type AuditKind = (typeof AUDIT_KINDS)[number];
+
 export const AuditEvent = z.object({
   id: Id,
   recommendationId: Id.nullable(),
-  kind: z.string().min(1),
+  kind: z.enum(AUDIT_KINDS),
   actor: z.string().min(1),
   detail: Json,
   at: Ts,

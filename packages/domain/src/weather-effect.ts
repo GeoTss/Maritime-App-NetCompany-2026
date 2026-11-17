@@ -28,6 +28,10 @@ export interface WeatherSample {
 const angleBetween = (a: number, b: number): number =>
   Math.abs(((((a - b) % 360) + 540) % 360) - 180);
 
+/** The time of forecast step `step`: startAt + step x stepHours. */
+export const forecastStepAt = (grid: { startAt: string; stepHours: number }, step: number): Date =>
+  new Date(new Date(grid.startAt).getTime() + step * grid.stepHours * HOUR_MS);
+
 /**
  * Nearest grid point (great-circle) at the nearest time step (startAt + k x stepHours).
  * Null when no step lies within half a step of `at`, or the nearest point is over WEATHER_MAX_NM away.

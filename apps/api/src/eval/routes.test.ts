@@ -19,7 +19,17 @@ const SUMMARY: EvalSummary = {
       promptVersion: "agent-system/v5",
       runAt: "2026-11-15T21:33:42.000Z",
       mode: "live",
-      metrics: [{ key: "grounded", label: "Grounded", k: 3, n: 4, rate: 0.75, ci95: [0.3, 0.95] }],
+      metrics: [
+        {
+          key: "grounded",
+          label: "Grounded",
+          k: 3,
+          n: 4,
+          rate: 0.75,
+          ci95: [0.3, 0.95],
+          expectedZero: false,
+        },
+      ],
       latency: [{ key: "answer_mean", label: "Answer (mean)", seconds: 4.6 }],
       costUsdPerItem: 0.001,
     },

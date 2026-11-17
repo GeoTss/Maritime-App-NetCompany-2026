@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { currentVoyage, loadWorld, openRequirements, type Sql, seedDatabase } from "@pharos/db";
 import { connectTestDb, testDbLabel } from "@pharos/db/testing";
 import type { ExtractionOutput, QuoteExtraction } from "@pharos/shared";
-import { ReviewDecision, ReviewItem, ReviewReference } from "@pharos/shared";
+import { AuditEventView, ReviewDecision, ReviewItem, ReviewReference } from "@pharos/shared";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { ExtractionError, type Extractor } from "../ai/extract.js";
 import { createApp } from "../app.js";
@@ -175,9 +175,29 @@ describe.skipIf(!sql)("review routes (Postgres)", () => {
   const changesOf = (row: { detail: Record<string, unknown> } | undefined) =>
     ((row?.detail ?? {}) as { changes?: { field: string; from: unknown; to: unknown }[] })
       .changes ?? [];
-  const auditOf = async (kind: string) =>
-    await db<{ actor: string; detail: Record<string, unknown> }[]>`
-      select actor, detail from audit_events where kind = ${kind} order by id`;
+  // Every row the review writes must parse as an AuditEventView (kind is an AUDIT_KINDS member).
+  const auditOf = async (kind: string) => {
+    const rows = await db<
+      {
+        id: number;
+        kind: string;
+        actor: string;
+        detail: Record<string, unknown>;
+        at: Date | string;
+      }[]
+    >`select id, kind, actor, detail, at from audit_events where kind = ${kind} order by id`;
+    for (const r of rows) {
+      AuditEventView.parse({
+        id: r.id,
+        recommendationId: null,
+        kind: r.kind,
+        actor: r.actor,
+        detail: r.detail ?? null,
+        at: new Date(r.at).toISOString(),
+      });
+    }
+    return rows;
+  };
 
   it("GET /api/review lists the latest needs_review and failed extractions, oldest email first", async () => {
     const failed = await deliverFailed(straitlineRaw);

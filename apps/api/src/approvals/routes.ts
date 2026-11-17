@@ -6,7 +6,7 @@
  * Illegal moves (`TransitionError`) are 409. Only `application/json` is accepted (415 otherwise): a cross-site HTML form can send only
  * form-encoded, multipart or text/plain bodies, so it can never approve or reject.
  */
-import { DecisionBody } from "@pharos/shared";
+import { DecisionBody, type DraftedMessageList } from "@pharos/shared";
 import { Hono } from "hono";
 import {
   approveRecommendation,
@@ -65,7 +65,11 @@ export function createApprovalRoutes(deps: ApprovalDeps) {
   app.get("/:id/drafts", async (c) => {
     const id = parseId(c.req.param("id"));
     if (id === null) return c.json({ error: "not_found" }, 404);
-    return c.json({ items: await draftsOf(deps.sql, id) });
+    const items = (await draftsOf(deps.sql, id)).map((d) => ({
+      ...d,
+      createdAt: d.createdAt.toISOString(),
+    }));
+    return c.json({ items } satisfies DraftedMessageList);
   });
 
   decide("approve", approveRecommendation);

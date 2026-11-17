@@ -2,6 +2,7 @@ import type { WeatherGrid } from "@pharos/shared";
 import { describe, expect, it } from "vitest";
 import {
   effectiveSpeedKn,
+  forecastStepAt,
   sampleWeather,
   shiftWeatherGrid,
   speedLossFraction,
@@ -137,5 +138,13 @@ describe("shiftWeatherGrid", () => {
     expect(g.points).toBe(grid.points);
     expect(g.stepHours).toBe(3);
     expect(grid.startAt).toBe("2026-11-15T00:00:00.000Z");
+  });
+});
+
+describe("forecastStepAt", () => {
+  it("step 0 is startAt and step k is startAt plus k x stepHours", () => {
+    const grid = { startAt: "2026-11-14T06:00:00Z", stepHours: 3 };
+    expect(forecastStepAt(grid, 0).toISOString()).toBe("2026-11-14T06:00:00.000Z");
+    expect(forecastStepAt(grid, 2).toISOString()).toBe("2026-11-14T12:00:00.000Z");
   });
 });

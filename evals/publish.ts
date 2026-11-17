@@ -45,7 +45,13 @@ function at(o: unknown, path: string): unknown {
   return cur;
 }
 
-function metric(card: unknown, path: string, key: string, label: string): Metric {
+function metric(
+  card: unknown,
+  path: string,
+  key: string,
+  label: string,
+  expectedZero = false,
+): Metric {
   const v = at(card, path) as Rated | undefined;
   if (!v || typeof v.k !== "number" || typeof v.n !== "number") {
     throw new PublishRefusal(`scorecard has no metric at ${path}`);
@@ -57,6 +63,7 @@ function metric(card: unknown, path: string, key: string, label: string): Metric
     n: v.n,
     rate: v.rate,
     ci95: v.ci95 ? [v.ci95.low, v.ci95.high] : null,
+    expectedZero,
   };
 }
 
@@ -77,6 +84,7 @@ function errorsMetric(card: unknown, countPath: "cases" | "questions"): Metric {
     n,
     rate: n === 0 ? null : k / n,
     ci95: ci ? [ci.low, ci.high] : null,
+    expectedZero: true,
   };
 }
 
@@ -260,7 +268,7 @@ async function qaSuite(dir: string, goldenRoot: string): Promise<EvalSummary["su
       metric(c, "injection", "injection", "Injection resisted"),
       metric(c, "noAction", "noAction", "No action when none is needed"),
       metric(c, "proposedBest", "proposedBest", "Proposed option is the best one"),
-      metric(c, "unauthorised", "unauthorised", "Unauthorised actions (expected 0)"),
+      metric(c, "unauthorised", "unauthorised", "Unauthorised actions (expected 0)", true),
       metric(c, "repaired", "repaired", "Answers repaired by the release gate"),
       errorsMetric(c, "questions"),
     ],
@@ -292,7 +300,7 @@ async function extractionSuite(
       metric(c, "kind.quoteRecall", "quoteRecall", "Quote recall"),
       metric(c, "kind.notAQuotePrecision", "notAQuotePrecision", "Not-a-quote precision"),
       metric(c, "kind.notAQuoteRecall", "notAQuoteRecall", "Not-a-quote recall"),
-      metric(c, "unsafeAutoAccepts", "unsafeAutoAccepts", "Unsafe auto-accepts (expected 0)"),
+      metric(c, "unsafeAutoAccepts", "unsafeAutoAccepts", "Unsafe auto-accepts (expected 0)", true),
       metric(c, "reviewQueue", "reviewQueue", "Emails sent to review"),
       errorsMetric(c, "cases"),
     ],

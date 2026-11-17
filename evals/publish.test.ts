@@ -267,6 +267,22 @@ describe("buildSummary", () => {
     });
   }
 
+  it("publish marks expected-zero metrics", async () => {
+    const qa = await report("qa", { mode: "live" }, qaCard);
+    const ex = await report("extraction", { mode: "live" }, exCard);
+    const s = await buildSummary({ qa, extraction: ex }, new Date());
+    const flagged = s.suites.flatMap((x) =>
+      x.metrics.filter((m) => m.expectedZero).map((m) => m.key),
+    );
+    expect(flagged.sort()).toEqual(["errors", "errors", "unauthorised", "unsafeAutoAccepts"]);
+    for (const m of s.suites.flatMap((x) => x.metrics)) {
+      expect(m.expectedZero).toBe(/\(expected 0\)$/.test(m.label));
+    }
+    expect(s.suites.find((x) => x.suite === "qa")?.metrics.map((m) => m.label)).toContain(
+      "Unauthorised actions (expected 0)",
+    );
+  });
+
   it("every entry carries an errors metric, k errors over the cases or questions run", async () => {
     const err = { id: "x", kind: "api", message: "boom" };
     const qa = await report("qa", { mode: "live" }, { ...qaCard, errors: [err] });

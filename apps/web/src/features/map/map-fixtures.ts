@@ -199,6 +199,10 @@ export const WEATHER: WeatherView = {
   stepHours: 3,
   steps: 80,
   step: 0,
+  validAt: "2026-11-14T08:00:00.000Z",
+  stepTimes: Array.from({ length: 80 }, (_, k) =>
+    new Date(Date.parse("2026-11-14T08:00:00.000Z") + k * 3 * 3_600_000).toISOString(),
+  ),
   points: [
     { lat: 34, lon: 20, waveHeightM: 1.8, waveDirDeg: 338, windSpeedKn: 15.5, windDirDeg: 20 },
     { lat: 36, lon: 20, waveHeightM: null, waveDirDeg: null, windSpeedKn: null, windDirDeg: null },
