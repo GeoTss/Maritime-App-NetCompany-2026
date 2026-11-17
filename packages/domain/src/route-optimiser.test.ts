@@ -615,18 +615,11 @@ describe("never worse than the baseline (60 seeded inputs)", () => {
               };
             }),
           };
-    // Drawn last so the unloaded inputs are unchanged. Ballast to full load: displacement is
-    // 0.45 to 1 of the reference, so the load factor is (0.45..1)^(2/3).
-    const refDisplacementMt = Math.round(r.range(40_000, 90_000));
-    const load = {
-      displacementMt: Math.round(refDisplacementMt * r.range(0.45, 1)),
-      refDisplacementMt,
-    };
-    return {
+    const input: RouteSpeedInput = {
       startAt: START,
       candidates,
       baseline: { candidateId: r.pick(candidates).id, speedKn: baselineSpeed },
-      curve: loaded ? { ...curve, load } : curve,
+      curve,
       speedStepKn,
       stepNm: r.pick([10, 20, 40]),
       arriveBy: r.next() < 0.35 ? null : at(r.range(0.4, 1.6) * quickest),
@@ -646,6 +639,15 @@ describe("never worse than the baseline (60 seeded inputs)", () => {
       weather,
       hazards: [],
     };
+    if (!loaded) return input;
+    // Drawn after everything else, so the unloaded inputs are the same as without this branch.
+    // Ballast to full load: displacement is 0.45 to 1 of the reference.
+    const refDisplacementMt = Math.round(r.range(40_000, 90_000));
+    const load = {
+      displacementMt: Math.round(refDisplacementMt * r.range(0.45, 1)),
+      refDisplacementMt,
+    };
+    return { ...input, curve: { ...curve, load } };
   }
 
   /** The grid the optimiser searches, rebuilt here independently. */
@@ -698,7 +700,14 @@ describe("never worse than the baseline (60 seeded inputs)", () => {
     expect(infeasibleBaselines).toBeGreaterThan(5);
     expect(rescued).toBeGreaterThan(0);
     if (loaded) {
-      expect(randomInput(7919, true).curve.load).toBeDefined();
+      // The load reaches the result: the main-engine burn reads curve.load (consumption.ts, via
+      // loadFactor), so a loaded baseline costs less than the same input unloaded.
+      const differing = [1, 2, 3, 4, 5].filter((seed) => {
+        const withLoad = optimiseRouteSpeed(randomInput(seed * 7919, true));
+        const without = optimiseRouteSpeed(randomInput(seed * 7919, false));
+        return withLoad.baseline.totalCostUsd !== without.baseline.totalCostUsd;
+      });
+      expect(differing.length).toBeGreaterThan(0);
     }
   }
 });

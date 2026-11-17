@@ -26,6 +26,7 @@ describe("world invariants", () => {
   // The hand-set Port.inEca (seed/scenario.ts) and the optimiser's inSulphurEca (domain/eca.ts)
   // are two notions of the same fact; nothing else checks they agree.
   it("Port.inEca agrees with inSulphurEca for every port", () => {
+    expect(world.ports.length).toBeGreaterThan(0);
     const disagree = world.ports
       .filter((port) => port.inEca !== inSulphurEca({ lat: port.lat, lon: port.lon }))
       .map((port) => `${port.unlocode}: inEca=${port.inEca} inSulphurEca=${!port.inEca}`);
