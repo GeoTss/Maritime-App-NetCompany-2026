@@ -1,12 +1,13 @@
 import type { Sql } from "@pharos/db";
 import { connectTestDb, testDbLabel } from "@pharos/db/testing";
-import type { Fact, RecommendationView } from "@pharos/shared";
+import type { BunkerOptionResult, BunkerPlan, Fact, RecommendationView } from "@pharos/shared";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { createToolContext, type ToolContext } from "../ai/tools/common.js";
 import { planBunkering } from "../ai/tools/plan-bunkering.js";
 import { proposeAction } from "../ai/tools/propose-action.js";
 import { ASK_FIXTURE_NOW, prepareAskFixture } from "../ask/demo-fixture.js";
 import { createDbSource } from "../read/db-source.js";
+import { type BunkerFactContext, bunkerPlanFacts, bunkerPlanView } from "./bunker.js";
 
 const pathOf = (f: Fact) => (f.provenance.source === "calculation" ? f.provenance.path : null);
 
@@ -138,5 +139,90 @@ describe.skipIf(!sql)("bunker facts (Postgres)", () => {
         expect(f, f.id).toEqual(tool.get(f.id));
       }
     }
+  });
+});
+
+describe("bunkerPlanView", () => {
+  const opt = (optionId: string, rank: number, feasible: boolean, total: number) =>
+    ({
+      optionId,
+      rank,
+      feasible,
+      reasons: [],
+      qtyMt: 100,
+      headlinePriceUsdPerMt: 600,
+      fuelCostUsd: 0,
+      bargeFeeUsd: 0,
+      deviationFuelMt: 0,
+      portStayFuelMt: 0,
+      deviationCostUsd: 0,
+      delayHours: 2,
+      delayCostUsd: 0,
+      co2T: 0,
+      etsCostUsd: 10,
+      fuelEuCostUsd: 5,
+      totalCostUsd: total,
+      effectivePriceUsdPerMt: total / 100,
+    }) satisfies BunkerOptionResult;
+  const plan: BunkerPlan = {
+    options: [opt("A", 1, true, 1000), opt("B", 2, true, 1250), opt("C", 3, false, 900)],
+    bestOptionId: "A",
+    cheapestHeadlineOptionId: "A",
+    savingVsCheapestHeadlineUsd: 0,
+  };
+  const onlyA: BunkerPlan = { ...plan, options: [plan.options[0] as BunkerOptionResult] };
+  const ctx = (p: BunkerPlan): BunkerFactContext => ({
+    calculationId: 7,
+    plan: p,
+    scope: "",
+    names: (id) => ({ supplier: `Supplier ${id}`, port: `Port ${id}` }),
+    displacementMt: null,
+  });
+  const PORT = { id: 1, name: "Piraeus", unlocode: "GRPIR", position: { lat: 37.9, lon: 23.6 } };
+  const meta = { grade: "VLSFO" as const, vesselId: 1, voyageNo: "AP-2611", port: () => PORT };
+
+  it("lists the options in rank order with the tool's fact ids", () => {
+    const v = bunkerPlanView(ctx(plan), meta);
+    expect(v.options.map((o) => o.optionId)).toEqual(["A", "B", "C"]);
+    expect(v.options[1]?.totalCost.id).toBe("f_plan_bunkering_7_options.1.totalCostUsd");
+    expect(v.options[0]?.rows.map((r) => r.name)).toEqual([
+      "quantity",
+      "headline price",
+      "total delivered cost",
+      "effective price (total cost per mt)",
+      "delay",
+      "EU ETS cost",
+      "FuelEU exposure",
+    ]);
+    expect(v.options[0]?.best).toBe(true);
+  });
+  it("rows carry exactly the facts plan_bunkering returns for that option", () => {
+    const tool = new Map(bunkerPlanFacts(ctx(plan)).map((f) => [f.id, f]));
+    for (const row of bunkerPlanView(ctx(plan), meta).options[0]?.rows ?? []) {
+      if (row.fact.id.endsWith("effectivePriceUsdPerMt")) continue; // view-only, as in wave 1
+      expect(row.fact).toEqual(tool.get(row.fact.id));
+    }
+  });
+  it("derives the margin over the first feasible runner-up", () => {
+    const m = bunkerPlanView(ctx(plan), meta).marginVsRunnerUp;
+    expect(m?.id).toBe("f_plan_bunkering_7_marginVsRunnerUpUsd");
+    expect(m?.value).toBe(250);
+    expect(m?.unit).toBe("USD");
+    expect(m?.provenance).toEqual({
+      source: "derived",
+      operation: "subtract",
+      operands: [
+        "f_plan_bunkering_7_options.1.totalCostUsd",
+        "f_plan_bunkering_7_options.0.totalCostUsd",
+      ],
+    });
+  });
+  it("has no margin with one feasible option or no best option", () => {
+    expect(bunkerPlanView(ctx(onlyA), meta).marginVsRunnerUp).toBeNull();
+    expect(bunkerPlanView(ctx({ ...plan, bestOptionId: null }), meta).marginVsRunnerUp).toBeNull();
+  });
+  it("leaves out an option whose port is unknown", () => {
+    const v = bunkerPlanView(ctx(plan), { ...meta, port: (id) => (id === "B" ? null : PORT) });
+    expect(v.options.map((o) => o.optionId)).toEqual(["A", "C"]);
   });
 });

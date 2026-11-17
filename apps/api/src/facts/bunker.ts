@@ -5,8 +5,17 @@
  * and provenance, so a fact the agent cited reads the same on the approval card. Pure: the caller
  * loads the plan and the supplier and port names.
  */
-import type { BunkerOptionResult, BunkerPlan, Fact, FuelGrade, Id } from "@pharos/shared";
-import { calcFact, dbFact } from "./core.js";
+import { calculate } from "@pharos/domain";
+import type {
+  BunkerOptionResult,
+  BunkerOptionView,
+  BunkerPlan,
+  BunkerPlanView,
+  Fact,
+  FuelGrade,
+  Id,
+} from "@pharos/shared";
+import { calcFact, dbFact, factId } from "./core.js";
 
 /** The tool name in every bunker fact id. */
 export const BUNKER_TOOL = "plan_bunkering";
@@ -186,4 +195,96 @@ export function bunkerOptionViewFacts(c: BunkerFactContext, optionId: string): F
     }
   }
   return facts;
+}
+
+/** The path of the derived margin: the first feasible runner-up's total cost less the best's. */
+export const BUNKER_MARGIN_PATH = "marginVsRunnerUpUsd";
+
+/** The view rows of one option: field, the row's short name, and unit. */
+const VIEW_ROW_SPECS: OptionFactSpec[] = [
+  optionSpec("qtyMt"),
+  optionSpec("headlinePriceUsdPerMt"),
+  optionSpec("totalCostUsd"),
+  ["effectivePriceUsdPerMt", "effective price (total cost per mt)", "USD/mt"],
+  optionSpec("delayHours"),
+  optionSpec("etsCostUsd"),
+  optionSpec("fuelEuCostUsd"),
+];
+
+/**
+ * A whole stored plan as the approval view and the map show it: every option in rank order with the
+ * same fact ids and labels `plan_bunkering` returned, plus the margin of the best option over the
+ * first feasible runner-up. The margin's value comes from the domain's `subtract`.
+ */
+export function bunkerPlanView(
+  c: BunkerFactContext,
+  meta: {
+    grade: FuelGrade;
+    vesselId: Id | null;
+    voyageNo: string | null;
+    /** The option's port, or null when unknown (the option is then left out of the view). */
+    port: (optionId: string) => BunkerOptionView["port"] | null;
+  },
+): BunkerPlanView {
+  const { plan } = c;
+  const ranked = plan.options
+    .map((option, index) => ({ option, index }))
+    .sort((a, b) => a.option.rank - b.option.rank);
+
+  const options: BunkerOptionView[] = [];
+  for (const { option, index } of ranked) {
+    const port = meta.port(option.optionId);
+    if (!port) continue;
+    const facts = optionFacts(c, index, VIEW_ROW_SPECS);
+    const rows = facts.map((fact, i) => ({ name: (VIEW_ROW_SPECS[i] as OptionFactSpec)[1], fact }));
+    const pick = (name: string) => {
+      const row = rows.find((r) => r.name === name);
+      if (!row) throw new Error(`no ${name} row`);
+      return row.fact;
+    };
+    options.push({
+      optionId: option.optionId,
+      supplier: c.names(option.optionId).supplier,
+      port,
+      rank: option.rank,
+      feasible: option.feasible,
+      best: plan.bestOptionId === option.optionId,
+      headlinePrice: pick("headline price"),
+      totalCost: pick("total delivered cost"),
+      delay: pick("delay"),
+      rows,
+    });
+  }
+
+  return {
+    calculationId: c.calculationId,
+    grade: meta.grade,
+    vesselId: meta.vesselId,
+    voyageNo: meta.voyageNo,
+    options,
+    marginVsRunnerUp: marginFact(c, ranked),
+  };
+}
+
+function marginFact(
+  c: BunkerFactContext,
+  ranked: { option: BunkerOptionResult; index: number }[],
+): Fact | null {
+  const best = ranked.find((r) => r.option.optionId === c.plan.bestOptionId);
+  const runnerUp = ranked.find((r) => r.option.feasible && r !== best);
+  if (!best || !runnerUp) return null;
+  const totalPath = (index: number) => `options[${index}].totalCostUsd`;
+  const runnerUpId = factId(BUNKER_TOOL, c.calculationId, totalPath(runnerUp.index));
+  const bestId = factId(BUNKER_TOOL, c.calculationId, totalPath(best.index));
+  const margin = calculate("subtract", [
+    { value: runnerUp.option.totalCostUsd, unit: "USD" },
+    { value: best.option.totalCostUsd, unit: "USD" },
+  ]);
+  return {
+    id: factId(BUNKER_TOOL, c.calculationId, BUNKER_MARGIN_PATH),
+    label: `${c.scope}Margin of the best option over the runner-up (${runnerUp.option.optionId}), in total cost`,
+    value: margin.value,
+    unit: margin.unit,
+    provenance: { source: "derived", operation: "subtract", operands: [runnerUpId, bestId] },
+  };
 }
