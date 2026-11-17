@@ -252,6 +252,13 @@ describe.skipIf(!sql)("runAgent (Postgres)", () => {
     ]);
   });
 
+  // Tool definitions are part of every request, and recorded replies are keyed on those bytes.
+  it("request tools are unchanged", async () => {
+    const { deps, requests } = scriptedDeps([textReply(1, "Hello, how can I help?")]);
+    await runAgent(deps, "Hi");
+    expect(JSON.stringify(requests[0]?.tools)).toMatchSnapshot();
+  });
+
   it("withholds after a failed repair", async () => {
     const { deps, requests } = scriptedDeps([
       textReply(1, "Kestrel is $8,000 cheaper than Strait Line."),
