@@ -8,11 +8,13 @@ import { legsForRoute } from "@pharos/domain";
 import type {
   LatLon,
   PortView,
+  TrackFuel,
   Vessel,
   VesselDetail,
   VesselFacts,
   VesselSummary,
   VoyageDetail,
+  VoyageInstructionView,
   VoyageSummary,
   WeatherGrid,
 } from "@pharos/shared";
@@ -36,9 +38,16 @@ function vesselFacts(world: World, vessel: Vessel, now: Date): VesselFacts {
 /**
  * Fleet views. The LSMGO alert and the panel's fuel track come from one call of the one fuel
  * calculation on the current plan (`currentPlanFuel`, on `weather` when there is a snapshot, else
- * calm water), the calculation `get_vessel_status` cites.
+ * calm water), the calculation `get_vessel_status` cites. A voyage with an approved instruction is
+ * read on that instruction's stored fuel track instead: the instruction is its current plan.
  */
-export function buildVessels(world: World, now: Date, weather: WeatherGrid | null = null) {
+export function buildVessels(
+  world: World,
+  now: Date,
+  weather: WeatherGrid | null = null,
+  /** Fuel on board along each voyage's instruction in force; such a voyage is checked against it. */
+  instructedFuel: ReadonlyMap<number, TrackFuel> = new Map(),
+) {
   const latest = <T extends { vesselId: number }>(
     rows: T[],
     vesselId: number,
@@ -57,7 +66,9 @@ export function buildVessels(world: World, now: Date, weather: WeatherGrid | nul
     const voyage = currentVoyage(world, vessel.id);
 
     // Computed once: the alert reads it and the panel draws it, so the two always agree.
-    const fuelTrack = voyage ? currentPlanFuel(world, voyage.id, weather) : null;
+    const fuelTrack = voyage
+      ? (instructedFuel.get(voyage.id) ?? currentPlanFuel(world, voyage.id, weather))
+      : null;
     const lsmgo = fuelTrack?.grades.LSMGO ?? null;
     const alerts =
       lsmgo?.runsDryAt != null
@@ -109,7 +120,11 @@ export function plannedTrack(legs: { waypoints: LatLon[] }[]): LatLon[] {
   );
 }
 
-export function buildVoyages(world: World) {
+export function buildVoyages(
+  world: World,
+  /** Each voyage's instruction in force, by voyage id. */
+  instructions: ReadonlyMap<number, VoyageInstructionView> = new Map(),
+) {
   const portName = (id: number) =>
     must(
       world.ports.find((p) => p.id === id),
@@ -141,6 +156,7 @@ export function buildVoyages(world: World) {
     };
     const detail: VoyageDetail = {
       ...summary,
+      instruction: instructions.get(voyage.id) ?? null,
       portCalls: calls.map((c) => ({
         id: c.id,
         portId: c.portId,

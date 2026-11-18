@@ -5,7 +5,9 @@
  * A `voyage_instruction` makes no external call and writes no order: it records the approved route
  * option (candidate, speed, ETA, points, all read from the stored route calculation) in
  * `voyage_instructions`, once per recommendation, and drafts the master's instruction (never
- * sent). The voyage's planned speed and route stay as they are. It moves through the same states.
+ * sent). The voyage's own planned speed and route rows stay as they are; the latest instruction
+ * carried out is the plan in force, which the fleet, voyage and vessel-status reads take from
+ * `approvals/in-force.ts`. It moves through the same states.
  * An instruction on a route plan's bunker stop also records the stop (port, quote, arrival,
  * departure, quantity), and cannot be approved until the purchase order for the stop's quote is
  * approved (`dependency_unmet`; the rule is `approvals/dependency.ts`, the same the views use).
@@ -420,7 +422,7 @@ async function stopNames(
 }
 
 /** What a purchase order buys, read from the stored calculation it was proposed from. */
-interface OrderSource {
+export interface OrderSource {
   grade: FuelGrade;
   quoteId: Id | null;
   supplierId: Id;
@@ -434,7 +436,7 @@ interface OrderSource {
  * route plan's bunker stop (grade and quote from its stop candidate, quantity from its stop plan).
  * A string says why it is unreadable.
  */
-function orderSourceOf(
+export function orderSourceOf(
   calc: { id: Id; kind: string; inputs: unknown; outputs: unknown },
   optionId: string,
 ): OrderSource | string {

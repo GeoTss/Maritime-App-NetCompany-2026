@@ -94,6 +94,20 @@ describe.skipIf(!sql)("createDbSource (Postgres)", () => {
   let kestrelDocId: number;
   let pendingDocId: number;
   let recId: number;
+  /**
+   * A pending order proposal written straight to the table: a second one for a quote the voyage
+   * already has an order proposal for, which proposing no longer creates (it returns the first).
+   */
+  const storeOrderProposal = async (calculationId: number, factRefs: string[] = []) => {
+    const [row] = await db<{ id: number }[]>`
+      insert into recommendations (type, calculation_id, option_id, message_id, fact_refs,
+                                   expected_saving_usd, status, decided_by, decided_at, created_at)
+      values ('purchase_order', ${calculationId}, 'MTMLA-kestrel', null,
+              ${JSON.stringify(factRefs)}::jsonb, null, 'pending', null, null,
+              ${NOW.toISOString()}::timestamptz)
+      returning id`;
+    return row?.id ?? 0;
+  };
   /** A purchase order proposed from the route plan's stop (set in the instruction view block). */
   let routeOrderId: number;
   let calculationId: number;
@@ -360,14 +374,10 @@ describe.skipIf(!sql)("createDbSource (Postgres)", () => {
       const ctx = createToolContext({ sql: db, now: () => NOW });
       const planned = await planBunkering(ctx, { vessel: "Aegean Pioneer" });
       const best = planned.facts.find((f) => f.id.endsWith("_bestOptionId"));
-      const proposed = await proposeAction(ctx, {
-        type: "purchase_order",
-        calculationId: (planned.data as { calculationId: number }).calculationId,
-        optionId: "MTMLA-kestrel",
-        factRefs: [best?.id ?? ""],
-        rationale: "Lowest total delivered cost.",
-      });
-      withheldRecId = (proposed.data as { recommendationId: number }).recommendationId;
+      withheldRecId = await storeOrderProposal(
+        (planned.data as { calculationId: number }).calculationId,
+        [best?.id ?? ""],
+      );
       await attachAnswer(withheldRecId, { passed: false, repaired: true });
 
       // The first proposal, from an answer that passed, approved and pushed to the ERP.
@@ -448,7 +458,8 @@ describe.skipIf(!sql)("createDbSource (Postgres)", () => {
           ).data as { recommendationId: number }
         ).recommendationId;
       viId = await propose("voyage_instruction");
-      routeOrderId = await propose("purchase_order");
+      // The quote is already ordered (recId), so this one is stored, not proposed.
+      routeOrderId = await storeOrderProposal(routeCalcId, cited);
     });
 
     it("shows the bunker-stop plan with its stop facts, under the ids the agent cited", async () => {
@@ -576,6 +587,22 @@ describe.skipIf(!sql)("createDbSource (Postgres)", () => {
         (await get(app, "/api/recommendations")).body,
       );
       expect(items.find((r) => r.id === viId)?.instruction?.instructionId).toBe(row.id);
+
+      // The approved instruction is the voyage's plan in force: the voyage view carries it for
+      // the map and the panel, and the vessel is checked against its fuel track (the bunker stop
+      // included), so the "runs out of LSMGO" alert of the first plan is gone.
+      const live = createDbSource(db, () => NOW);
+      const vessel = (await live.listVessels()).find((v) => v.name === "MV Aegean Pioneer");
+      expect(vessel?.alerts).toEqual([]);
+      const voyage = await live.getVoyage(vessel?.voyageId ?? 0);
+      expect(voyage?.instruction).toMatchObject({
+        recommendationId: viId,
+        optionId: "MTMLA-kestrel",
+        stopPortName: "Marsaxlokk",
+      });
+      expect(voyage?.instruction?.facts.speedKn.value).toBe(row.speed_kn);
+      expect(voyage?.instruction?.facts.stopQtyMt?.value).toBe(row.stop_qty_mt);
+      expect(voyage?.instruction?.track.length).toBeGreaterThan(1);
       expect(items.filter((r) => r.type === "purchase_order").map((r) => r.instruction)).toEqual(
         items.filter((r) => r.type === "purchase_order").map(() => null),
       );
@@ -764,11 +791,15 @@ describe.skipIf(!sql)("createDbSource (Postgres)", () => {
       const route = await planRouteSpeed(deps, { vessel: "Aegean Pioneer" });
       const stop = route.response.result.plan?.optionId;
       if (!stop) throw new Error("the demo route plan recommends a stop");
-      const { recommendationId } = await proposeFromPlan(deps, {
-        type: "purchase_order",
-        calculationId: route.response.calculationId,
-        optionId: stop,
-      });
+      // The voyage's order for this quote went through: proposing returns it, creating nothing.
+      expect(
+        await proposeFromPlan(deps, {
+          type: "purchase_order",
+          calculationId: route.response.calculationId,
+          optionId: stop,
+        }),
+      ).toEqual({ recommendationId: recId, created: false, status: "executed" });
+      const recommendationId = await storeOrderProposal(route.response.calculationId);
       const view = (await source.listRecommendations()).find((r) => r.id === recommendationId);
       expect(view).toMatchObject({ type: "purchase_order", status: "pending", optionId: stop });
       expect(view?.optionLabel).toContain("Marsaxlokk");

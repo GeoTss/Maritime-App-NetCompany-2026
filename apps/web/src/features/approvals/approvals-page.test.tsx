@@ -1303,7 +1303,7 @@ describe("ApprovalsPage: proposing the order an instruction waits for", () => {
     items = [stopRec(5, { recommendationId: null, status: null })];
     propose = () => {
       items = [stopRec(5, { recommendationId: 9, status: "pending" }), stopOrderRec(9)];
-      return json({ recommendationId: 9, created: true });
+      return json({ recommendationId: 9, created: true, status: "pending" });
     };
     renderPage("/approvals?recommendation=5");
     await screen.findByTestId("dependency-line");
@@ -1334,7 +1334,7 @@ describe("ApprovalsPage: proposing the order an instruction waits for", () => {
     items = [stopRec(5, { status: "rejected" }), stopOrderRec(4, { status: "rejected" })];
     propose = () => {
       items = [...items, stopOrderRec(8)];
-      return json({ recommendationId: 8, created: false });
+      return json({ recommendationId: 8, created: false, status: "pending" });
     };
     renderPage("/approvals?recommendation=5");
     await screen.findByTestId("dependency-line");

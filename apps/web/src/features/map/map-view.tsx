@@ -103,6 +103,12 @@ export function pickShipMmsi(e: MapLayerMouseEvent): string | null {
   return typeof mmsi === "string" ? mmsi : null;
 }
 
+/** The hazard a "Show on map" fly targets (its focus key is `h<id>-<time>`), else null. */
+function hazardShown(focus: MapFocus | null): { id: string; key: string } | null {
+  if (!focus?.key.startsWith("h")) return null;
+  return { id: focus.key.slice(1, focus.key.lastIndexOf("-")), key: focus.key };
+}
+
 export function MapView(props: MapViewProps) {
   const {
     layers,
@@ -344,7 +350,9 @@ export function MapView(props: MapViewProps) {
       >
         <NavigationControl position="bottom-left" showCompass={false} />
         {layers.weather && weather ? <WeatherLayer weather={weather} colors={colors} /> : null}
-        {layers.hazards ? <HazardLayer hazards={hazards} colors={colors} /> : null}
+        {layers.hazards ? (
+          <HazardLayer hazards={hazards} colors={colors} showId={hazardShown(focus)} />
+        ) : null}
         <RouteLayer plan={plan} track={track} colors={colors} ports={ports} />
         {layers.traffic ? (
           <TrafficLayer traffic={traffic} colors={colors} selectedMmsi={selectedMmsi} />

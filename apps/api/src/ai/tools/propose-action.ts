@@ -19,10 +19,12 @@ import {
   type Id,
   ProposeActionInput,
   ProposedAction,
+  type RecommendationStatus,
   RouteSpeedResult,
   type ToolResult,
 } from "@pharos/shared";
 import { orderDependencyOf } from "../../approvals/dependency.js";
+import { existingProposal } from "../../approvals/existing.js";
 import { dbFact } from "../../facts/core.js";
 import { json, runTool, type ToolContext } from "./common.js";
 import { defineTool } from "./define.js";
@@ -154,8 +156,9 @@ export async function proposalSource(
 }
 
 /**
- * The pending recommendation for the target: the existing pending one, or a new row. Never a
- * second pending row for the same plan, option and type.
+ * The recommendation for the target: the one the voyage already has for it (`existingProposal`:
+ * waiting, approved or carried out, even when proposed from an earlier plan), or a new pending row.
+ * Never a second order for a quote or a second copy of the instruction in force.
  */
 export async function insertPending(
   sql: ToolContext["sql"],
@@ -163,13 +166,9 @@ export async function insertPending(
   action: ProposalTarget,
   factRefs: string[],
   expectedSavingUsd: number | null,
-): Promise<{ id: Id; created: boolean }> {
-  const [existing] = await sql<{ id: number }[]>`
-    select id from recommendations
-    where calculation_id = ${action.calculationId} and option_id = ${action.optionId}
-      and type = ${action.type} and status = 'pending'
-    order by id limit 1`;
-  if (existing) return { id: existing.id, created: false };
+): Promise<{ id: Id; created: boolean; status: RecommendationStatus }> {
+  const existing = await existingProposal(sql, action);
+  if (existing) return { id: existing.recommendationId, created: false, status: existing.status };
   const [row] = await sql<{ id: number }[]>`
     insert into recommendations (type, calculation_id, option_id, message_id, fact_refs,
                                  expected_saving_usd, status, decided_by, decided_at, created_at)
@@ -178,7 +177,7 @@ export async function insertPending(
             ${now.toISOString()}::timestamptz)
     returning id`;
   if (!row) throw new Error("recommendations insert returned no row");
-  return { id: row.id, created: true };
+  return { id: row.id, created: true, status: "pending" };
 }
 
 export async function proposeAction(ctx: ToolContext, input: unknown): Promise<ToolResult> {
@@ -212,7 +211,7 @@ export async function proposeAction(ctx: ToolContext, input: unknown): Promise<T
       );
     }
     const { expectedSavingUsd } = checkedOption(action, kind, outputs);
-    const { id } = await insertPending(
+    const { id, status } = await insertPending(
       ctx.sql,
       ctx.now(),
       action,
@@ -232,9 +231,13 @@ export async function proposeAction(ctx: ToolContext, input: unknown): Promise<T
     ];
     const data: Record<string, unknown> = {
       recommendationId: id,
-      status: "pending",
+      status,
       optionId: action.optionId,
-      note: NOTE[action.type],
+      // The voyage already has this proposal decided: say so, never "pending".
+      note:
+        status === "pending"
+          ? NOTE[action.type]
+          : `Proposal ${id} for this was already made and is ${status}. Nothing new was proposed.`,
     };
     if (action.type === "voyage_instruction") {
       // A bunker stop's instruction waits for the purchase order for its quote (never made here).
@@ -244,7 +247,7 @@ export async function proposeAction(ctx: ToolContext, input: unknown): Promise<T
         option_id: action.optionId,
       });
       data.dependsOnRecommendationId = dependency?.recommendationId ?? null;
-      if (dependency && !dependency.satisfied) {
+      if (status === "pending" && dependency && !dependency.satisfied) {
         data.note = `${NOTE.voyage_instruction} Needs an approved purchase order for ${dependency.optionLabel} before it can be approved.`;
       }
       if (dependency?.recommendationId != null) {

@@ -134,6 +134,7 @@ export const VESSEL_DETAIL: VesselDetail = {
 };
 
 export const VOYAGE: VoyageDetail = {
+  instruction: null,
   id: 1,
   voyageNo: "AP-2611",
   vesselId: 1,

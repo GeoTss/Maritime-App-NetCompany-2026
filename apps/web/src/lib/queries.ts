@@ -5,6 +5,7 @@
  */
 import {
   HealthResponse,
+  PlanProposals,
   ProposeBody,
   ProposeResult,
   SimClockView,
@@ -51,6 +52,8 @@ export const queryKeys = {
   recommendations: ["recommendations"] as const,
   recommendation: (id: number) => ["recommendations", id] as const,
   drafts: (id: number) => ["recommendations", id, "drafts"] as const,
+  planProposals: (calculationId: number, optionId: string) =>
+    ["recommendations", "for-plan", calculationId, optionId] as const,
   audit: ["audit"] as const,
   evalSummary: ["eval", "summary"] as const,
 };
@@ -87,12 +90,30 @@ export function useSourceStatus() {
 /**
  * `POST /api/recommendations`: a person proposes a purchase order or a voyage instruction from a
  * stored plan, without the assistant. The proposal is pending: nothing is ordered or sent until
- * someone approves it on Approvals. `created` is false when the same proposal was already pending
- * (that one is returned). A refusal is a 409 `not_proposable` whose message says why.
+ * someone approves it on Approvals. `created` is false when the voyage already has that proposal
+ * (that one is returned with its status). A refusal is a 409 `not_proposable` whose message says why.
  *
  * Run only from a click. The proposals are refetched before the caller's `onSuccess` runs, so a
  * caller that selects the new proposal finds it in the list.
  */
+/**
+ * `GET /api/recommendations/for-plan`: the purchase order and voyage instruction a plan's option
+ * already has (waiting, approved or carried out), by the rule proposing uses. Under the
+ * recommendations key, so a proposal or a decision anywhere refreshes it.
+ */
+export function usePlanProposals(calculationId: number, optionId: string) {
+  return useQuery({
+    queryKey: queryKeys.planProposals(calculationId, optionId),
+    queryFn: ({ signal }) =>
+      api.get(
+        `/api/recommendations/for-plan?calculationId=${calculationId}&optionId=${encodeURIComponent(optionId)}`,
+        PlanProposals,
+        { signal },
+      ),
+    retry: false,
+  });
+}
+
 export function useProposeRecommendation() {
   const client = useQueryClient();
   return useMutation({

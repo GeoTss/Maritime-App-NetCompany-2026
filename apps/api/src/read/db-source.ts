@@ -36,9 +36,12 @@ import {
   RouteSpeedResult,
   ShipType,
   StopCandidate,
+  type TrackFuel,
+  type VoyageInstructionView,
 } from "@pharos/shared";
 import { z } from "zod";
 import { orderDependencyOf } from "../approvals/dependency.js";
+import { inForceInstructions } from "../approvals/in-force.js";
 import {
   BUNKER_SAVING_PATH,
   type BunkerFactContext,
@@ -668,22 +671,29 @@ async function worldAnchor(sql: Sql): Promise<Date | null> {
 // ---------- source ----------
 
 export function createDbSource(sql: Sql, now: () => Date): ReadSource {
+  // An approved instruction is the voyage's current plan: the fleet is read against it.
+  const vessels = async () => {
+    const instructed = new Map<Id, TrackFuel>();
+    for (const [voyageId, i] of await inForceInstructions(sql)) {
+      if (i.fuel) instructed.set(voyageId, i.fuel);
+    }
+    return buildVessels(
+      await loadWorld(sql),
+      now(),
+      (await latestWeatherSnapshot(sql))?.grid ?? null,
+      instructed,
+    );
+  };
+  const voyages = async () => {
+    const views = new Map<Id, VoyageInstructionView>();
+    for (const [voyageId, i] of await inForceInstructions(sql)) views.set(voyageId, i.view);
+    return buildVoyages(await loadWorld(sql), views);
+  };
   return {
-    listVessels: async () =>
-      buildVessels(
-        await loadWorld(sql),
-        now(),
-        (await latestWeatherSnapshot(sql))?.grid ?? null,
-      ).map((v) => v.summary),
-    getVessel: async (id) =>
-      buildVessels(
-        await loadWorld(sql),
-        now(),
-        (await latestWeatherSnapshot(sql))?.grid ?? null,
-      ).find((v) => v.summary.id === id)?.detail ?? null,
-    listVoyages: async () => buildVoyages(await loadWorld(sql)).map((v) => v.summary),
-    getVoyage: async (id) =>
-      buildVoyages(await loadWorld(sql)).find((v) => v.summary.id === id)?.detail ?? null,
+    listVessels: async () => (await vessels()).map((v) => v.summary),
+    getVessel: async (id) => (await vessels()).find((v) => v.summary.id === id)?.detail ?? null,
+    listVoyages: async () => (await voyages()).map((v) => v.summary),
+    getVoyage: async (id) => (await voyages()).find((v) => v.summary.id === id)?.detail ?? null,
     listInbox: async () => (await inboxRows(sql)).map(toInboxItem),
     getInboxItem: (id) => inboxItem(sql, id),
     listQuotes: () => quotes(sql),

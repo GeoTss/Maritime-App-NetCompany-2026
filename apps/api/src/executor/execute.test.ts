@@ -654,6 +654,8 @@ describe.skipIf(!sql)("executor (Postgres)", () => {
   };
 
   it("orders from a route plan's stop with the quote's price", async () => {
+    // No other order proposal for the stop's quote: the route plan's is the voyage's first.
+    await db`delete from recommendations where id = ${recId}`;
     const route = await planRoute();
     const id = await route.propose("purchase_order", "MTMLA-kestrel");
     const result = DecisionResult.parse(await approveRecommendation(deps, id, "alice"));

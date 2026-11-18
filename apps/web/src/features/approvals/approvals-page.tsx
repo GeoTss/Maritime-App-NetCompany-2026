@@ -152,6 +152,9 @@ export function ApprovalsPage() {
     },
     onSettled: (_r, _e, { id }) => {
       void client.invalidateQueries({ queryKey: queryKeys.recommendations });
+      // An approved order or instruction changes the vessel's alert and the voyage's route.
+      void client.invalidateQueries({ queryKey: queryKeys.vessels });
+      void client.invalidateQueries({ queryKey: ["voyages"] });
       void client.invalidateQueries({ queryKey: queryKeys.drafts(id) });
       void client.invalidateQueries({ queryKey: auditKey(id) });
     },

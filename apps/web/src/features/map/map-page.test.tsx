@@ -153,6 +153,9 @@ describe("MapPage", () => {
     expect(thumb.getAttribute("aria-valuetext")).toBe("14 Nov 08:00Z");
     const ticks = screen.getByTestId("day-ticks").textContent ?? "";
     expect(ticks).toContain("24 Nov");
+    // The legend explains the layer; it opens on request.
+    expect(screen.queryByTestId("wave-legend")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Legend" }));
     expect(screen.getByTestId("wave-legend").textContent).toBe("Wave height0 to 3+ m");
   });
 

@@ -7,7 +7,12 @@
  * for an instruction whose bunker stop has no approved purchase order) are 409 with the reason. Only `application/json` is accepted (415 otherwise): a cross-site HTML form can send only
  * form-encoded, multipart or text/plain bodies, so it can never approve or reject.
  */
-import { DecisionBody, type DraftedMessageList, ProposeBody } from "@pharos/shared";
+import {
+  DecisionBody,
+  type DraftedMessageList,
+  type PlanProposals,
+  ProposeBody,
+} from "@pharos/shared";
 import { Hono } from "hono";
 import {
   approveRecommendation,
@@ -18,6 +23,7 @@ import {
 } from "../executor/execute.js";
 import { requireContentType } from "../http/require-content-type.js";
 import { parseId } from "../read/routes.js";
+import { existingProposal, instructionInForce } from "./existing.js";
 import { ProposeError, proposeFromPlan } from "./propose.js";
 import { TransitionError } from "./state.js";
 
@@ -51,6 +57,29 @@ export function createApprovalRoutes(deps: ApprovalDeps) {
       }
       throw err;
     }
+  });
+
+  /** `GET /api/recommendations/for-plan`: the proposals a plan's option already has. */
+  app.get("/for-plan", async (c) => {
+    const calculationId = parseId(c.req.query("calculationId") ?? "");
+    const optionId = c.req.query("optionId") ?? "";
+    if (calculationId === null || optionId === "") {
+      return c.json(
+        { error: "invalid_request", message: "calculationId and optionId are required." },
+        400,
+      );
+    }
+    const of = (type: "purchase_order" | "voyage_instruction") =>
+      existingProposal(deps.sql, { type, calculationId, optionId });
+    const voyageInstruction = await of("voyage_instruction");
+    const inForce = await instructionInForce(deps.sql, calculationId);
+    const body: PlanProposals = {
+      purchaseOrder: await of("purchase_order"),
+      voyageInstruction,
+      instructionInForce:
+        inForce?.recommendationId === voyageInstruction?.recommendationId ? null : inForce,
+    };
+    return c.json(body);
   });
 
   const decide = (path: "approve" | "reject", action: typeof approveRecommendation) =>

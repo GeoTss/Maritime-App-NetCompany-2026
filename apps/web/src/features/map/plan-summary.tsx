@@ -298,9 +298,10 @@ export function PlanSummary({ plan, names }: { plan: RoutePlanView; names?: Stop
           <FactCell fact={trackFact(facts, track, "totalCostUsd")} metric="plan-totalCostUsd" />
         </Readout>
       </dl>
+      {/* The decision sits with the headline, in view as the tray opens; the detail follows. */}
+      <ProposeFromPlan calculationId={plan.calculationId} plan={result.plan} />
       <AddsAndNext plan={plan} names={names} />
       {stop ? <StopCard plan={plan} index={track.index} destination={plan.destination} /> : null}
-      <ProposeFromPlan calculationId={plan.calculationId} plan={result.plan} />
     </section>
   );
 }

@@ -8,12 +8,14 @@
  * voyage view's own "next" rule differs, so it is not used); the UI derives nothing.
  */
 import type { FuelGrade, RoutePlanView, TrackFuel, VesselSummary } from "@pharos/shared";
+import { Link } from "react-router";
 import { ErrorState } from "@/components/error-state";
 import { StateFlag } from "@/components/primitives/state-flag";
 import { DataTag } from "@/components/source-badge";
 import { Button } from "@/components/ui/button";
 import type { ChartConfig } from "@/components/ui/chart";
 import { Skeleton } from "@/components/ui/skeleton";
+import { UntrustedText } from "@/components/untrusted-text";
 import { describeFailure } from "@/lib/api";
 import { formatNumber, formatUtc } from "@/lib/format";
 import { FactCell } from "./fact-cell";
@@ -147,6 +149,7 @@ export function VesselPanel({
   const capacity = detail.data?.tankCapacityMt;
   const facts = detail.data?.facts;
   const robFacts = facts?.robMt ?? null;
+  const instruction = voyage.data?.instruction ?? null;
 
   return (
     <PanelFrame
@@ -194,6 +197,45 @@ export function VesselPanel({
               </li>
             ))}
           </ul>
+        </Section>
+      ) : null}
+
+      {instruction ? (
+        <Section title="Instructed route">
+          <dl className="flex flex-col gap-1" data-testid="vessel-instruction">
+            <Field label="Speed">
+              <FactCell fact={instruction.facts.speedKn} />
+            </Field>
+            <Field label="ETA">
+              <FactCell fact={instruction.facts.eta} kind="time" />
+            </Field>
+            {instruction.stopPortName ? (
+              <>
+                <Field label="Bunker stop">
+                  <UntrustedText text={instruction.stopPortName} />
+                </Field>
+                {instruction.facts.stopArriveAt ? (
+                  <Field label="Arrives">
+                    <FactCell fact={instruction.facts.stopArriveAt} kind="time" />
+                  </Field>
+                ) : null}
+                {instruction.facts.stopQtyMt ? (
+                  <Field label="Bunkers">
+                    <FactCell fact={instruction.facts.stopQtyMt} />
+                  </Field>
+                ) : null}
+              </>
+            ) : null}
+          </dl>
+          <p className="text-text-2">
+            Approved {formatUtc(instruction.instructedAt)}; the map draws this route.{" "}
+            <Link
+              to={`/approvals?recommendation=${instruction.recommendationId}`}
+              className="text-beacon underline-offset-2 hover:underline"
+            >
+              Open proposal {instruction.recommendationId}
+            </Link>
+          </p>
         </Section>
       ) : null}
 
@@ -246,24 +288,29 @@ export function VesselPanel({
                   </>
                 )}
               </Field>
-              <Field label="Next port">
-                {detail.isPending ? (
-                  <Skeleton className="inline-block h-3.5 w-20 align-middle" />
-                ) : facts?.nextPort ? (
-                  <FactCell fact={facts.nextPort} />
-                ) : (
-                  "—"
-                )}
-              </Field>
-              <Field label="Next port ETA">
-                {detail.isPending ? (
-                  <Skeleton className="inline-block h-3.5 w-28 align-middle" />
-                ) : facts?.nextPortEta ? (
-                  <FactCell fact={facts.nextPortEta} kind="time" />
-                ) : (
-                  "—"
-                )}
-              </Field>
+              {/* With an instruction in force, its stop and ETA above are the next call. */}
+              {instruction ? null : (
+                <>
+                  <Field label="Next port">
+                    {detail.isPending ? (
+                      <Skeleton className="inline-block h-3.5 w-20 align-middle" />
+                    ) : facts?.nextPort ? (
+                      <FactCell fact={facts.nextPort} />
+                    ) : (
+                      "—"
+                    )}
+                  </Field>
+                  <Field label="Next port ETA">
+                    {detail.isPending ? (
+                      <Skeleton className="inline-block h-3.5 w-28 align-middle" />
+                    ) : facts?.nextPortEta ? (
+                      <FactCell fact={facts.nextPortEta} kind="time" />
+                    ) : (
+                      "—"
+                    )}
+                  </Field>
+                </>
+              )}
             </>
           ) : null}
         </dl>

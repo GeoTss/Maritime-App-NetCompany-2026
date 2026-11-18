@@ -59,19 +59,23 @@ const PANEL_WIDTH_PX = 332;
 const idParam = (value: string | null): number | null =>
   value && /^\d+$/.test(value) ? Number(value) : null;
 
-/** The element's rendered height, kept current (the layer switches wrap and grow). */
-function useElementHeight(el: HTMLElement | null): number {
-  const [height, setHeight] = useState(0);
+/** The element's rendered size, kept current (the layer switches wrap and grow; the map resizes). */
+function useElementSize(el: HTMLElement | null): { width: number; height: number } {
+  const [size, setSize] = useState({ width: 0, height: 0 });
   useEffect(() => {
     if (!el) return;
-    setHeight(el.offsetHeight);
+    const read = () => setSize({ width: el.offsetWidth, height: el.offsetHeight });
+    read();
     if (typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(() => setHeight(el.offsetHeight));
+    const observer = new ResizeObserver(read);
     observer.observe(el);
     return () => observer.disconnect();
   }, [el]);
-  return height;
+  return size;
 }
+
+/** The room (px) the layer switches need to sit in one row beside the Needs you button. */
+const SWITCH_ROW_PX = 640;
 
 /** After a command-menu pick, the panel's title takes focus (the menu gives focus back first). */
 function focusPanelHeading() {
@@ -287,7 +291,10 @@ export function MapPage() {
   ].filter((x): x is string => x !== null);
   const sources = useSourceStatus();
   const aisMode = sources.data?.items.find((s) => s.source === "ais")?.mode ?? null;
-  const togglesHeight = useElementHeight(toggles);
+  const togglesHeight = useElementSize(toggles).height;
+  // With a panel open the top row is narrower: when the switches no longer fit, they fold.
+  const mapWidth = useElementSize(container).width;
+  const squeezed = wide && showPanel && mapWidth > 0 && mapWidth - PANEL_WIDTH_PX < SWITCH_ROW_PX;
   // On a phone the panel covers the lower part of the map (at most 55 %).
   const phonePanel = !wide && showPanel ? containerHeight * 0.55 : 0;
 
@@ -301,7 +308,10 @@ export function MapPage() {
   const topRowStyle =
     wide && showPanel ? { maxWidth: `calc(100% - ${PANEL_WIDTH_PX + 8}px)` } : undefined;
 
-  const track = plan ? null : (voyage.data?.plannedTrack ?? null);
+  // An approved voyage instruction is the route the vessel now sails: it replaces the first plan.
+  const track = plan
+    ? null
+    : (voyage.data?.instruction?.track ?? voyage.data?.plannedTrack ?? null);
   const chips = [
     routePlanId !== null
       ? {
@@ -415,6 +425,7 @@ export function MapPage() {
             weather={weather.data}
             step={step}
             onStepCommit={setStep}
+            squeezed={squeezed}
           />
           {chips.length > 0 ? (
             <div className="pointer-events-auto flex max-w-full flex-col items-start gap-1.5">

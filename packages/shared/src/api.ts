@@ -107,7 +107,36 @@ export const PortCallView = z.object({
 });
 export type PortCallView = z.infer<typeof PortCallView>;
 
+/**
+ * The voyage instruction in force: the latest approved and recorded one. Its track, speed, ETA and
+ * bunker stop are the stored route plan's, as the executor recorded them on approval.
+ */
+export const VoyageInstructionView = z
+  .object({
+    recommendationId: Id,
+    /** The route candidate, or the bunker stop plan, that was instructed. */
+    optionId: z.string(),
+    instructedAt: IsoDateTime,
+    /** The instructed route for the map (≥ 2 points). */
+    track: z.array(LatLon),
+    /** The bunker port's name; null for a route with no stop. */
+    stopPortName: z.string().nullable(),
+    facts: z
+      .object({
+        speedKn: Fact,
+        eta: Fact,
+        stopArriveAt: Fact.nullable(),
+        stopDepartAt: Fact.nullable(),
+        stopQtyMt: Fact.nullable(),
+      })
+      .strict(),
+  })
+  .strict();
+export type VoyageInstructionView = z.infer<typeof VoyageInstructionView>;
+
 export const VoyageDetail = VoyageSummary.extend({
+  /** The instruction in force, which the map and the panel show instead of the first plan; else null. */
+  instruction: VoyageInstructionView.nullable(),
   portCalls: z.array(PortCallView),
   /** The planned track for the map: the route legs' waypoints, joined in order (≥ 2 points). */
   plannedTrack: z.array(LatLon),
@@ -272,11 +301,40 @@ export type ProposeBody = z.infer<typeof ProposeBody>;
 export const ProposeResult = z
   .object({
     recommendationId: Id,
-    /** False when the same proposal was already pending (it is returned, not duplicated). */
+    /**
+     * False when the voyage already has this proposal (waiting, approved or carried out): that one
+     * is returned, never duplicated, even when it was proposed from an earlier plan.
+     */
     created: z.boolean(),
+    /** The returned proposal's status: `pending` for a new one. */
+    status: RecommendationStatus,
   })
   .strict();
 export type ProposeResult = z.infer<typeof ProposeResult>;
+
+/** A proposal a plan's option already has: its id and where it stands. */
+export const PlanProposal = z
+  .object({ recommendationId: Id, status: RecommendationStatus })
+  .strict();
+export type PlanProposal = z.infer<typeof PlanProposal>;
+
+/**
+ * `GET /api/recommendations/for-plan?calculationId=&optionId=`: what a plan's option already has,
+ * by the rule proposing uses, so a plan screen never offers a second order or instruction.
+ */
+export const PlanProposals = z
+  .object({
+    purchaseOrder: PlanProposal.nullable(),
+    voyageInstruction: PlanProposal.nullable(),
+    /**
+     * The voyage's instruction in force when it is not this option's (another route, stop or
+     * speed): a new instruction from this plan would replace it. Null when there is none, or when
+     * `voyageInstruction` is it.
+     */
+    instructionInForce: PlanProposal.nullable(),
+  })
+  .strict();
+export type PlanProposals = z.infer<typeof PlanProposals>;
 
 export const RecommendationView = z.object({
   id: Id,

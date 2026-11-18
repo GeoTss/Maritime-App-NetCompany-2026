@@ -4,11 +4,13 @@
  * `useAttention`; each action goes where the operator acts. Nothing here decides anything.
  */
 import type { VesselSummary } from "@pharos/shared";
+import { useState } from "react";
 import { Link } from "react-router";
 import { MetricNumber } from "@/components/metric-number";
 import { type FlagKind, StateFlag } from "@/components/primitives/state-flag";
 import { DataTag } from "@/components/source-badge";
 import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Table,
   TableBody,
@@ -18,7 +20,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { UntrustedText } from "@/components/untrusted-text";
-import type { AttentionItem } from "@/lib/attention";
+import { type AttentionItem, acknowledgeHazard } from "@/lib/attention";
 import { cn } from "@/lib/utils";
 import { alertText } from "./vessel-panel";
 
@@ -138,9 +140,12 @@ function Item({
           <h3 className="text-sm font-medium text-text-1">
             <UntrustedText text={item.label} className="line-clamp-2" />
           </h3>
-          <div className="pt-1">
+          <div className="flex flex-wrap gap-1.5 pt-1">
             <Button size="sm" variant="outline" onClick={() => onFlyHazard(item.hazardId)}>
               Show on map
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => acknowledgeHazard(item.hazardId)}>
+              Dismiss
             </Button>
           </div>
         </ItemShell>
@@ -208,22 +213,37 @@ function FleetTable({
   );
 }
 
+/** The legend of the state flags, closed until asked for: it explains, it does not need the room. */
 export function FlagKey() {
+  const [open, setOpen] = useState(false);
   return (
-    <div className="mt-auto border-t border-line bg-ink-950 px-3 py-3">
-      <div className="text-2xs font-medium text-text-2">
-        Flag key · International Code of Signals
-      </div>
-      <ul className="mt-2 grid gap-2">
-        {KEY.map((k) => (
-          <li key={k.flag} className="grid grid-cols-[16px_1fr] gap-x-2 text-xs/4">
-            <StateFlag kind={k.flag} className="mt-0.5" />
-            <span className="text-text-1">{k.word}</span>
-            <span className="col-start-2 text-2xs text-text-2">{k.code}</span>
-          </li>
-        ))}
-      </ul>
-    </div>
+    <Collapsible
+      open={open}
+      onOpenChange={setOpen}
+      className="mt-auto border-t border-line bg-ink-950 px-3 py-2"
+    >
+      <CollapsibleTrigger asChild>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full justify-between px-0 text-2xs font-medium text-text-2 hover:bg-transparent"
+        >
+          Flag key · International Code of Signals
+          <span className="text-text-3">{open ? "Hide" : "Show"}</span>
+        </Button>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <ul className="grid gap-2 pt-1 pb-1">
+          {KEY.map((k) => (
+            <li key={k.flag} className="grid grid-cols-[16px_1fr] gap-x-2 text-xs/4">
+              <StateFlag kind={k.flag} className="mt-0.5" />
+              <span className="text-text-1">{k.word}</span>
+              <span className="col-start-2 text-2xs text-text-2">{k.code}</span>
+            </li>
+          ))}
+        </ul>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 

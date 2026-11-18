@@ -8,7 +8,7 @@
  * recommended plan (route, bunker stop and quote) and the best route ignoring fuel on board, with
  * where it runs short, then the fuel on board along both, then every route compared.
  */
-import { Cancel01Icon } from "@hugeicons/core-free-icons";
+import { ArrowDown01Icon, ArrowUp01Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { RoutePlanView } from "@pharos/shared";
 import { useEffect } from "react";
@@ -225,7 +225,13 @@ export function RouteComparison({ plan, names }: { plan: RoutePlanView; names?: 
 }
 
 /** Closed (0) to open: fractions of the map canvas. */
-export const TRAY_SNAPS = [0.12, 0.4, 0.88] as const;
+export const TRAY_SNAPS = [0.12, 0.5, 0.88] as const;
+
+/** The snap the tray is at, as an index into `TRAY_SNAPS` (the middle one when unknown). */
+const snapIndex = (snap: number | string | null) => {
+  const index = TRAY_SNAPS.findIndex((s) => s === snap);
+  return index === -1 ? 1 : index;
+};
 
 /**
  * vaul does not hand `modal={false}` to the Radix dialog under it, so the dialog still marks every
@@ -261,6 +267,9 @@ export function RouteTray({
   onClose: () => void;
 }) {
   useEffect(unhideRestOfPage, []);
+  // The tray can be dragged, but never has to be: Taller and Shorter step through the same snaps.
+  const at = snapIndex(snap);
+  const step = (by: 1 | -1) => onSnapChange(TRAY_SNAPS[at + by] ?? TRAY_SNAPS[at] ?? null);
   return (
     <Drawer
       open
@@ -291,6 +300,24 @@ export function RouteTray({
               ? ", no weather forecast"
               : `, weather snapshot #${plan.weatherSnapshotId}`}
           </DrawerDescription>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Make route options shorter"
+            disabled={at === 0}
+            onClick={() => step(-1)}
+          >
+            <HugeiconsIcon icon={ArrowDown01Icon} size={14} />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Make route options taller"
+            disabled={at === TRAY_SNAPS.length - 1}
+            onClick={() => step(1)}
+          >
+            <HugeiconsIcon icon={ArrowUp01Icon} size={14} />
+          </Button>
           <Button variant="ghost" size="icon-sm" aria-label="Close route options" onClick={onClose}>
             <HugeiconsIcon icon={Cancel01Icon} size={14} />
           </Button>

@@ -13,6 +13,7 @@ import {
   type ToolResult,
   VesselStatusInput,
 } from "@pharos/shared";
+import { inForceInstructions } from "../../approvals/in-force.js";
 import { calcFact } from "../../facts/core.js";
 import { VESSEL_TOOL, vesselRowFacts } from "../../facts/vessel.js";
 import { addSubject, findVessel, json, runTool, type ToolContext } from "./common.js";
@@ -42,7 +43,9 @@ export function getVesselStatus(ctx: ToolContext, input: VesselStatusInput): Pro
     facts.push(...FUEL_GRADES.map((g) => (row.robMt as Record<FuelGrade, Fact>)[g]), row.voyageNo);
 
     const snapshot = await latestWeatherSnapshot(ctx.sql);
-    const track = currentPlanFuel(world, voyage.id, snapshot?.grid ?? null);
+    // An approved voyage instruction is the current plan: its stored fuel track, bunker stop included.
+    const instructed = (await inForceInstructions(ctx.sql, voyage.id)).get(voyage.id);
+    const track = instructed?.fuel ?? currentPlanFuel(world, voyage.id, snapshot?.grid ?? null);
     const per = <T>(f: (g: FuelGrade) => T) =>
       Object.fromEntries(FUEL_GRADES.map((g) => [g, f(g)])) as Record<FuelGrade, T>;
     // The flat fields keep the fact paths get_vessel_status has always cited; `track` is the whole

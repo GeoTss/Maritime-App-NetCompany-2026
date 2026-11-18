@@ -11,6 +11,7 @@ import {
   VesselSummary,
 } from "@pharos/shared";
 import { useQuery } from "@tanstack/react-query";
+import { useSyncExternalStore } from "react";
 import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/queries";
 
@@ -70,6 +71,22 @@ export function attentionItems(input: {
   return [...proposals, ...alerts, ...quotes, ...hazards];
 }
 
+/**
+ * Hazards the operator has acknowledged in this session: they leave the "Needs you" list and its
+ * count, and stay drawn on the map. Kept in memory only, so a reload shows every hazard again.
+ */
+let acknowledged: ReadonlySet<string> = new Set();
+const listeners = new Set<() => void>();
+const subscribe = (listener: () => void) => {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+};
+
+export function acknowledgeHazard(id: string) {
+  acknowledged = new Set([...acknowledged, id]);
+  for (const listener of listeners) listener();
+}
+
 const InboxItems = listOf(InboxItem);
 const Recommendations = listOf(RecommendationView);
 const Vessels = listOf(VesselSummary);
@@ -79,6 +96,7 @@ const Vessels = listOf(VesselSummary);
  * all of them; a failed read contributes nothing (the screens say so themselves).
  */
 export function useAttention(): { items: AttentionItem[]; isPending: boolean } {
+  const seen = useSyncExternalStore(subscribe, () => acknowledged);
   const inbox = useQuery({
     queryKey: queryKeys.inbox,
     queryFn: ({ signal }) => api.get("/api/inbox", InboxItems, { signal }),
@@ -105,7 +123,7 @@ export function useAttention(): { items: AttentionItem[]; isPending: boolean } {
     vessels: vessels.data?.items ?? [],
     inbox: inbox.data?.items ?? [],
     recommendations: recs.data?.items ?? [],
-    hazards: hazards.data?.items ?? [],
+    hazards: (hazards.data?.items ?? []).filter((h) => !seen.has(h.id)),
   });
   return {
     items,

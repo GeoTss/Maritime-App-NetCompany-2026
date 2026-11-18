@@ -1,6 +1,6 @@
 import type { Sql } from "@pharos/db";
 import { connectTestDb, testDbLabel } from "@pharos/db/testing";
-import { DecisionResult, DraftedMessageList, ProposeResult } from "@pharos/shared";
+import { DecisionResult, DraftedMessageList, PlanProposals, ProposeResult } from "@pharos/shared";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { createErpApp } from "../../../../services/erp-sim/src/app.js";
 import { createToolContext } from "../ai/tools/common.js";
@@ -89,7 +89,23 @@ describe.skipIf(!sql)("approval routes (Postgres)", () => {
           select type, status, option_id, message_id from recommendations where id = ${id}`
       )[0];
 
+    const propose = async (
+      type: string,
+      plan: { calculationId: number; recommendedOptionId: string | null },
+    ) =>
+      ProposeResult.parse(
+        await (
+          await post("/api/recommendations", {
+            type,
+            calculationId: plan.calculationId,
+            optionId: plan.recommendedOptionId,
+          })
+        ).json(),
+      );
+
     it("proposes the purchase order for the recommended plan's bunker stop, pending", async () => {
+      // No order proposal for the stop's quote yet.
+      await db`delete from recommendations where id = ${recId}`;
       const plan = await routePlan();
       expect(plan.recommendedKind).toBe("stop");
       const res = await post("/api/recommendations", {
@@ -100,6 +116,7 @@ describe.skipIf(!sql)("approval routes (Postgres)", () => {
       expect(res.status).toBe(200);
       const body = ProposeResult.parse(await res.json());
       expect(body.created).toBe(true);
+      expect(body.status).toBe("pending");
       expect(await row(body.recommendationId)).toEqual({
         type: "purchase_order",
         status: "pending",
@@ -107,16 +124,65 @@ describe.skipIf(!sql)("approval routes (Postgres)", () => {
         message_id: null,
       });
       // The same proposal again returns the pending one, not a duplicate.
-      const again = ProposeResult.parse(
-        await (
-          await post("/api/recommendations", {
-            type: "purchase_order",
-            calculationId: plan.calculationId,
-            optionId: plan.recommendedOptionId,
-          })
-        ).json(),
+      expect(await propose("purchase_order", plan)).toEqual({
+        recommendationId: body.recommendationId,
+        created: false,
+        status: "pending",
+      });
+    });
+
+    it("returns the order proposal the voyage already has for the stop's quote, from any plan", async () => {
+      // `recId` (proposed from the bunker plan) buys from the same quote as the route plan's stop.
+      const plan = await routePlan();
+      expect(await propose("purchase_order", plan)).toEqual({
+        recommendationId: recId,
+        created: false,
+        status: "pending",
+      });
+    });
+
+    it("planning again after both approvals proposes nothing new", async () => {
+      const first = await routePlan();
+      const instruction = await propose("voyage_instruction", first);
+      expect(instruction.created).toBe(true);
+      expect((await post(`/api/recommendations/${recId}/approve`)).status).toBe(200);
+      expect(
+        (await post(`/api/recommendations/${instruction.recommendationId}/approve`)).status,
+      ).toBe(200);
+
+      const again = await routePlan();
+      expect(again.calculationId).not.toBe(first.calculationId);
+      expect(await propose("purchase_order", again)).toEqual({
+        recommendationId: recId,
+        created: false,
+        status: "executed",
+      });
+      expect(await propose("voyage_instruction", again)).toEqual({
+        recommendationId: instruction.recommendationId,
+        created: false,
+        status: "executed",
+      });
+      const count = await db<{ n: number }[]>`select count(*)::int as n from recommendations`;
+      expect(count[0]?.n).toBe(2);
+
+      const res = await app.request(
+        `/api/recommendations/for-plan?calculationId=${again.calculationId}&optionId=${again.recommendedOptionId}`,
       );
-      expect(again).toEqual({ recommendationId: body.recommendationId, created: false });
+      expect(PlanProposals.parse(await res.json())).toEqual({
+        purchaseOrder: { recommendationId: recId, status: "executed" },
+        voyageInstruction: { recommendationId: instruction.recommendationId, status: "executed" },
+        instructionInForce: null,
+      });
+      // Another option of the plan is a different instruction: it would replace the one in force.
+      const other = await app.request(
+        `/api/recommendations/for-plan?calculationId=${again.calculationId}&optionId=A`,
+      );
+      expect(PlanProposals.parse(await other.json())).toEqual({
+        purchaseOrder: null,
+        voyageInstruction: null,
+        instructionInForce: { recommendationId: instruction.recommendationId, status: "executed" },
+      });
+      expect((await app.request("/api/recommendations/for-plan?optionId=A")).status).toBe(400);
     });
 
     it("proposes the voyage instruction for the recommended plan", async () => {
