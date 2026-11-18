@@ -141,12 +141,8 @@
           "name": "audit_events_recommendation_id_recommendations_id_fk",
           "tableFrom": "audit_events",
           "tableTo": "recommendations",
-          "columnsFrom": [
-            "recommendation_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["recommendation_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -215,12 +211,8 @@
           "name": "bunker_requirements_voyage_id_voyages_id_fk",
           "tableFrom": "bunker_requirements",
           "tableTo": "voyages",
-          "columnsFrom": [
-            "voyage_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["voyage_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -307,12 +299,8 @@
           "name": "calculations_voyage_id_voyages_id_fk",
           "tableFrom": "calculations",
           "tableTo": "voyages",
-          "columnsFrom": [
-            "voyage_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["voyage_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -320,12 +308,8 @@
           "name": "calculations_weather_snapshot_id_weather_snapshots_id_fk",
           "tableFrom": "calculations",
           "tableTo": "weather_snapshots",
-          "columnsFrom": [
-            "weather_snapshot_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["weather_snapshot_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -483,12 +467,8 @@
           "name": "documents_parent_id_documents_id_fk",
           "tableFrom": "documents",
           "tableTo": "documents",
-          "columnsFrom": [
-            "parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -592,12 +572,8 @@
           "name": "drafted_messages_recommendation_id_recommendations_id_fk",
           "tableFrom": "drafted_messages",
           "tableTo": "recommendations",
-          "columnsFrom": [
-            "recommendation_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["recommendation_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -702,12 +678,8 @@
           "name": "extractions_document_id_documents_id_fk",
           "tableFrom": "extractions",
           "tableTo": "documents",
-          "columnsFrom": [
-            "document_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["document_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -830,12 +802,8 @@
           "name": "llm_calls_document_id_documents_id_fk",
           "tableFrom": "llm_calls",
           "tableTo": "documents",
-          "columnsFrom": [
-            "document_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["document_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -843,12 +811,8 @@
           "name": "llm_calls_conversation_id_conversations_id_fk",
           "tableFrom": "llm_calls",
           "tableTo": "conversations",
-          "columnsFrom": [
-            "conversation_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["conversation_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -918,12 +882,8 @@
           "name": "messages_conversation_id_conversations_id_fk",
           "tableFrom": "messages",
           "tableTo": "conversations",
-          "columnsFrom": [
-            "conversation_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["conversation_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -1083,12 +1043,8 @@
           "name": "noon_reports_vessel_id_vessels_id_fk",
           "tableFrom": "noon_reports",
           "tableTo": "vessels",
-          "columnsFrom": [
-            "vessel_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["vessel_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -1096,12 +1052,8 @@
           "name": "noon_reports_voyage_id_voyages_id_fk",
           "tableFrom": "noon_reports",
           "tableTo": "voyages",
-          "columnsFrom": [
-            "voyage_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["voyage_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -1164,12 +1116,8 @@
           "name": "order_lines_order_id_purchase_orders_id_fk",
           "tableFrom": "order_lines",
           "tableTo": "purchase_orders",
-          "columnsFrom": [
-            "order_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["order_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -1250,12 +1198,8 @@
           "name": "port_calls_voyage_id_voyages_id_fk",
           "tableFrom": "port_calls",
           "tableTo": "voyages",
-          "columnsFrom": [
-            "voyage_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["voyage_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -1263,12 +1207,8 @@
           "name": "port_calls_port_id_ports_id_fk",
           "tableFrom": "port_calls",
           "tableTo": "ports",
-          "columnsFrom": [
-            "port_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["port_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -1337,12 +1277,8 @@
           "name": "port_congestion_port_id_ports_id_fk",
           "tableFrom": "port_congestion",
           "tableTo": "ports",
-          "columnsFrom": [
-            "port_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["port_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -1411,12 +1347,8 @@
           "name": "port_fuel_prices_port_id_ports_id_fk",
           "tableFrom": "port_fuel_prices",
           "tableTo": "ports",
-          "columnsFrom": [
-            "port_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["port_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -1628,12 +1560,8 @@
           "name": "purchase_orders_quote_id_quotes_id_fk",
           "tableFrom": "purchase_orders",
           "tableTo": "quotes",
-          "columnsFrom": [
-            "quote_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["quote_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -1641,12 +1569,8 @@
           "name": "purchase_orders_recommendation_id_recommendations_id_fk",
           "tableFrom": "purchase_orders",
           "tableTo": "recommendations",
-          "columnsFrom": [
-            "recommendation_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["recommendation_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -1709,12 +1633,8 @@
           "name": "quote_lines_quote_id_quotes_id_fk",
           "tableFrom": "quote_lines",
           "tableTo": "quotes",
-          "columnsFrom": [
-            "quote_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["quote_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -1819,12 +1739,8 @@
           "name": "quotes_supplier_id_suppliers_id_fk",
           "tableFrom": "quotes",
           "tableTo": "suppliers",
-          "columnsFrom": [
-            "supplier_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["supplier_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -1832,12 +1748,8 @@
           "name": "quotes_port_id_ports_id_fk",
           "tableFrom": "quotes",
           "tableTo": "ports",
-          "columnsFrom": [
-            "port_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["port_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -1845,12 +1757,8 @@
           "name": "quotes_requirement_id_bunker_requirements_id_fk",
           "tableFrom": "quotes",
           "tableTo": "bunker_requirements",
-          "columnsFrom": [
-            "requirement_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["requirement_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -1858,12 +1766,8 @@
           "name": "quotes_extraction_id_extractions_id_fk",
           "tableFrom": "quotes",
           "tableTo": "extractions",
-          "columnsFrom": [
-            "extraction_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["extraction_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -1962,12 +1866,8 @@
           "name": "recommendations_calculation_id_calculations_id_fk",
           "tableFrom": "recommendations",
           "tableTo": "calculations",
-          "columnsFrom": [
-            "calculation_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["calculation_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -1975,12 +1875,8 @@
           "name": "recommendations_message_id_messages_id_fk",
           "tableFrom": "recommendations",
           "tableTo": "messages",
-          "columnsFrom": [
-            "message_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["message_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -2115,12 +2011,8 @@
           "name": "route_legs_from_port_id_ports_id_fk",
           "tableFrom": "route_legs",
           "tableTo": "ports",
-          "columnsFrom": [
-            "from_port_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["from_port_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -2128,12 +2020,8 @@
           "name": "route_legs_to_port_id_ports_id_fk",
           "tableFrom": "route_legs",
           "tableTo": "ports",
-          "columnsFrom": [
-            "to_port_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["to_port_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -2311,12 +2199,8 @@
           "name": "vessel_positions_vessel_id_vessels_id_fk",
           "tableFrom": "vessel_positions",
           "tableTo": "vessels",
-          "columnsFrom": [
-            "vessel_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["vessel_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -2561,12 +2445,8 @@
           "name": "voyage_instructions_recommendation_id_recommendations_id_fk",
           "tableFrom": "voyage_instructions",
           "tableTo": "recommendations",
-          "columnsFrom": [
-            "recommendation_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["recommendation_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -2574,12 +2454,8 @@
           "name": "voyage_instructions_voyage_id_voyages_id_fk",
           "tableFrom": "voyage_instructions",
           "tableTo": "voyages",
-          "columnsFrom": [
-            "voyage_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["voyage_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -2587,12 +2463,8 @@
           "name": "voyage_instructions_calculation_id_calculations_id_fk",
           "tableFrom": "voyage_instructions",
           "tableTo": "calculations",
-          "columnsFrom": [
-            "calculation_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["calculation_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -2600,12 +2472,8 @@
           "name": "voyage_instructions_stop_port_id_ports_id_fk",
           "tableFrom": "voyage_instructions",
           "tableTo": "ports",
-          "columnsFrom": [
-            "stop_port_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["stop_port_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -2613,12 +2481,8 @@
           "name": "voyage_instructions_stop_quote_id_quotes_id_fk",
           "tableFrom": "voyage_instructions",
           "tableTo": "quotes",
-          "columnsFrom": [
-            "stop_quote_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["stop_quote_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -2717,12 +2581,8 @@
           "name": "voyages_vessel_id_vessels_id_fk",
           "tableFrom": "voyages",
           "tableTo": "vessels",
-          "columnsFrom": [
-            "vessel_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["vessel_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -2730,12 +2590,8 @@
           "name": "voyages_origin_port_id_ports_id_fk",
           "tableFrom": "voyages",
           "tableTo": "ports",
-          "columnsFrom": [
-            "origin_port_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["origin_port_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -2743,12 +2599,8 @@
           "name": "voyages_destination_port_id_ports_id_fk",
           "tableFrom": "voyages",
           "tableTo": "ports",
-          "columnsFrom": [
-            "destination_port_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["destination_port_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
