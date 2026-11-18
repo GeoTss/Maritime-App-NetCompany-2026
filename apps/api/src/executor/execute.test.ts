@@ -800,7 +800,21 @@ describe.skipIf(!sql)("executor (Postgres)", () => {
       expect(approved?.detail).toEqual({ dependsOnRecommendationId: recId });
 
       const drafts = await draftsOf(db, viId);
-      expect(drafts.map((d) => [d.kind, d.status])).toEqual([["master_instruction", "draft"]]);
+      expect(drafts.map((d) => [d.kind, d.status])).toEqual([
+        ["master_instruction", "draft"],
+        ["agent_request", "draft"],
+        ["pre_arrival_notice", "draft"],
+      ]);
+      // The port call: the agent's request lists the jobs, the notices their due times. Never sent.
+      const agent = drafts.find((d) => d.kind === "agent_request");
+      expect(agent?.to).toBe("agency.marsaxlokk@ports.pharos.example");
+      expect(agent?.body).toMatch(/Provisions: [\d,.]+ person-days/);
+      expect(agent?.body).toMatch(/Chart 142 Strait of Gibraltar, edition 2026/);
+      expect(agent?.body).toMatch(/Sludge delivered ashore: [\d.]+ m³/);
+      const notices = drafts.find((d) => d.kind === "pre_arrival_notice");
+      expect(notices?.body).toMatch(/Security pre-arrival information: due .+ UTC/);
+      expect(notices?.body).toMatch(/EU advance waste notification: due .+ UTC/);
+      expect(`${agent?.body}${notices?.body}`).toMatch(/has not sent it/);
       const draft = drafts[0];
       expect(draft?.to).toBe("master.mv-aegean-pioneer@fleet.pharos.example");
       expect(draft?.subject).toBe(
@@ -837,7 +851,7 @@ describe.skipIf(!sql)("executor (Postgres)", () => {
       expect((await recommendation(viId))?.decided_by).toBe("alice");
     });
 
-    it("a concurrent double approve gives one instruction row and one draft", async () => {
+    it("a concurrent double approve gives one instruction row and one draft of each kind", async () => {
       await approveOrder();
       const pushes = erp.requests.length;
       const results = await Promise.all([
@@ -846,7 +860,7 @@ describe.skipIf(!sql)("executor (Postgres)", () => {
       ]);
       expect(results.map((r) => r.status)).toContain("executed");
       expect(await instructionsOf(viId)).toHaveLength(1);
-      expect(await draftsOf(db, viId)).toHaveLength(1);
+      expect(await draftsOf(db, viId)).toHaveLength(3);
       const kinds = await auditKinds(viId);
       expect(kinds.filter((k) => k === "recommendation.approved")).toHaveLength(1);
       expect(kinds.filter((k) => k === "voyage.instructed")).toHaveLength(1);
@@ -881,7 +895,7 @@ describe.skipIf(!sql)("executor (Postgres)", () => {
       expect(await draftsOf(db, viId)).toHaveLength(0);
       expect((await approveRecommendation(deps, viId, "bob")).status).toBe("executed");
       expect(await instructionsOf(viId)).toHaveLength(1);
-      expect(await draftsOf(db, viId)).toHaveLength(1);
+      expect(await draftsOf(db, viId)).toHaveLength(3);
       expect(await auditKinds(viId)).toEqual([
         "recommendation.approved",
         "voyage.instructed",

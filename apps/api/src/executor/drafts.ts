@@ -12,6 +12,7 @@ import type {
   BunkerOptionResult,
   DraftedMessage,
   FuelGrade,
+  PortCallResult,
   RouteOptionResult,
   StopPlanResult,
 } from "@pharos/shared";
@@ -189,6 +190,91 @@ export function draftVoyageInstruction(input: VoyageInstructionDraftInput): Draf
     subject: stop
       ? `Route and speed: ${vessel.name} to ${destination}, bunkering at ${stop.portName}`
       : `Route and speed: ${vessel.name} to ${destination}`,
+    body,
+    status: "draft",
+  };
+}
+
+export interface PortCallDraftInput {
+  recommendation: { id: number };
+  vessel: { name: string };
+  portName: string;
+  /** Arrival at the stop (the approved plan's timeline). */
+  arriveAt: string;
+  portCall: PortCallResult;
+}
+
+export const agentAddress = (portName: string) => `agency.${slug(portName)}@ports.pharos.example`;
+
+const JOB_LINE: Record<PortCallResult["jobs"][number]["kind"], (qty: number) => string> = {
+  provisions: (q) => `Provisions: ${fmt(q)} person-days, to top up the stores.`,
+  charts: () => "Charts and publications, current editions:",
+  sludge: (q) => `Sludge delivered ashore: ${fmt(q)} m³.`,
+  sewage: (q) => `Sewage delivered ashore: ${fmt(q)} m³.`,
+};
+
+/**
+ * The port agent's request for the jobs the approved call does alongside the bunkering: provisions,
+ * charts and publications (each named with its current edition) and waste delivery. Its numbers
+ * are the stored plan's quantities and arrival. Null when the call does no job.
+ */
+export function draftAgentRequest(input: PortCallDraftInput): DraftedMessageInput | null {
+  const done = input.portCall.jobs.filter((j) => j.done);
+  if (done.length === 0) return null;
+  const lines: string[] = [];
+  for (const j of done) {
+    lines.push(`- ${JOB_LINE[j.kind](j.qty)}`);
+    if (j.kind === "charts") {
+      for (const o of input.portCall.outdated) {
+        const kind = o.kind === "chart" ? "Chart" : "Publication";
+        lines.push(`  - ${kind} ${o.itemId} ${o.title}, edition ${o.currentEdition}`);
+      }
+    }
+  }
+  const body = [
+    `Agent at ${input.portName},`,
+    "",
+    `${input.vessel.name} calls at ${input.portName} on ${utcMinute(input.arriveAt)} for bunkers. ` +
+      "Please arrange, alongside the bunkering:",
+    ...lines,
+    "",
+    "Please confirm availability and cost to the desk.",
+    "",
+    NOT_SENT,
+  ].join("\n");
+  return {
+    recommendationId: input.recommendation.id,
+    kind: "agent_request",
+    to: agentAddress(input.portName),
+    subject: `Port call: ${input.vessel.name} at ${input.portName}, stores and waste`,
+    body,
+    status: "draft",
+  };
+}
+
+const NOTICE_LINE: Record<PortCallResult["notices"][number]["kind"], string> = {
+  agent_appointment: "Agent appointment",
+  security_pre_arrival: "Security pre-arrival information",
+  eu_waste_notification: "EU advance waste notification",
+};
+
+/** The notices due before arrival, each with its due time, for the agent to file. Null when none. */
+export function draftPreArrivalNotices(input: PortCallDraftInput): DraftedMessageInput | null {
+  const { notices } = input.portCall;
+  if (notices.length === 0) return null;
+  const body = [
+    `Agent at ${input.portName},`,
+    "",
+    `Please file these before ${input.vessel.name} arrives on ${utcMinute(input.arriveAt)}:`,
+    ...notices.map((n) => `- ${NOTICE_LINE[n.kind]}: due ${utcMinute(n.dueAt)}`),
+    "",
+    NOT_SENT,
+  ].join("\n");
+  return {
+    recommendationId: input.recommendation.id,
+    kind: "pre_arrival_notice",
+    to: agentAddress(input.portName),
+    subject: `Pre-arrival notices: ${input.vessel.name} at ${input.portName}`,
     body,
     status: "draft",
   };
