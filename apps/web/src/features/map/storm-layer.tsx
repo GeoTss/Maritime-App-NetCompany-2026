@@ -2,7 +2,7 @@
  * The storm cells a route plan's baseline meets: forecast cells over the heavy-weather limit around
  * the time the ship would be there. Drawn in alarm red like the hazards (they are keep-out areas
  * for this plan), with one callout on the worst cell: its highest wave and when it is over the
- * limit, each a fact chip from the plan (`inputs.stormCells.k.*`).
+ * limit, each a fact chip from the plan (the calculation row's `inputs.stormCells.k.*`).
  */
 import type { RoutePlanView } from "@pharos/shared";
 import circle from "@turf/circle";
@@ -11,13 +11,14 @@ import { Layer, Marker, Source } from "react-map-gl/maplibre";
 import type { MapColors } from "./basemap-style";
 import { FactCell } from "./fact-cell";
 import { LABEL_PRIORITY, useFlipLabel } from "./map-labels";
-import { factAtPath } from "./route-facts";
+import { dbFact } from "./route-facts";
 
 type Cell = NonNullable<RoutePlanView["stormCells"]>[number];
 
 function StormCallout({ plan, cell, index }: { plan: RoutePlanView; cell: Cell; index: number }) {
   const { ref, flip, below } = useFlipLabel<HTMLDivElement>(cell.center.lon, cell.center.lat);
-  const fact = (field: string) => factAtPath(plan.facts, `inputs.stormCells.${index}.${field}`);
+  // Stored inputs of the calculation are cited as its row's fields (`inputs.stormCells.k.*`).
+  const fact = (field: string) => dbFact(plan.facts, `inputs.stormCells.${index}.${field}`);
   return (
     <Marker longitude={cell.center.lon} latitude={cell.center.lat} anchor="center">
       <div className="relative size-0">

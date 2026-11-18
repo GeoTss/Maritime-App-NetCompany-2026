@@ -30,8 +30,12 @@ const DECIMALS: Record<string, number> = {
   days: 1,
   "%": 1,
   m: 1,
-  m3: 0,
+  // Sludge and sewage are a few m³: one decimal.
+  m3: 1,
 };
+
+/** How a unit is written when it differs from its code. */
+const UNIT_TEXT: Record<string, string> = { m3: "m³" };
 
 /** Decimals shown for a value in this unit. Unknown units: whole numbers as is, else 2. */
 export function displayDecimals(unit: string | null, value: number): number {
@@ -57,7 +61,7 @@ export function unitAffixes(unit: string | null): { prefix: string; suffix: stri
   if (!unit) return { prefix: "", suffix: "" };
   if (CURRENCY_UNITS.has(unit)) return { prefix: `${unit.toUpperCase()} `, suffix: "" };
   if (TIGHT_UNITS.has(unit)) return { prefix: "", suffix: unit };
-  return { prefix: "", suffix: ` ${unit}` };
+  return { prefix: "", suffix: ` ${UNIT_TEXT[unit] ?? unit}` };
 }
 
 const formatters = new Map<string, Intl.NumberFormat>();
