@@ -1,0 +1,203 @@
+# Using the Pharos console
+
+A guide to the ops console for the person at the bunker-to-berth desk, and for anyone watching a
+demo. It explains each screen, what the assistant will and will not do, and the shipping terms the
+console uses.
+
+To start the console, see the [quick start](../README.md#quick-start-no-keys). To present the
+six-minute demo, follow [`DEMO_SCRIPT.md`](DEMO_SCRIPT.md).
+
+## Three things to know first
+
+1. **Every number has a source.** A number in an answer or a panel is a fact chip. Open it to see
+   where it came from: a database record, a stored calculation, a sentence in a supplier email, an
+   AIS position or a weather snapshot.
+2. **You decide.** The assistant can propose a purchase order or a voyage instruction. Nothing is
+   ordered, recorded or changed until you approve it on the Approvals screen.
+3. **Nothing leaves the building.** Messages to the supplier and the master are drafted for you to
+   review and are marked "draft, not sent". The ERP is a local simulator.
+
+## The top bar
+
+![The map screen with the top bar, the Needs you column and the assistant](screenshots/phase-6/story-1-map.png)
+
+| Item | What it tells you |
+| --- | --- |
+| **Map, Inbox, Approvals, Evaluation** | The four screens. A count beside a name is how many items there wait for you |
+| **AIS** and **Weather** badges | Whether each source is `live` or `recorded` right now |
+| **sim** clock | The time the console's world is at. "pinned" means the recorded demo: the clock is frozen so the demo is the same every time |
+| **Go to** (Ctrl+K or Cmd+K) | Jump to a screen, a fleet vessel, a port, or any ship on the map by name or MMSI |
+
+Labels such as "simulated data" and "synthetic" are part of the product. The fleet, its fuel, the
+suppliers and the quotes are simulated company data; the public ships, the weather, the ports and
+the sea routes are real.
+
+## Map
+
+The map is where you see the fleet and plan a voyage.
+
+**Layers.** Switch each on or off: AIS traffic (public ships), Fleet (your vessels), Weather (wave
+height and direction), Hazards, and Port queues (ships at anchor). The forecast slider moves the
+weather overlay through the forecast.
+
+**Needs you.** The column on the left lists what is waiting: proposals awaiting your decision,
+vessel alerts, and reported hazards. Each has a shortcut, for example "Ask where to bunker" or
+"Show on map". Below it, a table shows fuel on board for every fleet vessel.
+
+**A fleet vessel.** Select a vessel to open its panel: alerts, fuel on board per grade against tank
+capacity, position, voyage, next port and ETA, and a curve of fuel on board along the current plan.
+A point where the curve crosses the safety margin is where the vessel runs short.
+
+**Plan route.** The button in the vessel panel compares routes and speeds against the weather
+forecast and the reported hazards. The route tray then shows two answers side by side:
+
+- the **best route ignoring fuel on board**, and where it would run short;
+- the **recommended plan**: route, speed and, when fuel is short, a bunker stop at a quote's port.
+  It shows the stop's arrival, waiting, weather and bunkering time, what the stop adds in hours and
+  dollars, the ETA against the berth window, and how the plan compares with the next feasible quote.
+
+![The route tray with the recommended plan and the bunker stop on the map](screenshots/phase-6/story-4-route-plan.png)
+
+Planning stores a calculation. Nothing is sent or changed.
+
+**Propose from the plan.** From a planned route you can propose the purchase order and the voyage
+instruction yourself, without asking the assistant. A proposal is pending until you decide it on
+Approvals. If the voyage already has that proposal, the console opens it instead of making a second
+one, and it tells you when a new instruction would replace the one in force.
+
+**Any ship on the map.** Select a public ship, choose a destination port and plan its route. The
+fuel figures then rest on the ship's reported draught; the console says which load condition it
+assumed.
+
+Routes are planning-grade. They are not for navigation.
+
+## Inbox
+
+The inbox turns supplier emails into quotes.
+
+**Getting an email in.** "Deliver next email" delivers the next demo email. You can also drop a
+`.eml` file onto the upload area. Extraction takes a few seconds; the row's status updates by
+itself.
+
+| Status | Meaning |
+| --- | --- |
+| Reading | Extraction is running |
+| Extracted | Every check passed. The quote is stored and the assistant can use it |
+| Needs review | At least one check failed. The quote waits for you |
+| Accepted after fix | You corrected and accepted it |
+| Not a quote | The email offers no quote. It is kept, and nothing is stored from it |
+| Extraction failed | The extraction did not finish. You can retry it |
+| Rejected | You rejected it |
+
+**Reading a quote.** Open an email to see it beside the extracted values. Hover or focus a value
+and the sentence it came from is highlighted in the email. Below the values, the checks list what
+was verified: for example that the price is within a band of the market price, that the quantity
+fits the vessel's tanks, and that the validity has not expired.
+
+**Fixing a quote.** When a check fails, the review form asks only for what the checks could not
+settle, and shows what the email said beside each field. In the demo, one email gives the quantity
+as "300/350 mt"; Pharos does not guess which. Enter the values, choose "Accept correction" and
+confirm with "Save corrected quote". Nothing is saved until you accept.
+
+![An email held for review, with the failed checks and the correction form](screenshots/phase-6/story-2-inbox.png)
+
+## The assistant
+
+The assistant sits in the panel on the right of every screen. Ask in plain language about a
+vessel, a quote, a route, a port or the fleet.
+
+**What happens when you ask.**
+
+1. While it works, the panel names each step it runs, for example the bunker plan or the route and
+   speed plan.
+2. The answer appears all at once. Pharos checks it first: every number must be a fact that one of
+   its tools returned. The line under the answer says the check passed.
+3. Numbers in the answer are fact chips. Open one for its source, with a link to the email or the
+   plan it came from.
+4. "Show on map" takes you to the vessel or the plan the answer is about.
+
+![An answer with fact chips, an open fact and the options table](screenshots/phase-6/story-3-bunker-answer.png)
+
+**If an answer is withheld.** When the check finds a number with no source, Pharos asks the model
+once to correct the answer. If that fails too, you see that the answer was withheld and how many
+numbers had no source, and none of its text. Ask again, or rephrase.
+
+**Proposals.** Ask the assistant to decide ("where should we buy?") or to instruct the master, and
+it creates a proposal and tells you so. A card links to it. Ask it only to compare or to look
+something up, and it proposes nothing.
+
+**What it can answer.** Fuel on board and where a vessel runs short; the quotes on record; where
+and from whom to bunker, ranked by total delivered cost; the best route and speed for a berth
+window; CO₂, EU ETS cost, FuelEU exposure and the CII rating of a voyage; how busy a port is; and
+arithmetic over figures it has already given ("how much more is that?").
+
+**What it will not do.** It does not order, send or change anything. It does not act on
+instructions written inside an email or an AIS message. It abstains when it has no data, rather
+than estimate.
+
+**In the recorded demo** the assistant can answer only the three suggested questions, in order.
+Any other question shows "This question has no recorded reply." Use "New conversation" and pick a
+suggested question, or switch to [live mode](../README.md#go-live).
+
+## Approvals
+
+Every proposal waits here until you decide.
+
+**The queue.** "Awaiting your decision" lists pending proposals; "Decided" lists the rest. Select
+one to see what it would do, the facts behind it, and the plan it came from.
+
+**Approve or reject.** Each asks you to confirm first.
+
+- Approving a **purchase order** creates the order from the stored plan and the supplier's quote
+  and pushes it to the ERP simulator, which returns a PO number.
+- Approving a **voyage instruction** records the route, speed, ETA and any bunker stop as the plan
+  in force. It sends nothing to the vessel.
+- Rejecting is final.
+
+**Order first, then instruction.** A voyage instruction that calls at a port to bunker depends on
+the purchase order for that fuel. Approve stays disabled, and says why, until the order is
+approved.
+
+**Drafted messages and the audit trail.** After an approval, open the proposal to read the drafted
+confirmation to the supplier and the instruction to the master. Each is marked "draft, not sent".
+The audit trail lists every step with who took it and when.
+
+![An approved purchase order with its drafted messages and the audit trail](screenshots/phase-6/story-5-approvals-po.png)
+
+## Evaluation
+
+This screen shows how accurate Pharos was when measured: extraction of quotes from emails, and
+question answering. Each figure is a count (k of N) with a 95 % interval, never a bare percentage.
+The held-out sets, which ran once, are shown beside the dev sets used during the build. Each entry
+names its model, prompt version, run date and cost per item.
+
+How the numbers were produced, and where they stop, is in [`APPROACH.md`](APPROACH.md).
+
+## Keyboard
+
+The console is operable by keyboard throughout, with visible focus. Ctrl+K or Cmd+K opens the
+"Go to" menu from any screen. Dialogs close with Escape. Reduced-motion settings are respected.
+
+## Glossary
+
+| Term | Meaning |
+| --- | --- |
+| AIS | Automatic Identification System: the position, speed and destination that ships broadcast |
+| MMSI | The nine-digit number that identifies a ship's AIS transmitter |
+| IMO number | A ship's permanent seven-digit identity number |
+| UN/LOCODE | The five-character code for a port, for example `NLRTM` for Rotterdam |
+| Bunkering | Taking on fuel. A bunker stop is a port call to do so |
+| LSMGO, VLSFO, HSFO | Fuel grades: low-sulphur marine gas oil, very-low-sulphur fuel oil, high-sulphur fuel oil |
+| Fuel on board | What is left in the tanks, per grade. Also written ROB (remaining on board) |
+| Safety margin | The reserve of fuel a plan must never go below |
+| Noon report | The vessel's daily report of position, speed and fuel |
+| Barge fee | The supplier's charge for delivering fuel by barge, on top of the price per tonne |
+| Total delivered cost | Fuel, barge fee, the cost of deviating and of delay, and carbon costs. Pharos ranks quotes by this, not by headline price |
+| Berth window | The time by which the vessel must arrive to keep its berth |
+| ETA | Estimated time of arrival |
+| ECA | Emission control area: waters where only low-sulphur fuel may be burned |
+| EU ETS | The EU Emissions Trading System: a cost per tonne of CO₂ on voyages to, from and within the EU |
+| FuelEU Maritime | An EU rule that penalises fuel above a greenhouse-gas intensity limit. Pharos shows it as an exposure: the penalty if nothing offsets it |
+| CII | Carbon Intensity Indicator: a yearly rating, A to E, of a ship's CO₂ per unit of transport work |
+| Laden, ballast | Carrying cargo, or sailing empty. A ship in ballast burns less at the same speed |
+| kn, nm, mt | Knots, nautical miles, metric tonnes |
