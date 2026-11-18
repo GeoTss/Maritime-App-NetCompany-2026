@@ -10,7 +10,9 @@ const HOUR_MS = 3_600_000;
 const MAX_STEPS = 10_000;
 
 /**
- * Bunkering may start at `ready` = arrival + waiting. It starts at `ready` when the sample there is
+ * Clearance follows the waiting; the service (bunkering, storing and waste delivery alongside each
+ * other: `serviceHours`, default `bunkeringHours`) may start at `ready` = arrival + waiting +
+ * clearance (default 0). It starts at `ready` when the sample there is
  * workable, else at the first forecast step after `ready` whose sample is. A missing sample (outside
  * the grid or past the forecast) counts as workable and sets `beyondForecast`.
  */
@@ -19,10 +21,14 @@ export function stopTimeline(args: {
   position: LatLon;
   waitingHours: number;
   bunkeringHours: number;
+  clearanceHours?: number;
+  serviceHours?: number;
   weather: WeatherGrid | null;
 }): StopTimeline {
   const { arriveAt, position, waitingHours, bunkeringHours, weather } = args;
-  const readyMs = arriveAt.getTime() + waitingHours * HOUR_MS;
+  const clearanceHours = args.clearanceHours ?? 0;
+  const serviceHours = args.serviceHours ?? bunkeringHours;
+  const readyMs = arriveAt.getTime() + (waitingHours + clearanceHours) * HOUR_MS;
   let startMs = readyMs;
   let beyondForecast = true;
   if (weather) {
@@ -50,9 +56,9 @@ export function stopTimeline(args: {
     waitingHours,
     weatherDelayHours: (startMs - readyMs) / HOUR_MS,
     bunkeringHours,
-    clearanceHours: 0,
-    serviceHours: bunkeringHours,
-    departAt: new Date(startMs + bunkeringHours * HOUR_MS).toISOString(),
+    clearanceHours,
+    serviceHours,
+    departAt: new Date(startMs + serviceHours * HOUR_MS).toISOString(),
     beyondForecast,
   };
 }
