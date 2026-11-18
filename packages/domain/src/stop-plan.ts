@@ -19,6 +19,7 @@ import {
 } from "@pharos/shared";
 import { areaPasses } from "./areas.js";
 import { stopTimeline } from "./bunker-stop.js";
+import { HEAVY_WEATHER_MAX_WAVE_M } from "./constants.js";
 import { portStayFuelMt } from "./consumption.js";
 import { co2Tonnes, etsCost } from "./emissions.js";
 import { fuelEuCost } from "./fueleu.js";
@@ -237,6 +238,7 @@ export function evaluateStopPlan(
   }
   if (stop.offeredQtyMt < stop.qtyMt) reasons.push("insufficient_quantity");
   if (call) for (const r of call.reasons) if (!reasons.includes(r)) reasons.push(r);
+  if (fuel.maxWaveHeightM > HEAVY_WEATHER_MAX_WAVE_M) reasons.push("heavy_weather");
   if (
     (stop.deliveryFrom !== null && arrivalMs < Date.parse(stop.deliveryFrom)) ||
     (stop.deliveryTo !== null && arrivalMs > Date.parse(stop.deliveryTo))

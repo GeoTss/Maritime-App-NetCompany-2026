@@ -26,6 +26,7 @@ export * from "./price-band.js";
 export * from "./route-graph.js";
 export * from "./route-optimiser.js";
 export * from "./stop-plan.js";
+export * from "./storms.js";
 export * from "./track.js";
 export * from "./track-fuel.js";
 export * from "./units.js";
