@@ -1,6 +1,6 @@
 {
-  "phase": 7,
-  "phaseName": "Complete — all phases gated (prototype done)",
+  "phase": 9,
+  "phaseName": "Port call and storm avoidance (in progress)",
   "lastGate": {
     "phase": 7,
     "result": "PASS",
@@ -18,7 +18,12 @@
       "evalLog": "docs/EVAL_LOG.md",
       "plan": "docs/superpowers/plans/2026-11-16-phase-7-final-measurement.md",
       "userDecisions": "keep the 15 Nov recorded fixtures; Phase 7 budget $1.00; plan approved; held-out go-ahead \"Run both\" (2026-11-16)",
-      "spendUsd": { "phase7Total": 0.183435, "cap": 1, "heldout": 0.162785, "liveStory": 0.015949 },
+      "spendUsd": {
+        "phase7Total": 0.183435,
+        "cap": 1,
+        "heldout": 0.162785,
+        "liveStory": 0.015949
+      },
       "latencySeconds": {
         "liveFirstProgressMax": 2.85,
         "liveAnswerMax": 9.27,
@@ -31,5 +36,8 @@
     }
   },
   "modelDecision": "Claude Haiku 5.5 only for extraction and agent evals (user decision 2026-11-14); held-out measured once on Haiku 5.5 with extract-quote/v2 and agent-system/v5.",
-  "keyCheckpoints": { "2": ["ANTHROPIC_API_KEY"], "5": ["AISSTREAM_API_KEY"] }
+  "keyCheckpoints": {
+    "2": ["ANTHROPIC_API_KEY"],
+    "5": ["AISSTREAM_API_KEY"]
+  }
 }
