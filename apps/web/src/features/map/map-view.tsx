@@ -40,6 +40,7 @@ import { HazardLayer } from "./hazard-layer";
 import type { LayerState } from "./layer-toggles";
 import { declutterLabels, MapInsetContext } from "./map-labels";
 import { planBounds, RouteLayer } from "./route-layer";
+import { StormLayer } from "./storm-layer";
 import { drawShipArrow, SHIP_ARROW_IMAGE, TRAFFIC_LAYER_IDS, TrafficLayer } from "./traffic-layer";
 import { WeatherLayer } from "./weather-layer";
 
@@ -353,6 +354,7 @@ export function MapView(props: MapViewProps) {
         {layers.hazards ? (
           <HazardLayer hazards={hazards} colors={colors} showId={hazardShown(focus)} />
         ) : null}
+        {layers.hazards ? <StormLayer plan={plan} colors={colors} /> : null}
         <RouteLayer plan={plan} track={track} colors={colors} ports={ports} />
         {layers.traffic ? (
           <TrafficLayer traffic={traffic} colors={colors} selectedMmsi={selectedMmsi} />

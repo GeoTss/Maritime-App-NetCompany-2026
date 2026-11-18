@@ -402,6 +402,7 @@ async function routePlan(sql: Sql, id: Id): Promise<RoutePlanView | null> {
     destination: plan.destination.name,
     candidates: viewCandidates(plan.input.candidates, stored.stops),
     result,
+    stormCells: plan.stormCells ?? [],
     facts: routePlanFacts({
       response: { calculationId: row.id, result },
       plan,

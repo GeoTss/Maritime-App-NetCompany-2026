@@ -295,6 +295,7 @@ export async function planRouteSpeed(
       destination: plan.destination.name,
       candidates: viewCandidates(plan.input.candidates, plan.input.stops),
       result,
+      stormCells: plan.stormCells,
       computeMs,
     },
     plan,

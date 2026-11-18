@@ -19,6 +19,7 @@ import {
 import { NormalisedView } from "./evals/extraction-truth.js";
 import { ExtractionOutput } from "./extraction/index.js";
 import { Fact, FactId } from "./facts.js";
+import { StormCell } from "./port-call.js";
 import {
   Currency,
   EtsCoverageFactor,
@@ -564,6 +565,8 @@ export const RoutePlanResponse = z
     result: RouteSpeedResult,
     /** The plan's citable facts, the ones `plan_route_speed` returns: every number the map shows. */
     facts: z.array(Fact),
+    /** Forecast cells over the heavy-weather limit the baseline meets (for the map); absent in old plans. */
+    stormCells: z.array(StormCell).optional(),
     /** Milliseconds to plan: resolving the subject, building the route graph and candidates, optimising. */
     computeMs: z.number().nonnegative(),
   })

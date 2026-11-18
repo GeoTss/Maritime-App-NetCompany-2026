@@ -187,8 +187,10 @@ export function stopGrade(
 export type StopField =
   | "arriveAt"
   | "waitingHours"
+  | "clearanceHours"
   | "weatherDelayHours"
   | "bunkeringHours"
+  | "serviceHours"
   | "departAt";
 
 /** A field of a stop plan's timeline: `stopPlans[i].stop.arriveAt`. */
