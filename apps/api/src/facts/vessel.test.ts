@@ -80,7 +80,9 @@ describe.skipIf(!sql)("vessel facts (Postgres)", () => {
   it("vessel without a voyage", async () => {
     await idle(IDLE_VESSEL);
     const detail = await detailOf(IDLE_VESSEL);
-    expect(detail.facts).toEqual({
+    // An idle vessel still carries its stores (`needs`); every voyage fact is null.
+    const { robMt, voyageNo, nextPort, nextPortEta } = detail.facts;
+    expect({ robMt, voyageNo, nextPort, nextPortEta }).toEqual({
       robMt: null,
       voyageNo: null,
       nextPort: null,

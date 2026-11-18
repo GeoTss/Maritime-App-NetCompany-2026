@@ -19,6 +19,7 @@ import type {
   WeatherGrid,
 } from "@pharos/shared";
 import { vesselRowFacts } from "../facts/vessel.js";
+import { vesselNeedsFacts } from "../facts/vessel-needs.js";
 
 export const LSMGO_ALERT = "lsmgo_below_margin_for_eca";
 /** LSMGO runs out before arrival on the current plan (a stronger form of LSMGO_ALERT). */
@@ -32,7 +33,7 @@ export function must<T>(v: T | undefined | null, what: string): T {
 /** The facts behind the panel readouts: the tool's own, from the one builder. */
 function vesselFacts(world: World, vessel: Vessel, now: Date): VesselFacts {
   const { robMt, voyageNo, nextPort, nextPortEta } = vesselRowFacts(world, vessel, now);
-  return { robMt, voyageNo, nextPort, nextPortEta };
+  return { robMt, voyageNo, nextPort, nextPortEta, needs: vesselNeedsFacts(world, vessel) };
 }
 
 /**

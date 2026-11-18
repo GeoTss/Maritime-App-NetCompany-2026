@@ -16,16 +16,21 @@ import type { RoutePlan } from "@pharos/db";
 import { type DraughtCondition, loadFactor } from "@pharos/domain";
 import {
   type AisTraffic,
+  type CostLine,
   type Fact,
   FUEL_GRADES,
   type FuelBreakpoint,
   type FuelGrade,
   type Id,
   type NavHazard,
+  type PortCallJob,
+  type PortCallResult,
+  type PreArrivalNotice,
   type RouteSpeedInput,
   type RouteSpeedResult,
   type StopPlanResult,
   type StopTimeline,
+  type StormCell,
   type TrackFuel,
 } from "@pharos/shared";
 import { calcFact, dbFact, factId } from "../facts/core.js";
@@ -45,6 +50,8 @@ export type RouteFactPlan = Pick<RoutePlan, "subject" | "profile"> & {
   input: Pick<RoutePlan["input"], "candidates" | "arriveBy"> &
     Partial<Pick<RouteSpeedInput, "curve">>;
   loadCondition?: DraughtCondition | null;
+  /** The forecast cells over the heavy-weather limit the baseline meets (absent in old plans). */
+  stormCells?: StormCell[];
 };
 
 export interface RouteFactRow {
@@ -111,7 +118,8 @@ const OPTION_FIELDS: {
     | "etsCostUsd"
     | "fuelEuCostUsd"
     | "totalCostUsd"
-    | "weatherDelayHours";
+    | "weatherDelayHours"
+    | "maxWaveHeightM";
   text: (d: string) => string;
   unit: string | null;
 }[] = [
@@ -128,6 +136,7 @@ const OPTION_FIELDS: {
     unit: "USD",
   },
   { key: "weatherDelayHours", text: () => "weather delay", unit: "h" },
+  { key: "maxWaveHeightM", text: () => "highest wave met", unit: "m" },
 ];
 
 /**
@@ -144,6 +153,7 @@ type StopPlanKey = keyof Pick<
   | "bunkerFuelCostUsd"
   | "bargeFeeUsd"
   | "totalCostUsd"
+  | "maxWaveHeightM"
 >;
 type StopKey = keyof Omit<StopTimeline, "beyondForecast">;
 const STOP_PLAN_FIELDS: ({ text: (d: string) => string; unit: string | null } & (
@@ -156,7 +166,13 @@ const STOP_PLAN_FIELDS: ({ text: (d: string) => string; unit: string | null } & 
   { stopKey: "arriveAt", text: () => "arrival at the bunker stop (UTC)", unit: null },
   { stopKey: "waitingHours", text: () => "waiting at the bunker stop", unit: "h" },
   { stopKey: "weatherDelayHours", text: () => "weather delay before bunkering", unit: "h" },
+  { stopKey: "clearanceHours", text: () => "clearance on arrival", unit: "h" },
   { stopKey: "bunkeringHours", text: () => "bunkering time", unit: "h" },
+  {
+    stopKey: "serviceHours",
+    text: () => "time alongside (bunkering, stores and waste delivery together)",
+    unit: "h",
+  },
   { stopKey: "departAt", text: () => "departure from the bunker stop (UTC)", unit: null },
   { key: "qtyMt", text: () => "quantity bought", unit: "mt" },
   {
@@ -168,10 +184,112 @@ const STOP_PLAN_FIELDS: ({ text: (d: string) => string; unit: string | null } & 
   { key: "bargeFeeUsd", text: () => "barge fee", unit: "USD" },
   {
     key: "totalCostUsd",
-    text: () => "plan total (voyage cost, fuel bought and barge fee)",
+    text: () => "plan total (voyage cost, fuel bought, barge fee and port call)",
     unit: "USD",
   },
+  { key: "maxWaveHeightM", text: () => "highest wave met", unit: "m" },
 ];
+
+const JOB_TEXT: Record<PortCallJob["kind"], string> = {
+  provisions: "provisions (person-days)",
+  charts: "charts and publications (items)",
+  sludge: "sludge delivered ashore",
+  sewage: "sewage delivered ashore",
+};
+const COST_TEXT: Record<CostLine["kind"], string> = {
+  port_dues: "port dues, agency and pilotage",
+  provisions: "provisions",
+  charts: "charts and publications",
+  sludge: "sludge delivery",
+  sewage: "sewage delivery",
+  eu_waste_fee: "EU waste fee",
+};
+const NOTICE_TEXT: Record<PreArrivalNotice["kind"], string> = {
+  agent_appointment: "agent appointment",
+  security_pre_arrival: "security pre-arrival information",
+  eu_waste_notification: "EU advance waste notification",
+};
+
+/** The port call's facts under `stopPlans[i].portCall`: jobs needed, costs, levels, notices, charts. */
+function portCallRows(call: PortCallResult, p: string, P: string, D: string): RouteFactRow[] {
+  const rows: RouteFactRow[] = [];
+  const c = `${p}.portCall`;
+  call.jobs.forEach((j, k) => {
+    if (!j.needed) return;
+    rows.push(
+      {
+        path: `${c}.jobs[${k}].done`,
+        label: `${P}: ${JOB_TEXT[j.kind]} done at the stop`,
+        value: j.done,
+        unit: null,
+      },
+      {
+        path: `${c}.jobs[${k}].qty`,
+        label: `${P}: ${JOB_TEXT[j.kind]} quantity`,
+        value: j.qty,
+        unit: j.unit === "m3" ? "m3" : null,
+      },
+      {
+        path: `${c}.jobs[${k}].costUsd`,
+        label: `${P}: ${JOB_TEXT[j.kind]} cost`,
+        value: j.costUsd,
+        unit: "USD",
+      },
+    );
+  });
+  call.costLines.forEach((l, k) => {
+    rows.push({
+      path: `${c}.costLines[${k}].usd`,
+      label: `${P}: ${COST_TEXT[l.kind]}`,
+      value: l.usd,
+      unit: "USD",
+    });
+  });
+  rows.push(
+    {
+      path: `${c}.extraCostUsd`,
+      label: `${P}: port call cost (dues, stores, charts and waste)`,
+      value: call.extraCostUsd,
+      unit: "USD",
+    },
+    {
+      path: `${c}.provisionsDaysAtEta`,
+      label: `${P}: provisions left at ${D}`,
+      value: call.provisionsDaysAtEta,
+      unit: "days",
+    },
+    {
+      path: `${c}.sludgeM3AtEta`,
+      label: `${P}: sludge on board at ${D}`,
+      value: call.sludgeM3AtEta,
+      unit: "m3",
+    },
+    {
+      path: `${c}.sewageM3AtEta`,
+      label: `${P}: sewage on board at ${D}`,
+      value: call.sewageM3AtEta,
+      unit: "m3",
+    },
+  );
+  call.notices.forEach((n, k) => {
+    rows.push({
+      path: `${c}.notices[${k}].dueAt`,
+      label: `${P}: ${NOTICE_TEXT[n.kind]} due (UTC)`,
+      value: n.dueAt,
+      unit: null,
+    });
+  });
+  call.outdated.forEach((o, k) => {
+    if (o.neededAt === null) return;
+    rows.push({
+      path: `${c}.outdated[${k}].neededAt`,
+      label: `${P}: ${o.kind} ${o.itemId} (${o.title}) out of date, needed by (UTC)`,
+      value: o.neededAt,
+      unit: null,
+    });
+  });
+  return rows;
+}
 
 /** The fuel-on-board breakpoints a stop plan cites for the grade it buys. */
 const STOP_FUEL_POINTS: { kind: FuelBreakpoint["kind"]; text: (g: string, d: string) => string }[] =
@@ -333,6 +451,7 @@ function planRows(result: RouteSpeedResult, S: string, D: string): RouteFactRow[
         "key" in f ? [f.key, sp[f.key]] : [`stop.${f.stopKey}`, stop[f.stopKey]];
       rows.push({ path: `${p}.${field}`, label: `${P}: ${f.text(D)}`, value, unit: f.unit });
     }
+    if (sp.portCall) rows.push(...portCallRows(sp.portCall, p, P, D));
     if (stop.beyondForecast) {
       rows.push({
         path: `${p}.stop.beyondForecast`,
@@ -410,6 +529,14 @@ export function routeSpeedFactRows(
       label: `${S}, route ${X}: passes through a reported hazard`,
       value: o.crossesHazard,
       unit: null,
+    });
+    o.reasons.forEach((reason, k) => {
+      rows.push({
+        path: p(`reasons[${k}]`),
+        label: routeOptionLabel(S, X, "reason it is not feasible"),
+        value: reason,
+        unit: null,
+      });
     });
     if (o.fuel) {
       rows.push(...optionFuelRows(o.fuel, p("fuel"), (t) => routeOptionLabel(S, X, t), D));
@@ -489,6 +616,29 @@ export function routeSpeedFactRows(
     });
   }
   rows.push(...planRows(result, S, D));
+  (plan.stormCells ?? []).forEach((cell, k) => {
+    const at = `${S}: storm cell at ${cell.center.lat}°, ${cell.center.lon}°`;
+    rows.push(
+      {
+        path: `inputs.stormCells.${k}.maxWaveHeightM`,
+        label: `${at}, highest wave`,
+        value: cell.maxWaveHeightM,
+        unit: "m",
+      },
+      {
+        path: `inputs.stormCells.${k}.from`,
+        label: `${at}, over the limit from (UTC)`,
+        value: cell.from,
+        unit: null,
+      },
+      {
+        path: `inputs.stormCells.${k}.to`,
+        label: `${at}, over the limit until (UTC)`,
+        value: cell.to,
+        unit: null,
+      },
+    );
+  });
   // The load the plan's curve carries: displacement and its load factor (fleet vessel: the
   // voyage's cargo and ballast; AIS ship: from its draught, or assumed laden).
   const curve = plan.input.curve;

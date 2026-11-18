@@ -100,6 +100,15 @@ export function outdatedItems(
   return out;
 }
 
+/** Catalogue items missing on board or held at an older edition, wherever the vessel sails. */
+export function outdatedOnBoard(onBoard: OnBoardItem[], catalogue: NauticalItem[]): NauticalItem[] {
+  const held = new Map(onBoard.map((o) => [o.itemId, o.editionDate]));
+  return catalogue.filter((i) => {
+    const mine = held.get(i.itemId);
+    return mine === undefined || mine < i.editionDate;
+  });
+}
+
 export interface PortCallArgs {
   stores: VesselStores;
   terms: PortCallTerms;

@@ -2,6 +2,7 @@ import type { NauticalItem, PortCallTerms, VesselStores } from "@pharos/shared";
 import { describe, expect, it } from "vitest";
 import {
   outdatedItems,
+  outdatedOnBoard,
   type PortCallArgs,
   portCallPlan,
   preArrivalNotices,
@@ -167,5 +168,30 @@ describe("outdatedItems", () => {
       outdatedItems(current, [chart], passes, { nm: 0, position: { lat: 0, lon: 0 } }, at),
     ).toEqual([]);
     expect(outdatedItems([], [chart], [], { nm: 0, position: { lat: 0, lon: 0 } }, at)).toEqual([]);
+  });
+});
+
+describe("outdatedOnBoard", () => {
+  it("lists catalogue items held at an older edition or missing, in catalogue order", () => {
+    const item = (itemId: string, editionDate: string): NauticalItem => ({
+      itemId,
+      kind: "chart",
+      title: itemId,
+      edition: editionDate.slice(0, 4),
+      editionDate,
+      priceUsd: 45,
+      coverage: [],
+      source: "t",
+    });
+    const catalogue = [
+      item("142", "2026-04-30"),
+      item("773", "2026-05-14"),
+      item("NP022", "2024-01-01"),
+    ];
+    const onBoard = [
+      { itemId: "142", edition: "2023", editionDate: "2023-06-01" },
+      { itemId: "NP022", edition: "15", editionDate: "2024-01-01" },
+    ];
+    expect(outdatedOnBoard(onBoard, catalogue).map((i) => i.itemId)).toEqual(["142", "773"]);
   });
 });
