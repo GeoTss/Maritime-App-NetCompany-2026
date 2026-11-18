@@ -7,7 +7,7 @@
 import { imoWithCheckDigit } from "@pharos/domain";
 import type { ConsumptionCurve, Currency, FuelGrade, GradeAmounts, ShipType } from "@pharos/shared";
 
-export const SEED_VERSION = "joint-plan-v1";
+export const SEED_VERSION = "port-call-v1";
 
 export interface ScenarioPort {
   unlocode: string;

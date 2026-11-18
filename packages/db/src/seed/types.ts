@@ -1,6 +1,7 @@
 import {
   BunkerRequirement,
   LatLon,
+  NauticalItem,
   NoonReport,
   OrderLine,
   Port,
@@ -57,5 +58,6 @@ export const World = z.object({
   purchaseOrders: z.array(PurchaseOrder),
   orderLines: z.array(OrderLine),
   referenceRates: z.array(ReferenceRate),
+  nauticalItems: z.array(NauticalItem),
 });
 export type World = z.infer<typeof World>;

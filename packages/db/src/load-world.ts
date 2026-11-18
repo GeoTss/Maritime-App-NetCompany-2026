@@ -44,6 +44,10 @@ export async function loadWorld(sql: Sql): Promise<World> {
       .select()
       .from(schema.referenceRates)
       .orderBy(asc(schema.referenceRates.id)),
+    nauticalItems: await db
+      .select()
+      .from(schema.nauticalItems)
+      .orderBy(asc(schema.nauticalItems.itemId)),
   };
   return World.parse({
     meta: { seed: meta.seed, anchor: meta.anchor, seedVersion: meta.seedVersion },

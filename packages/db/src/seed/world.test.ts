@@ -83,7 +83,8 @@ describe("synthetic world", () => {
     const nullable = new Set(["extractionId", "recommendationId"]);
     let checked = 0;
     for (const [name, rows] of Object.entries(world)) {
-      if (name === "meta") continue;
+      // nauticalItems.itemId is the catalogue's own key (a sales number), not a foreign key.
+      if (name === "meta" || name === "nauticalItems") continue;
       for (const row of rows as Record<string, unknown>[]) {
         for (const [key, val] of Object.entries(row)) {
           if (key === "portIds" || key === "plannedRoute") {
@@ -322,5 +323,34 @@ describe("synthetic world", () => {
     expect(a.voyageEtsCoverage).toBe(0.5);
     expect(a.berthWindowSlackHours).toBe(48);
     expect(a.market).toEqual({ fxToUsd: { USD: 1, EUR: 1.08 }, euaPriceEur: 75, year: 2026 });
+  });
+});
+
+describe("port-call seed (port-call-v1)", () => {
+  const world = generateWorld({ seed: 42, anchor: ANCHOR });
+
+  it("Aegean Pioneer carries four items older than the catalogue's current editions", () => {
+    const ap = world.vessels.find((v) => v.name === "MV Aegean Pioneer");
+    expect(ap?.stores?.crew).toBe(22);
+    const current = new Map(world.nauticalItems.map((i) => [i.itemId, i.editionDate]));
+    const stale = (ap?.stores?.onBoard ?? [])
+      .filter((o) => o.editionDate < (current.get(o.itemId) ?? ""))
+      .map((o) => o.itemId)
+      .sort();
+    expect(stale).toEqual(["142", "773", "NP022", "NP078"]);
+    expect(world.nauticalItems).toHaveLength(20);
+  });
+
+  it("every port has call terms, Marsaxlokk's as seeded and Sines without stores", () => {
+    expect(world.ports.every((p) => p.callTerms)).toBe(true);
+    const port = (u: string) => world.ports.find((p) => p.unlocode === u)?.callTerms;
+    expect(port("MTMLA")).toMatchObject({
+      portDuesUsd: 3200,
+      clearanceHours: 2,
+      euWasteFeeUsd: 950,
+    });
+    expect(port("PTSIE")?.stores).toBe(false);
+    expect(port("GIGIB")?.euWasteFeeUsd).toBe(0);
+    expect(() => World.parse(world)).not.toThrow();
   });
 });

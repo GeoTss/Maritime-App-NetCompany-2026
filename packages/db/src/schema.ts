@@ -3,6 +3,7 @@
  * Drizzle instance and drizzle.config use `casing: "snake_case"`). Checked by `schema.test.ts`.
  */
 import type {
+  Box,
   CheckResult,
   ConsumptionCurve,
   DraftedMessage,
@@ -443,6 +444,18 @@ export const auditEvents = pgTable("audit_events", {
   actor: text().notNull(),
   detail: jsonb().$type<unknown>(),
   at: ts().notNull(),
+});
+
+/** Charts and publications at their current editions (seeded from the supplier checklist). */
+export const nauticalItems = pgTable("nautical_items", {
+  itemId: text().primaryKey(),
+  kind: text().$type<"chart" | "publication">().notNull(),
+  title: text().notNull(),
+  edition: text().notNull(),
+  editionDate: text().notNull(),
+  priceUsd: doublePrecision().notNull(),
+  coverage: jsonb().$type<Box[]>().notNull(),
+  source: text().notNull(),
 });
 
 export const referenceRates = pgTable("reference_rates", {
