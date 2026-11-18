@@ -5,6 +5,7 @@
 import { z } from "zod";
 import { ConsumptionCurve } from "./calculators.js";
 import { FactId } from "./facts.js";
+import { PortCallTerms, VesselStores } from "./port-call.js";
 import {
   Currency,
   EtsCoverageFactor,
@@ -31,6 +32,8 @@ export const Port = z.object({
   inEca: z.boolean(),
   /** Extra distance (nm) to come off the passage line to this port's bunkering anchorage and back. */
   approachNm: NonNeg,
+  /** What the port offers and charges a calling vessel (synthetic); null = unknown. */
+  callTerms: PortCallTerms.nullable().optional(),
 });
 export type Port = z.infer<typeof Port>;
 
@@ -72,6 +75,8 @@ export const Vessel = z.object({
   consumptionCurve: ConsumptionCurve,
   /** Time-charter-equivalent cost of a day, used to price delay. */
   dailyCostUsd: NonNeg,
+  /** Crew, provisions, waste and charts on board (synthetic); null = unknown. */
+  stores: VesselStores.nullable().optional(),
 });
 export type Vessel = z.infer<typeof Vessel>;
 
@@ -384,7 +389,12 @@ export type Recommendation = z.infer<typeof Recommendation>;
 export const DraftedMessage = z.object({
   id: Id,
   recommendationId: Id,
-  kind: z.enum(["supplier_confirmation", "master_instruction"]),
+  kind: z.enum([
+    "supplier_confirmation",
+    "master_instruction",
+    "agent_request",
+    "pre_arrival_notice",
+  ]),
   to: z.string().min(1),
   subject: z.string().min(1),
   body: z.string().min(1),

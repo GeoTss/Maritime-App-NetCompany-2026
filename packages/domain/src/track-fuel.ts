@@ -231,6 +231,7 @@ export function projectFuelAlongTrack(input: TrackFuelInput, stayHours?: StayHou
     breakpoints,
     grades: { LSMGO: grades.LSMGO, VLSFO: grades.VLSFO, HSFO: grades.HSFO },
     keepsMargins: FUEL_GRADES.every((g) => below[g] === null),
+    maxWaveHeightM: walked.reduce((m, s) => Math.max(m, s.waveHeightM ?? 0), 0),
     probes,
   };
 }

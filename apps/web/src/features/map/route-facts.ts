@@ -96,6 +96,7 @@ const REASON: Record<InfeasibleReason, string> = {
   crosses_hazard: "Blocked: crosses the reported hazard",
   misses_arrive_by: "Blocked: arrives after the berth window closes",
   insufficient_fuel: "Blocked: runs below the fuel margin",
+  heavy_weather: "Blocked: meets waves over the heavy-weather limit",
 };
 
 export function reasonText(reason: InfeasibleReason): string {
@@ -110,6 +111,10 @@ const STOP_REASON: Record<StopPlanReason, string> = {
   insufficient_quantity: "the quote offers less than the quantity needed",
   outside_delivery_window: "arrives outside the quote's delivery window",
   no_sea_route: "no sea route through the port",
+  provisions_unavailable: "the port cannot supply the provisions the voyage needs",
+  waste_reception_unavailable: "the port cannot take the waste the voyage must deliver",
+  notice_overdue: "a pre-arrival notice is already overdue",
+  heavy_weather: "meets waves over the heavy-weather limit",
 };
 
 /** Why a stop plan cannot be proposed, in words (lower case: it follows the quote's name). */

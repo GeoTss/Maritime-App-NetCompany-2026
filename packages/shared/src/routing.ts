@@ -1,6 +1,7 @@
 /** Route and speed optimiser, weather grid, sea network and congestion contracts (pure maths inputs/outputs). */
 import { z } from "zod";
 import { ConsumptionCurve, SignedGradeAmounts } from "./calculators.js";
+import { NauticalItem, PortCallResult, PortCallTerms, VesselStores } from "./port-call.js";
 import {
   EtsCoverageFactor,
   FuelGrade,
@@ -139,6 +140,10 @@ export const StopTimeline = z
     waitingHours: NonNeg,
     weatherDelayHours: NonNeg,
     bunkeringHours: NonNeg,
+    /** Customs, immigration and survey after waiting, before the service starts. */
+    clearanceHours: NonNeg,
+    /** Bunkering, storing and waste delivery run alongside: the longest of the jobs done here. */
+    serviceHours: NonNeg,
     departAt: IsoDateTime,
     /** The workable-weather window ran past the end of the forecast (counted as workable). */
     beyondForecast: z.boolean(),
@@ -154,6 +159,8 @@ export const TrackFuel = z
       .strict(),
     /** Every grade stays at or above its margin at every sub-step end and at stop arrival. */
     keepsMargins: z.boolean(),
+    /** Highest wave height sampled on the walk (m); 0 without weather. */
+    maxWaveHeightM: NonNeg,
     probes: z.array(AlongTrack.extend({ robMt: SignedGradeAmounts }).strict()),
   })
   .strict();
@@ -217,6 +224,8 @@ export const StopCandidate = z
     orderRecommendationId: Id.nullable(),
     /** Set when the sea graph cannot route through the port: the plan is reported, not evaluated. */
     routeError: z.string().nullable(),
+    /** What the port offers and charges for the call; absent or null = fuel only (as before). */
+    terms: PortCallTerms.nullable().optional(),
   })
   .strict();
 export type StopCandidate = z.infer<typeof StopCandidate>;
@@ -244,6 +253,10 @@ export const RouteSpeedInput = z
       .nullable(),
     /** Bunker stops to evaluate beside the candidates. */
     stops: z.array(StopCandidate),
+    /** The vessel's stores and waste; absent or null = no port-call planning (AIS ships). */
+    stores: VesselStores.nullable().optional(),
+    /** Charts and publications at their current editions, for the out-of-date check. */
+    nautical: z.array(NauticalItem).optional(),
   })
   .strict();
 export type RouteSpeedInput = z.infer<typeof RouteSpeedInput>;
@@ -275,7 +288,9 @@ export const RouteOptionResult = z
     crossesHazard: z.boolean(),
     /** Ids of the hazard zones the route passes through, sorted. */
     hazardIds: z.array(z.string()),
-    reasons: z.array(z.enum(["misses_arrive_by", "crosses_hazard", "insufficient_fuel"])),
+    reasons: z.array(
+      z.enum(["misses_arrive_by", "crosses_hazard", "insufficient_fuel", "heavy_weather"]),
+    ),
     /** Fuel on board along the option; null when the input has no fuel. */
     fuel: TrackFuel.nullable(),
   })
@@ -290,6 +305,10 @@ export const StopPlanReason = z.enum([
   "insufficient_quantity",
   "outside_delivery_window",
   "no_sea_route",
+  "provisions_unavailable",
+  "waste_reception_unavailable",
+  "notice_overdue",
+  "heavy_weather",
 ]);
 export type StopPlanReason = z.infer<typeof StopPlanReason>;
 
@@ -319,6 +338,10 @@ export const StopPlanResult = z
     totalCostUsd: NonNeg,
     qtyMt: Positive,
     hazardIds: z.array(z.string()),
+    /** Highest wave height sampled along the plan (m). */
+    maxWaveHeightM: NonNeg,
+    /** The whole call; null when the vessel has no stores data or the port no terms. */
+    portCall: PortCallResult.nullable(),
     feasible: z.boolean(),
     reasons: z.array(StopPlanReason),
   })

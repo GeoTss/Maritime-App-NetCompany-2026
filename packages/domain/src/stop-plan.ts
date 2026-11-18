@@ -51,6 +51,8 @@ function noSeaRoute(input: RouteSpeedInput, stop: StopCandidate, speedKn: number
     totalCostUsd: 0,
     qtyMt: stop.qtyMt,
     hazardIds: [],
+    maxWaveHeightM: 0,
+    portCall: null,
     feasible: false,
     reasons: ["no_sea_route"],
   };
@@ -190,6 +192,8 @@ export function evaluateStopPlan(
     totalCostUsd: voyageCostUsd + bunkerFuelCostUsd + bargeFeeUsd,
     qtyMt: stop.qtyMt,
     hazardIds,
+    maxWaveHeightM: fuel.maxWaveHeightM,
+    portCall: null,
     feasible: reasons.length === 0,
     reasons,
   };

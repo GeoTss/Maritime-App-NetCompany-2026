@@ -129,6 +129,7 @@ export const VESSEL_DETAIL: VesselDetail = {
       },
     },
     keepsMargins: false,
+    maxWaveHeightM: 0,
     probes: [],
   },
 };
@@ -515,6 +516,7 @@ const shortFuel = (endNm: number): TrackFuel => ({
     HSFO: noCheck,
   },
   keepsMargins: false,
+  maxWaveHeightM: 0,
   probes: [],
 });
 
@@ -533,6 +535,7 @@ const stopFuel = (stopNm: number, endNm: number): TrackFuel => ({
     HSFO: noCheck,
   },
   keepsMargins: true,
+  maxWaveHeightM: 0,
   probes: [],
 });
 
@@ -556,6 +559,8 @@ const stopPlan = (
     waitingHours: 4,
     weatherDelayHours: 2.5,
     bunkeringHours: 6,
+    clearanceHours: 0,
+    serviceHours: 6,
     departAt: "2026-11-18T08:30:00.000Z",
     beyondForecast: false,
   },
@@ -572,6 +577,8 @@ const stopPlan = (
   totalCostUsd: 645800,
   qtyMt: 300,
   hazardIds: [],
+  maxWaveHeightM: 0,
+  portCall: null,
   feasible: true,
   reasons: [],
   ...over,
@@ -610,6 +617,8 @@ export function makeFuelPlan(
       waitingHours: 4,
       weatherDelayHours: 2.5,
       bunkeringHours: 6,
+      clearanceHours: 0,
+      serviceHours: 6,
       departAt: "2026-11-18T08:30:00.000Z",
       beyondForecast: opts.beyondForecast ?? false,
     },

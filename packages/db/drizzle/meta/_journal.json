@@ -78,6 +78,13 @@
       "when": 1794935628644,
       "tag": "0010_clumsy_valeria_richards",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1795044671943,
+      "tag": "0011_glorious_swordsman",
+      "breakpoints": true
     }
   ]
 }

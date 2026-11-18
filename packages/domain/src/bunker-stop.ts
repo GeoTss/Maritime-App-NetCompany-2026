@@ -50,6 +50,8 @@ export function stopTimeline(args: {
     waitingHours,
     weatherDelayHours: (startMs - readyMs) / HOUR_MS,
     bunkeringHours,
+    clearanceHours: 0,
+    serviceHours: bunkeringHours,
     departAt: new Date(startMs + bunkeringHours * HOUR_MS).toISOString(),
     beyondForecast,
   };
