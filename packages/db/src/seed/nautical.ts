@@ -206,7 +206,7 @@ const stores = (
 
 /** Fixed per vessel: crew, days of provisions, sludge and sewage m³ (tanks 14 and 15 m³). */
 const VESSEL_STORES: Readonly<Record<string, VesselStores>> = {
-  "MV Aegean Pioneer": stores(22, 12, 11, 6, AEGEAN_STALE),
+  "MV Aegean Pioneer": stores(22, 12, 11.8, 6, AEGEAN_STALE),
   "MV Thessaly Star": stores(21, 48, 6.2, 5.1),
   "MV Nordic Lantern": stores(20, 52, 4.4, 7.8),
   "MV Iberian Dawn": stores(23, 41, 8.1, 4.6),

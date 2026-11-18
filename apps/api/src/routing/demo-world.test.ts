@@ -10,6 +10,8 @@ import {
   fleetRoutePlan,
   generateWorld,
   pinnedNow,
+  shipRoutePlan,
+  withStormDetour,
 } from "@pharos/db";
 import {
   activeHazardZones,
@@ -101,5 +103,53 @@ describe("demo world: joint route-and-bunker invariants", () => {
     const kestrel = result.stopPlans.find((s) => s.optionId === "MTMLA-kestrel");
     expect(kestrel?.reasons).not.toContain("exceeds_tank_capacity");
     expect(kestrel?.qtyMt).toBe(300);
+  });
+});
+
+describe("demo world: port call and storms (R7, R8)", () => {
+  it("R7 port call: Kestrel at Marsaxlokk resupplies, delivers sludge, brings the charts in time", () => {
+    const kestrel = result.stopPlans.find((s) => s.optionId === "MTMLA-kestrel");
+    const call = kestrel?.portCall;
+    const job = (k: string) => call?.jobs.find((j) => j.kind === k);
+    expect(job("provisions")).toMatchObject({ needed: true, done: true });
+    expect(job("sludge")).toMatchObject({ needed: true, done: true });
+    expect(job("charts")).toMatchObject({ needed: true, done: true, qty: 4 });
+    expect(call?.outdated.every((o) => o.inTime)).toBe(true);
+    expect(call?.notices).toHaveLength(3);
+    expect(call?.notices.some((n) => n.overdue)).toBe(false);
+    expect(call?.extraCostUsd).toBeGreaterThan(0);
+  });
+
+  // The recorded storm (waves over 6 m across Biscay, 17-19 Nov on the pinned clock) meets FAUN,
+  // a real cargo ship off Gibraltar at 9.1 kn, on its way to Rotterdam.
+  const faun = live.traffic.find((t) => t.mmsi === "314886000");
+  const rotterdam = world.ports.find((p) => p.unlocode === "NLRTM");
+  if (!faun || !rotterdam) throw new Error("no FAUN or Rotterdam in the recorded data");
+  const storm = shipRoutePlan(world, faun, rotterdam, graph, live.weather, zones);
+
+  it("R8 storm: FAUN's baseline meets heavy weather; the plan adds a route round it and avoids it", () => {
+    const r = optimiseRouteSpeed(storm.input);
+    expect(r.baseline.reasons).toContain("heavy_weather");
+    expect(storm.stormCells.length).toBeGreaterThan(0);
+    expect(storm.input.candidates.map((c) => c.id)).toContain("S");
+    const best = r.options.find((o) => o.candidateId === r.bestCandidateId);
+    expect(best?.reasons).not.toContain("heavy_weather");
+  });
+
+  it("detour deduplicated: no S when it repeats a candidate already there", () => {
+    const s = storm.input.candidates.find((c) => c.id === "S");
+    if (!s) throw new Error("no S");
+    const without = storm.input.candidates.filter((c) => c.id !== "S");
+    const again = withStormDetour(
+      graph,
+      without[0]?.points[0] ?? { lat: 0, lon: 0 },
+      {
+        lat: rotterdam.lat,
+        lon: rotterdam.lon,
+      },
+      { ...storm.input, candidates: [...without, { ...s, id: "B2" }] },
+    );
+    expect(again.candidates.map((c) => c.id)).not.toContain("S");
+    expect(again.stormCells.length).toBeGreaterThan(0);
   });
 });

@@ -277,6 +277,7 @@ export async function planRouteSpeed(
       destination: plan.destination.name,
       profile: plan.profile,
       avoidedHazardIds: plan.avoidedHazardIds,
+      stormCells: plan.stormCells,
       // The load facts resolve here (the displacement is on the optimiser's curve).
       ...routeCalculationLoad(plan),
       optimiser: plan.input,
