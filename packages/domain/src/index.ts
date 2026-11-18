@@ -4,6 +4,7 @@
  * no process.env, no hidden clock (pass `now` in), no randomness.
  */
 export const DOMAIN_CODE_VERSION = "0.8.0";
+export * from "./areas.js";
 export * from "./bunker-planner.js";
 export * from "./bunker-stop.js";
 export * from "./calculate.js";
@@ -20,6 +21,7 @@ export * from "./hazards.js";
 export * from "./identity.js";
 export * from "./load.js";
 export * from "./normalise.js";
+export * from "./port-call.js";
 export * from "./price-band.js";
 export * from "./route-graph.js";
 export * from "./route-optimiser.js";

@@ -125,6 +125,7 @@ export const OutdatedItem = z
     title: z.string().min(1),
     onBoardEdition: z.string().nullable(),
     currentEdition: z.string().min(1),
+    priceUsd: NonNeg,
     /** When the route first enters the item's area. */
     neededAt: IsoDateTime.nullable(),
     /** The stop comes before the area, or lies inside it. */
