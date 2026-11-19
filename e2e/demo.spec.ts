@@ -461,7 +461,8 @@ test("demo story: six steps", async ({ page }) => {
       .click();
     const waits = detail.getByTestId("dependency-line");
     await expect(waits).toHaveAttribute("data-satisfied", "false");
-    // The instruction's facts carry the port call it sets up.
+    // The instruction's facts carry the port call it sets up (a GET-only disclosure).
+    await detail.getByRole("button", { name: /^Facts behind it/ }).click();
     await expect(detail).toContainText("port call cost (dues, stores, charts and waste)");
     await expect(waits).toContainText("Kestrel Marine Fuels at Marsaxlokk");
     await expect(
