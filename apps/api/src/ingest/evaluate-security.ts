@@ -170,7 +170,12 @@ export function evaluateSecurityQuote(
   // Fees and minimum days are never assumed: one left out may be one the email states.
   const dayRate = amount(q.dayRate);
   const fixedFees = amount(q.fixedFees);
-  const minDays = amount(q.minDays);
+  // "minimum" is the field's own meaning here, not a hedge as on a fuel quantity ("min 300 mt").
+  const minDays = amount({
+    value: q.minDays.value,
+    asWritten:
+      q.minDays.asWritten?.replace(/\b(?:minimum|min\.?)(?:\s+of)?(?=\s|$)/gi, " ") ?? null,
+  });
   const stated = (f: { value: number | null; asWritten: string | null }) =>
     f.value !== null || f.asWritten !== null;
   const amountFailures: string[] = [];

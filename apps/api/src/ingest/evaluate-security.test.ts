@@ -150,6 +150,15 @@ describe("evaluateSecurityQuote", () => {
     expect(failed(two)).toContain("team_size_unambiguous");
   });
 
+  it("reads minimum days written with their own word (\"minimum of 4 days\")", () => {
+    const base = extraction({ value: 4, asWritten: "4 guards" });
+    for (const asWritten of ["minimum of 4 days", "min. 4 days", "4 days minimum"]) {
+      const q = { ...base, minDays: { ...base.minDays, asWritten } };
+      const r = evaluateSecurityQuote(world, doc, q, ctx);
+      expect(failed(r), asWritten).not.toContain("amounts_parsed");
+    }
+  });
+
   it("holds several separate fees (value left null) for review rather than storing the first", () => {
     const base = extraction({ value: 4, asWritten: "4 guards" });
     const q = { ...base, fixedFees: { ...base.fixedFees, value: null } };

@@ -561,3 +561,30 @@ Run: Haiku 5.5, effort medium, `LLM_FALLBACKS=off`, phase 10 ledger (cap $1.50).
   as-written rule) or adds up itemised fees (caught: the sum is not written).
 - **H27:** the live smoke passes with v6: both demo fuel emails extracted, the demo ask passes the
   gate and proposes `MTMLA-kestrel` (the security tools do not change the bunker answer).
+
+### Results (Track 3 dev pass, `extract-quote/v4`, report 20261119T122748Z-extraction-dev-live)
+
+| Metric | Dev k/N |
+|---|---|
+| Fuel critical-field accuracy | 649/651 (99.7 %): 0 wrong, 2 missing |
+| Fuel unsafe auto-accepts | 0/84 |
+| Fuel emails classed `security_quote` | 0/84 |
+| Security critical-field accuracy | 234/243 (96.3 %): 0 wrong, 9 missing |
+| Security unsafe auto-accepts | 0/30 |
+| Latency per email, mean / p90 | 5.6 s / 7.5 s |
+| Cost per email | $0.000801 |
+
+All 9 missing security fields are one false review: security-hard-eur-day-rate-a. The model wrote
+minDays as "minimum of 4 days" (value 4), and the as-written rule read "minimum" as a hedge, as on
+a fuel quantity ("min 300 mt"). For minimum days the word is the field's meaning, so the reading
+now drops it (test first). Re-checked on this run's stored outputs with the fixed code (no model
+call): the case is extracted and equals its truth on every field; the three dev traps still go to
+review for their check (fees-separate-charges-b `amounts_parsed`, four-six-guards-a
+`team_size_unambiguous`, missing-disembark-b `disembark_port_resolved`). The table keeps the
+figures as measured; the re-check is not a new measurement.
+
+**Hypotheses:** H25 holds (99.7 %, 0/84 unsafe, no fuel email classed as security). H26 holds
+(96.3 % ≥ 95 %, 0/30 unsafe, traps to review for the right check). H27 holds (live smoke PASS,
+$0.0041: both fuel emails extracted, the demo ask proposes Kestrel).
+**Spend:** dev pass $0.091274, smoke $0.0041, recordings $0.0226 (phase 10 ledger).
+**Decision:** keep v4; the minimum-days reading fix is a code fix found on dev.
