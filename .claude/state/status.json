@@ -1,6 +1,6 @@
 {
-  "phase": 10,
-  "phaseName": "Track 3: security",
+  "phase": 11,
+  "phaseName": "Demo controls and polish",
   "lastGate": {
     "phase": 10,
     "result": "PASS",
