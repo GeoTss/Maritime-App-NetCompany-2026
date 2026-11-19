@@ -18,6 +18,7 @@ import type {
   VesselDetail,
   VesselSummary,
   VoyageDetail,
+  VoyageTimeline,
   WeatherView,
 } from "@pharos/shared";
 
@@ -672,6 +673,8 @@ export function makeFuelPlan(
     omitFact?: (fact: Fact) => boolean;
     /** Give Kestrel's stop a port call (provisions and charts done), with its facts. */
     portCall?: boolean;
+    /** Carry a voyage timeline through Kestrel (stop 0), with its facts. */
+    timeline?: boolean;
   } = {},
 ): RoutePlanView {
   const base = makePlan();
@@ -838,8 +841,100 @@ export function makeFuelPlan(
     computeMs: null,
     result: { ...base.result, options, baseline: a, stopPlans, plan },
     facts: kept,
+    ...(opts.timeline ? { timeline: TIMELINE } : {}),
   };
 }
+
+const at = (lat: number, lon: number, alongNm: number) => ({ position: { lat, lon }, alongNm });
+
+/** Aegean Pioneer through Kestrel (MTMLA): one of every kind the demo shows but the guards. */
+export const TIMELINE_EVENTS: VoyageTimeline["events"] = [
+  { kind: "departure", at: "2026-11-14T08:00:00.000Z", ...at(35.9, 14.5, 0) },
+  {
+    kind: "eca_entry",
+    at: "2026-11-14T08:00:00.000Z",
+    ...at(35.9, 14.5, 0),
+    atDeparture: true,
+    changeoverStartAt: null,
+    grade: "LSMGO",
+  },
+  {
+    kind: "sewage_window_open",
+    at: "2026-11-14T12:00:00.000Z",
+    ...at(36.2, 13.6, 48),
+    windowHours: 30.5,
+  },
+  { kind: "sewage_window_close", at: "2026-11-15T18:30:00.000Z", ...at(37.1, 6.2, 420) },
+  {
+    kind: "notice_due",
+    at: "2026-11-16T20:00:00.000Z",
+    ...at(36.9, -1.2, 780),
+    stopIndex: 0,
+    notice: "security_pre_arrival",
+    overdue: false,
+  },
+  {
+    kind: "storm_passed",
+    at: "2026-11-17T02:00:00.000Z",
+    ...at(36.6, -3.1, 860),
+    stormId: "storm:34,20",
+    clearanceNm: 42.5,
+    maxWaveHeightM: 8.5,
+    synthetic: true,
+  },
+  {
+    kind: "port_arrival",
+    at: "2026-11-17T20:00:00.000Z",
+    ...at(35.9, 14.5, 1040),
+    stopIndex: 0,
+    unlocode: "MTMLA",
+    actions: ["bunkering", "provisions", "charts", "port_dues"],
+  },
+  {
+    kind: "port_departure",
+    at: "2026-11-18T08:30:00.000Z",
+    ...at(35.9, 14.5, 1040),
+    stopIndex: 0,
+    unlocode: "MTMLA",
+  },
+  { kind: "eca_exit", at: "2026-11-19T10:00:00.000Z", ...at(36.0, -5.6, 1420), grade: "VLSFO" },
+  {
+    kind: "arrival",
+    at: "2026-11-21T06:00:00.000Z",
+    ...at(51.9, 4.1, 2620),
+    provisionsDaysLeft: 40.2,
+    restockNeeded: false,
+  },
+];
+
+const timelineFact = (
+  i: number,
+  field: string,
+  value: number | string,
+  unit: string | null,
+): Fact => ({
+  id: `f_voyage_timeline_1_timeline.events.${i}.${field}`,
+  label: `MV Aegean Pioneer: timeline ${field}`,
+  value,
+  unit,
+  provenance: {
+    source: "calculation",
+    calculationId: 1,
+    calculator: "voyageTimeline",
+    path: `timeline.events[${i}].${field}`,
+  },
+});
+
+export const TIMELINE: VoyageTimeline = {
+  events: TIMELINE_EVENTS,
+  facts: [
+    ...TIMELINE_EVENTS.map((e, i) => timelineFact(i, "at", e.at, null)),
+    timelineFact(2, "windowHours", 30.5, "h"),
+    timelineFact(5, "clearanceNm", 42.5, "nm"),
+    timelineFact(5, "maxWaveHeightM", 8.5, "m"),
+    timelineFact(9, "provisionsDaysLeft", 40.2, "days"),
+  ],
+};
 
 const bunkerFact = (
   index: number,

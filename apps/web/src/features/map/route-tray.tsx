@@ -10,7 +10,7 @@
  */
 import { ArrowDown01Icon, ArrowUp01Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import type { RoutePlanView } from "@pharos/shared";
+import type { RoutePlanView, TimelineGroup } from "@pharos/shared";
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/drawer";
@@ -40,6 +40,7 @@ import {
 } from "./route-facts";
 import { ROLE_SWATCH, ROLE_TEXT, routeRole } from "./route-style";
 import { SecurityBlock, type SecurityNames, SuezOrCape } from "./security-block";
+import { VoyageTimelineSection } from "./voyage-timeline";
 
 export { FactCell } from "./fact-cell";
 
@@ -56,14 +57,24 @@ const COLUMNS: { metric: OptionMetric; label: string; kind?: "time" }[] = [
 
 const numeric = "text-right tabular-nums whitespace-nowrap";
 
+/** The page's timeline controls, shared with the map's pins. */
+export interface TimelineControls {
+  groups: TimelineGroup[];
+  onGroupsChange: (groups: TimelineGroup[]) => void;
+  selected: number | null;
+  onSelect: (index: number) => void;
+}
+
 export function RouteComparison({
   plan,
   names,
   security,
+  timeline,
 }: {
   plan: RoutePlanView;
   names?: StopNames;
   security?: SecurityNames;
+  timeline?: TimelineControls;
 }) {
   const { facts, result } = plan;
   const load = loadFacts(facts);
@@ -78,6 +89,19 @@ export function RouteComparison({
             <FuelBlindBest plan={plan} />
           </div>
           <FuelCurve plan={plan} />
+        </div>
+      ) : null}
+      {plan.timeline !== undefined ? (
+        <div className="border-b border-line pb-4">
+          <VoyageTimelineSection
+            plan={plan}
+            names={names}
+            security={security}
+            groups={timeline?.groups}
+            onGroupsChange={timeline?.onGroupsChange}
+            selected={timeline?.selected}
+            onSelect={timeline?.onSelect}
+          />
         </div>
       ) : null}
       {fuelAware ? (
@@ -272,8 +296,10 @@ export function RouteTray({
   snap,
   onSnapChange,
   onClose,
+  timeline,
 }: {
   plan: RoutePlanView;
+  timeline?: TimelineControls;
   /** Supplier and port of each stop plan's quote, by quote id (`GET /api/quotes`). */
   names?: StopNames;
   /** Each security quote's team and each danger area's name (Track 3). */
@@ -353,7 +379,7 @@ export function RouteTray({
             </Button>
           </div>
           <div className="min-h-0 flex-1 overflow-auto p-3" data-vaul-no-drag>
-            <RouteComparison plan={plan} names={names} security={security} />
+            <RouteComparison plan={plan} names={names} security={security} timeline={timeline} />
           </div>
         </div>
       </DrawerContent>

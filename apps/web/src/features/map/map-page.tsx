@@ -10,6 +10,7 @@
  * stays until its own Clear.
  */
 import { MapsIcon, Radar01Icon, ShipIcon } from "@hugeicons/core-free-icons";
+import type { TimelineGroup } from "@pharos/shared";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePanelRef } from "react-resizable-panels";
 import { useSearchParams } from "react-router";
@@ -54,6 +55,7 @@ import { RouteTray, TRAY_SNAPS } from "./route-tray";
 import { labelPoint } from "./security-layer";
 import { ShipPanel } from "./ship-panel";
 import { VesselPanel } from "./vessel-panel";
+import { ALL_GROUPS } from "./voyage-timeline";
 
 const EMPTY: never[] = [];
 const PANEL_WIDTH_PX = 332;
@@ -132,6 +134,25 @@ export function MapPage() {
 
   // A stored plan from the address, else the one just planned.
   const plan = storedRoute.data ?? planner.data ?? null;
+
+  // The voyage timeline's switches and the event picked on the map, shared by the tray's list and
+  // the map's pins. A new plan clears the pick (its indexes are another plan's).
+  const [timelineGroups, setTimelineGroups] = useState<TimelineGroup[]>(ALL_GROUPS);
+  const [pickedEvent, setPickedEvent] = useState<{ plan: number; index: number } | null>(null);
+  const selectedEvent =
+    pickedEvent && pickedEvent.plan === plan?.calculationId ? pickedEvent.index : null;
+  const selectEvent = useCallback(
+    (index: number) => {
+      if (plan) setPickedEvent({ plan: plan.calculationId, index });
+    },
+    [plan],
+  );
+  const timelineControls = {
+    groups: timelineGroups,
+    onGroupsChange: setTimelineGroups,
+    selected: selectedEvent,
+    onSelect: selectEvent,
+  };
   const stopNames = useStopNames((plan?.result.stopPlans.length ?? 0) > 0);
   const securityTeams = useSecurityTeams(
     plan?.result.options.some((o) => o.security?.quoteId != null) ?? false,
@@ -419,6 +440,7 @@ export function MapPage() {
         aisMode={aisMode}
         onSelectVessel={(v) => selectVessel(v.id)}
         onSelectShip={(mmsi) => selectShip(mmsi)}
+        timeline={timelineControls}
       />
 
       <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-start gap-1.5 p-2">
@@ -521,6 +543,7 @@ export function MapPage() {
           snap={snap}
           onSnapChange={setSnap}
           onClose={closeTray}
+          timeline={timelineControls}
         />
       ) : null}
     </div>

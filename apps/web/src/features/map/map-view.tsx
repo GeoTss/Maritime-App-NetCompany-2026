@@ -13,6 +13,7 @@ import type {
   RoutePlanView,
   SecurityArea,
   SourceMode,
+  TimelineGroup,
   VesselSummary,
   WeatherView,
 } from "@pharos/shared";
@@ -46,6 +47,7 @@ import { StormLayer } from "./storm-layer";
 
 const NO_AREAS: readonly SecurityArea[] = [];
 
+import { TimelineMarkers } from "./timeline-markers";
 import { drawShipArrow, SHIP_ARROW_IMAGE, TRAFFIC_LAYER_IDS, TrafficLayer } from "./traffic-layer";
 import { DART_IMAGE, drawDart } from "./weather-darts";
 import { WeatherLayer } from "./weather-layer";
@@ -90,6 +92,12 @@ export interface MapViewProps {
   aisMode: SourceMode | null;
   onSelectVessel: (vessel: VesselSummary) => void;
   onSelectShip: (mmsi: string) => void;
+  /** The voyage timeline's pins: the groups shown, the picked event and how to pick one. */
+  timeline?: {
+    groups: readonly TimelineGroup[];
+    selected: number | null;
+    onSelect: (index: number) => void;
+  };
 }
 
 /** Below this canvas width the demo view cuts off the fleet, so the first view frames it. */
@@ -138,6 +146,7 @@ export function MapView(props: MapViewProps) {
     ready,
     aisMode,
     onSelectVessel,
+    timeline,
     onSelectShip,
   } = props;
   const ref = useRef<MapRef>(null);
@@ -379,6 +388,14 @@ export function MapView(props: MapViewProps) {
         {layers.hazards ? <StormLayer plan={plan} colors={colors} /> : null}
         {layers.security ? <SecurityLayer areas={dangerAreas} colors={colors} /> : null}
         <RouteLayer plan={plan} track={track} colors={colors} ports={ports} />
+        {timeline ? (
+          <TimelineMarkers
+            plan={plan}
+            groups={timeline.groups}
+            selected={timeline.selected}
+            onSelect={timeline.onSelect}
+          />
+        ) : null}
         {layers.traffic ? (
           <TrafficLayer traffic={traffic} colors={colors} selectedMmsi={selectedMmsi} />
         ) : null}
