@@ -16,6 +16,7 @@ export interface MapColors {
   wave3: string;
   plan: string;
   alarm: string;
+  storm: string;
   beacon: string;
   caution: string;
   text: string;
@@ -33,6 +34,7 @@ const TOKEN: Record<keyof MapColors, string> = {
   wave3: "--wave-3",
   plan: "--plan",
   alarm: "--alarm",
+  storm: "--storm",
   beacon: "--beacon",
   caution: "--caution",
   text: "--text-1",

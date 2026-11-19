@@ -72,6 +72,18 @@ describe("heavy weather", () => {
     expect(cells[1]?.from).toBe("2026-11-15T03:00:00.000Z");
   });
 
+  it("gives each cell the grid square it stands for, from the grid's own spacing", () => {
+    const w = passingStorm();
+    const walked = walkSteps(subSteps(A.points, 20).steps, new Date(START), 12, w);
+    // One row of points 0.5° apart: half a step each way; one latitude, so the lon step is used.
+    expect(stormCells(w, walked)[1]?.box).toEqual({
+      minLat: -0.25,
+      maxLat: 0.25,
+      minLon: 4.75,
+      maxLon: 5.25,
+    });
+  });
+
   it("no weather, no storm", () => {
     const walked = walkSteps(subSteps(A.points, 20).steps, new Date(START), 12, null);
     expect(stormCells(null, walked)).toEqual([]);

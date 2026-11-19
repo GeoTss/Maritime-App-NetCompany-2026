@@ -29,6 +29,7 @@
   --beacon: #6f9bff; /* act, recommended, fact-chip underline, selection, focus */
   --caution: #ffc72c; /* needs you, awaiting a decision */
   --alarm: #ff5c6c; /* blocked, hazard, reject (text and lines) */
+  --storm: #c38bff; /* heavy weather: the forecast area over the wave limit (map only) */
   --alarm-fill: #c8102e; /* true red for fills */
   --plan: #a9b2bd; /* planned / baseline route, other candidates */
   --lamp: #1f4fb0; /* the one solid primary (Approve, Review and decide), white text */
@@ -133,6 +134,7 @@
   --color-beacon: var(--beacon);
   --color-caution: var(--caution);
   --color-alarm: var(--alarm);
+  --color-storm: var(--storm);
   --color-alarm-fill: var(--alarm-fill);
   --color-plan: var(--plan);
   --color-lamp: var(--lamp);

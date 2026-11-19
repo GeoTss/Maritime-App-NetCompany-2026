@@ -3,12 +3,38 @@
  * passes them. They seed a detour candidate and the map; feasibility is decided per option from
  * its own sampled waves (`heavy_weather`). Pure.
  */
-import type { LatLon, StormCell, WeatherGrid } from "@pharos/shared";
+import type { Box, LatLon, StormCell, WeatherGrid } from "@pharos/shared";
 import { HEAVY_WEATHER_MAX_WAVE_M, STORM_CELL_RADIUS_NM, STORM_WINDOW_HOURS } from "./constants.js";
 import { greatCircleNm } from "./geo.js";
 import { forecastStepAt } from "./weather-effect.js";
 
 const HOUR_MS = 3_600_000;
+
+/** Half the smallest gap between the grid's distinct values; null with fewer than two. */
+function halfStep(values: number[]): number | null {
+  const sorted = [...new Set(values)].sort((a, b) => a - b);
+  let gap = Number.POSITIVE_INFINITY;
+  for (let i = 1; i < sorted.length; i++)
+    gap = Math.min(gap, (sorted[i] ?? 0) - (sorted[i - 1] ?? 0));
+  return Number.isFinite(gap) ? gap / 2 : null;
+}
+
+/**
+ * Half a grid step in latitude and longitude, from the grid's own points. A grid with one row (or
+ * one column) uses the other direction's step for both.
+ */
+function gridHalfSteps(weather: WeatherGrid): { lat: number; lon: number } {
+  const lat = halfStep(weather.points.map((p) => p.lat));
+  const lon = halfStep(weather.points.map((p) => p.lon));
+  return { lat: lat ?? lon ?? 0, lon: lon ?? lat ?? 0 };
+}
+
+const squareOf = (p: LatLon, half: { lat: number; lon: number }): Box => ({
+  minLat: p.lat - half.lat,
+  maxLat: p.lat + half.lat,
+  minLon: p.lon - half.lon,
+  maxLon: p.lon + half.lon,
+});
 
 /**
  * Each grid point within `STORM_CELL_RADIUS_NM` of a walked midpoint whose wave height exceeds
@@ -21,6 +47,7 @@ export function stormCells(
 ): StormCell[] {
   if (!weather || walked.length === 0) return [];
   const windowMs = STORM_WINDOW_HOURS * HOUR_MS;
+  const half = gridHalfSteps(weather);
   const cells: StormCell[] = [];
   for (const pt of weather.points) {
     let first = -1;
@@ -45,6 +72,7 @@ export function stormCells(
       maxWaveHeightM: max,
       from: forecastStepAt(weather, first).toISOString(),
       to: forecastStepAt(weather, last).toISOString(),
+      box: squareOf(pt, half),
     });
   }
   return cells.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));

@@ -160,6 +160,8 @@ export const StormCell = z
     maxWaveHeightM: NonNeg,
     from: IsoDateTime,
     to: IsoDateTime,
+    /** The grid square the point's forecast stands for (half a grid step each way); for the map. */
+    box: Box.optional(),
   })
   .strict();
 export type StormCell = z.infer<typeof StormCell>;

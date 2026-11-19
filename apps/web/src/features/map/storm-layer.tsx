@@ -1,40 +1,103 @@
 /**
- * The storm cells a route plan's baseline meets: forecast cells over the heavy-weather limit around
- * the time the ship would be there. Drawn in alarm red like the hazards (they are keep-out areas
- * for this plan), with one callout on the worst cell: its highest wave and when it is over the
- * limit, each a fact chip from the plan (the calculation row's `inputs.stormCells.k.*`).
+ * Heavy weather on the map: the forecast grid squares over the wave limit around the time the
+ * plan's ship would be there, drawn in the storm purple as one area (adjacent squares tile, and a
+ * single outline runs round the whole area: edges two squares share are left out). One callout, at
+ * the area's north-east corner, cites the worst square's highest wave and when it is over the
+ * limit, and the recommended
+ * route's highest wave, so a route through the area reads as "ahead of the storm". Every number is
+ * a fact chip; the geometry is the API's (`stormCells[k].box`).
  */
-import type { RoutePlanView } from "@pharos/shared";
-import circle from "@turf/circle";
+import type { Box, RoutePlanView } from "@pharos/shared";
 import { useMemo } from "react";
 import { Layer, Marker, Source } from "react-map-gl/maplibre";
 import type { MapColors } from "./basemap-style";
 import { FactCell } from "./fact-cell";
 import { LABEL_PRIORITY, useFlipLabel } from "./map-labels";
-import { dbFact } from "./route-facts";
+import { dbFact, factAtPath } from "./route-facts";
 
 type Cell = NonNullable<RoutePlanView["stormCells"]>[number];
+type Position = [number, number];
 
-function StormCallout({ plan, cell, index }: { plan: RoutePlanView; cell: Cell; index: number }) {
-  const { ref, flip, below } = useFlipLabel<HTMLDivElement>(cell.center.lon, cell.center.lat);
+const corners = (b: Box): Position[] => [
+  [b.minLon, b.minLat],
+  [b.maxLon, b.minLat],
+  [b.maxLon, b.maxLat],
+  [b.minLon, b.maxLat],
+];
+
+const key = (p: Position) => `${p[0].toFixed(6)},${p[1].toFixed(6)}`;
+
+/**
+ * The squares as polygons, and the outline of their union as line segments: every square edge
+ * that no other square shares. Squares of one grid share whole edges, so this is exact.
+ */
+export function stormArea(boxes: Box[]): { squares: Position[][][]; outline: Position[][] } {
+  const squares = boxes.map((b) => {
+    const c = corners(b);
+    return [[...c, c[0] as Position]];
+  });
+  const edges = new Map<string, { edge: Position[]; count: number }>();
+  for (const b of boxes) {
+    const c = corners(b);
+    for (let i = 0; i < 4; i++) {
+      const a = c[i] as Position;
+      const z = c[(i + 1) % 4] as Position;
+      const k = [key(a), key(z)].sort().join("|");
+      const seen = edges.get(k);
+      if (seen) seen.count++;
+      else edges.set(k, { edge: [a, z], count: 1 });
+    }
+  }
+  const outline = [...edges.values()].filter((e) => e.count === 1).map((e) => e.edge);
+  return { squares, outline };
+}
+
+/** Where the callout hangs: the area's north-east corner, so the area itself stays in view. */
+function cornerOf(cells: Cell[]): { lat: number; lon: number } {
+  const boxes = cells.flatMap((c) => (c.box ? [c.box] : []));
+  if (boxes.length === 0) return cells[0]?.center ?? { lat: 0, lon: 0 };
+  return {
+    lat: Math.max(...boxes.map((b) => b.maxLat)),
+    lon: Math.max(...boxes.map((b) => b.maxLon)),
+  };
+}
+
+function StormCallout({
+  plan,
+  index,
+  at,
+}: {
+  plan: RoutePlanView;
+  index: number;
+  at: { lat: number; lon: number };
+}) {
+  const { ref, flip, below } = useFlipLabel<HTMLDivElement>(at.lon, at.lat);
   // Stored inputs of the calculation are cited as its row's fields (`inputs.stormCells.k.*`).
   const fact = (field: string) => dbFact(plan.facts, `inputs.stormCells.${index}.${field}`);
+  const best = plan.result.options.findIndex((o) => o.candidateId === plan.result.bestCandidateId);
+  const bestWave = best < 0 ? undefined : factAtPath(plan.facts, `options[${best}].maxWaveHeightM`);
   return (
-    <Marker longitude={cell.center.lon} latitude={cell.center.lat} anchor="center">
+    <Marker longitude={at.lon} latitude={at.lat} anchor="center">
       <div className="relative size-0">
         <div
           ref={ref}
           data-testid="storm-callout"
           data-map-label={LABEL_PRIORITY.hazard}
-          className={`absolute flex w-max max-w-56 flex-col gap-0.5 rounded-sm border border-alarm/60 bg-ink-950/85 px-1.5 py-1 text-xs ${below ? "top-2" : "bottom-2"} ${flip ? "right-2" : "left-2"}`}
+          className={`absolute flex w-max max-w-60 flex-col gap-0.5 rounded-sm border border-storm/70 bg-ink-950/85 px-1.5 py-1 text-xs ${below ? "top-2" : "bottom-2"} ${flip ? "right-2" : "left-2"}`}
         >
-          <span className="text-alarm">
-            Storm: waves to <FactCell fact={fact("maxWaveHeightM")} metric="storm-wave" />
+          <span className="text-storm">
+            Heavy weather: waves to <FactCell fact={fact("maxWaveHeightM")} metric="storm-wave" />
           </span>
           <span className="text-text-2">
             <FactCell fact={fact("from")} kind="time" /> to{" "}
             <FactCell fact={fact("to")} kind="time" />
           </span>
+          {bestWave ? (
+            <span className="text-text-2" data-testid="storm-best-route">
+              Route {plan.result.bestCandidateId} meets at most{" "}
+              <FactCell fact={bestWave} metric="storm-best-wave" />
+            </span>
+          ) : null}
         </div>
       </div>
     </Marker>
@@ -43,14 +106,28 @@ function StormCallout({ plan, cell, index }: { plan: RoutePlanView; cell: Cell; 
 
 export function StormLayer({ plan, colors }: { plan: RoutePlanView | null; colors: MapColors }) {
   const cells = plan?.stormCells ?? [];
-  const data = useMemo(
+  const area = useMemo(() => stormArea(cells.flatMap((c) => (c.box ? [c.box] : []))), [cells]);
+  const squares = useMemo(
     () => ({
       type: "FeatureCollection" as const,
-      features: cells.map((c) =>
-        circle([c.center.lon, c.center.lat], c.radiusNm, { units: "nauticalmiles", steps: 48 }),
-      ),
+      features: area.squares.map((coordinates) => ({
+        type: "Feature" as const,
+        geometry: { type: "Polygon" as const, coordinates },
+        properties: {},
+      })),
     }),
-    [cells],
+    [area],
+  );
+  const outline = useMemo(
+    () => ({
+      type: "FeatureCollection" as const,
+      features: area.outline.map((coordinates) => ({
+        type: "Feature" as const,
+        geometry: { type: "LineString" as const, coordinates },
+        properties: {},
+      })),
+    }),
+    [area],
   );
   if (!plan || cells.length === 0) return null;
   // The worst cell carries the callout (first of the highest, in the plan's order).
@@ -58,22 +135,23 @@ export function StormLayer({ plan, colors }: { plan: RoutePlanView | null; color
     (w, c, i) => (c.maxWaveHeightM > (cells[w]?.maxWaveHeightM ?? 0) ? i : w),
     0,
   );
-  const cell = cells[worst];
   return (
     <>
-      <Source id="storm-cells" type="geojson" data={data}>
+      <Source id="storm-squares" type="geojson" data={squares}>
         <Layer
           id="storm-fill"
           type="fill"
-          paint={{ "fill-color": colors.alarm, "fill-opacity": 0.1 }}
+          paint={{ "fill-color": colors.storm, "fill-opacity": 0.22, "fill-antialias": false }}
         />
+      </Source>
+      <Source id="storm-outline" type="geojson" data={outline}>
         <Layer
           id="storm-line"
           type="line"
-          paint={{ "line-color": colors.alarm, "line-width": 1, "line-dasharray": [2, 2] }}
+          paint={{ "line-color": colors.storm, "line-width": 1.5, "line-opacity": 0.9 }}
         />
       </Source>
-      {cell ? <StormCallout plan={plan} cell={cell} index={worst} /> : null}
+      {cells[worst] ? <StormCallout plan={plan} index={worst} at={cornerOf(cells)} /> : null}
     </>
   );
 }

@@ -12,6 +12,7 @@ const colors: MapColors = {
   wave3: "rgb(15 15 15)",
   plan: "rgb(6 6 6)",
   alarm: "rgb(7 7 7)",
+  storm: "rgb(16 16 16)",
   beacon: "rgb(9 9 9)",
   caution: "rgb(10 10 10)",
   text: "rgb(11 11 11)",
