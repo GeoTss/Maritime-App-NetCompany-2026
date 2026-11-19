@@ -58,6 +58,7 @@ export const queryKeys = {
     ["recommendations", "for-plan", calculationId, optionId] as const,
   audit: ["audit"] as const,
   evalSummary: ["eval", "summary"] as const,
+  scenario: ["scenario"] as const,
 };
 
 /** `GET /api/clock`: the simulation clock. Re-read every 15 s; a frozen (pinned) clock rarely. */

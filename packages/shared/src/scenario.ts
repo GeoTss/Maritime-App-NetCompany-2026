@@ -48,7 +48,7 @@ export const ScenarioVesselValues = z
   .strict();
 export type ScenarioVesselValues = z.infer<typeof ScenarioVesselValues>;
 
-/** Any subset of a vessel's stats, each within its bounds. */
+/** Any subset of a vessel's stats, each within its bounds, the speeds given in order. */
 export const ScenarioVesselPatch = z
   .object({
     robMt: grades(10_000).partial(),
@@ -76,7 +76,29 @@ export const ScenarioVesselPatch = z
       .partial(),
   })
   .strict()
-  .partial();
+  .partial()
+  .superRefine((p, ctx) => {
+    // The speeds given together must run minimum ≤ reference ≤ maximum (the server checks the
+    // whole curve against the vessel too).
+    const c = p.consumption ?? {};
+    const order: [keyof typeof c, keyof typeof c][] = [
+      ["minSpeedKn", "refSpeedKn"],
+      ["refSpeedKn", "maxSpeedKn"],
+      ["minSpeedKn", "maxSpeedKn"],
+    ];
+    for (const [lo, hi] of order) {
+      const a = c[lo];
+      const b = c[hi];
+      if (a !== undefined && b !== undefined && a > b) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["consumption", lo],
+          message: "the speeds must run minimum ≤ reference ≤ maximum",
+        });
+        return;
+      }
+    }
+  });
 export type ScenarioVesselPatch = z.infer<typeof ScenarioVesselPatch>;
 
 export const ScenarioHazardInput = z

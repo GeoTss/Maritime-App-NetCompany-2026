@@ -95,6 +95,27 @@ export const api = {
       schema,
     );
   },
+  /** Only ever called from an explicit user action (the demo Scenario panel's edits). */
+  patch<S extends z.ZodType>(path: string, body: unknown, schema: S, options: RequestOptions = {}) {
+    return send(
+      path,
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json", accept: "application/json" },
+        body: JSON.stringify(body ?? {}),
+        signal: options.signal ?? null,
+      },
+      schema,
+    );
+  },
+  /** Only ever called from an explicit user action (the demo Scenario panel's removals). */
+  del<S extends z.ZodType>(path: string, schema: S, options: RequestOptions = {}) {
+    return send(
+      path,
+      { method: "DELETE", headers: { accept: "application/json" }, signal: options.signal ?? null },
+      schema,
+    );
+  },
   /** Raw bytes with their own media type, e.g. an `.eml` as `message/rfc822`. */
   upload<S extends z.ZodType>(
     path: string,

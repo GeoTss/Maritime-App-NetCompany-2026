@@ -297,9 +297,12 @@ export function RouteTray({
   onSnapChange,
   onClose,
   timeline,
+  stale = null,
 }: {
   plan: RoutePlanView;
   timeline?: TimelineControls;
+  /** The demo scenario changed after this plan was made: say so, and offer to plan again. */
+  stale?: { onReplan: (() => void) | null } | null;
   /** Supplier and port of each stop plan's quote, by quote id (`GET /api/quotes`). */
   names?: StopNames;
   /** Each security quote's team and each danger area's name (Track 3). */
@@ -378,6 +381,19 @@ export function RouteTray({
               <HugeiconsIcon icon={Cancel01Icon} size={14} />
             </Button>
           </div>
+          {stale ? (
+            <div
+              role="status"
+              className="flex shrink-0 items-center gap-2 border-b border-line bg-ink-900 px-3 py-1.5 text-xs text-caution"
+            >
+              The demo scenario changed since this plan was made.
+              {stale.onReplan ? (
+                <Button size="xs" variant="outline" className="ml-auto" onClick={stale.onReplan}>
+                  Plan again
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
           <div className="min-h-0 flex-1 overflow-auto p-3" data-vaul-no-drag>
             <RouteComparison plan={plan} names={names} security={security} timeline={timeline} />
           </div>

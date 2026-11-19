@@ -47,6 +47,8 @@ import { StormLayer } from "./storm-layer";
 
 const NO_AREAS: readonly SecurityArea[] = [];
 
+import type { ScenarioPreview } from "@/features/scenario/scenario-data";
+import { ScenarioPreviewLayer } from "./scenario-preview-layer";
 import { TimelineMarkers } from "./timeline-markers";
 import { drawShipArrow, SHIP_ARROW_IMAGE, TRAFFIC_LAYER_IDS, TrafficLayer } from "./traffic-layer";
 import { DART_IMAGE, drawDart } from "./weather-darts";
@@ -92,6 +94,10 @@ export interface MapViewProps {
   aisMode: SourceMode | null;
   onSelectVessel: (vessel: VesselSummary) => void;
   onSelectShip: (mmsi: string) => void;
+  /** The Scenario panel waits for a point: the next click on the map gives it, not a selection. */
+  pick?: ((p: LatLon) => void) | null;
+  /** The hazard or weather area being placed, drawn dashed. */
+  preview?: ScenarioPreview | null;
   /** The voyage timeline's pins: the groups shown, the picked event and how to pick one. */
   timeline?: {
     groups: readonly TimelineGroup[];
@@ -147,6 +153,8 @@ export function MapView(props: MapViewProps) {
     aisMode,
     onSelectVessel,
     timeline,
+    pick = null,
+    preview = null,
     onSelectShip,
   } = props;
   const ref = useRef<MapRef>(null);
@@ -246,10 +254,14 @@ export function MapView(props: MapViewProps) {
 
   const onClick = useCallback(
     (e: MapLayerMouseEvent) => {
+      if (pick) {
+        pick({ lat: e.lngLat.lat, lon: e.lngLat.lng });
+        return;
+      }
       const mmsi = pickShipMmsi(e);
       if (mmsi) onSelectShip(mmsi);
     },
-    [onSelectShip],
+    [onSelectShip, pick],
   );
 
   // A plan's frame: clear of the layer switches, the tray and the panel.
@@ -364,7 +376,7 @@ export function MapView(props: MapViewProps) {
         dragRotate={false}
         touchPitch={false}
         interactiveLayerIds={interactive}
-        cursor={cursor}
+        cursor={pick ? "crosshair" : cursor}
         onLoad={onLoad}
         onMoveEnd={(e) => {
           setZoom(e.viewState.zoom);
@@ -388,6 +400,7 @@ export function MapView(props: MapViewProps) {
         {layers.hazards ? <StormLayer plan={plan} colors={colors} /> : null}
         {layers.security ? <SecurityLayer areas={dangerAreas} colors={colors} /> : null}
         <RouteLayer plan={plan} track={track} colors={colors} ports={ports} />
+        {preview ? <ScenarioPreviewLayer preview={preview} colors={colors} /> : null}
         {timeline ? (
           <TimelineMarkers
             plan={plan}

@@ -10,7 +10,7 @@
  * stays until its own Clear.
  */
 import { MapsIcon, Radar01Icon, ShipIcon } from "@hugeicons/core-free-icons";
-import type { TimelineGroup } from "@pharos/shared";
+import type { LatLon, PlanRouteSpeedInput, TimelineGroup } from "@pharos/shared";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePanelRef } from "react-resizable-panels";
 import { useSearchParams } from "react-router";
@@ -20,6 +20,9 @@ import { Button } from "@/components/ui/button";
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/drawer";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { setDraft } from "@/features/assistant/assistant-store";
+import type { PickRequest } from "@/features/scenario/fields";
+import type { ScenarioPreview } from "@/features/scenario/scenario-data";
+import { ScenarioLauncher } from "@/features/scenario/scenario-panel";
 import { useAttention } from "@/lib/attention";
 import { useMediaQuery } from "@/lib/motion";
 import { useSourceStatus } from "@/lib/queries";
@@ -147,6 +150,28 @@ export function MapPage() {
     },
     [plan],
   );
+  // The Scenario panel: a pick waits for the next map click; the area being placed is drawn
+  // dashed; an edit made while a plan is open marks that plan as made before it.
+  const [pick, setPick] = useState<((p: LatLon) => void) | null>(null);
+  const requestPick = useCallback<PickRequest>(
+    (resolve) =>
+      setPick(() =>
+        resolve
+          ? (p: LatLon) => {
+              setPick(null);
+              resolve(p);
+            }
+          : null,
+      ),
+    [],
+  );
+  const [preview, setPreview] = useState<ScenarioPreview | null>(null);
+  const [editedAfter, setEditedAfter] = useState<number | null>(null);
+  const markEdited = useCallback(() => {
+    if (plan) setEditedAfter(plan.calculationId);
+  }, [plan]);
+  const stalePlan = plan !== null && editedAfter === plan.calculationId;
+
   const timelineControls = {
     groups: timelineGroups,
     onGroupsChange: setTimelineGroups,
@@ -441,6 +466,8 @@ export function MapPage() {
         onSelectVessel={(v) => selectVessel(v.id)}
         onSelectShip={(mmsi) => selectShip(mmsi)}
         timeline={timelineControls}
+        pick={pick}
+        preview={preview}
       />
 
       <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-start gap-1.5 p-2">
@@ -462,6 +489,12 @@ export function MapPage() {
               <b className="font-semibold">{attention.items.length}</b>
             ) : null}
           </Button>
+          <ScenarioLauncher
+            container={container}
+            onPickRequest={requestPick}
+            onPreview={setPreview}
+            onEdited={markEdited}
+          />
           <LayerToggles
             className="pointer-events-auto"
             layers={layers}
@@ -544,6 +577,15 @@ export function MapPage() {
           onSnapChange={setSnap}
           onClose={closeTray}
           timeline={timelineControls}
+          stale={
+            stalePlan
+              ? {
+                  onReplan: planner.variables
+                    ? () => planAgain(planner.variables as PlanRouteSpeedInput)
+                    : null,
+                }
+              : null
+          }
         />
       ) : null}
     </div>
