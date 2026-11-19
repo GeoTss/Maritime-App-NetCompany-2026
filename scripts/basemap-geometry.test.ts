@@ -71,7 +71,8 @@ describe("splitAtAntimeridian", () => {
     const parts = splitAtAntimeridian([outer, hole]);
     const main = parts.find((p) => (p[0] as Ring).some(([lon]) => lon === 160));
     expect(main).toHaveLength(2);
-    expect((main?.[1] as Ring).map(([lon]) => lon)).toEqual([165, 170, 170, 165, 165]);
+    const kept = (main ?? [])[1] ?? [];
+    expect(kept.map(([lon]) => lon)).toEqual([165, 170, 170, 165, 165]);
   });
 });
 
