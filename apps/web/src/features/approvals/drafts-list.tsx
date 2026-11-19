@@ -14,6 +14,7 @@ const KIND: Record<DraftedMessageView["kind"], string> = {
   master_instruction: "To the master",
   agent_request: "To the port agent",
   pre_arrival_notice: "Pre-arrival notice",
+  security_confirmation: "To the security provider",
 };
 
 export function DraftsList({

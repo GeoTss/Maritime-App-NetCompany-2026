@@ -10,6 +10,7 @@ import {
   IsoDateTime,
   LatLon,
 } from "./primitives.js";
+import { SecurityInput, SecurityPlanResult } from "./security.js";
 
 const NonNeg = z.number().nonnegative();
 const Positive = z.number().positive();
@@ -259,6 +260,8 @@ export const RouteSpeedInput = z
     stores: VesselStores.nullable().optional(),
     /** Charts and publications at their current editions, for the out-of-date check. */
     nautical: z.array(NauticalItem).optional(),
+    /** Danger areas, security quotes, hull value and canal terms; absent = no security planning. */
+    security: SecurityInput.optional(),
   })
   .strict();
 export type RouteSpeedInput = z.infer<typeof RouteSpeedInput>;
@@ -291,8 +294,17 @@ export const RouteOptionResult = z
     /** Ids of the hazard zones the route passes through, sorted. */
     hazardIds: z.array(z.string()),
     reasons: z.array(
-      z.enum(["misses_arrive_by", "crosses_hazard", "insufficient_fuel", "heavy_weather"]),
+      z.enum([
+        "misses_arrive_by",
+        "crosses_hazard",
+        "insufficient_fuel",
+        "heavy_weather",
+        "security_unavailable",
+        "avoid_area",
+      ]),
     ),
+    /** The option's security plan; absent or null when the input has no security data. */
+    security: SecurityPlanResult.nullable().optional(),
     /** Fuel on board along the option; null when the input has no fuel. */
     fuel: TrackFuel.nullable(),
   })

@@ -26,6 +26,7 @@ const STATE: Record<RecommendationView["status"], { text: string; tone: string }
 const UNTIL_APPROVED: Record<RecommendationView["type"], string> = {
   purchase_order: "Nothing is ordered until you approve.",
   voyage_instruction: "Nothing is recorded until you approve.",
+  security_order: "No security team is ordered until you approve.",
 };
 
 const useRecommendation = (id: number) =>

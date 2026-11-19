@@ -21,10 +21,15 @@ export async function proposeFromPlan(
   deps: { sql: Sql; now: () => Date },
   body: ProposeBody,
 ): Promise<ProposeResult> {
+  // Security orders are proposed through their own path (Track 3, Task 8).
+  if (body.type === "security_order") {
+    throw new ProposeError("A security order is proposed from a route plan's security block.");
+  }
+  const fuelOrRoute = { ...body, type: body.type };
   let checked: { expectedSavingUsd: number | null };
   try {
-    const { kind, outputs } = await proposalSource(deps.sql, body);
-    checked = checkedOption({ ...body, factRefs: [], rationale: "" }, kind, outputs);
+    const { kind, outputs } = await proposalSource(deps.sql, fuelOrRoute);
+    checked = checkedOption({ ...fuelOrRoute, factRefs: [], rationale: "" }, kind, outputs);
   } catch (err) {
     if (err instanceof Error) throw new ProposeError(err.message);
     throw err;
@@ -33,7 +38,7 @@ export async function proposeFromPlan(
   const { id, created, status } = await insertPending(
     deps.sql,
     deps.now(),
-    body,
+    fuelOrRoute,
     [],
     checked.expectedSavingUsd,
   );

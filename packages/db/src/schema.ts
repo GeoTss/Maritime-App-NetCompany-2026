@@ -340,7 +340,7 @@ export const messages = pgTable("messages", {
 
 export const recommendations = pgTable("recommendations", {
   id: id(),
-  type: text().$type<"purchase_order" | "voyage_instruction">().notNull(),
+  type: text().$type<"purchase_order" | "voyage_instruction" | "security_order">().notNull(),
   calculationId: integer()
     .notNull()
     .references(() => calculations.id, { onDelete: "restrict" }),

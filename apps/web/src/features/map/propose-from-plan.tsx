@@ -22,16 +22,19 @@ type Kind = ProposeBody["type"];
 const NOUN: Record<Kind, string> = {
   purchase_order: "purchase order",
   voyage_instruction: "voyage instruction",
+  security_order: "security order",
 };
 
 const TITLE: Record<Kind, string> = {
   purchase_order: "Purchase order",
   voyage_instruction: "Voyage instruction",
+  security_order: "Security order",
 };
 
 const UNTIL_APPROVED: Record<Kind, string> = {
   purchase_order: "Purchase order: nothing is ordered until you approve it.",
   voyage_instruction: "Voyage instruction: nothing is sent until you approve it.",
+  security_order: "Security order: no team is ordered until you approve it.",
 };
 
 /** Where an existing proposal stands, in the operator's words. */

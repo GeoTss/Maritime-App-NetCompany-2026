@@ -203,6 +203,9 @@ const COST_TEXT: Record<CostLine["kind"], string> = {
   sludge: "sludge delivery",
   sewage: "sewage delivery",
   eu_waste_fee: "EU waste fee",
+  security_team: "armed security team",
+  war_risk_premium: "war-risk premium",
+  canal_dues: "canal dues",
 };
 const NOTICE_TEXT: Record<PreArrivalNotice["kind"], string> = {
   agent_appointment: "agent appointment",

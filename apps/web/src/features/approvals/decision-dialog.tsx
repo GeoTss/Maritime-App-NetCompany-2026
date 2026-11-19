@@ -14,6 +14,8 @@ export const APPROVE_CONSEQUENCE: Record<RecommendationView["type"], string> = {
     "Approving pushes the order to the ERP simulator and drafts a supplier confirmation (not sent).",
   voyage_instruction:
     "Approving records the route and speed instruction and drafts a message to the master (not sent).",
+  security_order:
+    "Approving pushes the security order to the ERP simulator and drafts a provider confirmation (not sent).",
 };
 
 export const REJECT_CONSEQUENCE =
@@ -23,6 +25,7 @@ export const REJECT_CONSEQUENCE =
 export const APPROVE_LABEL: Record<RecommendationView["type"], string> = {
   purchase_order: "Approve purchase order…",
   voyage_instruction: "Approve voyage instruction…",
+  security_order: "Approve security order…",
 };
 
 const text = (f: Fact) =>
