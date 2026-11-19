@@ -8,6 +8,10 @@ import {
   REFERENCE_RATES,
   SUPPLIERS,
 } from "./scenario.js";
+
+/** The ports Track 3 appended (security): fixed seed values, no random draws. */
+const TRACK3_PORTS = new Set(["AEFJR", "EGSUZ", "DJJIB", "ZADUR", "ZACPT", "ESLPA"]);
+
 import type { World } from "./types.js";
 
 const HOUR_MS = 3_600_000;
@@ -57,8 +61,14 @@ export function buildCommercial(
     return i + 1;
   };
 
+  // Track 3 ports take fixed values and draw nothing, so every earlier port's random values (prices,
+  // then congestion) stay exactly as they were.
+  const track3 = (p: { unlocode: string }) => TRACK3_PORTS.has(p.unlocode);
+  const core = ports.filter((p) => !track3(p));
+  const added = ports.filter(track3);
+
   const portFuelPrices: World["portFuelPrices"] = [];
-  for (const p of ports) {
+  for (const p of core) {
     for (const grade of FUEL_GRADES) {
       const [lo, hi] = PRICE_BANDS[grade];
       portFuelPrices.push({
@@ -73,7 +83,21 @@ export function buildCommercial(
     }
   }
 
-  const portCongestion: World["portCongestion"] = ports.map((p, i) => ({
+  for (const p of added) {
+    for (const grade of FUEL_GRADES) {
+      const [lo, hi] = PRICE_BANDS[grade];
+      portFuelPrices.push({
+        id: portFuelPrices.length + 1,
+        portId: p.id,
+        grade,
+        priceUsdPerMt: (lo + hi) / 2,
+        asOf: t(-3 * HOUR_MS),
+        source: "seed",
+      });
+    }
+  }
+
+  const portCongestion: World["portCongestion"] = core.map((p, i) => ({
     id: i + 1,
     portId: p.id,
     observedAt: t(-1 * HOUR_MS),
@@ -81,6 +105,16 @@ export function buildCommercial(
     waitingHours: FIXED_WAITING_HOURS[p.unlocode] ?? prngInt(prng, 2, 20),
     source: "seed",
   }));
+  for (const p of added) {
+    portCongestion.push({
+      id: portCongestion.length + 1,
+      portId: p.id,
+      observedAt: t(-1 * HOUR_MS),
+      anchoredCount: 6,
+      waitingHours: 8,
+      source: "seed",
+    });
+  }
 
   const bunkerRequirements: World["bunkerRequirements"] = [
     {

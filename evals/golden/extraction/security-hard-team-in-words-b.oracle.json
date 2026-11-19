@@ -1,0 +1,54 @@
+{
+  "kind": "security_quote",
+  "providerName": {
+    "value": "Aegis Watch Maritime",
+    "evidence": "For and on behalf of Aegis Watch Maritime"
+  },
+  "vesselName": {
+    "value": "M/V THESSALY STAR",
+    "evidence": "Vessel              M/V THESSALY STAR - IMO: 9481025"
+  },
+  "vesselImo": {
+    "value": "9481025",
+    "evidence": "Vessel              M/V THESSALY STAR - IMO: 9481025"
+  },
+  "embarkPort": {
+    "value": "Fujairah",
+    "evidence": "Team boards at      off Fujairah"
+  },
+  "disembarkPort": {
+    "value": "Cape Town",
+    "evidence": "Disembark           Cape Town anchorage"
+  },
+  "teamSize": {
+    "value": 4,
+    "unit": "armed guards",
+    "asWritten": "four armed guards",
+    "evidence": "Team size           four armed guards"
+  },
+  "dayRate": {
+    "value": 1050,
+    "currency": "US$",
+    "perUnit": "/day",
+    "asWritten": "US$ 1050/day",
+    "evidence": "Rate                US$ 1050/day"
+  },
+  "fixedFees": {
+    "value": 4500,
+    "currency": "US$",
+    "perUnit": "one-off",
+    "asWritten": "US$ 4,500 one-off",
+    "evidence": "One-off charges     US$ 4,500 one-off"
+  },
+  "minDays": {
+    "value": 5,
+    "unit": "days",
+    "asWritten": "5 days",
+    "evidence": "Minimum period      5 days"
+  },
+  "validUntil": {
+    "asWritten": "Nov 19",
+    "evidence": "Offer valid until   Nov 19"
+  },
+  "notes": null
+}

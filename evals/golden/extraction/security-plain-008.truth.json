@@ -1,0 +1,30 @@
+{
+  "id": "security-plain-008",
+  "tags": [
+    "security-plain",
+    "layout:compact",
+    "vessel:name",
+    "team:pcasp",
+    "fees:plain",
+    "route:DJJIB-EGSUZ"
+  ],
+  "source": "generated",
+  "expected": {
+    "kind": "security_quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": null,
+    "security": {
+      "provider": "Harbourline Security Services",
+      "vesselImo": "9483047",
+      "embarkUnlocode": "DJJIB",
+      "disembarkUnlocode": "EGSUZ",
+      "teamSize": 3,
+      "dayRate": 1600,
+      "currency": "USD",
+      "fixedFees": 5750,
+      "minDays": 7,
+      "validUntil": "2026-11-16"
+    }
+  }
+}

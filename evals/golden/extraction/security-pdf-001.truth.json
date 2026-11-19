@@ -1,0 +1,30 @@
+{
+  "id": "security-pdf-001",
+  "tags": [
+    "security-pdf",
+    "layout:grid",
+    "vessel:name",
+    "team:man-team",
+    "fees:plain",
+    "route:DJJIB-EGSUZ"
+  ],
+  "source": "generated",
+  "expected": {
+    "kind": "security_quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": null,
+    "security": {
+      "provider": "Harbourline Security Services",
+      "vesselImo": "9480019",
+      "embarkUnlocode": "DJJIB",
+      "disembarkUnlocode": "EGSUZ",
+      "teamSize": 3,
+      "dayRate": 1300,
+      "currency": "USD",
+      "fixedFees": 8000,
+      "minDays": 3,
+      "validUntil": "2026-11-20"
+    }
+  }
+}

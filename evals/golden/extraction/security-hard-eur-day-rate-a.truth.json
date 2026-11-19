@@ -1,0 +1,23 @@
+{
+  "id": "security-hard-eur-day-rate-a",
+  "tags": ["security-hard", "eur-day-rate", "render:a", "layout:plain-prose"],
+  "source": "hard",
+  "expected": {
+    "kind": "security_quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": null,
+    "security": {
+      "provider": "Aegis Watch Maritime",
+      "vesselImo": "9480019",
+      "embarkUnlocode": "DJJIB",
+      "disembarkUnlocode": "ZADUR",
+      "teamSize": 5,
+      "dayRate": 950,
+      "currency": "EUR",
+      "fixedFees": 3250,
+      "minDays": 4,
+      "validUntil": "2026-11-17"
+    }
+  }
+}

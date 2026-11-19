@@ -26,7 +26,7 @@ import { formatUtc, formatUtcDay } from "@/lib/format";
 import { useMediaQuery } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
-export type LayerKey = "traffic" | "fleet" | "weather" | "hazards" | "congestion";
+export type LayerKey = "traffic" | "fleet" | "weather" | "hazards" | "security" | "congestion";
 export type LayerState = Record<LayerKey, boolean>;
 
 export const DEFAULT_LAYERS: LayerState = {
@@ -34,6 +34,7 @@ export const DEFAULT_LAYERS: LayerState = {
   fleet: true,
   weather: true,
   hazards: true,
+  security: true,
   congestion: true,
 };
 
@@ -42,6 +43,7 @@ export const LAYER_LABEL: Record<LayerKey, string> = {
   fleet: "Fleet",
   weather: "Weather",
   hazards: "Hazards",
+  security: "Danger areas",
   congestion: "Port queues",
 };
 

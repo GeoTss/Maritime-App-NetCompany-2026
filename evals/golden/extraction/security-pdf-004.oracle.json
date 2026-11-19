@@ -1,0 +1,54 @@
+{
+  "kind": "security_quote",
+  "providerName": {
+    "value": "Tridentis Marine Protection",
+    "evidence": "For and on behalf of Tridentis Marine Protection"
+  },
+  "vesselName": {
+    "value": "M/V Thessaly Star",
+    "evidence": "Vessel: M/V Thessaly Star (IMO 9481025)"
+  },
+  "vesselImo": {
+    "value": "9481025",
+    "evidence": "Vessel: M/V Thessaly Star (IMO 9481025)"
+  },
+  "embarkPort": {
+    "value": "Fujairah",
+    "evidence": "Embarkation: Fujairah (AEFJR)"
+  },
+  "disembarkPort": {
+    "value": "Djibouti",
+    "evidence": "Disembarkation point: Djibouti (DJJIB)"
+  },
+  "teamSize": {
+    "value": 6,
+    "unit": "PCASP",
+    "asWritten": "6 PCASP",
+    "evidence": "6 PCASP USD 1325 per day 5 days USD 4,500 lump sum"
+  },
+  "dayRate": {
+    "value": 1325,
+    "currency": "USD",
+    "perUnit": "per day",
+    "asWritten": "USD 1325 per day",
+    "evidence": "6 PCASP USD 1325 per day 5 days USD 4,500 lump sum"
+  },
+  "fixedFees": {
+    "value": 4500,
+    "currency": "USD",
+    "perUnit": "lump sum",
+    "asWritten": "USD 4,500 lump sum",
+    "evidence": "6 PCASP USD 1325 per day 5 days USD 4,500 lump sum"
+  },
+  "minDays": {
+    "value": 5,
+    "unit": "days",
+    "asWritten": "5 days",
+    "evidence": "6 PCASP USD 1325 per day 5 days USD 4,500 lump sum"
+  },
+  "validUntil": {
+    "asWritten": "17th November 1200 UTC",
+    "evidence": "Rates valid until: 17th November 1200 UTC"
+  },
+  "notes": null
+}

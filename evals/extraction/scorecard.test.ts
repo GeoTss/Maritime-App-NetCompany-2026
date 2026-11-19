@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import type { CaseGrade, FieldGrade } from "./grade.js";
+import {
+  type CaseGrade,
+  type FieldGrade,
+  SECURITY_GRADED_FIELDS,
+  type SecurityFieldGrade,
+} from "./grade.js";
 import {
   type GradedRun,
   percentile,
@@ -475,5 +480,104 @@ describe("renderScorecardMd", () => {
     expect(md).toContain("**Runner errors (1)** (the run failed)");
     expect(md).toContain("case-1: lines: stored [...], graded [...]");
     expect(renderScorecardMd(scorecard([run(grade())]), meta)).not.toContain("Runner errors");
+  });
+});
+
+// ---------- Track 3 security quotes ----------
+
+const sf = (
+  field: SecurityFieldGrade["field"],
+  verdict: SecurityFieldGrade["verdict"],
+  critical = field !== "provider",
+): SecurityFieldGrade => ({
+  field,
+  critical,
+  verdict,
+  truth: 1,
+  predicted: verdict === "missing" ? null : 1,
+});
+const secOkFields = () => SECURITY_GRADED_FIELDS.map((x) => sf(x, "correct"));
+
+const secGrade = (over: Partial<CaseGrade> = {}, fields = secOkFields()): CaseGrade =>
+  grade({
+    id: "s-1",
+    tags: ["security-plain"],
+    truthKind: "security_quote",
+    kind: "security_quote",
+    fields: [],
+    lines: [],
+    criticalAllCorrect: null,
+    security: {
+      predicted: null,
+      fields,
+      criticalAllCorrect: fields.every((x) => !x.critical || x.verdict === "correct"),
+    },
+    ...over,
+  });
+
+describe("scorecard: Track 3 security section", () => {
+  it("is null without security truths, and the fuel headline is unchanged by security grades", () => {
+    const fuelOnly = scorecard([run(grade()), run(notAQuote())]);
+    expect(fuelOnly.security).toBeNull();
+    const mixed = scorecard([run(grade()), run(notAQuote()), run(secGrade())]);
+    expect(mixed.graded).toBe(3);
+    expect(mixed.critical).toEqual(fuelOnly.critical);
+    expect(mixed.unsafeAutoAccepts).toEqual(fuelOnly.unsafeAutoAccepts);
+    expect(mixed.reviewQueue).toEqual(fuelOnly.reviewQueue);
+    expect(mixed.kind).toEqual(fuelOnly.kind);
+    expect(mixed.security?.graded).toBe(1);
+  });
+
+  it("scores security critical fields, unsafe auto-accepts, kind and review rates apart", () => {
+    const card = scorecard([
+      run(grade()),
+      run(secGrade()),
+      // Stored with the first of several fee charges: a critical miss and an unsafe auto-accept.
+      run(
+        secGrade({ id: "s-fees", unsafeAutoAccept: true }, [
+          ...secOkFields().filter((x) => x.field !== "fixedFees"),
+          sf("fixedFees", "wrong"),
+        ]),
+      ),
+      // "4/6 guards" sent to review: no record, no field grades.
+      run(
+        secGrade(
+          {
+            id: "s-review",
+            truthStatus: "needs_review",
+            status: "needs_review",
+            reviewCheckMatched: true,
+            failedChecks: ["team_size_unambiguous"],
+          },
+          [],
+        ),
+      ),
+      // A security email read as a fuel quote: costs fuel quote precision and security recall.
+      run(secGrade({ id: "s-fuel", kind: "quote", status: "needs_review", falseReview: true })),
+    ]);
+    const sec = card.security;
+    if (!sec) throw new Error("no security section");
+    expect(sec.graded).toBe(4);
+    // 9 critical fields x 3 graded field sets; one wrong.
+    expect(sec.critical).toMatchObject({ k: 26, n: 27, wrong: 1, missing: 0, cases: 3 });
+    expect(sec.fields.fixedFees).toMatchObject({ k: 2, n: 3, wrong: 1, critical: true });
+    expect(sec.fields.provider).toMatchObject({ k: 3, n: 3, critical: false });
+    expect(sec.fieldErrors).toEqual([{ field: "fixedFees", verdict: "wrong", ids: ["s-fees"] }]);
+    expect(sec.unsafeAutoAccepts).toMatchObject({ k: 1, n: 4, ids: ["s-fees"] });
+    expect(sec.recall).toMatchObject({ k: 3, n: 4 });
+    expect(sec.precision).toMatchObject({ k: 3, n: 3 });
+    expect(sec.needsReviewRecall).toMatchObject({ k: 1, n: 1 });
+    expect(sec.reviewCheckMatched).toMatchObject({ k: 1, n: 1 });
+    expect(sec.falseReview).toMatchObject({ k: 1, n: 3, ids: ["s-fuel"] });
+    // Fuel: the security email read as a quote is a false quote.
+    expect(card.kind.quotePrecision).toMatchObject({ k: 1, n: 2 });
+    expect(card.unsafeAutoAccepts).toMatchObject({ k: 0, n: 1 });
+
+    const md = renderScorecardMd(card, META);
+    expect(md).toContain("## Security quotes (Track 3; first runs, errors excluded)");
+    expect(md).toContain("| Security critical-field accuracy | 26/27 |");
+    expect(md).toContain("| Unsafe auto-accepts | 1/4 |");
+    expect(md).toContain("- fixedFees wrong (1): s-fees");
+    expect(renderScorecardMd(scorecard([run(grade())]), META)).not.toContain("Security quotes");
   });
 });

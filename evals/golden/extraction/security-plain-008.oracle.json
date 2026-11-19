@@ -1,0 +1,54 @@
+{
+  "kind": "security_quote",
+  "providerName": {
+    "value": "Harbourline Security Services",
+    "evidence": "Harbourline Security Services"
+  },
+  "vesselName": {
+    "value": "M/V Iberian Dawn",
+    "evidence": "M/V Iberian Dawn / off Djibouti - Suez, Egypt / 3 PCASP @ $1,600 per day"
+  },
+  "vesselImo": {
+    "value": null,
+    "evidence": null
+  },
+  "embarkPort": {
+    "value": "Djibouti",
+    "evidence": "M/V Iberian Dawn / off Djibouti - Suez, Egypt / 3 PCASP @ $1,600 per day"
+  },
+  "disembarkPort": {
+    "value": "Suez",
+    "evidence": "M/V Iberian Dawn / off Djibouti - Suez, Egypt / 3 PCASP @ $1,600 per day"
+  },
+  "teamSize": {
+    "value": 3,
+    "unit": "PCASP",
+    "asWritten": "3 PCASP",
+    "evidence": "M/V Iberian Dawn / off Djibouti - Suez, Egypt / 3 PCASP @ $1,600 per day"
+  },
+  "dayRate": {
+    "value": 1600,
+    "currency": "$",
+    "perUnit": "per day",
+    "asWritten": "$1,600 per day",
+    "evidence": "M/V Iberian Dawn / off Djibouti - Suez, Egypt / 3 PCASP @ $1,600 per day"
+  },
+  "fixedFees": {
+    "value": 5750,
+    "currency": "USD",
+    "perUnit": null,
+    "asWritten": "USD 5,750",
+    "evidence": "Fees: USD 5,750"
+  },
+  "minDays": {
+    "value": 7,
+    "unit": "days",
+    "asWritten": "7 days",
+    "evidence": "Minimum: 7 days"
+  },
+  "validUntil": {
+    "asWritten": "16 Nov 2026 18:00 UTC",
+    "evidence": "Valid until: 16 Nov 2026 18:00 UTC"
+  },
+  "notes": null
+}

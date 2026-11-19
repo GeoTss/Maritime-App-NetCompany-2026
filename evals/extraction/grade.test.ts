@@ -1,4 +1,4 @@
-import type { ExtractionTruth, NormalisedView } from "@pharos/shared";
+import type { ExtractionTruth, NormalisedView, TruthSecurityQuote } from "@pharos/shared";
 import { describe, expect, it } from "vitest";
 import {
   alignLines,
@@ -7,6 +7,10 @@ import {
   entityKeys,
   type FieldGrade,
   gradeCase,
+  SECURITY_GRADED_FIELDS,
+  type SecurityField,
+  type SecurityRecord,
+  securityToTruthSpace,
 } from "./grade.js";
 import { evalWorld } from "./world.js";
 
@@ -422,5 +426,196 @@ describe("entityKeys", () => {
     const kestrel = world.suppliers.find((s) => s.name === "Kestrel Marine Fuels");
     expect(kestrel && keys.supplierKey(kestrel.id)).toBe("kestrel");
     expect(keys.vesselImo(999_999)).toBeNull();
+  });
+});
+
+// ---------- Track 3 security quotes ----------
+
+const SEC_KEYS: EntityKeys = {
+  ...KEYS,
+  portUnlocode: (id) => ({ 13: "AEFJR", 15: "DJJIB" })[id] ?? null,
+  providerName: (id) => ({ 1: "Tridentis Marine Protection" })[id] ?? null,
+};
+
+const securityTruth = (over: Partial<ExtractionTruth["expected"]> = {}): ExtractionTruth => ({
+  id: "security-plain-001",
+  tags: ["security-plain"],
+  source: "generated",
+  expected: {
+    kind: "security_quote",
+    status: "extracted",
+    reviewChecks: [],
+    quote: null,
+    security: {
+      provider: "Tridentis Marine Protection",
+      vesselImo: "9485069",
+      embarkUnlocode: "AEFJR",
+      disembarkUnlocode: "DJJIB",
+      teamSize: 4,
+      dayRate: 1250,
+      currency: "USD",
+      fixedFees: 6000,
+      minDays: 4,
+      validUntil: "2026-11-20",
+    },
+    ...over,
+  },
+});
+
+/** The pipeline's record that matches `securityTruth()` exactly. */
+const record = (over: Partial<SecurityRecord> = {}): SecurityRecord => ({
+  providerId: 1,
+  vesselImo: "9485069",
+  embarkPortId: 13,
+  disembarkPortId: 15,
+  teamSize: 4,
+  dayRate: 1250,
+  fixedFees: 6000,
+  minDays: 4,
+  currency: "USD",
+  validUntil: "2026-11-20",
+  ...over,
+});
+
+const secOutcome = (over: Partial<CaseOutcome> = {}): CaseOutcome => ({
+  status: "extracted",
+  kind: "security_quote",
+  normalised: view({
+    vesselId: null,
+    portId: null,
+    supplierId: null,
+    currency: null,
+    validUntil: null,
+    deliveryFrom: null,
+    deliveryTo: null,
+    bargeFee: null,
+    lines: [],
+  }),
+  security: record(),
+  error: null,
+  errorKind: null,
+  failedChecks: [],
+  ...over,
+});
+
+const secVerdict = (g: ReturnType<typeof gradeCase>, f: SecurityField) =>
+  g.security?.fields.find((x) => x.field === f)?.verdict;
+
+describe("gradeCase: security quotes (Track 3)", () => {
+  it("known-good: the stored record equal to the truth is all correct, safe, critical all correct", () => {
+    const g = gradeCase(securityTruth(), secOutcome(), SEC_KEYS);
+    expect(g.security?.fields.map((f) => f.field)).toEqual([...SECURITY_GRADED_FIELDS]);
+    expect(new Set(g.security?.fields.map((f) => f.verdict))).toEqual(new Set(["correct"]));
+    expect(g.security?.criticalAllCorrect).toBe(true);
+    expect(g.unsafeAutoAccept).toBe(false);
+    expect(g.falseReview).toBe(false);
+    // The fuel side is not graded for a security truth.
+    expect(g.fields).toEqual([]);
+    expect(g.criticalAllCorrect).toBeNull();
+    expect(g.security?.predicted).toEqual(securityTruth().expected.security);
+  });
+
+  it.each<[string, Partial<SecurityRecord>, SecurityField, "correct" | "wrong"]>([
+    ["day rate within half a cent", { dayRate: 1250.004 }, "dayRate", "correct"],
+    ["day rate one dollar off", { dayRate: 1249 }, "dayRate", "wrong"],
+    ["fixed fees: the first of several charges", { fixedFees: 1500 }, "fixedFees", "wrong"],
+    ["team of 6, not 4", { teamSize: 6 }, "teamSize", "wrong"],
+    ["minimum read as 0 (fees left out)", { minDays: 0 }, "minDays", "wrong"],
+    ["EUR, not USD", { currency: "EUR" }, "currency", "wrong"],
+    ["another disembark port", { disembarkPortId: 13 }, "disembarkPort", "wrong"],
+    ["an id the world cannot name", { embarkPortId: 99 }, "embarkPort", "wrong"],
+    ["validity a day late", { validUntil: "2026-11-21" }, "validUntil", "wrong"],
+    ["another provider", { providerId: 2 }, "provider", "wrong"],
+  ])("known-bad: %s", (_, over, f, verdict) => {
+    const g = gradeCase(securityTruth(), secOutcome({ security: record(over) }), SEC_KEYS);
+    expect(secVerdict(g, f)).toBe(verdict);
+    // Any critical value or the provider off on a stored quote makes it unsafe.
+    expect(g.unsafeAutoAccept).toBe(verdict === "wrong");
+    if (f !== "provider") expect(g.security?.criticalAllCorrect).toBe(verdict === "correct");
+  });
+
+  it("a truth-extracted case sent to review has every field missing and is a false review", () => {
+    const g = gradeCase(
+      securityTruth(),
+      secOutcome({ status: "needs_review", security: null, failedChecks: ["amounts_parsed"] }),
+      SEC_KEYS,
+    );
+    expect(new Set(g.security?.fields.map((f) => f.verdict))).toEqual(new Set(["missing"]));
+    expect(g.falseReview).toBe(true);
+    expect(g.unsafeAutoAccept).toBe(false);
+  });
+
+  it("a truth-needs_review case sent to review grades no field and matches its check", () => {
+    const t = securityTruth({
+      status: "needs_review",
+      reviewChecks: ["team_size_unambiguous"],
+      security: { ...(securityTruth().expected.security as TruthSecurityQuote), teamSize: null },
+    });
+    const g = gradeCase(
+      t,
+      secOutcome({
+        status: "needs_review",
+        security: null,
+        failedChecks: ["team_size_unambiguous"],
+      }),
+      SEC_KEYS,
+    );
+    expect(g.security?.fields).toEqual([]);
+    expect(g.security?.criticalAllCorrect).toBeNull();
+    expect(g.reviewCheckMatched).toBe(true);
+    expect(g.unsafeAutoAccept).toBe(false);
+  });
+
+  it("known-bad: '4/6 guards' stored as 4 is an unsafe auto-accept with the team size wrong", () => {
+    const t = securityTruth({
+      status: "needs_review",
+      reviewChecks: ["team_size_unambiguous"],
+      security: { ...(securityTruth().expected.security as TruthSecurityQuote), teamSize: null },
+    });
+    const g = gradeCase(t, secOutcome(), SEC_KEYS);
+    expect(secVerdict(g, "teamSize")).toBe("wrong");
+    expect(secVerdict(g, "dayRate")).toBe("correct");
+    expect(g.unsafeAutoAccept).toBe(true);
+    expect(g.reviewCheckMatched).toBe(false);
+  });
+
+  it("kind confusion either way is unsafe when stored", () => {
+    // A security email stored as a fuel quote: no security record, so every field is missing.
+    const asFuel = gradeCase(securityTruth(), outcome({ kind: "quote", security: null }), SEC_KEYS);
+    expect(asFuel.unsafeAutoAccept).toBe(true);
+    expect(new Set(asFuel.security?.fields.map((f) => f.verdict))).toEqual(new Set(["missing"]));
+    // A fuel email stored as a security quote: the fuel fields are missing.
+    const asSecurity = gradeCase(truth(), secOutcome(), KEYS);
+    expect(asSecurity.unsafeAutoAccept).toBe(true);
+    expect(asSecurity.security).toBeNull();
+    // A not-a-quote email stored as a security quote.
+    const naq = gradeCase(
+      truth({ kind: "not_a_quote", status: "not_a_quote", quote: null }),
+      secOutcome(),
+      KEYS,
+    );
+    expect(naq.unsafeAutoAccept).toBe(true);
+  });
+
+  it("an API error grades nothing, security included", () => {
+    const g = gradeCase(
+      securityTruth(),
+      secOutcome({ status: "failed", errorKind: "api_error", error: "529", security: null }),
+      SEC_KEYS,
+    );
+    expect(g.error).toEqual({ kind: "api_error", message: "529" });
+    expect(g.security).toBeNull();
+    expect(g.unsafeAutoAccept).toBeNull();
+  });
+
+  it("entityKeys names the seeded security providers", () => {
+    const world = evalWorld();
+    const keys = entityKeys(world);
+    const tri = world.securityProviders.find((p) => p.name === "Tridentis Marine Protection");
+    expect(tri && keys.providerName?.(tri.id)).toBe("Tridentis Marine Protection");
+    expect(keys.providerName?.(999)).toBeNull();
+    expect(securityToTruthSpace(record({ providerId: 999 }), keys).provider).toBe(
+      "unknown provider id 999",
+    );
   });
 });

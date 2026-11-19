@@ -3,6 +3,12 @@
  * 95 % Wilson interval, plus latency and cost per email and the run-to-run variance of the hard
  * cases. Headline metrics use each case's first run only; errors (API, truncation, refusal,
  * replay miss) are listed apart and are in no accuracy denominator.
+ *
+ * Track 3: the headline is the fuel suite as before (fuel-quote and not-a-quote truths; quote and
+ * not-a-quote precision count every graded email, so a security email read as a fuel quote still
+ * costs quote precision). Security-quote truths are scored apart in `security`: their own
+ * critical-field accuracy, per-field accuracy, unsafe auto-accepts (counted the same way),
+ * security-quote precision and recall, and the review rates.
  */
 import { TARGET_EMAIL_MS } from "../lib/targets.js";
 import {
@@ -11,7 +17,10 @@ import {
   GRADED_FIELDS,
   type GradedField,
   isCritical,
+  isSecurityCritical,
   type PredictedQuote,
+  SECURITY_GRADED_FIELDS,
+  type SecurityField,
   type Verdict,
 } from "./grade.js";
 
@@ -110,6 +119,28 @@ export interface Variance {
   reviewCheckMatched: Rate;
 }
 
+/** Security-quote truths (Track 3), scored apart from the fuel headline. */
+export interface SecurityScorecard {
+  /** Graded security-truth cases (first runs, errors excluded). */
+  graded: number;
+  /** Every critical field instance of every graded security field set; `cases` is how many. */
+  critical: Rate & { wrong: number; missing: number; cases: number };
+  fields: Record<SecurityField, FieldTally>;
+  fieldErrors: { field: SecurityField; verdict: Exclude<Verdict, "correct">; ids: string[] }[];
+  /** Stored as extracted while not a clean, correctly read security quote / security truths. */
+  unsafeAutoAccepts: Rate & { ids: string[] };
+  /** Predicted kind security_quote and truth security_quote / predicted security_quote (all graded). */
+  precision: Rate;
+  /** Truth security_quote predicted security_quote / truth security_quote. */
+  recall: Rate;
+  reviewQueue: Rate;
+  falseReview: Rate & { ids: string[] };
+  needsReviewRecall: Rate & { missedIds: string[] };
+  reviewCheckMatched: Rate & { missedIds: string[] };
+  /** Cost of the security emails' first runs (llm_calls). */
+  cost: { perEmail: Dist };
+}
+
 export interface Scorecard {
   /** Cases with a first run (errors included). */
   cases: number;
@@ -146,6 +177,8 @@ export interface Scorecard {
   cost: { perEmail: Dist; totalUsd: number };
   /** Hard cases run more than once; null without `--repeat-hard`. */
   variance: Variance | null;
+  /** Track 3 security-quote truths; null (or absent, in a report written before) when none ran. */
+  security?: SecurityScorecard | null;
 }
 
 const count = <T>(xs: readonly T[], p: (x: T) => boolean) => xs.filter(p).length;
@@ -154,6 +187,9 @@ const sum = (xs: readonly number[]) => xs.reduce((a, b) => a + b, 0);
 /** Kind and critical values only, line order ignored: what must agree across repeats. */
 function criticalSignature(g: CaseGrade): string {
   const p: PredictedQuote | null = g.predicted;
+  if (g.truthKind === "security_quote") {
+    return JSON.stringify({ kind: g.kind, values: g.security?.predicted ?? null });
+  }
   return JSON.stringify({
     kind: g.kind,
     values:
@@ -207,7 +243,9 @@ function variance(runs: readonly GradedRun[]): Variance | null {
       runs: ordered.length,
       statuses: ordered.map((g) => (g.error ? `error: ${g.error.kind}` : g.status)),
       criticalAgreed: errored ? null : new Set(ordered.map(criticalSignature)).size === 1,
-      criticalAllCorrect: ordered.map((g) => g.criticalAllCorrect),
+      criticalAllCorrect: ordered.map(
+        (g) => g.criticalAllCorrect ?? g.security?.criticalAllCorrect ?? null,
+      ),
       unsafeRuns: count(ordered, (g) => g.unsafeAutoAccept === true),
       reviewedRuns: review
         ? { k: review.needsReviewRecall.k, n: review.needsReviewRecall.n }
@@ -230,13 +268,85 @@ function variance(runs: readonly GradedRun[]): Variance | null {
   };
 }
 
+const isSecurityTruth = (g: CaseGrade) => g.truthKind === "security_quote";
+
+function securityScorecard(
+  first: readonly GradedRun[],
+  allGraded: readonly CaseGrade[],
+): SecurityScorecard | null {
+  const graded = allGraded.filter(isSecurityTruth);
+  if (graded.length === 0) return null;
+  const instances = graded.flatMap((g) => (g.security?.fields ?? []).map((f) => ({ id: g.id, f })));
+  const tally = (xs: typeof instances) => ({
+    ...rateOf(
+      count(xs, (x) => x.f.verdict === "correct"),
+      xs.length,
+    ),
+    wrong: count(xs, (x) => x.f.verdict === "wrong"),
+    missing: count(xs, (x) => x.f.verdict === "missing"),
+  });
+  const fields = Object.fromEntries(
+    SECURITY_GRADED_FIELDS.map((field) => [
+      field,
+      {
+        ...tally(instances.filter((x) => x.f.field === field)),
+        critical: isSecurityCritical(field),
+      },
+    ]),
+  ) as Record<SecurityField, FieldTally>;
+  const fieldErrors: SecurityScorecard["fieldErrors"] = [];
+  for (const field of SECURITY_GRADED_FIELDS) {
+    for (const verdict of ["wrong", "missing"] as const) {
+      const ids = [
+        ...new Set(
+          instances.filter((x) => x.f.field === field && x.f.verdict === verdict).map((x) => x.id),
+        ),
+      ];
+      if (ids.length > 0) fieldErrors.push({ field, verdict, ids });
+    }
+  }
+  fieldErrors.sort((a, b) => b.ids.length - a.ids.length);
+  const predicted = allGraded.filter((g) => g.kind === "security_quote");
+  const truthExtracted = graded.filter((g) => g.truthStatus === "extracted");
+  const unsafeIds = graded.filter((g) => g.unsafeAutoAccept === true).map((g) => g.id);
+  const falseReviewIds = truthExtracted.filter((g) => g.falseReview === true).map((g) => g.id);
+  const ids = new Set(graded.map((g) => g.id));
+  return {
+    graded: graded.length,
+    critical: {
+      ...tally(instances.filter((x) => x.f.critical)),
+      cases: count(graded, (g) => (g.security?.fields.length ?? 0) > 0),
+    },
+    fields,
+    fieldErrors,
+    unsafeAutoAccepts: { ...rateOf(unsafeIds.length, graded.length), ids: unsafeIds },
+    precision: rateOf(count(predicted, isSecurityTruth), predicted.length),
+    recall: rateOf(
+      count(graded, (g) => g.kind === "security_quote"),
+      graded.length,
+    ),
+    reviewQueue: rateOf(
+      count(graded, (g) => REVIEWED.has(g.status)),
+      graded.length,
+    ),
+    falseReview: { ...rateOf(falseReviewIds.length, truthExtracted.length), ids: falseReviewIds },
+    ...reviewRates(graded),
+    cost: {
+      perEmail: dist(first.filter((r) => ids.has(r.grade.id)).map((r) => r.costUsd)),
+    },
+  };
+}
+
 export function scorecard(runs: readonly GradedRun[]): Scorecard {
   const first = runs.filter((r) => r.run === 1);
   const all = first.map((r) => r.grade);
-  const graded = all.filter((g) => g.error === null);
+  const everyGraded = all.filter((g) => g.error === null);
+  // The fuel headline: every graded case except the Track 3 security truths.
+  const graded = everyGraded.filter((g) => !isSecurityTruth(g));
 
-  const predQuote = graded.filter((g) => g.kind === "quote");
-  const predNaq = graded.filter((g) => g.kind === "not_a_quote");
+  // Precision counts every graded email: a security email read as a fuel quote is a false quote.
+  const predQuote = everyGraded.filter((g) => g.kind === "quote");
+  const predNaq = everyGraded.filter((g) => g.kind === "not_a_quote");
   const truthQuote = graded.filter((g) => g.truthKind === "quote");
   const truthNaq = graded.filter((g) => g.truthKind === "not_a_quote");
 
@@ -276,9 +386,11 @@ export function scorecard(runs: readonly GradedRun[]): Scorecard {
 
   return {
     cases: all.length,
-    graded: graded.length,
+    graded: everyGraded.length,
     errors: all.flatMap((g) => (g.error ? [{ id: g.id, ...g.error }] : [])),
-    failures: graded.flatMap((g) => (g.failure !== null ? [{ id: g.id, message: g.failure }] : [])),
+    failures: everyGraded.flatMap((g) =>
+      g.failure !== null ? [{ id: g.id, message: g.failure }] : [],
+    ),
     kind: {
       quotePrecision: rateOf(
         count(predQuote, (g) => g.truthKind === "quote"),
@@ -320,6 +432,7 @@ export function scorecard(runs: readonly GradedRun[]): Scorecard {
       totalUsd: sum(runs.map((r) => r.costUsd)),
     },
     variance: variance(runs),
+    security: securityScorecard(first, everyGraded),
   };
 }
 
@@ -416,6 +529,52 @@ const rateRow = (label: string, r: Rate): string => `| ${label} | ${rateCells(r)
 const secs = (ms: number | null) => (ms === null ? "-" : `${(ms / 1000).toFixed(1)} s`);
 const usd = (x: number | null) => (x === null ? "-" : `$${x.toFixed(6)}`);
 
+/** The Track 3 security section of scorecard.md. */
+function securityMd(sec: SecurityScorecard): string[] {
+  const out: string[] = [];
+  out.push("## Security quotes (Track 3; first runs, errors excluded)", "");
+  out.push("| Metric | k/N | Rate | 95 % CI (Wilson) |", "|---|---:|---:|---:|");
+  out.push(rateRow("Security critical-field accuracy", sec.critical));
+  out.push(rateRow("Unsafe auto-accepts", sec.unsafeAutoAccepts));
+  out.push(rateRow("Security-quote precision", sec.precision));
+  out.push(rateRow("Security-quote recall", sec.recall));
+  out.push(rateRow("Review-queue rate", sec.reviewQueue));
+  out.push(rateRow("False-review rate", sec.falseReview));
+  out.push(rateRow("Needs-review recall", sec.needsReviewRecall));
+  out.push(rateRow("Review check matched", sec.reviewCheckMatched));
+  out.push("");
+  out.push(
+    `Security critical fields: ${sec.critical.wrong} wrong, ${sec.critical.missing} missing, over ${sec.critical.cases} graded field sets (${sec.graded} security cases; a needs_review truth sent to review has no stored record and no field grades).`,
+  );
+  out.push(`Unsafe auto-accepts: ${sec.unsafeAutoAccepts.ids.join(", ") || "none"}.`);
+  out.push(`False reviews: ${sec.falseReview.ids.join(", ") || "none"}.`);
+  out.push(
+    `Truth needs_review but not sent to review: ${sec.needsReviewRecall.missedIds.join(", ") || "none"}.`,
+  );
+  out.push(
+    `Review expected but no listed check failed: ${sec.reviewCheckMatched.missedIds.join(", ") || "none"}.`,
+    "",
+  );
+  out.push(
+    "| Security field | Critical | k/N | Rate | 95 % CI | Wrong | Missing |",
+    "|---|---|---:|---:|---:|---:|---:|",
+  );
+  for (const field of SECURITY_GRADED_FIELDS) {
+    const t = sec.fields[field];
+    out.push(
+      `| ${field} | ${t.critical ? "yes" : "no"} | ${rateCells(t)} | ${t.wrong} | ${t.missing} |`,
+    );
+  }
+  out.push("", "Security error clusters (field misses, with case ids):", "");
+  if (sec.fieldErrors.length === 0) out.push("None.");
+  for (const c of sec.fieldErrors) {
+    out.push(`- ${c.field} ${c.verdict} (${c.ids.length}): ${c.ids.join(", ")}`);
+  }
+  const c = sec.cost.perEmail;
+  out.push("", `Cost per security email (llm_calls): mean ${usd(c.mean)}, p90 ${usd(c.p90)}.`, "");
+  return out;
+}
+
 export function renderScorecardMd(card: Scorecard, meta: ScorecardMeta): string {
   const out: string[] = [];
   out.push(`# Extraction scorecard: ${meta.split} / ${meta.label}`, "");
@@ -469,6 +628,12 @@ export function renderScorecardMd(card: Scorecard, meta: ScorecardMeta): string 
   out.push("");
 
   out.push("## Headline (first run of each case; errors excluded)", "");
+  if (card.security) {
+    out.push(
+      `Fuel quotes and not-a-quote emails. The ${card.security.graded} Track 3 security quotes are scored in their own section below (quote and not-a-quote precision still count every email).`,
+      "",
+    );
+  }
   out.push("| Metric | k/N | Rate | 95 % CI (Wilson) |", "|---|---:|---:|---:|");
   out.push(rateRow("Critical-field accuracy", card.critical));
   out.push(rateRow("Unsafe auto-accepts", card.unsafeAutoAccepts));
@@ -493,6 +658,8 @@ export function renderScorecardMd(card: Scorecard, meta: ScorecardMeta): string 
     `Review expected but no listed check failed: ${card.reviewCheckMatched.missedIds.join(", ") || "none"}.`,
     "",
   );
+
+  if (card.security) out.push(...securityMd(card.security));
 
   out.push("## Per-field accuracy", "");
   out.push(

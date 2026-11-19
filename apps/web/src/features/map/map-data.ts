@@ -13,6 +13,8 @@ import {
   QuoteView,
   RoutePlanResponse,
   RoutePlanView,
+  SecurityAreaList,
+  SecurityQuoteList,
   VesselDetail,
   VesselSummary,
   VoyageDetail,
@@ -62,6 +64,38 @@ export const useHazards = () =>
     queryFn: ({ signal }) => api.get("/api/hazards", HazardZoneList, { signal }),
     refetchInterval: 60_000,
   });
+
+/** The danger areas (Track 3), ranked most-needed first by the API. They change with a reseed only. */
+export const useSecurityAreas = () =>
+  useQuery({
+    queryKey: queryKeys.securityAreas,
+    queryFn: ({ signal }) => api.get("/api/security-areas", SecurityAreaList, { signal }),
+    staleTime: 5 * 60_000,
+  });
+
+/** Each security quote's provider and the team's ports, by quote id, for a route's team. */
+export type SecurityTeams = ReadonlyMap<
+  number,
+  { provider: string; embark: string; disembark: string }
+>;
+export function useSecurityTeams(enabled: boolean): SecurityTeams {
+  const query = useQuery({
+    queryKey: queryKeys.securityQuotes,
+    queryFn: ({ signal }) => api.get("/api/security-quotes", SecurityQuoteList, { signal }),
+    enabled,
+    staleTime: 60_000,
+  });
+  return useMemo(
+    () =>
+      new Map(
+        (query.data?.items ?? []).map((q) => [
+          q.id,
+          { provider: q.providerName, embark: q.embarkPortName, disembark: q.disembarkPortName },
+        ]),
+      ),
+    [query.data],
+  );
+}
 
 export const useCongestion = () =>
   useQuery({

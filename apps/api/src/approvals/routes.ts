@@ -69,13 +69,16 @@ export function createApprovalRoutes(deps: ApprovalDeps) {
         400,
       );
     }
-    const of = (type: "purchase_order" | "voyage_instruction") =>
+    const of = (type: "purchase_order" | "voyage_instruction" | "security_order") =>
       existingProposal(deps.sql, { type, calculationId, optionId });
     const voyageInstruction = await of("voyage_instruction");
     const inForce = await instructionInForce(deps.sql, calculationId);
+    const securityOrder = await of("security_order");
     const body: PlanProposals = {
       purchaseOrder: await of("purchase_order"),
       voyageInstruction,
+      // Only a route with an armed team has one (Track 3); older replies stay as they were.
+      ...(securityOrder ? { securityOrder } : {}),
       instructionInForce:
         inForce?.recommendationId === voyageInstruction?.recommendationId ? null : inForce,
     };

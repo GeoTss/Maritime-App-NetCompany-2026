@@ -1,0 +1,54 @@
+{
+  "kind": "security_quote",
+  "providerName": {
+    "value": "Tridentis Marine Protection",
+    "evidence": "For and on behalf of Tridentis Marine Protection"
+  },
+  "vesselName": {
+    "value": "Aegean Pioneer",
+    "evidence": "Vessel: Aegean Pioneer"
+  },
+  "vesselImo": {
+    "value": null,
+    "evidence": null
+  },
+  "embarkPort": {
+    "value": "Fujairah",
+    "evidence": "Embark: Fujairah (AEFJR)"
+  },
+  "disembarkPort": {
+    "value": "Cape Town",
+    "evidence": "Disembarkation: off Cape Town"
+  },
+  "teamSize": {
+    "value": 6,
+    "unit": "man team",
+    "asWritten": "6-man team",
+    "evidence": "Security team: 6-man team"
+  },
+  "dayRate": {
+    "value": 1400,
+    "currency": "USD",
+    "perUnit": "per day",
+    "asWritten": "USD 1400 per day",
+    "evidence": "Day rate: USD 1400 per day"
+  },
+  "fixedFees": {
+    "value": 5500,
+    "currency": "USD",
+    "perUnit": null,
+    "asWritten": "USD 5500",
+    "evidence": "Fixed fees: USD 5500"
+  },
+  "minDays": {
+    "value": 3,
+    "unit": "days",
+    "asWritten": "3 days",
+    "evidence": "Minimum period: 3 days"
+  },
+  "validUntil": {
+    "asWritten": "20/11 18:00 UTC",
+    "evidence": "Validity: 20/11 18:00 UTC"
+  },
+  "notes": null
+}

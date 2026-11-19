@@ -279,3 +279,45 @@ export function draftPreArrivalNotices(input: PortCallDraftInput): DraftedMessag
     status: "draft",
   };
 }
+
+export interface SecurityConfirmationInput {
+  recommendation: { id: number };
+  provider: { name: string; emailDomain: string };
+  vessel: { name: string; imo: string | null };
+  embark: string;
+  disembark: string;
+  teamSize: number;
+  teamDays: number;
+  dayRate: number;
+  fixedFees: number;
+  currency: "USD" | "EUR";
+  poNumber: string;
+}
+
+/**
+ * The confirmation to the security provider for an approved security order. Its numbers are the
+ * stored order's (team, days, rate, fees, PO number); nothing is sent.
+ */
+export function draftSecurityConfirmation(input: SecurityConfirmationInput): DraftedMessageInput {
+  const body = [
+    `${input.provider.name},`,
+    "",
+    `We confirm the armed security team you quoted for ${input.vessel.name}${input.vessel.imo ? ` (IMO ${input.vessel.imo})` : ""}:`,
+    `- Team: ${fmt(input.teamSize)} guards, boarding at ${input.embark} and leaving at ${input.disembark}.`,
+    `- Duration: ${fmt(input.teamDays)} days at ${input.currency} ${fmt(input.dayRate)} per day.`,
+    `- Fixed fees: ${input.currency} ${fmt(input.fixedFees)}.`,
+    `- Our purchase order: ${input.poNumber}.`,
+    "",
+    "Please confirm the team, its documents and the embarkation arrangements to the desk.",
+    "",
+    NOT_SENT,
+  ].join("\n");
+  return {
+    recommendationId: input.recommendation.id,
+    kind: "security_confirmation",
+    to: `security@${input.provider.emailDomain}`,
+    subject: `Security team order ${input.poNumber}: ${input.vessel.name}`,
+    body,
+    status: "draft",
+  };
+}

@@ -1,0 +1,54 @@
+{
+  "kind": "security_quote",
+  "providerName": {
+    "value": "Harbourline Security Services",
+    "evidence": "Harbourline Security Services"
+  },
+  "vesselName": {
+    "value": "Scheldt Express",
+    "evidence": "Ship: Scheldt Express - IMO: 9487081"
+  },
+  "vesselImo": {
+    "value": "9487081",
+    "evidence": "Ship: Scheldt Express - IMO: 9487081"
+  },
+  "embarkPort": {
+    "value": "Djibouti",
+    "evidence": "Embark: Djibouti"
+  },
+  "disembarkPort": {
+    "value": "Suez",
+    "evidence": "Team leaves at: Suez"
+  },
+  "teamSize": {
+    "value": 3,
+    "unit": "PCASP",
+    "asWritten": "3 PCASP",
+    "evidence": "3 PCASP USD 1350 per team per day 5 days $7,000 lump sum"
+  },
+  "dayRate": {
+    "value": 1350,
+    "currency": "USD",
+    "perUnit": "per team per day",
+    "asWritten": "USD 1350 per team per day",
+    "evidence": "3 PCASP USD 1350 per team per day 5 days $7,000 lump sum"
+  },
+  "fixedFees": {
+    "value": 7000,
+    "currency": "$",
+    "perUnit": "lump sum",
+    "asWritten": "$7,000 lump sum",
+    "evidence": "3 PCASP USD 1350 per team per day 5 days $7,000 lump sum"
+  },
+  "minDays": {
+    "value": 5,
+    "unit": "days",
+    "asWritten": "5 days",
+    "evidence": "3 PCASP USD 1350 per team per day 5 days $7,000 lump sum"
+  },
+  "validUntil": {
+    "asWritten": "Nov 20 1700 LT",
+    "evidence": "Offer valid until: Nov 20 1700 LT"
+  },
+  "notes": null
+}

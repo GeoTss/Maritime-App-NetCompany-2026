@@ -13,6 +13,9 @@ import {
   QuoteLine,
   ReferenceRate,
   RouteLeg,
+  SecurityArea,
+  SecurityProvider,
+  SecurityQuote,
   Supplier,
   Vessel,
   VesselPosition,
@@ -59,5 +62,8 @@ export const World = z.object({
   orderLines: z.array(OrderLine),
   referenceRates: z.array(ReferenceRate),
   nauticalItems: z.array(NauticalItem),
+  securityAreas: z.array(SecurityArea),
+  securityProviders: z.array(SecurityProvider),
+  securityQuotes: z.array(SecurityQuote),
 });
 export type World = z.infer<typeof World>;

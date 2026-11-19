@@ -39,6 +39,7 @@ import type {
   QuoteLineExtraction,
 } from "@pharos/shared";
 import { type ExtractInput, sourceText } from "../ai/extract.js";
+import { evaluateSecurityQuote, type NormalisedSecurityQuote } from "./evaluate-security.js";
 import {
   checkPriceBand,
   resolvePort,
@@ -72,6 +73,10 @@ export const CHECK_NAMES = [
   "quantity_within_tank_capacity",
   "requirement_found",
   "attachment_text_found",
+  "security_provider_resolved",
+  "embark_port_resolved",
+  "disembark_port_resolved",
+  "team_size_unambiguous",
 ] as const;
 export type CheckName = (typeof CHECK_NAMES)[number] | `${typeof EVIDENCE_CHECK_PREFIX}${string}`;
 
@@ -391,7 +396,12 @@ export type Evaluation = {
   checks: CheckResult[];
   normalised: NormalisedView;
 } & (
-  | { status: "extracted"; quote: NormalisedQuote }
+  | {
+      status: "extracted";
+      /** The fuel quote, or null for a security quote (`securityQuote` is set instead). */
+      quote: NormalisedQuote | null;
+      securityQuote: NormalisedSecurityQuote | null;
+    }
   | { status: "needs_review" }
   | { status: "not_a_quote" }
 );
@@ -663,6 +673,22 @@ export function evaluateExtraction(
   ctx: EvaluationContext,
 ): Evaluation {
   const source = sourceText(doc);
+  if (output.kind === "security_quote") {
+    const r = evaluateSecurityQuote(world, doc, output, {
+      ...ctx,
+      // A validity word on a dated line, as fuel's "written but not transcribed" detector: not
+      // any date, since a team of "4/6 guards" reads as 4 June.
+      validityWritten: dateWrittenWith(source, VALIDITY_WORD),
+    });
+    const base = {
+      fieldEvidence: r.fieldEvidence,
+      checks: r.checks,
+      normalised: emptyNormalisedView(),
+    };
+    return r.securityQuote
+      ? { ...base, status: "extracted", quote: null, securityQuote: r.securityQuote }
+      : { ...base, status: "needs_review" };
+  }
   if (output.kind === "not_a_quote") {
     // An unverifiable "not a quote", or one over unreadable content, could hide a real offer.
     const found = evidenceSupports(source, output.evidence, null);
@@ -981,6 +1007,7 @@ export function evaluateExtraction(
     checks,
     normalised: view,
     quote: quoteFrom(view, requirement?.id ?? null),
+    securityQuote: null,
   };
 }
 

@@ -12,6 +12,8 @@ export const QA_CATEGORIES = [
   "route_speed",
   "congestion",
   "compliance",
+  /** Track 3: Suez or the Cape, the armed team and its cost. */
+  "security",
 ] as const;
 export type QaCategory = (typeof QA_CATEGORIES)[number];
 

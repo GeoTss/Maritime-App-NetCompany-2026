@@ -16,13 +16,23 @@ export const ErpOrderRequest = z
     currency: Currency,
     lines: z
       .array(
-        z
-          .object({
-            grade: FuelGrade,
-            qtyMt: z.number().positive(),
-            pricePerMt: z.number().positive(),
-          })
-          .strict(),
+        z.union([
+          z
+            .object({
+              grade: FuelGrade,
+              qtyMt: z.number().positive(),
+              pricePerMt: z.number().positive(),
+            })
+            .strict(),
+          // Track 3: an armed security team for a number of days.
+          z
+            .object({
+              service: z.literal("security_team"),
+              days: z.number().int().positive(),
+              dayRate: z.number().positive(),
+            })
+            .strict(),
+        ]),
       )
       .min(1),
     bargeFee: z.number().nonnegative(),

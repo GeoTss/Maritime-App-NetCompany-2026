@@ -73,6 +73,13 @@ The demo story has six steps. The full script, with what to click and what to sa
    voyage instruction, which waits for that order.
 6. **Evaluation.** Measured accuracy as k of N with 95 % intervals, held-out split beside dev.
 
+**Suez or the Cape (Track 3).** The map shows the danger areas (Gulf of Aden, Red Sea, Strait of
+Hormuz and others) by threat level, with cited sources. Security companies' quote emails become
+security quotes. Planning MT Atlantic Meridian from Fujairah to Rotterdam sets the Suez route, with
+an armed team, war-risk premium and canal dues, beside the route round the Cape. The security order
+is approved like a fuel order, and the voyage instruction waits for it
+(`e2e/security.spec.ts`, and the optional act in the demo script).
+
 | Inbox: a quote held for a human fix | Assistant: an answer with its facts | Approvals: order approved, drafts never sent |
 | --- | --- | --- |
 | ![Inbox with the review form](docs/screenshots/phase-6/story-2-inbox.png) | ![Bunker answer with fact chips and the options table](docs/screenshots/phase-6/story-3-bunker-answer.png) | ![Approved purchase order with drafted messages and audit trail](docs/screenshots/phase-6/story-5-approvals-po.png) |
@@ -249,6 +256,8 @@ and are skipped without it. More in [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)
 
 Pharos is a prototype, not a product. Routes are planning-grade and not for navigation; the weather
 effect is a simplified parametric model; congestion waiting times and the FuelEU figure are
-illustrative; extraction accuracy is measured on synthetic emails, not real supplier mail. The API
+illustrative; extraction accuracy is measured on synthetic emails, not real supplier mail. Danger
+areas are boxes approximating published limits as reported in early to mid November 2026, not a
+security assessment; security day rates and premiums are illustrative. The API
 has no authentication and is meant to run on a developer's machine. The complete list is under
 "Honest limits" in [`docs/APPROACH.md`](docs/APPROACH.md#honest-limits).

@@ -181,7 +181,18 @@ export async function processDocument(deps: IngestDeps, documentId: Id): Promise
         where id = ${claimedId} and status = 'pending'
         returning id`;
       if (updated.length === 0) return false;
-      if (result.status === "extracted") {
+      if (result.status === "extracted" && result.securityQuote) {
+        const s = result.securityQuote;
+        await tx`
+          insert into security_quotes (provider_id, vessel_imo, embark_port_id, disembark_port_id,
+                                       team_size, day_rate, fixed_fees, min_days, currency,
+                                       valid_until, status, extraction_id, received_at)
+          values (${s.providerId}, ${s.vesselImo}, ${s.embarkPortId}, ${s.disembarkPortId},
+                  ${s.teamSize}, ${s.dayRate}, ${s.fixedFees}, ${s.minDays}, ${s.currency},
+                  ${dayStart(s.validUntil)}::timestamptz, 'received', ${claimedId},
+                  ${row.received_at}::timestamptz)`;
+      }
+      if (result.status === "extracted" && result.quote) {
         const q = result.quote;
         const [quote] = await tx<{ id: number }[]>`
           insert into quotes (supplier_id, port_id, requirement_id, delivery_from, delivery_to,

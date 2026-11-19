@@ -1,0 +1,54 @@
+{
+  "kind": "security_quote",
+  "providerName": {
+    "value": "Aegis Watch Maritime",
+    "evidence": "For and on behalf of Aegis Watch Maritime"
+  },
+  "vesselName": {
+    "value": "M/V Aegean Pioneer",
+    "evidence": "Ship                   M/V Aegean Pioneer / IMO 9480019"
+  },
+  "vesselImo": {
+    "value": "9480019",
+    "evidence": "Ship                   M/V Aegean Pioneer / IMO 9480019"
+  },
+  "embarkPort": {
+    "value": "Fujairah",
+    "evidence": "Embarkation point      Fujairah"
+  },
+  "disembarkPort": {
+    "value": "Suez",
+    "evidence": "Disembarkation point   off Suez"
+  },
+  "teamSize": {
+    "value": 5,
+    "unit": "man team",
+    "asWritten": "5-man team",
+    "evidence": "Security team          5-man team"
+  },
+  "dayRate": {
+    "value": 1375,
+    "currency": "USD",
+    "perUnit": "per day",
+    "asWritten": "USD 1,375 per day",
+    "evidence": "Day rate               USD 1,375 per day"
+  },
+  "fixedFees": {
+    "value": 5750,
+    "currency": "USD",
+    "perUnit": null,
+    "asWritten": "USD 5,750",
+    "evidence": "One-off charges        USD 5,750"
+  },
+  "minDays": {
+    "value": 6,
+    "unit": "days",
+    "asWritten": "6 days",
+    "evidence": "Minimum charge         6 days"
+  },
+  "validUntil": {
+    "asWritten": "20 November 2026 1700 LT",
+    "evidence": "Validity               20 November 2026 1700 LT"
+  },
+  "notes": null
+}

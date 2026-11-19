@@ -1,0 +1,54 @@
+{
+  "kind": "security_quote",
+  "providerName": {
+    "value": "Tridentis Marine Protection",
+    "evidence": "Tridentis Marine Protection"
+  },
+  "vesselName": {
+    "value": "ATLANTIC MERIDIAN",
+    "evidence": "Ship             ATLANTIC MERIDIAN (IMO 9485069)"
+  },
+  "vesselImo": {
+    "value": "9485069",
+    "evidence": "Ship             ATLANTIC MERIDIAN (IMO 9485069)"
+  },
+  "embarkPort": {
+    "value": "Fujairah",
+    "evidence": "Embarkation      Fujairah"
+  },
+  "disembarkPort": {
+    "value": "Durban",
+    "evidence": "Team leaves at   Durban anchorage"
+  },
+  "teamSize": {
+    "value": 4,
+    "unit": "man team",
+    "asWritten": "4-man team",
+    "evidence": "4-man team   USD 1,400 daily   5 days    USD 3,000"
+  },
+  "dayRate": {
+    "value": 1400,
+    "currency": "USD",
+    "perUnit": "daily",
+    "asWritten": "USD 1,400 daily",
+    "evidence": "4-man team   USD 1,400 daily   5 days    USD 3,000"
+  },
+  "fixedFees": {
+    "value": 3000,
+    "currency": "USD",
+    "perUnit": null,
+    "asWritten": "USD 3,000",
+    "evidence": "4-man team   USD 1,400 daily   5 days    USD 3,000"
+  },
+  "minDays": {
+    "value": 5,
+    "unit": "days",
+    "asWritten": "5 days",
+    "evidence": "4-man team   USD 1,400 daily   5 days    USD 3,000"
+  },
+  "validUntil": {
+    "asWritten": "18.11.26 1200 UTC",
+    "evidence": "Valid till: 18.11.26 1200 UTC"
+  },
+  "notes": null
+}

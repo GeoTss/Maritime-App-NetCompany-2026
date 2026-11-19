@@ -7,7 +7,7 @@
 import { imoWithCheckDigit } from "@pharos/domain";
 import type { ConsumptionCurve, Currency, FuelGrade, GradeAmounts, ShipType } from "@pharos/shared";
 
-export const SEED_VERSION = "port-call-v1";
+export const SEED_VERSION = "security-v1";
 
 export interface ScenarioPort {
   unlocode: string;
@@ -33,6 +33,13 @@ export const PORTS: readonly ScenarioPort[] = [
   { unlocode: "BEANR", name: "Antwerp", country: "BE", isEu: true, inEca: true, approachNm: 40 },
   { unlocode: "NLRTM", name: "Rotterdam", country: "NL", isEu: true, inEca: true, approachNm: 10 },
   { unlocode: "DEHAM", name: "Hamburg", country: "DE", isEu: true, inEca: true, approachNm: 50 },
+  // Track 3 (security): appended, so every earlier port keeps its id.
+  { unlocode: "AEFJR", name: "Fujairah", country: "AE", isEu: false, inEca: false, approachNm: 6 },
+  { unlocode: "EGSUZ", name: "Suez", country: "EG", isEu: false, inEca: false, approachNm: 4 },
+  { unlocode: "DJJIB", name: "Djibouti", country: "DJ", isEu: false, inEca: false, approachNm: 6 },
+  { unlocode: "ZADUR", name: "Durban", country: "ZA", isEu: false, inEca: false, approachNm: 6 },
+  { unlocode: "ZACPT", name: "Cape Town", country: "ZA", isEu: false, inEca: false, approachNm: 6 },
+  { unlocode: "ESLPA", name: "Las Palmas", country: "ES", isEu: true, inEca: false, approachNm: 6 },
 ];
 
 /** Directed legs built by build-routes.ts from the real sea-route network. */
@@ -54,6 +61,9 @@ export const LEGS: readonly (readonly [string, string])[] = [
   ["DEHAM", "BEANR"],
   ["BEANR", "FRLEH"],
   ["FRLEH", "FRBES"],
+  // Track 3: Atlantic Meridian, Fujairah → Suez → Rotterdam.
+  ["AEFJR", "EGSUZ"],
+  ["EGSUZ", "NLRTM"],
 ];
 
 const AEGEAN_PIONEER_IMO_BASE = "948001";
@@ -78,6 +88,8 @@ export interface ScenarioVessel {
     /** Cargo and ballast water on board for the passage, mt (synthetic; cargo + ballast ≤ dwt). */
     cargoMt: number;
     ballastMt: number;
+    /** The discharge berth window around the planned ETA (hours before, after); default 6 and 48. */
+    dischargeWindowHours?: { before: number; after: number };
   };
   /** Current (k = 0 noon report) remaining on board. */
   currentRobMt: GradeAmounts;
@@ -218,13 +230,18 @@ export const VESSELS: readonly ScenarioVessel[] = [
     dailyCostUsd: 27_000,
     voyage: {
       voyageNo: "AM-2612",
-      route: ["ESALG", "PTSIE", "FRBES"],
+      // Track 3: laden from Fujairah to Rotterdam via Suez, sailing at the anchor (the security
+      // team boards before the first danger area).
+      route: ["AEFJR", "EGSUZ", "NLRTM"],
       plannedSpeedKn: 12.5,
-      departedHoursAgo: 20,
+      departedHoursAgo: null,
       cargoMt: 100_000,
       ballastMt: 0,
+      // The charterer accepts arrival up to 16 days late: room for the Cape (10–16 days longer).
+      dischargeWindowHours: { before: 6, after: 16 * 24 },
     },
-    currentRobMt: { LSMGO: 380, VLSFO: 1_400, HSFO: 500 },
+    // Bunkered at Fujairah for the long way if it comes to that (within the tanks).
+    currentRobMt: { LSMGO: 600, VLSFO: 2_450, HSFO: 500 },
   },
   {
     name: "MV Coral Horizon",
@@ -408,4 +425,27 @@ export const DEMO_SCENARIO = {
    * review and shows no quantity until a human confirms one. This is the text exactly as written.
    */
   needsReview: { supplierKey: "nordwind", qtyAsWritten: "300/350 mt" },
+};
+
+/** A vessel's voyage and fuel on board, to generate the world as it stood at an earlier date. */
+export type VoyageOverride = Pick<ScenarioVessel, "voyage" | "currentRobMt">;
+
+/**
+ * The extraction golden set (held-out run 16 Nov) was generated before Track 3 gave Atlantic
+ * Meridian its Fujairah voyage. Quotes in those emails target its voyage then (Algeciras → Sines
+ * → Brest) and its fuel on board then, so the extraction eval world, and the eval runner's
+ * database, generate it as it was: every golden file stays byte-identical.
+ */
+export const GOLDEN_SET_VOYAGES: Readonly<Record<string, VoyageOverride>> = {
+  "MT Atlantic Meridian": {
+    voyage: {
+      voyageNo: "AM-2612",
+      route: ["ESALG", "PTSIE", "FRBES"],
+      plannedSpeedKn: 12.5,
+      departedHoursAgo: 20,
+      cargoMt: 100_000,
+      ballastMt: 0,
+    },
+    currentRobMt: { LSMGO: 380, VLSFO: 1_400, HSFO: 500 },
+  },
 };

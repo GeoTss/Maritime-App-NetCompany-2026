@@ -1,0 +1,54 @@
+{
+  "kind": "security_quote",
+  "providerName": {
+    "value": "Aegis Watch Maritime",
+    "evidence": "For and on behalf of Aegis Watch Maritime"
+  },
+  "vesselName": {
+    "value": null,
+    "evidence": null
+  },
+  "vesselImo": {
+    "value": "9481025",
+    "evidence": "Ship: IMO 9481025"
+  },
+  "embarkPort": {
+    "value": "Fujairah",
+    "evidence": "Embark: Fujairah anchorage"
+  },
+  "disembarkPort": {
+    "value": "Suez",
+    "evidence": "Team leaves at: Suez"
+  },
+  "teamSize": {
+    "value": 6,
+    "unit": "PCASP",
+    "asWritten": "6 PCASP",
+    "evidence": "6 PCASP USD 1300 per team per day 5 days $7,750 lump sum"
+  },
+  "dayRate": {
+    "value": 1300,
+    "currency": "USD",
+    "perUnit": "per team per day",
+    "asWritten": "USD 1300 per team per day",
+    "evidence": "6 PCASP USD 1300 per team per day 5 days $7,750 lump sum"
+  },
+  "fixedFees": {
+    "value": 7750,
+    "currency": "$",
+    "perUnit": "lump sum",
+    "asWritten": "$7,750 lump sum",
+    "evidence": "6 PCASP USD 1300 per team per day 5 days $7,750 lump sum"
+  },
+  "minDays": {
+    "value": 5,
+    "unit": "days",
+    "asWritten": "5 days",
+    "evidence": "6 PCASP USD 1300 per team per day 5 days $7,750 lump sum"
+  },
+  "validUntil": {
+    "asWritten": "Wed 18 Nov 17:00 LT",
+    "evidence": "Rates valid until: Wed 18 Nov 17:00 LT"
+  },
+  "notes": null
+}

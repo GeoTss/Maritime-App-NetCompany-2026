@@ -30,3 +30,11 @@
 {"phase":9,"at":"2026-11-19T00:04:56.898Z","run":"demo-story-record","label":"phase9-story","costUsd":0.013383}
 {"phase":9,"at":"2026-11-19T00:07:57.710Z","run":"eval-qa","label":"record","costUsd":0.061236189999999996}
 {"phase":9,"at":"2026-11-19T00:45:59.203Z","run":"demo-story-record","label":"phase9-storm-story","costUsd":0.014361}
+{"phase":10,"at":"2026-11-19T12:27:02.862Z","run":"smoke","label":"track3-v4-v6","costUsd":0.00406734}
+{"phase":10,"at":"2026-11-19T12:28:25.637Z","run":"demo-extractions-record","label":"track3-extract-v4","costUsd":0.00394}
+{"phase":10,"at":"2026-11-19T12:30:08.009Z","run":"demo-story-record","label":"track3-story","costUsd":0.014599}
+{"phase":10,"at":"2026-11-19T12:32:20.184Z","run":"record-demo-ask","label":"ask-recording","costUsd":0.0030792700000000003}
+{"phase":10,"at":"2026-11-19T12:32:24.403Z","run":"demo-ask-record","label":"track3-agent-v6","costUsd":0.003079}
+{"phase":10,"at":"2026-11-19T12:34:27.151Z","run":"smoke-test-record","label":"track3-agent-v6","costUsd":0.0014}
+{"phase":10,"at":"2026-11-19T12:38:33.634Z","run":"eval-extraction","label":"live","costUsd":0.09127373999999999}
+{"phase":10,"at":"2026-11-19T12:48:10.933Z","run":"eval-qa","label":"record","costUsd":0.06842248499999999}

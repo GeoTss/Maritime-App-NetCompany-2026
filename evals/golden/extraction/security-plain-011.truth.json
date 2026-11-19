@@ -1,0 +1,30 @@
+{
+  "id": "security-plain-011",
+  "tags": [
+    "security-plain",
+    "layout:compact",
+    "vessel:name",
+    "team:guards",
+    "fees:one-off",
+    "route:AEFJR-DJJIB"
+  ],
+  "source": "generated",
+  "expected": {
+    "kind": "security_quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": null,
+    "security": {
+      "provider": "Tridentis Marine Protection",
+      "vesselImo": "9487081",
+      "embarkUnlocode": "AEFJR",
+      "disembarkUnlocode": "DJJIB",
+      "teamSize": 5,
+      "dayRate": 1450,
+      "currency": "USD",
+      "fixedFees": 6250,
+      "minDays": 5,
+      "validUntil": "2026-11-20"
+    }
+  }
+}

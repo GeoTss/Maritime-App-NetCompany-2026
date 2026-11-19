@@ -84,6 +84,17 @@ Say: the model only proposes; a person approves; nothing leaves the building.
 Go to Evaluation. Say: measured accuracy with the counts (k of N) and 95% intervals, dev split beside the held-out split, which ran once.
 The approach and numbers are in `docs/APPROACH.md`.
 
+## Optional act: Suez or the Cape (Track 3)
+
+The same act runs as `e2e/security.spec.ts` (replay; no model call beyond the recorded extractions).
+
+1. **Inbox.** Deliver until all six emails are in. 04 (Tridentis, Fujairah to Djibouti) and 05 (Harbourline, Fujairah to Durban, the vessel named without its IMO) become security quotes. 06 (Aegis, Fujairah to Suez) is held for review: its team reads "4/6 guards", and a team size is never guessed.
+2. **Map.** The "Danger areas" layer shades each area by its JMIC threat level, with a label naming its level and what it asks of a ship. The side column lists them most-needed first, each with the reason and its cited source and date. Open the palette, pick MT Atlantic Meridian (Fujairah to Rotterdam) and press "Plan route". The tray's "Suez or the Cape" line sets the canal route's total (armed team, war-risk premium and canal dues in it) beside route K round the Cape of Good Hope. Route B through Suez is recommended (plan total USD 1,688,632.23). Each route lists the danger areas it crosses with the hours inside, the armed team its plan chose (Tridentis, boarding at Fujairah) and its cost lines, each a fact chip.
+3. **Propose** the security order and the voyage instruction from the plan (buttons under the plan; no model call).
+4. **Approvals.** The instruction waits for the security order: its Approve is disabled. Select the security order: the card shows the team, the days charged, when it boards and the team cost. Approve and confirm: the ERP simulator returns an order number and the provider's confirmation stays a draft. Then approve the instruction.
+
+Say: the route is costed with what it takes to sail it safely. Where the threat is missiles, not pirates, guards cannot help: the plan pays the war-risk premium or goes round.
+
 ## Fallbacks
 
 | Problem | What the console shows | What to do |

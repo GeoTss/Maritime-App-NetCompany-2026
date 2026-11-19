@@ -97,6 +97,8 @@ const REASON: Record<InfeasibleReason, string> = {
   misses_arrive_by: "Blocked: arrives after the berth window closes",
   insufficient_fuel: "Blocked: runs below the fuel margin",
   heavy_weather: "Blocked: meets waves over the heavy-weather limit",
+  security_unavailable: "Blocked: needs an armed security team no valid quote covers",
+  avoid_area: "Blocked: crosses an area to avoid",
 };
 
 export function reasonText(reason: InfeasibleReason): string {

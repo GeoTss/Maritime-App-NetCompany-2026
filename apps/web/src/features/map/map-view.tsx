@@ -11,6 +11,7 @@ import type {
   PortCongestionList,
   PortList,
   RoutePlanView,
+  SecurityArea,
   SourceMode,
   VesselSummary,
   WeatherView,
@@ -40,7 +41,11 @@ import { HazardLayer } from "./hazard-layer";
 import type { LayerState } from "./layer-toggles";
 import { declutterLabels, MapInsetContext } from "./map-labels";
 import { planBounds, RouteLayer } from "./route-layer";
+import { SecurityLayer } from "./security-layer";
 import { StormLayer } from "./storm-layer";
+
+const NO_AREAS: readonly SecurityArea[] = [];
+
 import { drawShipArrow, SHIP_ARROW_IMAGE, TRAFFIC_LAYER_IDS, TrafficLayer } from "./traffic-layer";
 import { WeatherLayer } from "./weather-layer";
 
@@ -63,6 +68,8 @@ export interface MapViewProps {
   vessels: VesselSummary[];
   traffic: AisTrafficList["items"];
   hazards: HazardZoneList["items"];
+  /** The danger areas (Track 3), drawn under the routes when their layer is on. */
+  dangerAreas?: readonly SecurityArea[];
   congestion: PortCongestionList["items"];
   ports: PortList["items"];
   weather: WeatherView | undefined;
@@ -116,6 +123,7 @@ export function MapView(props: MapViewProps) {
     vessels,
     traffic,
     hazards,
+    dangerAreas = NO_AREAS,
     congestion,
     ports,
     weather,
@@ -355,6 +363,7 @@ export function MapView(props: MapViewProps) {
           <HazardLayer hazards={hazards} colors={colors} showId={hazardShown(focus)} />
         ) : null}
         {layers.hazards ? <StormLayer plan={plan} colors={colors} /> : null}
+        {layers.security ? <SecurityLayer areas={dangerAreas} colors={colors} /> : null}
         <RouteLayer plan={plan} track={track} colors={colors} ports={ports} />
         {layers.traffic ? (
           <TrafficLayer traffic={traffic} colors={colors} selectedMmsi={selectedMmsi} />

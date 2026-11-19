@@ -1,0 +1,54 @@
+{
+  "kind": "security_quote",
+  "providerName": {
+    "value": "Tridentis Marine Protection",
+    "evidence": "Tridentis Marine Protection"
+  },
+  "vesselName": {
+    "value": "M/V IBERIAN DAWN",
+    "evidence": "We can provide a team of 4 armed guards for M/V IBERIAN DAWN / IMO 9483047, embarking at Fujairah and disembarking at off Durban."
+  },
+  "vesselImo": {
+    "value": "9483047",
+    "evidence": "We can provide a team of 4 armed guards for M/V IBERIAN DAWN / IMO 9483047, embarking at Fujairah and disembarking at off Durban."
+  },
+  "embarkPort": {
+    "value": "Fujairah",
+    "evidence": "We can provide a team of 4 armed guards for M/V IBERIAN DAWN / IMO 9483047, embarking at Fujairah and disembarking at off Durban."
+  },
+  "disembarkPort": {
+    "value": "Durban",
+    "evidence": "We can provide a team of 4 armed guards for M/V IBERIAN DAWN / IMO 9483047, embarking at Fujairah and disembarking at off Durban."
+  },
+  "teamSize": {
+    "value": 4,
+    "unit": "armed guards",
+    "asWritten": "4 armed guards",
+    "evidence": "We can provide a team of 4 armed guards for M/V IBERIAN DAWN / IMO 9483047, embarking at Fujairah and disembarking at off Durban."
+  },
+  "dayRate": {
+    "value": 1600,
+    "currency": "USD",
+    "perUnit": "per day",
+    "asWritten": "USD 1,600 per day",
+    "evidence": "The day rate is USD 1,600 per day, with a minimum of 6 days."
+  },
+  "fixedFees": {
+    "value": 6500,
+    "currency": "USD",
+    "perUnit": null,
+    "asWritten": "USD 6500",
+    "evidence": "Fixed fees for embarkation, disembarkation and arms storage: USD 6500."
+  },
+  "minDays": {
+    "value": 6,
+    "unit": "days",
+    "asWritten": "6 days",
+    "evidence": "The day rate is USD 1,600 per day, with a minimum of 6 days."
+  },
+  "validUntil": {
+    "asWritten": "Wed 18 Nov 18:00 UTC",
+    "evidence": "This offer is valid until Wed 18 Nov 18:00 UTC."
+  },
+  "notes": null
+}

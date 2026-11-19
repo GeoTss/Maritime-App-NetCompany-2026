@@ -182,3 +182,58 @@ describe("demo world: the synthetic storm (R9)", () => {
     expect(result9.plan?.next?.optionId).toBe("ESALG-nordwind");
   });
 });
+
+describe("demo world: Atlantic Meridian's security (R10)", () => {
+  const sec = generateWorld({ seed: 20261114, anchor: ANCHOR });
+  const port = (u: string) => sec.ports.find((p) => p.unlocode === u)?.id ?? 0;
+  const am = sec.voyages.find((v) => v.voyageNo === "AM-2612");
+  if (!am) throw new Error("no AM-2612");
+  const planFor = () =>
+    optimiseRouteSpeed(
+      fleetRoutePlan(sec, am.id, graph, live.weather, zones, {
+        congestion: "seed",
+        offers: [],
+        fixedOrder: null,
+      }).input,
+    );
+  const q = (id: number, providerId: number, off: string, dayRate: number, minDays: number) => ({
+    id,
+    providerId,
+    vesselImo: null,
+    embarkPortId: port("AEFJR"),
+    disembarkPortId: port(off),
+    teamSize: 4,
+    dayRate,
+    fixedFees: 6000,
+    minDays,
+    currency: "USD" as const,
+    validUntil: null,
+    status: "received" as const,
+    extractionId: null,
+    receivedAt: ANCHOR,
+  });
+
+  it("R10 no security quote: every route through the danger areas is infeasible", () => {
+    const r = planFor();
+    expect(r.options.find((o) => o.candidateId === "K")?.reasons).toContain("security_unavailable");
+    expect(r.options.find((o) => o.candidateId === "B")?.reasons).toContain("security_unavailable");
+  });
+
+  it("R10 with quotes: both routes carry a team; Suez adds premium, dues and the convoy wait", () => {
+    sec.securityQuotes.push(q(1, 1, "DJJIB", 1250, 4), q(2, 3, "ZADUR", 1100, 5));
+    const r = planFor();
+    const suez = r.options.find((o) => o.candidateId === "B")?.security;
+    const cape = r.options.find((o) => o.candidateId === "K")?.security;
+    expect(suez?.quoteId).toBe(1);
+    expect(cape?.quoteId).toBe(2);
+    expect(suez?.costLines.map((l) => l.kind)).toEqual([
+      "security_team",
+      "war_risk_premium",
+      "canal_dues",
+    ]);
+    expect(cape?.costLines.map((l) => l.kind)).toEqual(["security_team"]);
+    expect(r.plan?.kind).toBe("route");
+    // The numbers decide (recorded 2026-11-19: Suez, route B, ahead of the Cape by about $456k).
+    expect(["B", "K"]).toContain(r.plan?.optionId);
+  });
+});

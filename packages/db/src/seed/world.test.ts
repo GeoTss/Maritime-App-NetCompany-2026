@@ -106,7 +106,7 @@ describe("synthetic world", () => {
   });
 
   it("counts", () => {
-    expect(world.ports).toHaveLength(12);
+    expect(world.ports).toHaveLength(18);
     expect(world.vessels).toHaveLength(8);
     expect(world.routeLegs.length).toBeGreaterThanOrEqual(14);
     expect(world.suppliers).toHaveLength(6);
@@ -352,5 +352,37 @@ describe("port-call seed (port-call-v1)", () => {
     expect(port("PTSIE")?.stores).toBe(false);
     expect(port("GIGIB")?.euWasteFeeUsd).toBe(0);
     expect(() => World.parse(world)).not.toThrow();
+  });
+});
+
+describe("security seed (security-v1)", () => {
+  const world = generateWorld({ seed: 20261114, anchor: ANCHOR });
+
+  it("every danger area is cited, dated and ranked; three providers; a hull value for the tanker", () => {
+    expect(world.securityAreas).toHaveLength(6);
+    for (const a of world.securityAreas) {
+      expect(a.source.length, a.id).toBeGreaterThan(20);
+      expect(a.asOf, a.id).toMatch(/^2026-\d{2}-\d{2}$/);
+    }
+    expect(world.securityProviders.map((p) => p.name)).toContain("Tridentis Marine Protection");
+    expect(world.vessels.find((v) => v.name === "MT Atlantic Meridian")?.hullValueUsd).toBe(
+      45_000_000,
+    );
+  });
+
+  it("Atlantic Meridian sails from Fujairah via Suez, through the Gulf of Aden", () => {
+    const am = world.voyages.find((v) => v.voyageNo === "AM-2612");
+    const legs = world.routeLegs.filter((l) =>
+      am?.plannedRoute.some((p, i) => p === l.fromPortId && am.plannedRoute[i + 1] === l.toPortId),
+    );
+    const aden = world.securityAreas.find((a) => a.id === "gulf-of-aden");
+    const inAden = legs.some((l) =>
+      l.waypoints.some((p) =>
+        aden?.boxes.some(
+          (b) => p.lat >= b.minLat && p.lat <= b.maxLat && p.lon >= b.minLon && p.lon <= b.maxLon,
+        ),
+      ),
+    );
+    expect(inAden).toBe(true);
   });
 });

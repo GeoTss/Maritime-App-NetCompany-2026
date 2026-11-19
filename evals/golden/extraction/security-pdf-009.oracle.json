@@ -1,0 +1,54 @@
+{
+  "kind": "security_quote",
+  "providerName": {
+    "value": "Harbourline Security Services",
+    "evidence": "Harbourline Security Services"
+  },
+  "vesselName": {
+    "value": "MV IBERIAN DAWN",
+    "evidence": "Vessel: MV IBERIAN DAWN, IMO No. 9483047"
+  },
+  "vesselImo": {
+    "value": "9483047",
+    "evidence": "Vessel: MV IBERIAN DAWN, IMO No. 9483047"
+  },
+  "embarkPort": {
+    "value": "Djibouti",
+    "evidence": "Embarkation: Djibouti (DJJIB)"
+  },
+  "disembarkPort": {
+    "value": "Cape Town",
+    "evidence": "Disembark: Cape Town"
+  },
+  "teamSize": {
+    "value": 6,
+    "unit": "guards",
+    "asWritten": "6 guards",
+    "evidence": "Team size: 6 guards"
+  },
+  "dayRate": {
+    "value": 1075,
+    "currency": "US$",
+    "perUnit": "/day",
+    "asWritten": "US$ 1,075.00/day",
+    "evidence": "Daily rate: US$ 1,075.00/day"
+  },
+  "fixedFees": {
+    "value": 6500,
+    "currency": "US$",
+    "perUnit": "one-off",
+    "asWritten": "US$ 6,500 one-off",
+    "evidence": "Fixed fees: US$ 6,500 one-off"
+  },
+  "minDays": {
+    "value": 4,
+    "unit": "days",
+    "asWritten": "4 days",
+    "evidence": "Minimum period: 4 days"
+  },
+  "validUntil": {
+    "asWritten": "Tue 17 Nov",
+    "evidence": "Offer valid until: Tue 17 Nov"
+  },
+  "notes": null
+}

@@ -3,7 +3,7 @@
  * to review, hazards), the managed fleet's fuel on board, and the flag key. Items come from
  * `useAttention`; each action goes where the operator acts. Nothing here decides anything.
  */
-import type { VesselSummary } from "@pharos/shared";
+import type { SecurityArea, VesselSummary } from "@pharos/shared";
 import { useState } from "react";
 import { Link } from "react-router";
 import { MetricNumber } from "@/components/metric-number";
@@ -22,6 +22,7 @@ import {
 import { UntrustedText } from "@/components/untrusted-text";
 import { type AttentionItem, acknowledgeHazard } from "@/lib/attention";
 import { cn } from "@/lib/utils";
+import { DangerAreas } from "./danger-areas";
 import { alertText } from "./vessel-panel";
 
 const KEY: { flag: FlagKind; word: string; code: string }[] = [
@@ -255,7 +256,12 @@ export function NeedsYou({
   onAsk,
   onShowVessel,
   onFlyHazard,
+  dangerAreas = [],
+  onFlyArea = () => {},
 }: {
+  /** The danger areas (Track 3), ranked most-needed first. */
+  dangerAreas?: readonly SecurityArea[];
+  onFlyArea?: (id: string) => void;
   items: AttentionItem[];
   isPending: boolean;
   vessels: readonly VesselSummary[];
@@ -304,6 +310,7 @@ export function NeedsYou({
           </ul>
         )}
         <FleetTable vessels={vessels} selectedId={selectedVesselId} onShowVessel={onShowVessel} />
+        <DangerAreas areas={dangerAreas} onFly={onFlyArea} />
         <FlagKey />
       </div>
     </section>

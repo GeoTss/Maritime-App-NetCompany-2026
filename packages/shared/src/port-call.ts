@@ -99,6 +99,9 @@ export const CostLineKind = z.enum([
   "sludge",
   "sewage",
   "eu_waste_fee",
+  "security_team",
+  "war_risk_premium",
+  "canal_dues",
 ]);
 export type CostLineKind = z.infer<typeof CostLineKind>;
 

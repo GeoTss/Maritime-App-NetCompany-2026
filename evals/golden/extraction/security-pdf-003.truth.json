@@ -1,0 +1,30 @@
+{
+  "id": "security-pdf-003",
+  "tags": [
+    "security-pdf",
+    "layout:letter",
+    "vessel:name-imo",
+    "team:guards",
+    "fees:lump",
+    "route:DJJIB-ZADUR"
+  ],
+  "source": "generated",
+  "expected": {
+    "kind": "security_quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": null,
+    "security": {
+      "provider": "Aegis Watch Maritime",
+      "vesselImo": "9487081",
+      "embarkUnlocode": "DJJIB",
+      "disembarkUnlocode": "ZADUR",
+      "teamSize": 6,
+      "dayRate": 1000,
+      "currency": "USD",
+      "fixedFees": 8000,
+      "minDays": 6,
+      "validUntil": "2026-11-20"
+    }
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "kind": "security_quote",
+  "providerName": {
+    "value": "Aegis Watch Maritime",
+    "evidence": "Aegis Watch Maritime"
+  },
+  "vesselName": {
+    "value": "MV Scheldt Express",
+    "evidence": "Ship: MV Scheldt Express"
+  },
+  "vesselImo": {
+    "value": null,
+    "evidence": null
+  },
+  "embarkPort": {
+    "value": "Fujairah",
+    "evidence": "Embark: Fujairah"
+  },
+  "disembarkPort": {
+    "value": "Cape Town",
+    "evidence": "Team leaves at: Cape Town"
+  },
+  "teamSize": {
+    "value": 5,
+    "unit": "guards",
+    "asWritten": "5 guards",
+    "evidence": "Security team: 5 guards"
+  },
+  "dayRate": {
+    "value": 1425,
+    "currency": "USD",
+    "perUnit": "per day",
+    "asWritten": "USD 1,425 per day",
+    "evidence": "Daily rate: USD 1,425 per day"
+  },
+  "fixedFees": {
+    "value": 4000,
+    "currency": "USD",
+    "perUnit": "lump sum",
+    "asWritten": "USD 4,000 lump sum",
+    "evidence": "Fixed fees: USD 4,000 lump sum"
+  },
+  "minDays": {
+    "value": 4,
+    "unit": "days",
+    "asWritten": "4 days",
+    "evidence": "Minimum charge: 4 days"
+  },
+  "validUntil": {
+    "asWritten": "2026-11-18",
+    "evidence": "Rates valid until: 2026-11-18"
+  },
+  "notes": null
+}

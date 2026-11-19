@@ -943,4 +943,115 @@ describe.skipIf(!sql)("executor (Postgres)", () => {
     expect(await auditKinds(id)).toEqual([]);
     expect(erp.requests).toHaveLength(0);
   });
+
+  describe("security orders (Track 3)", () => {
+    /** Atlantic Meridian's two security quotes: Tridentis to Djibouti (Suez), Harbourline to Durban (Cape). */
+    const insertSecurityQuotes = async () => {
+      const port = async (u: string) =>
+        (await db<{ id: number }[]>`select id from ports where unlocode = ${u}`)[0]?.id ?? 0;
+      const provider = async (n: string) =>
+        (await db<{ id: number }[]>`select id from security_providers where name = ${n}`)[0]?.id ??
+        0;
+      const fjr = await port("AEFJR");
+      const rows = [
+        [await provider("Tridentis Marine Protection"), await port("DJJIB"), 4, 1250, 6500, 4],
+        [await provider("Harbourline Security Services"), await port("ZADUR"), 3, 1100, 5000, 5],
+      ] as const;
+      const ids: number[] = [];
+      for (const [providerId, to, team, rate, fees, minDays] of rows) {
+        const [row] = await db<{ id: number }[]>`
+          insert into security_quotes (provider_id, vessel_imo, embark_port_id, disembark_port_id,
+                                       team_size, day_rate, fixed_fees, min_days, currency,
+                                       valid_until, status, extraction_id, received_at)
+          values (${providerId}, null, ${fjr}, ${to}, ${team}, ${rate}, ${fees}, ${minDays}, 'USD',
+                  null, 'received', null, ${NOW.toISOString()}::timestamptz)
+          returning id`;
+        ids.push(row?.id ?? 0);
+      }
+      return ids;
+    };
+
+    /** Atlantic Meridian's route plan; proposes on its Suez route (the one with a team). */
+    const planSuez = async () => {
+      const ctx = createToolContext({ sql: db, now: () => ASK_FIXTURE_NOW });
+      const out = await planRouteSpeedFacts(ctx, { vessel: "Atlantic Meridian" });
+      const id = (out.data as { calculationId: number }).calculationId;
+      const [calc] = await db<
+        { outputs: unknown }[]
+      >`select outputs from calculations where id = ${id}`;
+      const result = RouteSpeedResult.parse(calc?.outputs);
+      const suez = result.options.find((o) => o.feasible && o.security?.needsTeam);
+      if (!suez?.security) throw new Error("no feasible route with a security team");
+      const cite =
+        out.facts.find(
+          (f) => f.provenance.source === "calculation" && f.provenance.path === "bestCandidateId",
+        )?.id ?? "";
+      const propose = async (type: "voyage_instruction" | "security_order") =>
+        (
+          (
+            await proposeAction(ctx, {
+              type,
+              calculationId: id,
+              optionId: suez.candidateId,
+              factRefs: [cite],
+              rationale: "Suez with an armed team is cheaper than the Cape.",
+            })
+          ).data as { recommendationId: number }
+        ).recommendationId;
+      return { option: suez, propose };
+    };
+
+    it("an instruction through Suez waits for its security order; executing that order stores one order, one ERP call and one draft", async () => {
+      const [tridentis] = await insertSecurityQuotes();
+      const route = await planSuez();
+      expect(route.option.security?.quoteId).toBe(tridentis);
+      const viId = await route.propose("voyage_instruction");
+      const secId = await route.propose("security_order");
+
+      const err = await approveRecommendation(deps, viId, "alice").catch((e: unknown) => e);
+      expect((err as DecisionError).code).toBe("dependency_unmet");
+      expect((err as DecisionError).message).toContain(
+        "Tridentis Marine Protection (Fujairah to Djibouti)",
+      );
+      expect((await recommendation(viId))?.status).toBe("pending");
+
+      const pushes = erp.requests.length;
+      const result = DecisionResult.parse(await approveRecommendation(deps, secId, "olga"));
+      expect(result).toMatchObject({ status: "executed" });
+      const orders = await db<
+        { team_days: number; day_rate: number; status: string; erp_sync_status: string }[]
+      >`select team_days, day_rate, status, erp_sync_status from security_orders
+        where recommendation_id = ${secId}`;
+      expect(orders).toEqual([
+        {
+          team_days: route.option.security?.teamDays,
+          day_rate: 1250,
+          status: "confirmed",
+          erp_sync_status: "synced",
+        },
+      ]);
+      expect(erp.requests.length - pushes).toBe(1);
+      expect(erp.requests.at(-1)?.body).toMatchObject({
+        supplierErpCode: "SEC-TRI",
+        port: "AEFJR",
+        bargeFee: 6500,
+        lines: [{ service: "security_team", days: route.option.security?.teamDays, dayRate: 1250 }],
+      });
+      const drafts = await draftsOf(db, secId);
+      expect(drafts.map((d) => [d.kind, d.to, d.status])).toEqual([
+        ["security_confirmation", "security@tridentis-marine.example", "draft"],
+      ]);
+      const [quote] = await db<{ status: string }[]>`
+        select status from security_quotes where id = ${tridentis ?? 0}`;
+      expect(quote?.status).toBe("accepted");
+      expect(await auditKinds(secId)).toContain("order.pushed");
+
+      // Approving the security order again changes nothing.
+      await approveRecommendation(deps, secId, "olga").catch(() => null);
+      expect(erp.requests.length - pushes).toBe(1);
+
+      // The instruction now goes through.
+      expect((await approveRecommendation(deps, viId, "alice")).status).toBe("executed");
+    });
+  });
 });

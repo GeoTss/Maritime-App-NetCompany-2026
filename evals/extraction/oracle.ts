@@ -73,6 +73,23 @@ export function buildOracle(t: Transcription, doc: ExtractInput): ExtractionOutp
           evidence: find(s.asWritten, s.near, field),
         };
 
+  if (t.kind === "security_quote") {
+    return ExtractionOutput.parse({
+      kind: "security_quote",
+      providerName: text(t.providerName, "providerName"),
+      vesselName: text(t.vesselName, "vesselName"),
+      vesselImo: text(t.vesselImo, "vesselImo"),
+      embarkPort: text(t.embarkPort, "embarkPort"),
+      disembarkPort: text(t.disembarkPort, "disembarkPort"),
+      teamSize: amount(t.teamSize, "teamSize"),
+      dayRate: money(t.dayRate, "dayRate"),
+      fixedFees: money(t.fixedFees, "fixedFees"),
+      minDays: amount(t.minDays, "minDays"),
+      validUntil: date(t.validUntil, "validUntil"),
+      notes: t.notes ?? null,
+    });
+  }
+
   return ExtractionOutput.parse({
     kind: "quote",
     supplierName: text(t.supplierName, "supplierName"),

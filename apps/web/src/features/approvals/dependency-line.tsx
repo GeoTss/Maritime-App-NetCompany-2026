@@ -15,6 +15,10 @@ import { StateFlag } from "@/components/primitives/state-flag";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
+/** The kind of order the instruction waits for: a stop's fuel, or a route's armed team (Track 3). */
+const orderNoun = (dep: RecommendationDependency) =>
+  dep.orderType === "security_order" ? "security order" : "purchase order";
+
 /** Whether the order is beyond saving: rejected or failed. */
 const blocked = (dep: RecommendationDependency) =>
   dep.status === "rejected" || dep.status === "failed";
@@ -28,16 +32,16 @@ export function approveHeld(rec: RecommendationView): { text: string; blocked: b
   if (rec.status !== "pending" || !dep || dep.satisfied) return null;
   if (dep.recommendationId === null)
     return {
-      text: `Approve opens once a purchase order for ${dep.optionLabel} is proposed and approved.`,
+      text: `Approve opens once a ${orderNoun(dep)} for ${dep.optionLabel} is proposed and approved.`,
       blocked: false,
     };
   if (blocked(dep))
     return {
-      text: `Blocked: its purchase order (proposal ${dep.recommendationId}) was ${dep.status === "failed" ? "not executed" : "rejected"}. Only Reject is open.`,
+      text: `Blocked: its ${orderNoun(dep)} (proposal ${dep.recommendationId}) was ${dep.status === "failed" ? "not executed" : "rejected"}. Only Reject is open.`,
       blocked: true,
     };
   return {
-    text: `Approve opens once purchase order proposal ${dep.recommendationId} is approved.`,
+    text: `Approve opens once ${orderNoun(dep)} proposal ${dep.recommendationId} is approved.`,
     blocked: false,
   };
 }
@@ -51,7 +55,11 @@ export function orderToPropose(rec: RecommendationView): ProposeBody | null {
   const dep = rec.dependsOn;
   if (rec.status !== "pending" || !dep || dep.satisfied) return null;
   if (dep.recommendationId !== null && dep.status !== "rejected") return null;
-  return { type: "purchase_order", calculationId: rec.calculationId, optionId: rec.optionId };
+  return {
+    type: dep.orderType ?? "purchase_order",
+    calculationId: rec.calculationId,
+    optionId: rec.optionId,
+  };
 }
 
 export function DependencyLine({
@@ -66,7 +74,7 @@ export function DependencyLine({
 }) {
   return (
     <section
-      aria-label="Purchase order it depends on"
+      aria-label={`${dep.orderType === "security_order" ? "Security" : "Purchase"} order it depends on`}
       data-testid="dependency-line"
       data-satisfied={dep.satisfied}
       className={cn(
@@ -75,7 +83,7 @@ export function DependencyLine({
       )}
     >
       <span className="text-text-1">
-        {dep.satisfied ? "Its purchase order" : "Waits for the purchase order"}:{" "}
+        {dep.satisfied ? `Its ${orderNoun(dep)}` : `Waits for the ${orderNoun(dep)}`}:{" "}
         <span className="font-medium">{dep.optionLabel}</span>
       </span>{" "}
       {dep.recommendationId === null ? (
@@ -104,7 +112,7 @@ export function DependencyLine({
               aria-busy={propose.pending || undefined}
               onClick={propose.onPropose}
             >
-              Propose the purchase order
+              Propose the {orderNoun(dep)}
             </Button>
           ) : null}
         </span>

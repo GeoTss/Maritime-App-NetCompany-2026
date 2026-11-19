@@ -56,6 +56,8 @@ export async function fetchWeatherGrid(opts: {
   now: Date;
   /** Per-request timeout; a hung connection becomes a WeatherFetchError. */
   timeoutMs?: number;
+  /** Pause between batches (default 250 ms); the recorder slows it for large regions. */
+  chunkDelayMs?: number;
 }): Promise<WeatherGrid> {
   const timeoutMs = opts.timeoutMs ?? REQUEST_TIMEOUT_MS;
   const f = opts.fetch ?? fetch;
@@ -64,7 +66,7 @@ export async function fetchWeatherGrid(opts: {
   let seriesLen = 0;
 
   for (let i = 0; i < opts.points.length; i += CHUNK) {
-    if (i > 0) await sleep(CHUNK_DELAY_MS);
+    if (i > 0) await sleep(opts.chunkDelayMs ?? CHUNK_DELAY_MS);
     const chunk = opts.points.slice(i, i + CHUNK);
     const marineRaw = await getJson(
       f,

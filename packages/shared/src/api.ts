@@ -32,6 +32,7 @@ import {
   ShipType,
 } from "./primitives.js";
 import { RouteCandidate, RouteSpeedResult, TrackFuel } from "./routing.js";
+import { SecurityArea, SecurityQuote } from "./security.js";
 import { AgentToolName } from "./tools.js";
 
 export const ApiError = z.object({ error: z.string().min(1) });
@@ -220,6 +221,29 @@ export const QuoteView = z.object({
 });
 export type QuoteView = z.infer<typeof QuoteView>;
 
+/** The danger areas (Track 3), ranked most-needed first: by level, then by what they need. */
+export const SecurityAreaList = z.object({ items: z.array(SecurityArea) });
+export type SecurityAreaList = z.infer<typeof SecurityAreaList>;
+
+/** A security provider's quote as the console lists it (names resolved, dates as ISO strings). */
+export const SecurityQuoteView = z.object({
+  id: Id,
+  providerName: z.string(),
+  embarkPortName: z.string(),
+  disembarkPortName: z.string(),
+  teamSize: z.number().int().positive(),
+  dayRate: z.number().positive(),
+  fixedFees: z.number().nonnegative(),
+  minDays: z.number().int().nonnegative(),
+  currency: Currency,
+  validUntil: IsoDateTime.nullable(),
+  status: SecurityQuote.shape.status,
+  receivedAt: IsoDateTime,
+});
+export type SecurityQuoteView = z.infer<typeof SecurityQuoteView>;
+export const SecurityQuoteList = z.object({ items: z.array(SecurityQuoteView) });
+export type SecurityQuoteList = z.infer<typeof SecurityQuoteList>;
+
 /** Where an approved purchase order stands with the ERP. */
 export const ErpSyncStatus = z.enum(["pending", "synced", "failed"]);
 export type ErpSyncStatus = z.infer<typeof ErpSyncStatus>;
@@ -299,6 +323,8 @@ export const RecommendationDependency = z
     status: RecommendationStatus.nullable(),
     /** The order is approved, executing or executed. */
     satisfied: z.boolean(),
+    /** What the instruction waits for: a fuel order (default) or a security order (Track 3). */
+    orderType: z.enum(["purchase_order", "security_order"]).optional(),
   })
   .strict();
 export type RecommendationDependency = z.infer<typeof RecommendationDependency>;
@@ -344,6 +370,8 @@ export const PlanProposals = z
   .object({
     purchaseOrder: PlanProposal.nullable(),
     voyageInstruction: PlanProposal.nullable(),
+    /** The security order this option already has (Track 3); absent or null when none. */
+    securityOrder: PlanProposal.nullable().optional(),
     /**
      * The voyage's instruction in force when it is not this option's (another route, stop or
      * speed): a new instruction from this plan would replace it. Null when there is none, or when

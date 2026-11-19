@@ -1,0 +1,23 @@
+{
+  "id": "security-hard-fees-separate-charges-b",
+  "tags": ["security-hard", "fees-separate-charges", "render:b", "layout:plain-compact"],
+  "source": "hard",
+  "expected": {
+    "kind": "security_quote",
+    "status": "needs_review",
+    "reviewChecks": ["amounts_parsed"],
+    "quote": null,
+    "security": {
+      "provider": "Tridentis Marine Protection",
+      "vesselImo": "9483047",
+      "embarkUnlocode": "AEFJR",
+      "disembarkUnlocode": "EGSUZ",
+      "teamSize": 4,
+      "dayRate": 1525,
+      "currency": "USD",
+      "fixedFees": 3000,
+      "minDays": 3,
+      "validUntil": "2026-11-16"
+    }
+  }
+}

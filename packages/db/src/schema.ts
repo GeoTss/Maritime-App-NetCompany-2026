@@ -17,6 +17,8 @@ import type {
   NavHazardKind,
   PortCallTerms,
   RecommendationStatus,
+  SecurityArea,
+  SecurityQuote,
   VesselStores,
 } from "@pharos/shared";
 import {
@@ -90,6 +92,8 @@ export const vessels = pgTable(
     dailyCostUsd: doublePrecision().notNull(),
     /** Crew, provisions, waste and charts on board (synthetic); null = unknown. */
     stores: jsonb().$type<VesselStores>(),
+    /** Hull value (USD) for the war-risk premium (illustrative); null = unknown. */
+    hullValueUsd: doublePrecision(),
   },
   (t) => [uniqueIndex("vessels_imo_uq").on(t.imo)],
 );
@@ -340,7 +344,7 @@ export const messages = pgTable("messages", {
 
 export const recommendations = pgTable("recommendations", {
   id: id(),
-  type: text().$type<"purchase_order" | "voyage_instruction">().notNull(),
+  type: text().$type<"purchase_order" | "voyage_instruction" | "security_order">().notNull(),
   calculationId: integer()
     .notNull()
     .references(() => calculations.id, { onDelete: "restrict" }),
@@ -427,6 +431,31 @@ export const purchaseOrders = pgTable(
   ],
 );
 
+/** An approved armed security team, pushed to the ERP like a fuel order (Track 3). */
+export const securityOrders = pgTable(
+  "security_orders",
+  {
+    id: id(),
+    securityQuoteId: integer()
+      .notNull()
+      .references(() => securityQuotes.id, { onDelete: "restrict" }),
+    recommendationId: integer().references(() => recommendations.id, { onDelete: "restrict" }),
+    teamDays: integer().notNull(),
+    dayRate: doublePrecision().notNull(),
+    fixedFees: doublePrecision().notNull(),
+    currency: text().$type<"USD" | "EUR">().notNull(),
+    status: text().$type<"approved" | "confirmed" | "cancelled">().notNull(),
+    erpPoNumber: text(),
+    erpSyncStatus: text().$type<"pending" | "synced" | "failed">().notNull(),
+    idempotencyKey: text().notNull(),
+    createdAt: ts().notNull(),
+  },
+  (t) => [
+    uniqueIndex("security_orders_quote_id_uq").on(t.securityQuoteId),
+    uniqueIndex("security_orders_idempotency_key_uq").on(t.idempotencyKey),
+  ],
+);
+
 export const orderLines = pgTable("order_lines", {
   id: id(),
   orderId: integer()
@@ -444,6 +473,50 @@ export const auditEvents = pgTable("audit_events", {
   actor: text().notNull(),
   detail: jsonb().$type<unknown>(),
   at: ts().notNull(),
+});
+
+/** Danger areas with their JMIC level and planning policy (seeded from cited sources). */
+export const securityAreas = pgTable("security_areas", {
+  id: text().primaryKey(),
+  name: text().notNull(),
+  level: text().$type<SecurityArea["level"]>().notNull(),
+  policy: text().$type<SecurityArea["policy"]>().notNull(),
+  boxes: jsonb().$type<Box[]>().notNull(),
+  asOf: text().notNull(),
+  source: text().notNull(),
+  note: text().notNull(),
+});
+
+/** Companies that supply armed security teams. */
+export const securityProviders = pgTable("security_providers", {
+  id: id(),
+  name: text().notNull(),
+  emailDomain: text().notNull(),
+  erpCode: text().notNull(),
+});
+
+/** Security teams quoted by providers, as extracted from their emails. */
+export const securityQuotes = pgTable("security_quotes", {
+  id: id(),
+  providerId: integer()
+    .notNull()
+    .references(() => securityProviders.id),
+  vesselImo: text(),
+  embarkPortId: integer()
+    .notNull()
+    .references(() => ports.id),
+  disembarkPortId: integer()
+    .notNull()
+    .references(() => ports.id),
+  teamSize: integer().notNull(),
+  dayRate: doublePrecision().notNull(),
+  fixedFees: doublePrecision().notNull(),
+  minDays: integer().notNull(),
+  currency: text().$type<"USD" | "EUR">().notNull(),
+  validUntil: ts(),
+  status: text().$type<SecurityQuote["status"]>().notNull(),
+  extractionId: integer(),
+  receivedAt: ts().notNull(),
 });
 
 /** Charts and publications at their current editions (seeded from the supplier checklist). */

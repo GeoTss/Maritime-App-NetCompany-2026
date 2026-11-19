@@ -1,12 +1,12 @@
 # Q&A golden set, Phase 6: review sheet (new numbers and compliance questions)
 
-65 questions (61 existing, 4 new). Expected answers are still computed by reference code (the same domain functions and fact-label builders the agent's tools use) and are still never typed by hand or written by a model. Phase 6 changed the numbers underneath: fuel burn now follows the load condition (displacement), and every cost now includes FuelEU Maritime exposure.
+65 questions (61 existing, 4 new; Track 3's security questions are in REVIEW-QA-P10.md). Expected answers are still computed by reference code (the same domain functions and fact-label builders the agent's tools use) and are still never typed by hand or written by a model. Phase 6 changed the numbers underneath: fuel burn now follows the load condition (displacement), and every cost now includes FuelEU Maritime exposure.
 
 Base for the comparison: git commit b49da3f (the Phase 5 gate), whose truth files are read through git.
 
 ## What you are approving
 
-- 32 of 84 required facts moved value; 37 of 61 existing questions are unchanged.
+- 34 of 84 required facts moved value; 35 of 61 existing questions are unchanged.
 - Guard (`compareToBase`, also run by generate.test.ts): no question text, tag, kind, proposed option, fact count, unit or string fact value (best option, recommended route, rank, source) changed.
 - Best option, proposed option and recommended route: none changed (computed by the guard above).
 - Split unchanged for existing questions; new stratum `compliance`: dev 2, held-out 2. stratified by tags[0]; dev = ceil(n / 2) per stratum, lowest sha256(seed + id) first.
@@ -38,6 +38,12 @@ Base for the comparison: git commit b49da3f (the Phase 5 gate), whose truth file
 | --- | --- | --- | --- |
 | MTMLA-kestrel (Kestrel Marine Fuels, Marsaxlokk): total delivered cost | 233914.449003 USD | 233942.91135 USD | 0.01% |
 | GIGIB-straitline (Strait Line Fuels, Gibraltar): total delivered cost | 250085.991881 USD | 250081.363662 USD | 0% |
+
+### comparison-06 [dev] Does Coral Horizon or Atlantic Meridian carry more VLSFO?
+
+| Fact | Old | New | Change |
+| --- | --- | --- | --- |
+| VLSFO remaining on board (latest noon report) | 1400 mt | 2450 mt | 75% |
 
 ### congestion-01 [dev] How many vessels are at anchor at Piraeus and what is the expected waiting time there?
 
@@ -137,6 +143,12 @@ Base for the comparison: git commit b49da3f (the Phase 5 gate), whose truth file
 | --- | --- | --- | --- |
 | MV Aegean Pioneer: saving of the recommended route and speed against the current plan -> MV Aegean Pioneer: saving of the best route and speed ignoring fuel, against the current plan | 48643.60136 USD | 48024.55903 USD | -1.27% |
 
+### route-speed-05 [heldout] How many hours does the weather delay Aegean Pioneer on its planned route?
+
+| Fact | Old | New | Change |
+| --- | --- | --- | --- |
+| MV Aegean Pioneer, route A: weather delay | 11.299765 h | 11.299765 h | 0% |
+
 ### route-speed-06 [heldout] For Thessaly Star, what are the distance and the total cost of route A and of route B?
 
 | Fact | Old | New | Change |
@@ -176,9 +188,9 @@ Base for the comparison: git commit b49da3f (the Phase 5 gate), whose truth file
 | --- | --- | --- | --- |
 | MV Thessaly Star: recommended route -> MV Thessaly Star: best route ignoring fuel on board | B | B | unchanged |
 
-## Unchanged (37)
+## Unchanged (35)
 
-abstain-01, abstain-02, abstain-03, abstain-04, abstain-05, abstain-06, calculate-01, calculate-02, calculate-03, calculate-04, calculate-06, comparison-01, comparison-02, comparison-05, comparison-06, comparison-07, comparison-08, congestion-02, congestion-04, injection-01, injection-02, injection-03, injection-04, lookup-02, lookup-03, lookup-04, lookup-05, lookup-06, lookup-07, lookup-08, lookup-09, no-action-01, no-action-02, no-action-03, no-action-04, route-speed-04, route-speed-05
+abstain-01, abstain-02, abstain-03, abstain-04, abstain-05, abstain-06, calculate-01, calculate-02, calculate-03, calculate-04, calculate-06, comparison-01, comparison-02, comparison-05, comparison-07, comparison-08, congestion-02, congestion-04, injection-01, injection-02, injection-03, injection-04, lookup-02, lookup-03, lookup-04, lookup-05, lookup-06, lookup-07, lookup-08, lookup-09, no-action-01, no-action-02, no-action-03, no-action-04, route-speed-04
 
 ## New questions (compliance)
 

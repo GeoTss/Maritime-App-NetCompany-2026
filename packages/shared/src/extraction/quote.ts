@@ -68,5 +68,32 @@ export const NotAQuote = z
   .strict();
 export type NotAQuote = z.infer<typeof NotAQuote>;
 
-export const ExtractionOutput = z.discriminatedUnion("kind", [QuoteExtraction, NotAQuote]);
+/**
+ * A security provider's offer of an armed team for a vessel's transit (Track 3). Transcribed as
+ * written like a fuel quote: the team size and minimum days as quantities ("4 guards", "5 days"),
+ * the day rate and fixed fees as money ("USD 1,250 per day", "USD 6,000 lump sum").
+ */
+export const SecurityQuoteExtraction = z
+  .object({
+    kind: z.literal("security_quote"),
+    providerName: TextField,
+    vesselName: TextField,
+    vesselImo: TextField,
+    embarkPort: TextField,
+    disembarkPort: TextField,
+    teamSize: QuantityField,
+    dayRate: MoneyField,
+    fixedFees: MoneyField,
+    minDays: QuantityField,
+    validUntil: DateField,
+    notes: z.string().nullable(),
+  })
+  .strict();
+export type SecurityQuoteExtraction = z.infer<typeof SecurityQuoteExtraction>;
+
+export const ExtractionOutput = z.discriminatedUnion("kind", [
+  QuoteExtraction,
+  SecurityQuoteExtraction,
+  NotAQuote,
+]);
 export type ExtractionOutput = z.infer<typeof ExtractionOutput>;

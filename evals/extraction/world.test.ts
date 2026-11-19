@@ -1,4 +1,4 @@
-import { currentVoyage, generateWorld, openRequirements } from "@pharos/db";
+import { currentVoyage, GOLDEN_SET_VOYAGES, generateWorld, openRequirements } from "@pharos/db";
 import { describe, expect, it } from "vitest";
 import {
   EVAL_ANCHOR,
@@ -10,7 +10,12 @@ import {
 } from "./world.js";
 
 describe("eval world (ruling R1)", () => {
-  const base = generateWorld({ seed: EVAL_SEED, anchor: EVAL_ANCHOR });
+  // The golden set's Atlantic Meridian (GOLDEN_SET_VOYAGES) is part of the base world it differs from.
+  const base = generateWorld({
+    seed: EVAL_SEED,
+    anchor: EVAL_ANCHOR,
+    voyageOverrides: GOLDEN_SET_VOYAGES,
+  });
   const extra = evalExtraRequirements(base);
   const world = evalWorld();
 

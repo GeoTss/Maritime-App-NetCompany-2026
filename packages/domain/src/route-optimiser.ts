@@ -17,6 +17,7 @@ import { HEAVY_WEATHER_MAX_WAVE_M } from "./constants.js";
 import { dailyConsumptionMt } from "./consumption.js";
 import { co2Tonnes, etsCost } from "./emissions.js";
 import { fuelEuCost } from "./fueleu.js";
+import { securityPlan } from "./security.js";
 import { bestStopPlan, recommendPlan } from "./stop-plan.js";
 import { hazardIdsOfSteps, type SubStep, subSteps, walkSteps } from "./track.js";
 import { projectFuelAlongTrack } from "./track-fuel.js";
@@ -41,7 +42,8 @@ function evaluateSteps(
   let walkedNm = 0;
   let sampledNm = 0;
   let maxWaveHeightM = 0;
-  for (const step of walkSteps(route.steps, new Date(startMs), speedKn, input.weather)) {
+  const walked = walkSteps(route.steps, new Date(startMs), speedKn, input.weather);
+  for (const step of walked) {
     const h = step.hours;
     delay += h - step.nm / speedKn;
     hoursIn[step.grade] += h;
@@ -54,7 +56,17 @@ function evaluateSteps(
 
   const distanceNm = route.distanceNm;
   const calmHours = distanceNm / speedKn;
-  const hours = calmHours + delay;
+  const sec = input.security
+    ? securityPlan({
+        steps: walked,
+        areas: input.security.areas,
+        quotes: input.security.quotes,
+        hullValueUsd: input.security.hullValueUsd,
+        canal: input.security.canal,
+      })
+    : null;
+  // The wait for the canal convoy adds to the voyage (the walk's later weather is not shifted).
+  const hours = calmHours + delay + (sec?.result.convoyWaitHours ?? 0);
   const etaMs = startMs + Math.round(hours * HOUR_MS);
   const fuelMt: GradeAmounts = { LSMGO: 0, VLSFO: 0, HSFO: 0 };
   let totalFuelMt = 0;
@@ -88,6 +100,7 @@ function evaluateSteps(
   if (!meetsArriveBy) reasons.push("misses_arrive_by");
   if (hazardIds.length > 0) reasons.push("crosses_hazard");
   if (maxWaveHeightM > HEAVY_WEATHER_MAX_WAVE_M) reasons.push("heavy_weather");
+  if (sec) reasons.push(...sec.reasons);
   const feasible = reasons.length === 0;
 
   return {
@@ -96,7 +109,7 @@ function evaluateSteps(
     distanceNm,
     hours,
     calmHours,
-    weatherDelayHours: hours - calmHours,
+    weatherDelayHours: delay,
     eta: new Date(etaMs).toISOString(),
     fuelMt,
     totalFuelMt,
@@ -105,7 +118,8 @@ function evaluateSteps(
     etsCostUsd,
     fuelEuCostUsd,
     timeCostUsd,
-    totalCostUsd: fuelCostUsd + etsCostUsd + fuelEuCostUsd + timeCostUsd,
+    totalCostUsd:
+      fuelCostUsd + etsCostUsd + fuelEuCostUsd + timeCostUsd + (sec?.result.extraCostUsd ?? 0),
     maxWaveHeightM,
     // Both sums add the same sub-steps, so full coverage is exactly 100.
     weatherCoveragePct: walkedNm > 0 ? (sampledNm / walkedNm) * 100 : 0,
@@ -115,6 +129,7 @@ function evaluateSteps(
     hazardIds,
     reasons,
     fuel: null,
+    ...(sec ? { security: sec.result } : {}),
   };
 }
 

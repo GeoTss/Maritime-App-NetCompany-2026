@@ -17,7 +17,10 @@ import { planBunkering } from "../../apps/api/src/ai/tools/plan-bunkering.js";
 import { getPortCongestion } from "../../apps/api/src/ai/tools/port-congestion.js";
 import { planRouteSpeedFacts } from "../../apps/api/src/ai/tools/route-speed.js";
 import { getVesselStatus } from "../../apps/api/src/ai/tools/vessel-status.js";
-import { prepareAskFixture } from "../../apps/api/src/ask/demo-fixture.js";
+import {
+  insertDemoSecurityQuotes,
+  prepareAskFixture,
+} from "../../apps/api/src/ask/demo-fixture.js";
 import { DEMO_VESSEL, type FactRef, QUESTIONS } from "./questions.js";
 import {
   congestionReading,
@@ -68,6 +71,8 @@ function callFor(
     }
     case "congestion":
       return getPortCongestion(ctx, { port: congestionReading(world, ref.port).port.unlocode });
+    case "securityTeam":
+      return listQuotes(ctx, {});
   }
 }
 
@@ -78,6 +83,7 @@ describe.skipIf(!sql)("Q&A reference vs the real tools (Postgres)", () => {
 
   beforeAll(async () => {
     await prepareAskFixture(db);
+    await insertDemoSecurityQuotes(db);
     await insertInjectedShip(db);
   });
   afterAll(async () => {

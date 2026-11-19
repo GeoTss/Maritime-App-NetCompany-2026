@@ -1,0 +1,54 @@
+{
+  "kind": "security_quote",
+  "providerName": {
+    "value": "Harbourline Security Services",
+    "evidence": "For and on behalf of Harbourline Security Services"
+  },
+  "vesselName": {
+    "value": "CORAL HORIZON",
+    "evidence": "Ship             CORAL HORIZON, IMO No. 9486075"
+  },
+  "vesselImo": {
+    "value": "9486075",
+    "evidence": "Ship             CORAL HORIZON, IMO No. 9486075"
+  },
+  "embarkPort": {
+    "value": "Fujairah",
+    "evidence": "Embark           off Fujairah"
+  },
+  "disembarkPort": {
+    "value": "Durban",
+    "evidence": "Team leaves at   Durban (ZADUR)"
+  },
+  "teamSize": {
+    "value": 5,
+    "unit": "armed guards",
+    "asWritten": "5 armed guards",
+    "evidence": "5 armed guards   US$ 1,350/day   3 days           USD 6,250"
+  },
+  "dayRate": {
+    "value": 1350,
+    "currency": "US$",
+    "perUnit": "/day",
+    "asWritten": "US$ 1,350/day",
+    "evidence": "5 armed guards   US$ 1,350/day   3 days           USD 6,250"
+  },
+  "fixedFees": {
+    "value": 6250,
+    "currency": "USD",
+    "perUnit": null,
+    "asWritten": "USD 6,250",
+    "evidence": "5 armed guards   US$ 1,350/day   3 days           USD 6,250"
+  },
+  "minDays": {
+    "value": 3,
+    "unit": "days",
+    "asWritten": "3 days",
+    "evidence": "5 armed guards   US$ 1,350/day   3 days           USD 6,250"
+  },
+  "validUntil": {
+    "asWritten": "20th November 1700 LT",
+    "evidence": "Valid till: 20th November 1700 LT"
+  },
+  "notes": null
+}

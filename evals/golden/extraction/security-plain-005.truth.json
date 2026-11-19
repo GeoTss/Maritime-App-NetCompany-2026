@@ -1,0 +1,30 @@
+{
+  "id": "security-plain-005",
+  "tags": [
+    "security-plain",
+    "layout:labels",
+    "vessel:name-imo",
+    "team:pcasp",
+    "fees:lump",
+    "route:AEFJR-EGSUZ"
+  ],
+  "source": "generated",
+  "expected": {
+    "kind": "security_quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": null,
+    "security": {
+      "provider": "Harbourline Security Services",
+      "vesselImo": "9484053",
+      "embarkUnlocode": "AEFJR",
+      "disembarkUnlocode": "EGSUZ",
+      "teamSize": 4,
+      "dayRate": 1475,
+      "currency": "USD",
+      "fixedFees": 5750,
+      "minDays": 3,
+      "validUntil": "2026-11-19"
+    }
+  }
+}

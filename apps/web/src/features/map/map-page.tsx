@@ -38,6 +38,8 @@ import {
   useHazards,
   usePlanRoute,
   usePorts,
+  useSecurityAreas,
+  useSecurityTeams,
   useStopNames,
   useStoredRoutePlan,
   useTraffic,
@@ -49,6 +51,7 @@ import { type MapFocus, MapView } from "./map-view";
 import { NeedsYou } from "./needs-you";
 import { PlanChip, planChipText } from "./plan-chip";
 import { RouteTray, TRAY_SNAPS } from "./route-tray";
+import { labelPoint } from "./security-layer";
 import { ShipPanel } from "./ship-panel";
 import { VesselPanel } from "./vessel-panel";
 
@@ -104,6 +107,7 @@ export function MapPage() {
   const vessels = useVessels();
   const traffic = useTraffic();
   const hazards = useHazards();
+  const dangerAreas = useSecurityAreas();
   const congestion = useCongestion();
   const ports = usePorts();
   const weather = useWeather(step);
@@ -129,6 +133,16 @@ export function MapPage() {
   // A stored plan from the address, else the one just planned.
   const plan = storedRoute.data ?? planner.data ?? null;
   const stopNames = useStopNames((plan?.result.stopPlans.length ?? 0) > 0);
+  const securityTeams = useSecurityTeams(
+    plan?.result.options.some((o) => o.security?.quoteId != null) ?? false,
+  );
+  const securityNames = useMemo(
+    () => ({
+      teams: securityTeams,
+      areas: new Map((dangerAreas.data?.items ?? []).map((a) => [a.id, a.name])),
+    }),
+    [securityTeams, dangerAreas.data],
+  );
   const bunkerPlan = bunker.data ?? null;
   const { reset: resetPlan } = planner;
   const subjectKey = vessel ? `v${vessel.id}` : ship ? `s${ship.mmsi}` : "";
@@ -346,6 +360,10 @@ export function MapPage() {
     const h = hazards.data?.items.find((x) => x.id === id);
     if (h) setFocus({ lat: h.lat, lon: h.lon, key: `h${id}-${Date.now()}` });
   };
+  const flyToArea = (id: string) => {
+    const a = dangerAreas.data?.items.find((x) => x.id === id);
+    if (a) setFocus({ ...labelPoint(a), key: `a${id}-${Date.now()}` });
+  };
   const needs = (
     <NeedsYou
       items={attention.items}
@@ -365,6 +383,11 @@ export function MapPage() {
         flyToHazard(id);
         setNeedsDrawer(false);
       }}
+      dangerAreas={dangerAreas.data?.items ?? EMPTY}
+      onFlyArea={(id) => {
+        flyToArea(id);
+        setNeedsDrawer(false);
+      }}
     />
   );
   const needsOpenNow = wide ? needsOpen : needsDrawer;
@@ -377,6 +400,7 @@ export function MapPage() {
         vessels={vesselItems}
         traffic={trafficItems}
         hazards={hazards.data?.items ?? EMPTY}
+        dangerAreas={dangerAreas.data?.items ?? EMPTY}
         congestion={congestion.data?.items ?? EMPTY}
         ports={portItems}
         weather={weather.data}
@@ -492,6 +516,7 @@ export function MapPage() {
         <RouteTray
           plan={plan}
           names={stopNames}
+          security={securityNames}
           container={container}
           snap={snap}
           onSnapChange={setSnap}

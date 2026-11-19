@@ -1,0 +1,54 @@
+{
+  "kind": "security_quote",
+  "providerName": {
+    "value": "Tridentis Marine Protection",
+    "evidence": "Tridentis Marine Protection"
+  },
+  "vesselName": {
+    "value": "MT Atlantic Meridian",
+    "evidence": "We can provide a team of four guards for MT Atlantic Meridian - IMO: 9485069, embarking at Fujairah anchorage and disembarking at Cape Town."
+  },
+  "vesselImo": {
+    "value": "9485069",
+    "evidence": "We can provide a team of four guards for MT Atlantic Meridian - IMO: 9485069, embarking at Fujairah anchorage and disembarking at Cape Town."
+  },
+  "embarkPort": {
+    "value": "Fujairah",
+    "evidence": "We can provide a team of four guards for MT Atlantic Meridian - IMO: 9485069, embarking at Fujairah anchorage and disembarking at Cape Town."
+  },
+  "disembarkPort": {
+    "value": "Cape Town",
+    "evidence": "We can provide a team of four guards for MT Atlantic Meridian - IMO: 9485069, embarking at Fujairah anchorage and disembarking at Cape Town."
+  },
+  "teamSize": {
+    "value": 4,
+    "unit": "guards",
+    "asWritten": "four guards",
+    "evidence": "We can provide a team of four guards for MT Atlantic Meridian - IMO: 9485069, embarking at Fujairah anchorage and disembarking at Cape Town."
+  },
+  "dayRate": {
+    "value": 1050,
+    "currency": "$",
+    "perUnit": "per day",
+    "asWritten": "$1,050 per day",
+    "evidence": "The day rate is $1,050 per day, with a minimum of 5 days."
+  },
+  "fixedFees": {
+    "value": 4250,
+    "currency": "US$",
+    "perUnit": "one-off",
+    "asWritten": "US$ 4250.00 one-off",
+    "evidence": "Fixed fees for embarkation, disembarkation and arms storage: US$ 4250.00 one-off."
+  },
+  "minDays": {
+    "value": 5,
+    "unit": "days",
+    "asWritten": "5 days",
+    "evidence": "The day rate is $1,050 per day, with a minimum of 5 days."
+  },
+  "validUntil": {
+    "asWritten": "2026-11-18 noon LT",
+    "evidence": "This offer is valid until 2026-11-18 noon LT."
+  },
+  "notes": null
+}

@@ -1,0 +1,54 @@
+{
+  "kind": "security_quote",
+  "providerName": {
+    "value": "Harbourline Security Services",
+    "evidence": "Harbourline Security Services"
+  },
+  "vesselName": {
+    "value": "Coral Horizon",
+    "evidence": "Vessel        Coral Horizon - IMO: 9486075"
+  },
+  "vesselImo": {
+    "value": "9486075",
+    "evidence": "Vessel        Coral Horizon - IMO: 9486075"
+  },
+  "embarkPort": {
+    "value": "Fujairah",
+    "evidence": "Embarkation   Fujairah"
+  },
+  "disembarkPort": {
+    "value": "Suez",
+    "evidence": "Disembark     Suez (EGSUZ)"
+  },
+  "teamSize": {
+    "value": 5,
+    "unit": "armed guards",
+    "asWritten": "5 armed guards",
+    "evidence": "5 armed guards   USD 1,200 daily   3 days           USD 6,750 lump sum"
+  },
+  "dayRate": {
+    "value": 1200,
+    "currency": "USD",
+    "perUnit": "daily",
+    "asWritten": "USD 1,200 daily",
+    "evidence": "5 armed guards   USD 1,200 daily   3 days           USD 6,750 lump sum"
+  },
+  "fixedFees": {
+    "value": 6750,
+    "currency": "USD",
+    "perUnit": "lump sum",
+    "asWritten": "USD 6,750 lump sum",
+    "evidence": "5 armed guards   USD 1,200 daily   3 days           USD 6,750 lump sum"
+  },
+  "minDays": {
+    "value": 3,
+    "unit": "days",
+    "asWritten": "3 days",
+    "evidence": "5 armed guards   USD 1,200 daily   3 days           USD 6,750 lump sum"
+  },
+  "validUntil": {
+    "asWritten": "2026-11-19 noon LT",
+    "evidence": "Valid till: 2026-11-19 noon LT"
+  },
+  "notes": null
+}

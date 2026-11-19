@@ -1,7 +1,8 @@
 /**
  * Under a fleet vessel's recommended plan: propose what the plan implies without asking the
  * assistant. A plan that calls at a bunker port proposes the purchase order for the stop's quote
- * and the voyage instruction; a plan without a stop, the voyage instruction alone.
+ * and the voyage instruction; a plan without a stop, the voyage instruction alone. A route through
+ * a guarded danger area also proposes the security order for the team its plan chose (Track 3).
  *
  * What the voyage already has is read first (`usePlanProposals`): an order or instruction that is
  * waiting, approved or carried out is shown with its state and a link, never offered again, even
@@ -22,16 +23,19 @@ type Kind = ProposeBody["type"];
 const NOUN: Record<Kind, string> = {
   purchase_order: "purchase order",
   voyage_instruction: "voyage instruction",
+  security_order: "security order",
 };
 
 const TITLE: Record<Kind, string> = {
   purchase_order: "Purchase order",
   voyage_instruction: "Voyage instruction",
+  security_order: "Security order",
 };
 
 const UNTIL_APPROVED: Record<Kind, string> = {
   purchase_order: "Purchase order: nothing is ordered until you approve it.",
   voyage_instruction: "Voyage instruction: nothing is sent until you approve it.",
+  security_order: "Security order: no team is ordered until you approve it.",
 };
 
 /** Where an existing proposal stands, in the operator's words. */
@@ -71,7 +75,10 @@ function Existing({ type, proposal }: { type: Kind; proposal: PlanProposal }) {
 export function ProposeFromPlan({
   calculationId,
   plan,
+  securityTeam = false,
 }: {
+  /** The route needs an armed team a quote covers: its security order is proposed first. */
+  securityTeam?: boolean;
   /** The stored route plan the proposal comes from. */
   calculationId: number;
   /** Its recommended plan: a stop plan's option id or a route's candidate id. */
@@ -81,6 +88,7 @@ export function ProposeFromPlan({
   const existing = usePlanProposals(calculationId, plan.optionId);
   const order = useProposeRecommendation();
   const instruction = useProposeRecommendation();
+  const security = useProposeRecommendation();
 
   const propose = (mutation: typeof order, type: Kind) =>
     mutation.mutate(
@@ -115,6 +123,15 @@ export function ProposeFromPlan({
             type: "purchase_order" as const,
             mutation: order,
             has: existing.data?.purchaseOrder ?? null,
+          },
+        ]
+      : []),
+    ...(securityTeam
+      ? [
+          {
+            type: "security_order" as const,
+            mutation: security,
+            has: existing.data?.securityOrder ?? null,
           },
         ]
       : []),

@@ -103,10 +103,10 @@ const outageFirst = (script: unknown[]) => {
 };
 
 describe("the per-question estimate", () => {
-  it("is $0.004: the 33 dev questions estimate $0.132, under the $0.25 pass cap", () => {
+  it("is $0.004: the 35 dev questions estimate $0.14, under the $0.25 pass cap", () => {
     expect(ESTIMATE_PER_QUESTION_USD).toBe(0.004);
-    expect(split.dev).toHaveLength(33);
-    expect(split.dev.length * ESTIMATE_PER_QUESTION_USD).toBeCloseTo(0.132, 9);
+    expect(split.dev).toHaveLength(35);
+    expect(split.dev.length * ESTIMATE_PER_QUESTION_USD).toBeCloseTo(0.14, 9);
     expect(split.dev.length * ESTIMATE_PER_QUESTION_USD).toBeLessThan(RUN_CAP_USD);
   });
 });

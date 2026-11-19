@@ -153,7 +153,15 @@ describe("evaluateExtraction: the clean Kestrel quote", () => {
     expect(failed(r)).toEqual([]);
     expect(r.status).toBe("extracted");
     const names = new Set(r.checks.map((c) => c.check));
-    for (const name of CHECK_NAMES.filter((n) => n !== "evidence_found:notAQuote")) {
+    const securityOnly = [
+      "security_provider_resolved",
+      "embark_port_resolved",
+      "disembark_port_resolved",
+      "team_size_unambiguous",
+    ];
+    for (const name of CHECK_NAMES.filter(
+      (n) => n !== "evidence_found:notAQuote" && !securityOnly.includes(n),
+    )) {
       expect(names, name).toContain(name);
     }
     expect(r.normalised).toEqual({
@@ -208,6 +216,11 @@ describe("check names", () => {
         "attachment_text_found",
         "delivery_window_valid",
         "newest_offer_only",
+        // Track 3: security quotes.
+        "security_provider_resolved",
+        "embark_port_resolved",
+        "disembark_port_resolved",
+        "team_size_unambiguous",
       ].sort(),
     );
   });
@@ -248,7 +261,7 @@ describe("validity_not_expired", () => {
   it("validity on the received day passes and is stored", () => {
     const r = withValidity("14 Nov 2026");
     expect(failed(r)).toEqual([]);
-    expect(r.status === "extracted" && r.quote.validUntil).toBe("2026-11-14");
+    expect(r.status === "extracted" && r.quote?.validUntil).toBe("2026-11-14");
   });
 
   it("a validity with no year that reads as a past day fails: 30 Dec received 2 Jan", () => {
@@ -367,7 +380,7 @@ describe("delivery dates (R7) and dates_parsed", () => {
     const r = withDelivery("18-19 Nov", null);
     expect(failed(r)).toEqual([]);
     expect(r.normalised).toMatchObject({ deliveryFrom: "2026-11-18", deliveryTo: "2026-11-19" });
-    expect(r.status === "extracted" && [r.quote.deliveryFrom, r.quote.deliveryTo]).toEqual([
+    expect(r.status === "extracted" && [r.quote?.deliveryFrom, r.quote?.deliveryTo]).toEqual([
       "2026-11-18",
       "2026-11-19",
     ]);
@@ -1314,8 +1327,8 @@ describe("multi-grade quotes and requirement_found", () => {
     expect(failed(r)).toEqual([]);
     expect(r.status).toBe("extracted");
     if (r.status !== "extracted") return;
-    expect(r.quote.requirementId).toBe(lsmgoRequirement.id);
-    expect(r.quote.lines).toEqual([
+    expect(r.quote?.requirementId).toBe(lsmgoRequirement.id);
+    expect(r.quote?.lines).toEqual([
       { grade: "VLSFO", qtyMt: 500, pricePerMt: vlsfoPrice },
       { grade: "LSMGO", qtyMt: 300, pricePerMt: 738 },
     ]);
@@ -1335,7 +1348,7 @@ describe("multi-grade quotes and requirement_found", () => {
       bunkerRequirements: [...world.bunkerRequirements, vlsfoRequirement],
     };
     const r = run(multiGrade(), email({ append: vlsfoLines }), CTX, w);
-    expect(r.status === "extracted" && r.quote.requirementId).toBe(vlsfoRequirement.id);
+    expect(r.status === "extracted" && r.quote?.requirementId).toBe(vlsfoRequirement.id);
   });
 
   it("a per-mt barge fee on a multi-grade quote fails amounts_parsed, whatever the line order", () => {
@@ -1390,7 +1403,7 @@ describe("barge fee", () => {
     const r = run(out, doc);
     expect(failed(r)).toEqual([]);
     expect(r.normalised.bargeFee).toBe(1500);
-    expect(r.status === "extracted" && r.quote.bargeFee).toBe(1500);
+    expect(r.status === "extracted" && r.quote?.bargeFee).toBe(1500);
   });
 
   it("per-mt barge fee with no readable first-line quantity → null total, amounts_parsed fails", () => {
@@ -1427,7 +1440,7 @@ describe("barge fee", () => {
     const doc = email({ replace: [["Barge fee: USD 2,800 lump sum\n", ""]] });
     const r = run(out, doc);
     expect(failed(r)).toEqual([]);
-    expect(r.status === "extracted" && r.quote.bargeFee).toBe(0);
+    expect(r.status === "extracted" && r.quote?.bargeFee).toBe(0);
     expect(r.normalised.bargeFee).toBe(0);
     expect(detailOf(r, "amounts_parsed")).toBe("barge fee not quoted; treated as included");
   });
@@ -1492,7 +1505,7 @@ describe("barge fee", () => {
     const doc = email({ replace: [["Barge fee: USD 2,800 lump sum", lines.join("\n")]] });
     const r = run(out, doc);
     expect(failed(r)).toEqual([]);
-    expect(r.status === "extracted" && r.quote.bargeFee).toBe(0);
+    expect(r.status === "extracted" && r.quote?.bargeFee).toBe(0);
   });
 });
 

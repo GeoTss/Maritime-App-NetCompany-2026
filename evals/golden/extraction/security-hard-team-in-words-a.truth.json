@@ -1,0 +1,23 @@
+{
+  "id": "security-hard-team-in-words-a",
+  "tags": ["security-hard", "team-in-words", "render:a", "layout:plain-prose"],
+  "source": "hard",
+  "expected": {
+    "kind": "security_quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": null,
+    "security": {
+      "provider": "Tridentis Marine Protection",
+      "vesselImo": "9485069",
+      "embarkUnlocode": "AEFJR",
+      "disembarkUnlocode": "ZACPT",
+      "teamSize": 4,
+      "dayRate": 1050,
+      "currency": "USD",
+      "fixedFees": 4250,
+      "minDays": 5,
+      "validUntil": "2026-11-18"
+    }
+  }
+}

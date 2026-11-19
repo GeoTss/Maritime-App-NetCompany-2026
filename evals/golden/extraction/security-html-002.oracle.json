@@ -1,0 +1,54 @@
+{
+  "kind": "security_quote",
+  "providerName": {
+    "value": "Tridentis Marine Protection",
+    "evidence": "For and on behalf of Tridentis Marine Protection"
+  },
+  "vesselName": {
+    "value": "Nordic Lantern",
+    "evidence": "Vessel              Nordic Lantern - IMO: 9482031"
+  },
+  "vesselImo": {
+    "value": "9482031",
+    "evidence": "Vessel              Nordic Lantern - IMO: 9482031"
+  },
+  "embarkPort": {
+    "value": "Fujairah",
+    "evidence": "Embarkation point   Fujairah anchorage"
+  },
+  "disembarkPort": {
+    "value": "Suez",
+    "evidence": "Disembarkation      Suez"
+  },
+  "teamSize": {
+    "value": 6,
+    "unit": "armed guards",
+    "asWritten": "6 armed guards",
+    "evidence": "Security team       6 armed guards"
+  },
+  "dayRate": {
+    "value": 1000,
+    "currency": "USD",
+    "perUnit": "per day",
+    "asWritten": "USD 1000 per day",
+    "evidence": "Day rate            USD 1000 per day"
+  },
+  "fixedFees": {
+    "value": 5250,
+    "currency": "USD",
+    "perUnit": null,
+    "asWritten": "USD 5,250",
+    "evidence": "Fixed fees          USD 5,250"
+  },
+  "minDays": {
+    "value": 3,
+    "unit": "days",
+    "asWritten": "3 days",
+    "evidence": "Minimum charge      3 days"
+  },
+  "validUntil": {
+    "asWritten": "20 November 2026 18:00 UTC",
+    "evidence": "Rates valid until   20 November 2026 18:00 UTC"
+  },
+  "notes": null
+}

@@ -21,10 +21,11 @@ export async function proposeFromPlan(
   deps: { sql: Sql; now: () => Date },
   body: ProposeBody,
 ): Promise<ProposeResult> {
+  const fuelOrRoute = body;
   let checked: { expectedSavingUsd: number | null };
   try {
-    const { kind, outputs } = await proposalSource(deps.sql, body);
-    checked = checkedOption({ ...body, factRefs: [], rationale: "" }, kind, outputs);
+    const { kind, outputs } = await proposalSource(deps.sql, fuelOrRoute);
+    checked = checkedOption({ ...fuelOrRoute, factRefs: [], rationale: "" }, kind, outputs);
   } catch (err) {
     if (err instanceof Error) throw new ProposeError(err.message);
     throw err;
@@ -33,7 +34,7 @@ export async function proposeFromPlan(
   const { id, created, status } = await insertPending(
     deps.sql,
     deps.now(),
-    body,
+    fuelOrRoute,
     [],
     checked.expectedSavingUsd,
   );

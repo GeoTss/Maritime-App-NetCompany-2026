@@ -28,6 +28,7 @@ import { cn } from "@/lib/utils";
 export const RECOMMENDATION_KIND: Record<RecommendationType, string> = {
   purchase_order: "Purchase order",
   voyage_instruction: "Voyage instruction",
+  security_order: "Security order",
 };
 
 /** A proposal's status in words, with the hue whose job it is. */

@@ -1,0 +1,23 @@
+{
+  "id": "security-hard-fees-separate-charges-a",
+  "tags": ["security-hard", "fees-separate-charges", "render:a", "layout:plain-labels"],
+  "source": "hard",
+  "expected": {
+    "kind": "security_quote",
+    "status": "needs_review",
+    "reviewChecks": ["amounts_parsed"],
+    "quote": null,
+    "security": {
+      "provider": "Aegis Watch Maritime",
+      "vesselImo": "9485069",
+      "embarkUnlocode": "AEFJR",
+      "disembarkUnlocode": "DJJIB",
+      "teamSize": 6,
+      "dayRate": 1600,
+      "currency": "USD",
+      "fixedFees": 3250,
+      "minDays": 4,
+      "validUntil": "2026-11-19"
+    }
+  }
+}

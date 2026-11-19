@@ -77,6 +77,8 @@ export const Vessel = z.object({
   dailyCostUsd: NonNeg,
   /** Crew, provisions, waste and charts on board (synthetic); null = unknown. */
   stores: VesselStores.nullable().optional(),
+  /** Hull value (USD) for the war-risk premium (illustrative); null = unknown. */
+  hullValueUsd: NonNeg.nullable().optional(),
 });
 export type Vessel = z.infer<typeof Vessel>;
 
@@ -360,7 +362,11 @@ export const Calculation = z.object({
 });
 export type Calculation = z.infer<typeof Calculation>;
 
-export const RecommendationType = z.enum(["purchase_order", "voyage_instruction"]);
+export const RecommendationType = z.enum([
+  "purchase_order",
+  "voyage_instruction",
+  "security_order",
+]);
 export const RecommendationStatus = z.enum([
   "pending",
   "approved",
@@ -394,6 +400,7 @@ export const DraftedMessage = z.object({
     "master_instruction",
     "agent_request",
     "pre_arrival_notice",
+    "security_confirmation",
   ]),
   to: z.string().min(1),
   subject: z.string().min(1),

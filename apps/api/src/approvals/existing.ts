@@ -46,6 +46,24 @@ function speedOf(outputs: unknown, optionId: string): number | null {
 }
 
 type Row = { id: number; status: RecommendationStatus };
+
+const Security = z.object({
+  options: z
+    .array(
+      z.object({
+        candidateId: z.string(),
+        security: z.object({ quoteId: z.number().nullable() }).nullable().optional(),
+      }),
+    )
+    .default([]),
+});
+
+/** The security quote a route plan's option buys its team from; null when none. */
+export function securityQuoteOf(outputs: unknown, optionId: string): Id | null {
+  const parsed = Security.safeParse(outputs);
+  if (!parsed.success) return null;
+  return parsed.data.options.find((o) => o.candidateId === optionId)?.security?.quoteId ?? null;
+}
 const found = (row: Row | undefined): PlanProposal | null =>
   row ? { recommendationId: row.id, status: row.status } : null;
 
@@ -88,6 +106,18 @@ export async function existingProposal(sql: Db, key: ProposalKey): Promise<PlanP
     return found(
       orders.find((o) => TAKEN.has(o.status)) ?? orders.find((o) => o.qtyMt === wanted.qtyMt),
     );
+  }
+
+  if (key.type === "security_order") {
+    const wanted = securityQuoteOf(calc.outputs, key.optionId);
+    if (wanted === null) return samePlan();
+    const rows = await sql<(Row & { option_id: string; outputs: unknown })[]>`
+      select r.id, r.status, r.option_id, c.outputs
+      from recommendations r join calculations c on c.id = r.calculation_id
+      where r.type = 'security_order' and r.status <> 'rejected' and c.voyage_id = ${calc.voyage_id}
+      order by r.id desc`;
+    const same = rows.filter((r) => securityQuoteOf(r.outputs, r.option_id) === wanted);
+    return found(same.find((o) => TAKEN.has(o.status)) ?? same[0]);
   }
 
   const speedKn = speedOf(calc.outputs, key.optionId);

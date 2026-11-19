@@ -1,6 +1,6 @@
 import { Alert02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import type { ExtractionOutput, QuoteExtraction } from "@pharos/shared";
+import type { ExtractionOutput, QuoteExtraction, SecurityQuoteExtraction } from "@pharos/shared";
 import { useState } from "react";
 import { UntrustedText } from "@/components/untrusted-text";
 import { cn } from "@/lib/utils";
@@ -16,6 +16,55 @@ export interface FieldRow {
 
 const joinParts = (...parts: (string | number | null | undefined)[]) =>
   parts.filter((p) => p !== null && p !== undefined && p !== "").join(" ") || null;
+
+/** A security quote's fields in reading order, each with its evidence sentence. Display only. */
+export function securityFieldRows(q: SecurityQuoteExtraction): FieldRow[] {
+  const money = (f: SecurityQuoteExtraction["dayRate"]) =>
+    f.asWritten ?? joinParts(f.currency, f.value);
+  const qty = (f: SecurityQuoteExtraction["teamSize"]) => f.asWritten ?? joinParts(f.value, f.unit);
+  return [
+    {
+      key: "provider",
+      label: "Security provider",
+      written: q.providerName.value,
+      evidence: q.providerName.evidence,
+    },
+    {
+      key: "vessel",
+      label: "Vessel",
+      written: q.vesselName.value,
+      evidence: q.vesselName.evidence,
+    },
+    { key: "imo", label: "Vessel IMO", written: q.vesselImo.value, evidence: q.vesselImo.evidence },
+    {
+      key: "embark",
+      label: "Team boards at",
+      written: q.embarkPort.value,
+      evidence: q.embarkPort.evidence,
+    },
+    {
+      key: "disembark",
+      label: "Team leaves at",
+      written: q.disembarkPort.value,
+      evidence: q.disembarkPort.evidence,
+    },
+    { key: "team", label: "Team size", written: qty(q.teamSize), evidence: q.teamSize.evidence },
+    { key: "rate", label: "Day rate", written: money(q.dayRate), evidence: q.dayRate.evidence },
+    {
+      key: "fees",
+      label: "Fixed fees",
+      written: money(q.fixedFees),
+      evidence: q.fixedFees.evidence,
+    },
+    { key: "days", label: "Minimum days", written: qty(q.minDays), evidence: q.minDays.evidence },
+    {
+      key: "valid",
+      label: "Valid until",
+      written: q.validUntil.asWritten,
+      evidence: q.validUntil.evidence,
+    },
+  ];
+}
 
 /** The quote's fields in reading order, each with its evidence sentence. Display only. */
 export function fieldRows(q: QuoteExtraction): FieldRow[] {
@@ -117,7 +166,8 @@ export function ExtractionPanel({
     );
   }
 
-  const rows = fieldRows(extraction);
+  const rows =
+    extraction.kind === "security_quote" ? securityFieldRows(extraction) : fieldRows(extraction);
   const show = (row: FieldRow | null) => {
     setActive(row?.key ?? null);
     onEvidence(row?.evidence ?? null);

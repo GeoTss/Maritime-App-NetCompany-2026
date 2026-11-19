@@ -30,12 +30,12 @@ export type PlanBunkeringInput = z.infer<typeof PlanBunkeringInput>;
 export const ProposeActionInput = z
   .object({
     type: z
-      .enum(["purchase_order", "voyage_instruction"])
+      .enum(["purchase_order", "voyage_instruction", "security_order"])
       .describe(
-        "purchase_order for a bunker plan option; voyage_instruction for a route plan's route.",
+        "purchase_order for a bunker plan option; voyage_instruction for a route plan's route; security_order for the armed team a route plan's route needs.",
       ),
     calculationId: Id.describe(
-      "The calculationId a plan_bunkering (purchase_order) or plan_route_speed (voyage_instruction) result returned.",
+      "The calculationId a plan_bunkering (purchase_order) or plan_route_speed (voyage_instruction, security_order) result returned.",
     ),
     optionId: z
       .string()

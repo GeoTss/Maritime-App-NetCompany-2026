@@ -1,0 +1,30 @@
+{
+  "id": "security-pdf-005",
+  "tags": [
+    "security-pdf",
+    "layout:letter",
+    "vessel:name-imo",
+    "team:guards",
+    "fees:lump",
+    "route:AEFJR-ZACPT"
+  ],
+  "source": "generated",
+  "expected": {
+    "kind": "security_quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": null,
+    "security": {
+      "provider": "Harbourline Security Services",
+      "vesselImo": "9484053",
+      "embarkUnlocode": "AEFJR",
+      "disembarkUnlocode": "ZACPT",
+      "teamSize": 5,
+      "dayRate": 1600,
+      "currency": "USD",
+      "fixedFees": 5500,
+      "minDays": 6,
+      "validUntil": "2026-11-20"
+    }
+  }
+}

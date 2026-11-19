@@ -1,0 +1,54 @@
+{
+  "kind": "security_quote",
+  "providerName": {
+    "value": "Harbourline Security Services",
+    "evidence": "Harbourline Security Services"
+  },
+  "vesselName": {
+    "value": "MV Aegean Pioneer",
+    "evidence": "Vessel: MV Aegean Pioneer"
+  },
+  "vesselImo": {
+    "value": null,
+    "evidence": null
+  },
+  "embarkPort": {
+    "value": "Djibouti",
+    "evidence": "Embarkation: off Djibouti"
+  },
+  "disembarkPort": {
+    "value": "Suez",
+    "evidence": "Team leaves at: Suez, Egypt"
+  },
+  "teamSize": {
+    "value": 3,
+    "unit": "man team",
+    "asWritten": "3-man team",
+    "evidence": "3-man team USD 1,300 per day 3 days USD 8,000.00"
+  },
+  "dayRate": {
+    "value": 1300,
+    "currency": "USD",
+    "perUnit": "per day",
+    "asWritten": "USD 1,300 per day",
+    "evidence": "3-man team USD 1,300 per day 3 days USD 8,000.00"
+  },
+  "fixedFees": {
+    "value": 8000,
+    "currency": "USD",
+    "perUnit": null,
+    "asWritten": "USD 8,000.00",
+    "evidence": "3-man team USD 1,300 per day 3 days USD 8,000.00"
+  },
+  "minDays": {
+    "value": 3,
+    "unit": "days",
+    "asWritten": "3 days",
+    "evidence": "3-man team USD 1,300 per day 3 days USD 8,000.00"
+  },
+  "validUntil": {
+    "asWritten": "20 November 2026 at 16:00 LT",
+    "evidence": "Offer valid until: 20 November 2026 at 16:00 LT"
+  },
+  "notes": null
+}

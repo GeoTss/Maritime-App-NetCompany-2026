@@ -160,14 +160,15 @@ function Outcome({ rec }: { rec: RecommendationView }) {
   if (rec.status === "failed")
     return <span className="text-xs text-alarm">The executor failed; see the audit trail.</span>;
   if (rec.order) {
+    const orderWord = rec.type === "security_order" ? "Security order" : "Purchase order";
     return (
       <span className="text-xs text-text-1">
         {rec.order.erpPoNumber ? (
           <>
-            Purchase order <span className="font-mono">{rec.order.erpPoNumber}</span>
+            {orderWord} <span className="font-mono">{rec.order.erpPoNumber}</span>
           </>
         ) : (
-          "Purchase order written"
+          `${orderWord} written`
         )}
         <span className="text-text-2">, ERP sync: {SYNC[rec.order.erpSyncStatus]}</span>
       </span>
@@ -199,6 +200,9 @@ function approveInWords(rec: RecommendationView): string {
       ? "The route, speed and bunker stop instruction is recorded"
       : "The route and speed instruction is recorded";
     return `${what}. The message to the master stays a draft; nothing is sent. You confirm in one more step.`;
+  }
+  if (rec.type === "security_order") {
+    return `A security order is created in the ERP simulator for ${rec.optionLabel ?? "the team"}. The confirmation to the provider stays a draft; nothing goes to the provider. You confirm in one more step.`;
   }
   const supplier = proposedOption(rec)?.supplier;
   return `A purchase order is created in the ERP simulator. The confirmation to ${supplier ?? "the supplier"} stays a draft; nothing goes to the supplier. You confirm in one more step.`;

@@ -3,6 +3,8 @@
  * awaiting review or rejected), with citable facts per quote and per quote line. Expired quotes
  * (see `quoteExpiry`) are left out unless asked for. A non-USD price also comes in USD, converted
  * by the domain FX helper at the latest reference rate, as a derived fact with its lineage.
+ * Security providers' quotes for an armed team (Track 3) are listed too, unless a fuel grade is
+ * asked for: provider, the team's ports, team size, day rate, fixed fees and minimum days.
  */
 import { loadWorld } from "@pharos/db";
 import { isoDayAfter, toUsd } from "@pharos/domain";
@@ -12,6 +14,7 @@ import {
   ListQuotesInput,
   type Provenance,
   type Quote,
+  type SecurityQuote,
   type ToolResult,
 } from "@pharos/shared";
 import { dbFact, factId } from "../../facts/core.js";
@@ -20,6 +23,13 @@ import { findVessel, quoteExpiry, runTool, type ToolContext } from "./common.js"
 import { defineTool } from "./define.js";
 
 export const TOOL = "list_quotes";
+
+/** Security quote statuses the agent may list (Track 3): the rest await a human or were turned down. */
+const SECURITY_LISTED: ReadonlySet<SecurityQuote["status"]> = new Set([
+  "received",
+  "accepted",
+  "expired",
+]);
 
 /** Quote statuses the agent may list: the rest await a human or were turned down. */
 const LISTED: ReadonlySet<Quote["status"]> = new Set([
@@ -44,8 +54,10 @@ export function listQuotes(ctx: ToolContext, input: ListQuotesInput): Promise<To
     const now = ctx.now();
 
     let requirementIds: Set<number> | null = null;
+    let vesselImo: string | null = null;
     if (input.vessel) {
       const vessel = findVessel(world, input.vessel);
+      vesselImo = vessel.imo;
       const voyageIds = new Set(
         world.voyages.filter((v) => v.vesselId === vessel.id).map((v) => v.id),
       );
@@ -202,12 +214,86 @@ export function listQuotes(ctx: ToolContext, input: ListQuotesInput): Promise<To
       });
     }
 
+    // Track 3: armed-team quotes. One written for another vessel is left out when a vessel is asked.
+    const securityQuotes = [];
+    for (const q of input.grade ? [] : [...world.securityQuotes].sort((a, b) => a.id - b.id)) {
+      if (!SECURITY_LISTED.has(q.status)) continue;
+      if (vesselImo !== null && q.vesselImo !== null && q.vesselImo !== vesselImo) continue;
+      if (portId !== null && q.embarkPortId !== portId && q.disembarkPortId !== portId) continue;
+      const expiry = quoteExpiry(
+        { status: q.status === "expired" ? "expired" : "received", validUntil: q.validUntil },
+        now,
+      );
+      if (expiry && !input.includeExpired) {
+        hiddenExpired = true;
+        continue;
+      }
+      const provider = world.securityProviders.find((p) => p.id === q.providerId);
+      const embark = world.ports.find((p) => p.id === q.embarkPortId);
+      const disembark = world.ports.find((p) => p.id === q.disembarkPortId);
+      if (!provider || !embark || !disembark) continue;
+      const prefix = `${provider.name} security quote (${embark.name} to ${disembark.name})`;
+      const field = (name: string, label: string, value: Fact["value"], unit: string | null) =>
+        dbFact(
+          TOOL,
+          { table: "security_quotes", rowId: q.id, field: name },
+          `${prefix}: ${label}`,
+          value,
+          unit,
+        );
+      const dayRate = field("dayRate", "day rate for the team", q.dayRate, `${q.currency}/day`);
+      facts.push(
+        fact("security_quotes.provider", q.id, `${prefix}: provider`, provider.name, null, {
+          source: "db",
+          table: "security_providers",
+          rowId: provider.id,
+          field: "name",
+        }),
+        field("teamSize", "armed guards in the team", q.teamSize, null),
+        dayRate,
+        field(
+          "fixedFees",
+          "fixed fees (embarkation, disembarkation, arms storage)",
+          q.fixedFees,
+          q.currency,
+        ),
+        field("minDays", "minimum days charged", q.minDays, "days"),
+        field("status", "status", q.status, null),
+      );
+      const validUntil = q.validUntil ? isoDayAfter(q.validUntil, 0) : null;
+      if (validUntil) facts.push(field("validUntil", "valid until (UTC date)", validUntil, null));
+      if (q.currency !== "USD") {
+        const fx = fxFact(q.currency);
+        facts.push(
+          fact(
+            "security_quotes.dayRateUsd",
+            q.id,
+            `${prefix}: day rate in USD`,
+            toUsd(q.dayRate, fx.value as number),
+            "USD/day",
+            { source: "derived", operation: "multiply", operands: [dayRate.id, fx.id] },
+          ),
+        );
+      }
+      securityQuotes.push({
+        quoteId: q.id,
+        provider: provider.name,
+        embark: embark.name,
+        disembark: disembark.name,
+        currency: q.currency,
+        status: q.status,
+        expired: expiry !== null,
+        validUntil,
+      });
+    }
+
     const notes: string[] = [];
-    if (quotes.length === 0) notes.push("No quotes match.");
+    if (quotes.length === 0 && securityQuotes.length === 0) notes.push("No quotes match.");
     if (hiddenExpired) {
       notes.push("Expired quotes are left out; call again with includeExpired true to see them.");
     }
-    return { facts, data: notes.length > 0 ? { quotes, message: notes.join(" ") } : { quotes } };
+    const data = securityQuotes.length > 0 ? { quotes, securityQuotes } : { quotes };
+    return { facts, data: notes.length > 0 ? { ...data, message: notes.join(" ") } : data };
   });
 }
 
@@ -217,7 +303,9 @@ export const listQuotesDef = defineTool({
     "Supplier quotes on record, optionally for one vessel's voyages, one port or one fuel grade: " +
     "supplier, port, status, validity, barge fee, and per fuel grade the quantity offered and the " +
     "price per mt in the quote currency (and in USD for a non-USD quote). Expired quotes are left " +
-    "out unless includeExpired is true. Returns citable facts per quote and per grade.",
+    "out unless includeExpired is true. Also security providers' quotes for an armed team (unless a " +
+    "grade is given): provider, embarkation and disembarkation ports, team size, day rate, fixed " +
+    "fees and minimum days. Returns citable facts per quote and per grade.",
   inputSchema: ListQuotesInput,
   run: listQuotes,
 });

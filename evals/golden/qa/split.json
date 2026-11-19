@@ -51,6 +51,11 @@
       "total": 11,
       "dev": 6,
       "heldout": 5
+    },
+    "security": {
+      "total": 4,
+      "dev": 2,
+      "heldout": 2
     }
   },
   "dev": [
@@ -86,7 +91,9 @@
     "route-speed-03",
     "route-speed-08",
     "route-speed-09",
-    "route-speed-10"
+    "route-speed-10",
+    "security-01",
+    "security-04"
   ],
   "heldout": [
     "abstain-01",
@@ -120,6 +127,8 @@
     "route-speed-05",
     "route-speed-06",
     "route-speed-07",
-    "route-speed-11"
+    "route-speed-11",
+    "security-02",
+    "security-03"
   ]
 }

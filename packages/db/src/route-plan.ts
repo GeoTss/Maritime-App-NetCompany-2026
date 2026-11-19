@@ -4,6 +4,7 @@
  * randomness; the graph and the weather snapshot are passed in.
  */
 import {
+  areaPasses,
   candidateRoutes,
   clampSpeed,
   type DraughtCondition,
@@ -32,6 +33,8 @@ import {
   type RouteCandidate,
   type RouteGraph,
   type RouteSpeedInput,
+  type SecurityInput,
+  type SecurityQuoteCandidate,
   type ShipType,
   type StopCandidate,
   type StormCell,
@@ -40,6 +43,7 @@ import {
 import { type CongestionMode, waitingHoursAt } from "./current-plan.js";
 import { type BunkerOffer, DEFAULT_BUNKERING_HOURS, voyageState } from "./seed/demo-plan.js";
 import { DEMO_SCENARIO } from "./seed/scenario.js";
+import { SUEZ_CANAL } from "./seed/security.js";
 import type { World } from "./seed/types.js";
 import { openRequirements } from "./world-rules.js";
 
@@ -60,6 +64,74 @@ export type RoutePlan = {
    */
   loadCondition: DraughtCondition | null;
 };
+
+/** The waypoint off the Cape of Good Hope a "round the Cape" candidate passes. */
+const CAPE_WAYPOINT: LatLon = { lat: -35, lon: 20 };
+
+/**
+ * Security inputs for a fleet voyage whose planned route crosses a danger area: the areas, the
+ * vessel's valid security quotes (prices in USD, points with their port positions), its hull value
+ * and the Suez terms. Null when the planned route crosses none, so other voyages plan as before.
+ */
+function securityFor(
+  world: World,
+  vesselImo: string,
+  hullValueUsd: number,
+  planned: LatLon[],
+  now: Date,
+): SecurityInput | null {
+  const crosses = areaPasses(
+    planned,
+    STEP_NM,
+    world.securityAreas.map((a) => ({ id: a.id, boxes: a.boxes })),
+  );
+  if (crosses.length === 0) return null;
+  const eurUsd = world.referenceRates.find((r) => r.key === "EURUSD")?.value ?? 1;
+  const portAt = (id: Id) => {
+    const p = world.ports.find((x) => x.id === id);
+    return p ? latLon(p) : null;
+  };
+  const quotes: SecurityQuoteCandidate[] = [];
+  for (const q of world.securityQuotes) {
+    if (q.status !== "received" && q.status !== "accepted") continue;
+    if (q.vesselImo !== null && q.vesselImo !== vesselImo) continue;
+    if (q.validUntil !== null && q.validUntil.getTime() < now.getTime()) continue;
+    const on = portAt(q.embarkPortId);
+    const off = portAt(q.disembarkPortId);
+    if (!on || !off) continue;
+    const fx = q.currency === "EUR" ? eurUsd : 1;
+    quotes.push({
+      quoteId: q.id,
+      providerId: q.providerId,
+      embark: { portId: q.embarkPortId, position: on },
+      disembark: { portId: q.disembarkPortId, position: off },
+      teamSize: q.teamSize,
+      dayRateUsd: q.dayRate * fx,
+      fixedFeesUsd: q.fixedFees * fx,
+      minDays: q.minDays,
+      validUntil: q.validUntil?.toISOString() ?? null,
+    });
+  }
+  return { areas: [...world.securityAreas], quotes, hullValueUsd, canal: SUEZ_CANAL };
+}
+
+/** The shortest route from `start` to `end` through the Cape waypoint, or null if the graph can't. */
+function roundTheCape(
+  graph: RouteGraph,
+  start: LatLon,
+  end: LatLon,
+  avoid: HazardZone[],
+): LatLon[] | null {
+  try {
+    const [a] = candidateRoutes(graph, start, CAPE_WAYPOINT, { max: 1, avoid });
+    const [b] = candidateRoutes(graph, CAPE_WAYPOINT, end, { max: 1, avoid });
+    if (!a || !b) return null;
+    return [...a.points, ...b.points.slice(1)];
+  } catch (e) {
+    if (e instanceof RouteError) return null;
+    throw e;
+  }
+}
 
 /** Speed grid step (kn) and the longest sub-step (nm) the optimiser walks. */
 const SPEED_STEP_KN = 0.5;
@@ -292,6 +364,14 @@ export function fleetRoutePlan(
     })),
   ];
 
+  // A voyage through danger areas also weighs going round the Cape (the graph search alone would
+  // never offer a route that much longer).
+  const security = securityFor(world, vessel.imo, vessel.hullValueUsd ?? 0, planned, report.ts);
+  if (security) {
+    const cape = roundTheCape(graph, position, latLon(destination), avoid);
+    if (cape) candidates.push({ id: "K", label: "Round the Cape", points: cape });
+  }
+
   const discharge = world.portCalls.find(
     (c) => c.voyageId === voyage.id && c.purpose === "discharge",
   );
@@ -319,6 +399,7 @@ export function fleetRoutePlan(
       stops: stopCandidates(world, voyage.id, graph, position, latLon(destination), avoid, opts),
       stores: vessel.stores ?? null,
       nautical: world.nauticalItems,
+      ...(security ? { security } : {}),
     },
     subject: vessel.name,
     destination,

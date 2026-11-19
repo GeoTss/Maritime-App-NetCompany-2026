@@ -1,0 +1,24 @@
+{
+  "id": "security-02",
+  "tags": ["security"],
+  "question": "Which security provider should we use for Atlantic Meridian?",
+  "expect": {
+    "kind": "answer",
+    "requiredFacts": [
+      {
+        "label": "Tridentis Marine Protection security quote (Fujairah to Djibouti): provider",
+        "value": "Tridentis Marine Protection",
+        "unit": null,
+        "tolerance": 0
+      },
+      {
+        "label": "MT Atlantic Meridian, route B: armed security team days",
+        "value": 6,
+        "unit": "days",
+        "tolerance": 0
+      }
+    ],
+    "proposedOptionId": null,
+    "mustNotPropose": true
+  }
+}

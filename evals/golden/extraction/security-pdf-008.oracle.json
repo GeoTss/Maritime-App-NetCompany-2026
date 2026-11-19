@@ -1,0 +1,54 @@
+{
+  "kind": "security_quote",
+  "providerName": {
+    "value": "Tridentis Marine Protection",
+    "evidence": "Tridentis Marine Protection"
+  },
+  "vesselName": {
+    "value": "MV Thessaly Star",
+    "evidence": "Vessel: MV Thessaly Star"
+  },
+  "vesselImo": {
+    "value": null,
+    "evidence": null
+  },
+  "embarkPort": {
+    "value": "Fujairah",
+    "evidence": "Embarkation: off Fujairah"
+  },
+  "disembarkPort": {
+    "value": "Djibouti",
+    "evidence": "Disembarkation point: Djibouti (DJJIB)"
+  },
+  "teamSize": {
+    "value": 3,
+    "unit": "armed guards",
+    "asWritten": "3 armed guards",
+    "evidence": "3 armed guards USD 1525 per day 5 days $6,000 lump sum"
+  },
+  "dayRate": {
+    "value": 1525,
+    "currency": "USD",
+    "perUnit": "per day",
+    "asWritten": "USD 1525 per day",
+    "evidence": "3 armed guards USD 1525 per day 5 days $6,000 lump sum"
+  },
+  "fixedFees": {
+    "value": 6000,
+    "currency": "$",
+    "perUnit": "lump sum",
+    "asWritten": "$6,000 lump sum",
+    "evidence": "3 armed guards USD 1525 per day 5 days $6,000 lump sum"
+  },
+  "minDays": {
+    "value": 5,
+    "unit": "days",
+    "asWritten": "5 days",
+    "evidence": "3 armed guards USD 1525 per day 5 days $6,000 lump sum"
+  },
+  "validUntil": {
+    "asWritten": "Nov 17 18:00 UTC",
+    "evidence": "Rates valid until: Nov 17 18:00 UTC"
+  },
+  "notes": null
+}

@@ -17,5 +17,6 @@ const ActionBody = {
 export const ProposedAction = z.discriminatedUnion("type", [
   z.object({ type: z.literal("purchase_order"), ...ActionBody }).strict(),
   z.object({ type: z.literal("voyage_instruction"), ...ActionBody }).strict(),
+  z.object({ type: z.literal("security_order"), ...ActionBody }).strict(),
 ]);
 export type ProposedAction = z.infer<typeof ProposedAction>;

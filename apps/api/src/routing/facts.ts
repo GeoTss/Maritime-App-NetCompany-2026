@@ -28,6 +28,8 @@ import {
   type PreArrivalNotice,
   type RouteSpeedInput,
   type RouteSpeedResult,
+  type SecurityArea,
+  type SecurityPlanResult,
   type StopPlanResult,
   type StopTimeline,
   type StormCell,
@@ -48,7 +50,7 @@ const CALCULATOR = "route_speed";
 export type RouteFactPlan = Pick<RoutePlan, "subject" | "profile"> & {
   destination: Pick<RoutePlan["destination"], "name">;
   input: Pick<RoutePlan["input"], "candidates" | "arriveBy"> &
-    Partial<Pick<RouteSpeedInput, "curve">>;
+    Partial<Pick<RouteSpeedInput, "curve" | "security">>;
   loadCondition?: DraughtCondition | null;
   /** The forecast cells over the heavy-weather limit the baseline meets (absent in old plans). */
   stormCells?: StormCell[];
@@ -203,6 +205,9 @@ const COST_TEXT: Record<CostLine["kind"], string> = {
   sludge: "sludge delivery",
   sewage: "sewage delivery",
   eu_waste_fee: "EU waste fee",
+  security_team: "armed security team",
+  war_risk_premium: "war-risk premium",
+  canal_dues: "canal dues",
 };
 const NOTICE_TEXT: Record<PreArrivalNotice["kind"], string> = {
   agent_appointment: "agent appointment",
@@ -288,6 +293,79 @@ function portCallRows(call: PortCallResult, p: string, P: string, D: string): Ro
       unit: null,
     });
   });
+  return rows;
+}
+
+/**
+ * A route option's security facts under `options[i].security` (Track 3): hours in each danger
+ * area, whether it needs an armed team, the team's days and boarding times, the cost lines, and
+ * the wait for the canal convoy.
+ */
+function securityRows(
+  sec: SecurityPlanResult,
+  p: string,
+  label: (text: string) => string,
+  areas: readonly SecurityArea[],
+): RouteFactRow[] {
+  const areaName = (id: string) => areas.find((a) => a.id === id)?.name ?? id;
+  const rows: RouteFactRow[] = sec.spans.map((s, k) => ({
+    path: `${p}.spans[${k}].hoursInside`,
+    label: label(`hours inside the ${areaName(s.areaId)} danger area`),
+    value: s.hoursInside,
+    unit: "h",
+  }));
+  rows.push({
+    path: `${p}.needsTeam`,
+    label: label("needs an armed security team"),
+    value: sec.needsTeam,
+    unit: null,
+  });
+  if (sec.needsTeam && sec.quoteId !== null) {
+    rows.push({
+      path: `${p}.teamDays`,
+      label: label("armed security team days"),
+      value: sec.teamDays,
+      unit: "days",
+    });
+    if (sec.embarkAt) {
+      rows.push({
+        path: `${p}.embarkAt`,
+        label: label("security team boards (UTC)"),
+        value: sec.embarkAt,
+        unit: null,
+      });
+    }
+    if (sec.disembarkAt) {
+      rows.push({
+        path: `${p}.disembarkAt`,
+        label: label("security team leaves (UTC)"),
+        value: sec.disembarkAt,
+        unit: null,
+      });
+    }
+  }
+  sec.costLines.forEach((l, k) => {
+    rows.push({
+      path: `${p}.costLines[${k}].usd`,
+      label: label(COST_TEXT[l.kind]),
+      value: l.usd,
+      unit: "USD",
+    });
+  });
+  rows.push({
+    path: `${p}.extraCostUsd`,
+    label: label("security and canal cost (team, war-risk premium, canal dues)"),
+    value: sec.extraCostUsd,
+    unit: "USD",
+  });
+  if (sec.convoyWaitHours > 0) {
+    rows.push({
+      path: `${p}.convoyWaitHours`,
+      label: label("wait for the canal convoy"),
+      value: sec.convoyWaitHours,
+      unit: "h",
+    });
+  }
   return rows;
 }
 
@@ -540,6 +618,16 @@ export function routeSpeedFactRows(
     });
     if (o.fuel) {
       rows.push(...optionFuelRows(o.fuel, p("fuel"), (t) => routeOptionLabel(S, X, t), D));
+    }
+    if (o.security) {
+      rows.push(
+        ...securityRows(
+          o.security,
+          p("security"),
+          (t) => routeOptionLabel(S, X, t),
+          plan.input.security?.areas ?? [],
+        ),
+      );
     }
   });
 

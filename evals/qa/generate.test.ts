@@ -38,12 +38,13 @@ const COUNTS = {
   route_speed: 11,
   congestion: 4,
   compliance: 4,
+  security: 4,
 };
 
 describe("question specs", () => {
-  it("are 65 with unique ids and the required count per category", () => {
-    expect(QUESTIONS).toHaveLength(65);
-    expect(new Set(QUESTIONS.map((q) => q.id)).size).toBe(65);
+  it("are 69 with unique ids and the required count per category", () => {
+    expect(QUESTIONS).toHaveLength(69);
+    expect(new Set(QUESTIONS.map((q) => q.id)).size).toBe(69);
     for (const c of QA_CATEGORIES) {
       expect(QUESTIONS.filter((q) => q.category === c)).toHaveLength(COUNTS[c]);
     }
@@ -57,7 +58,8 @@ describe("reference answers", () => {
     const a = QUESTIONS.map((q) => buildTruth(world, q));
     const b = QUESTIONS.map((q) => buildTruth(qaWorld(), q));
     expect(b).toEqual(a);
-  });
+    // Two full builds (about 15 s alone since Track 3 added the Cape routes): a 60 s budget.
+  }, 60_000);
 
   it("make the demo question's expected option MTMLA-kestrel", () => {
     expect(qaPlan(world).result.bestOptionId).toBe("MTMLA-kestrel");
@@ -136,22 +138,25 @@ describe("golden files", () => {
     ]);
   });
 
-  it("REVIEW-QA.md lists the 46 Phase 4 questions, REVIEW-QA-P5.md the 15 of Phase 5 and REVIEW-QA-P6.md the 4 compliance ones", async () => {
+  it("REVIEW-QA.md lists the 46 Phase 4 questions, REVIEW-QA-P5.md the 15 of Phase 5, REVIEW-QA-P6.md the 4 compliance ones and REVIEW-QA-P10.md the 4 security ones", async () => {
     const sheet = (name: string) => readFile(join(QA_GOLDEN_DIR, name), "utf8");
-    const [p4, p5, p6] = await Promise.all([
+    const [p4, p5, p6, p10] = await Promise.all([
       sheet("REVIEW-QA.md"),
       sheet("REVIEW-QA-P5.md"),
       sheet("REVIEW-QA-P6.md"),
+      sheet("REVIEW-QA-P10.md"),
     ]);
     for (const q of QUESTIONS) {
       const home =
-        q.category === "compliance"
-          ? p6
-          : q.category === "route_speed" || q.category === "congestion"
-            ? p5
-            : p4;
+        q.category === "security"
+          ? p10
+          : q.category === "compliance"
+            ? p6
+            : q.category === "route_speed" || q.category === "congestion"
+              ? p5
+              : p4;
       expect(home).toContain(`### ${q.id} [`);
-      for (const other of [p4, p5].filter((x) => x !== home)) {
+      for (const other of [p4, p5, p10].filter((x) => x !== home)) {
         expect(other).not.toContain(`### ${q.id} [`);
       }
     }
@@ -185,9 +190,9 @@ describe("Phase 6 truths against the Phase 5 gate commit", () => {
       expect(old.dev.length + old.heldout.length).toBe(61);
       for (const id of old.dev) expect(now.dev).toContain(id);
       for (const id of old.heldout) expect(now.heldout).toContain(id);
-      // The four compliance questions add 2 to dev and 2 to held-out.
-      expect(now.dev.length - old.dev.length).toBe(2);
-      expect(now.heldout.length - old.heldout.length).toBe(2);
+      // The four compliance and the four security (Track 3) questions add 4 to dev and 4 to held-out.
+      expect(now.dev.length - old.dev.length).toBe(4);
+      expect(now.heldout.length - old.heldout.length).toBe(4);
 
       const base = readBaseTruths();
       expect(base.map((t) => t.id).sort()).toEqual([...old.dev, ...old.heldout].sort());

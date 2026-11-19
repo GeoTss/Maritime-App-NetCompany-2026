@@ -41,6 +41,8 @@ export const queryKeys = {
   quotes: ["quotes"] as const,
   traffic: ["traffic"] as const,
   hazards: ["hazards"] as const,
+  securityAreas: ["security-areas"] as const,
+  securityQuotes: ["security-quotes"] as const,
   congestion: ["congestion"] as const,
   weather: (step: number) => ["weather", step] as const,
   routePlan: (id: number) => ["route-plans", id] as const,
