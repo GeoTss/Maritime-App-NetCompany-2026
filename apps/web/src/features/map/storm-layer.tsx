@@ -96,7 +96,7 @@ function StormCallout({
             {synthetic ? <DataTag kind="synthetic" /> : null}
           </span>
           <span className="text-text-2">
-            <FactCell fact={fact("from")} kind="time" /> to{" "}
+            Over the limit as the route passes, <FactCell fact={fact("from")} kind="time" /> to{" "}
             <FactCell fact={fact("to")} kind="time" />
           </span>
           {bestWave ? (
