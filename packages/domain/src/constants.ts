@@ -304,3 +304,13 @@ export const NOTICE_LEAD_HOURS: Record<
   security_pre_arrival: 24,
   eu_waste_notification: 24,
 };
+
+/**
+ * War-risk additional premium (% of hull value) for a transit of a `premium` area: 0.5 % for a
+ * Bab-el-Mandeb transit, July 2026 (S&P Global/Marsh via Al Jazeera, 23 Jul 2026; see
+ * docs/research/2026-11-19-maritime-security-sources.md).
+ */
+export const WAR_RISK_PREMIUM_PCT = 0.5;
+
+/** A security quote's embark or disembark port covers a route only within this distance (nm) of it. */
+export const SECURITY_POINT_MAX_NM = 250;
