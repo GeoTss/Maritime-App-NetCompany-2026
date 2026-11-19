@@ -96,8 +96,8 @@ Split: dev 8, held-out 7 (both Phase 5 categories). stratified by tags[0]; dev =
 - Proposed option: none
 - Required facts:
   - MMSI 215217000: recommended route: **A**
-  - MMSI 215217000, route A: recommended speed: **10 kn**
-  - MMSI 215217000, route A: ETA at Rotterdam (UTC): **2026-11-20T10:15:31.580Z**
+  - MMSI 215217000, route A: recommended speed: **12.5 kn (±0.06)**
+  - MMSI 215217000, route A: ETA at Rotterdam (UTC): **2026-11-19T03:33:07.574Z**
 
 ### route-speed-08 [dev]
 
@@ -107,7 +107,7 @@ Split: dev 8, held-out 7 (both Phase 5 categories). stratified by tags[0]; dev =
 - Proposed option: none
 - Required facts:
   - MMSI 999000001: recommended route: **A**
-  - MMSI 999000001, route A: recommended speed: **10 kn**
+  - MMSI 999000001, route A: recommended speed: **12.5 kn (±0.06)**
 
 ### route-speed-09 [dev]
 
