@@ -123,14 +123,21 @@ export function ApprovalsPage() {
   });
 
   const decide = useMutation({
-    mutationFn: ({ id, decision }: { id: number; decision: Decision }) =>
-      api.post(`/api/recommendations/${id}/${decision}`, {}, DecisionResult),
-    onSuccess: (result, { id, decision }) => {
+    mutationFn: ({
+      id,
+      decision,
+    }: {
+      id: number;
+      decision: Decision;
+      type?: RecommendationView["type"];
+    }) => api.post(`/api/recommendations/${id}/${decision}`, {}, DecisionResult),
+    onSuccess: (result, { id, decision, type }) => {
       setConflicts(({ [id]: _drop, ...rest }) => rest);
+      const order = type === "security_order" ? "security order" : "purchase order";
       toast.success(
         decision === "approve"
           ? result.erpPoNumber
-            ? `Approved: purchase order ${result.erpPoNumber}`
+            ? `Approved: ${order} ${result.erpPoNumber}`
             : "Approved"
           : "Rejected",
       );
@@ -212,7 +219,8 @@ export function ApprovalsPage() {
       },
       { replace: true },
     );
-    return decide.mutateAsync({ id, decision }).catch(() => undefined);
+    const type = items?.find((r) => r.id === id)?.type;
+    return decide.mutateAsync({ id, decision, ...(type ? { type } : {}) }).catch(() => undefined);
   };
 
   if (list.isPending || list.isError || (items ?? []).length === 0) {

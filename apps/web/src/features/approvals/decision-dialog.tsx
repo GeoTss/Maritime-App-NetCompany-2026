@@ -7,7 +7,13 @@ import type { Fact, RecommendationView } from "@pharos/shared";
 import type { ReactNode } from "react";
 import { type Decision, DecisionButtons } from "@/components/primitives/approval-card";
 import { formatNumber } from "@/lib/format";
-import { instructionFacts, orderFacts, proposedOption, rowFact } from "./order-summary";
+import {
+  instructionFacts,
+  orderFacts,
+  proposedOption,
+  rowFact,
+  securityFacts,
+} from "./order-summary";
 
 export const APPROVE_CONSEQUENCE: Record<RecommendationView["type"], string> = {
   purchase_order:
@@ -84,6 +90,18 @@ function restate(rec: RecommendationView): { title: ReactNode; rows: ReactNode }
       ),
     };
   }
+  if (rec.type === "security_order") {
+    const s = securityFacts(rec);
+    return {
+      title: `Order the armed security team: ${label}?`,
+      rows: (
+        <dl>
+          {s.days ? <Row label="Days charged" value={text(s.days)} /> : null}
+          {s.teamCost ? <Row label="Team cost" value={text(s.teamCost)} /> : null}
+        </dl>
+      ),
+    };
+  }
   const f = instructionFacts(rec);
   if (!f.speed) return fallback;
   const subject = f.speed.label.split(",")[0];
@@ -109,7 +127,7 @@ export function ProposalDecision({
 }) {
   const { type } = rec;
   const { title, rows } = restate(rec);
-  const kind = type === "purchase_order" ? "Approve purchase order" : "Approve voyage instruction";
+  const kind = APPROVE_LABEL[type].replace(/…$/, "");
   return (
     <DecisionButtons
       pending={pending}
@@ -119,9 +137,9 @@ export function ProposalDecision({
       approveConsequence={APPROVE_CONSEQUENCE[type]}
       rejectConsequence={REJECT_CONSEQUENCE}
       confirmApproveLabel={
-        type === "purchase_order"
-          ? "Approve and create the order"
-          : "Approve and record the instruction"
+        type === "voyage_instruction"
+          ? "Approve and record the instruction"
+          : "Approve and create the order"
       }
       confirmRejectLabel="Reject"
       approveLabel={APPROVE_LABEL[type]}

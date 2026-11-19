@@ -37,3 +37,4 @@
 {"phase":10,"at":"2026-11-19T12:32:24.403Z","run":"demo-ask-record","label":"track3-agent-v6","costUsd":0.003079}
 {"phase":10,"at":"2026-11-19T12:34:27.151Z","run":"smoke-test-record","label":"track3-agent-v6","costUsd":0.0014}
 {"phase":10,"at":"2026-11-19T12:38:33.634Z","run":"eval-extraction","label":"live","costUsd":0.09127373999999999}
+{"phase":10,"at":"2026-11-19T12:48:10.933Z","run":"eval-qa","label":"record","costUsd":0.06842248499999999}

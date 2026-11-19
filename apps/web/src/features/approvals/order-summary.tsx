@@ -127,6 +127,32 @@ export function instructionFacts(rec: RecommendationView) {
   };
 }
 
+const SECURITY_PATH = /^options\[\d+\]\.security\.(.+)$/;
+
+/**
+ * A security order's facts (Track 3): its route option's `security.*` facts, which the API filters
+ * to the one option the order is for. The team cost is the cost line the plan names the team.
+ */
+export function securityFacts(rec: RecommendationView) {
+  const byField = new Map<string, Fact>();
+  for (const f of rec.facts) {
+    if (f.provenance.source !== "calculation") continue;
+    const field = SECURITY_PATH.exec(f.provenance.path)?.[1];
+    if (field !== undefined && !byField.has(field)) byField.set(field, f);
+  }
+  const teamCost =
+    [...byField].find(
+      ([field, f]) =>
+        /^costLines\[\d+\]\.usd$/.test(field) && f.label.endsWith("armed security team"),
+    )?.[1] ?? null;
+  return {
+    days: byField.get("teamDays") ?? null,
+    boards: byField.get("embarkAt") ?? null,
+    teamCost,
+    routeCost: byField.get("extraCostUsd") ?? null,
+  };
+}
+
 const NotStated = () => <span className="text-text-3">not stated</span>;
 
 /** A cited readout, or "not stated" when the API returned no such fact. */
@@ -156,7 +182,30 @@ export function OrderSummary({ rec, className }: { rec: RecommendationView; clas
   let readouts: { term: string; value: ReactNode }[];
   let counts: ReactNode;
 
-  if (isOrder && isStopPlanOrder(rec)) {
+  if (rec.type === "security_order") {
+    const s = securityFacts(rec);
+    readouts = [
+      {
+        term: "Team",
+        value: rec.optionLabel ? (
+          <span data-testid="option-name">{rec.optionLabel}</span>
+        ) : (
+          <NotStated />
+        ),
+      },
+      { term: "Days charged", value: <Cited fact={s.days} /> },
+      { term: "Boards (UTC)", value: <Cited fact={s.boards} /> },
+      { term: "Team cost", value: <Cited fact={s.teamCost} /> },
+    ];
+    counts = (
+      <>
+        Team cost is the quote's day rate for the days charged plus its fixed fees. With the
+        war-risk premium and canal dues,{" "}
+        <Counted name="the route's security and canal cost" fact={s.routeCost} /> is in its voyage
+        total.
+      </>
+    );
+  } else if (isOrder && isStopPlanOrder(rec)) {
     // Bought at a route plan's bunker stop: what the fuel and the barge cost, apart from the plan.
     const o = orderFacts(rec);
     readouts = [
@@ -229,7 +278,7 @@ export function OrderSummary({ rec, className }: { rec: RecommendationView; clas
 
   return (
     <section
-      aria-label={isOrder ? "The order" : "The instruction"}
+      aria-label={rec.type === "voyage_instruction" ? "The instruction" : "The order"}
       className={cn("border border-line bg-ink-900", className)}
     >
       {/* Hairlines between cells: the grid's 1 px gaps show the line colour behind them. */}

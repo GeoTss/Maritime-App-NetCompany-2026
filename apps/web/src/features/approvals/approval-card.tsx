@@ -160,14 +160,15 @@ function Outcome({ rec }: { rec: RecommendationView }) {
   if (rec.status === "failed")
     return <span className="text-xs text-alarm">The executor failed; see the audit trail.</span>;
   if (rec.order) {
+    const orderWord = rec.type === "security_order" ? "Security order" : "Purchase order";
     return (
       <span className="text-xs text-text-1">
         {rec.order.erpPoNumber ? (
           <>
-            Purchase order <span className="font-mono">{rec.order.erpPoNumber}</span>
+            {orderWord} <span className="font-mono">{rec.order.erpPoNumber}</span>
           </>
         ) : (
-          "Purchase order written"
+          `${orderWord} written`
         )}
         <span className="text-text-2">, ERP sync: {SYNC[rec.order.erpSyncStatus]}</span>
       </span>

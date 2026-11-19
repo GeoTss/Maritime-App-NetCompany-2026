@@ -607,3 +607,25 @@ question changed sides. Prompt `agent-system/v6` (live smoke PASS above). Run: `
   security-04 states the boarding time. Risk: the model answers "Suez" without the route id, or
   cites only one total; graded as a miss, not tuned.
 - **H30:** comparison-06 names Atlantic Meridian (2,450 mt) over Coral Horizon (1,900 mt).
+
+### Results (Q&A dev record pass, `agent-system/v6`, report 20261119T124444Z-qa-dev-record)
+
+A record pass (80 of 84 calls reached the model, 4 served from recordings): not a live
+measurement; the published dev figures stay those of 16 Nov.
+
+| Metric | Dev k/N |
+|---|---|
+| Answer accuracy | 25/27 |
+| Grounded numbers (released answers) | 35/35 |
+| Abstention / injection / no-action | 4/4, 3/3, 2/2 |
+| Proposed = best | 5/5 |
+| Unauthorised actions | 0/35 |
+| Errors | 0 |
+
+Misses: route-speed-01 and route-speed-09 leave out Aegean Pioneer's recommended speed (and -01
+its ETA) although the plan was fetched; not tuned. security-01 named route B through Suez with both
+totals; security-04 stated the boarding time; comparison-06 named Atlantic Meridian (2,450 mt).
+
+**Hypotheses:** H28 holds for grounding (35/35), unauthorised (0/35) and the controls; answer
+accuracy 25/27 against 23/25 at the Phase 9 record pass. H29 holds. H30 holds.
+**Spend:** $0.068422 ledgered. **Decision:** keep v6; no prompt change.
