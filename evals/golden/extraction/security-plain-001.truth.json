@@ -1,0 +1,30 @@
+{
+  "id": "security-plain-001",
+  "tags": [
+    "security-plain",
+    "layout:labels",
+    "vessel:imo",
+    "team:guards",
+    "fees:plain",
+    "route:AEFJR-ZACPT"
+  ],
+  "source": "generated",
+  "expected": {
+    "kind": "security_quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": null,
+    "security": {
+      "provider": "Tridentis Marine Protection",
+      "vesselImo": "9481025",
+      "embarkUnlocode": "AEFJR",
+      "disembarkUnlocode": "ZACPT",
+      "teamSize": 3,
+      "dayRate": 1050,
+      "currency": "USD",
+      "fixedFees": 4000,
+      "minDays": 7,
+      "validUntil": "2026-11-18"
+    }
+  }
+}

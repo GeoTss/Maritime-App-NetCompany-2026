@@ -1,0 +1,30 @@
+{
+  "id": "security-html-004",
+  "tags": [
+    "security-html",
+    "layout:grid",
+    "vessel:name-imo",
+    "team:armed",
+    "fees:lump",
+    "route:AEFJR-EGSUZ"
+  ],
+  "source": "generated",
+  "expected": {
+    "kind": "security_quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": null,
+    "security": {
+      "provider": "Harbourline Security Services",
+      "vesselImo": "9486075",
+      "embarkUnlocode": "AEFJR",
+      "disembarkUnlocode": "EGSUZ",
+      "teamSize": 5,
+      "dayRate": 1200,
+      "currency": "USD",
+      "fixedFees": 6750,
+      "minDays": 3,
+      "validUntil": "2026-11-19"
+    }
+  }
+}

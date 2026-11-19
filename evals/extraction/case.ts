@@ -58,7 +58,24 @@ export interface NotAQuoteTranscription {
   evidence: TextSpan;
 }
 
-export type Transcription = QuoteTranscription | NotAQuoteTranscription;
+/** A security provider's offer (Track 3), transcribed as written. */
+export interface SecurityTranscription {
+  kind: "security_quote";
+  providerName: TextSpan | null;
+  vesselName: TextSpan | null;
+  vesselImo: TextSpan | null;
+  embarkPort: TextSpan | null;
+  disembarkPort: TextSpan | null;
+  teamSize: AmountSpan | null;
+  dayRate: MoneySpan | null;
+  fixedFees: MoneySpan | null;
+  minDays: AmountSpan | null;
+  validUntil: DateSpan | null;
+  /** A condition not captured by the fields (the extraction schema's `notes`). */
+  notes?: string;
+}
+
+export type Transcription = QuoteTranscription | NotAQuoteTranscription | SecurityTranscription;
 
 export interface Mailbox {
   name: string;

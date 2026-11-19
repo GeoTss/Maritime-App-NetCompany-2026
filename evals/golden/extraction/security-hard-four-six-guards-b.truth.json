@@ -1,0 +1,23 @@
+{
+  "id": "security-hard-four-six-guards-b",
+  "tags": ["security-hard", "four-six-guards", "render:b", "layout:html-kv-table"],
+  "source": "hard",
+  "expected": {
+    "kind": "security_quote",
+    "status": "needs_review",
+    "reviewChecks": ["team_size_unambiguous"],
+    "quote": null,
+    "security": {
+      "provider": "Aegis Watch Maritime",
+      "vesselImo": "9484053",
+      "embarkUnlocode": "AEFJR",
+      "disembarkUnlocode": "EGSUZ",
+      "teamSize": null,
+      "dayRate": 1425,
+      "currency": "USD",
+      "fixedFees": 6500,
+      "minDays": 4,
+      "validUntil": "2026-11-17"
+    }
+  }
+}

@@ -22,6 +22,8 @@
  * run fails or stops early.
  * Stored quotes: after each case, an `extracted` case must have exactly one stored quote equal to
  * the graded view, any other status none; a disagreement is a runner error that fails the run.
+ * Track 3: an `extracted` security quote must have exactly one stored security quote (and no fuel
+ * quote) equal to the record `evaluateExtraction` returns, which is what is graded.
  * `--oracle` and `--empty` make no model calls and need no key. `--split heldout` needs `--final`.
  * Record mode is replay-first (Ruling 25): it only refreshes recordings, so it is never a
  * measurement when a call was served from one (meta.calls.fromRecordings, printed), and `--final`
@@ -62,6 +64,7 @@ import {
   type LlmMode,
   type NormalisedView,
   type QuoteExtraction,
+  type SecurityQuoteExtraction,
 } from "@pharos/shared";
 import { z } from "zod";
 import { captureLlmCall } from "../../apps/api/src/ai/call-capture.js";
@@ -79,7 +82,7 @@ import {
 } from "../../apps/api/src/ai/llm.js";
 import { readBodyOnce } from "../../apps/api/src/ai/read-body.js";
 import { DEFAULT_RECORDINGS_DIR } from "../../apps/api/src/config.js";
-import { normaliseExtraction } from "../../apps/api/src/ingest/evaluate.js";
+import { evaluateExtraction, normaliseExtraction } from "../../apps/api/src/ingest/evaluate.js";
 import { type IngestDeps, ingestRaw, processDocument } from "../../apps/api/src/ingest/workflow.js";
 import {
   appendSpend,
@@ -99,7 +102,9 @@ import {
   type ErrorKind,
   entityKeys,
   gradeCase,
+  type OutputKind,
   type PipelineStatus,
+  type SecurityRecord,
 } from "./grade.js";
 import {
   type GradedRun,
@@ -175,6 +180,33 @@ export const EMPTY_EXTRACTION: QuoteExtraction = (() => {
     notes: null,
   };
 })();
+
+/**
+ * `--empty` for a Track 3 security truth: a security quote with every field null, so the empty
+ * baseline exercises the security checks and graders rather than a kind mismatch.
+ */
+export const EMPTY_SECURITY_EXTRACTION: SecurityQuoteExtraction = (() => {
+  const text = { value: null, evidence: null };
+  const amount = { value: null, unit: null, asWritten: null, evidence: null };
+  const money = { value: null, currency: null, perUnit: null, asWritten: null, evidence: null };
+  return {
+    kind: "security_quote",
+    providerName: text,
+    vesselName: text,
+    vesselImo: text,
+    embarkPort: text,
+    disembarkPort: text,
+    teamSize: amount,
+    dayRate: money,
+    fixedFees: money,
+    minDays: amount,
+    validUntil: { asWritten: null, evidence: null },
+    notes: null,
+  };
+})();
+
+/** Cases repeated by `--repeat-hard`: the fuel hard cases and the Track 3 security hard cases. */
+export const HARD_TAGS: ReadonlySet<string> = new Set(["hard", "security-hard"]);
 
 // ---------- arguments ----------
 
@@ -415,6 +447,8 @@ export function classifyExtractError(err: unknown): ErrorKind | null {
 interface CaseSlot {
   oracle: ExtractionOutput | null;
   errorKind: ErrorKind | null;
+  /** The case's truth kind: `--empty` answers a security truth with an empty security quote. */
+  truthKind?: ExtractionTruth["expected"]["kind"];
 }
 
 function classifying(inner: Extractor, slot: CaseSlot): Extractor {
@@ -438,7 +472,12 @@ function fixedExtractor(kind: "oracle" | "empty", slot: CaseSlot): Extractor {
     model: kind,
     promptVersion: kind,
     async extract() {
-      const output = kind === "empty" ? EMPTY_EXTRACTION : slot.oracle;
+      const output =
+        kind === "empty"
+          ? slot.truthKind === "security_quote"
+            ? EMPTY_SECURITY_EXTRACTION
+            : EMPTY_EXTRACTION
+          : slot.oracle;
       if (output === null) throw new Error("oracle extractor: no oracle loaded for this case");
       return { output: structuredClone(output), metrics: [] };
     },
@@ -501,6 +540,7 @@ async function tableCounts(sql: Sql): Promise<Record<string, number>> {
            (select count(*)::int from extractions) as extractions,
            (select count(*)::int from quotes) as quotes,
            (select count(*)::int from quote_lines) as quote_lines,
+           (select count(*)::int from security_quotes) as security_quotes,
            (select count(*)::int from llm_calls) as llm_calls,
            (select count(*)::int from audit_events) as audit_events,
            (select count(*)::int from purchase_orders) as purchase_orders`;
@@ -577,6 +617,7 @@ export async function cleanupCases(sql: Sql, baseline: Baseline): Promise<void> 
     await tx`delete from quote_lines
              where quote_id in (select id from quotes where extraction_id is not null)`;
     await tx`delete from quotes where extraction_id is not null`;
+    await tx`delete from security_quotes where extraction_id is not null`;
     await tx`delete from llm_calls where id > ${m.llmCalls}`;
     await tx`delete from audit_events where id > ${m.auditEvents}`;
     await tx`delete from extractions where id > ${m.extractions}`;
@@ -617,6 +658,8 @@ export interface CaseRow {
   errorKind: ErrorKind | null;
   failedChecks: string[];
   normalised: NormalisedView | null;
+  /** Track 3: the security record the pipeline stored (status extracted), else null. */
+  security?: SecurityRecord | null;
   grade: CaseGrade;
   latencyMs: number;
   llmLatencyMs: number;
@@ -707,7 +750,7 @@ interface CaseContext {
 interface ExtractionRow {
   id: number;
   status: string;
-  kind: "quote" | "not_a_quote" | null;
+  kind: OutputKind | null;
   raw_output: unknown;
   field_evidence: unknown;
   check_results: unknown;
@@ -766,6 +809,7 @@ export async function storedQuoteProblems(
   extractionId: number,
   status: PipelineStatus,
   view: NormalisedView | null,
+  kind: OutputKind | null = "quote",
 ): Promise<string[]> {
   // The runner deletes every case-created quote before each case: any one here is this case's.
   const quotes = await sql<StoredQuoteRow[]>`
@@ -774,7 +818,8 @@ export async function storedQuoteProblems(
            to_char(delivery_from at time zone 'UTC', 'YYYY-MM-DD') as delivery_from,
            to_char(delivery_to at time zone 'UTC', 'YYYY-MM-DD') as delivery_to
     from quotes where extraction_id is not null order by id`;
-  if (status !== "extracted") {
+  // A security quote is stored in security_quotes (storedSecurityProblems), never as a fuel quote.
+  if (status !== "extracted" || kind === "security_quote") {
     return quotes.length === 0 ? [] : [`status ${status}, but ${quotes.length} quote(s) stored`];
   }
   const [q] = quotes;
@@ -811,6 +856,66 @@ export async function storedQuoteProblems(
     .map((k) => `${k}: stored ${JSON.stringify(stored[k])}, graded ${JSON.stringify(graded[k])}`);
 }
 
+interface StoredSecurityRow {
+  extraction_id: number;
+  provider_id: number;
+  vessel_imo: string | null;
+  embark_port_id: number;
+  disembark_port_id: number;
+  team_size: number;
+  day_rate: number;
+  fixed_fees: number;
+  min_days: number;
+  currency: string;
+  valid_until: string | null;
+}
+
+/**
+ * Track 3: what the pipeline stored in `security_quotes` must be the graded record. An `extracted`
+ * security quote must have exactly one stored row, of its extraction, equal to `record`; any other
+ * status or kind must have none. Returns each disagreement (empty when they agree).
+ */
+export async function storedSecurityProblems(
+  sql: Sql,
+  extractionId: number,
+  status: PipelineStatus,
+  kind: OutputKind | null,
+  record: SecurityRecord | null,
+): Promise<string[]> {
+  const rows = await sql<StoredSecurityRow[]>`
+    select extraction_id, provider_id, vessel_imo, embark_port_id, disembark_port_id, team_size,
+           day_rate, fixed_fees, min_days, currency,
+           to_char(valid_until at time zone 'UTC', 'YYYY-MM-DD') as valid_until
+    from security_quotes where extraction_id is not null order by id`;
+  if (status !== "extracted" || kind !== "security_quote") {
+    return rows.length === 0
+      ? []
+      : [`status ${status}, kind ${kind}, but ${rows.length} security quote(s) stored`];
+  }
+  const [r] = rows;
+  if (rows.length !== 1 || !r || r.extraction_id !== extractionId) {
+    return [
+      `extracted security quote, but ${rows.length} security quote(s) stored (expected exactly one, of extraction ${extractionId})`,
+    ];
+  }
+  if (record === null) return ["extracted security quote, but there is no record to grade"];
+  const stored: SecurityRecord = {
+    providerId: r.provider_id,
+    vesselImo: r.vessel_imo,
+    embarkPortId: r.embark_port_id,
+    disembarkPortId: r.disembark_port_id,
+    teamSize: Number(r.team_size),
+    dayRate: Number(r.day_rate),
+    fixedFees: Number(r.fixed_fees),
+    minDays: Number(r.min_days),
+    currency: r.currency as SecurityRecord["currency"],
+    validUntil: r.valid_until,
+  };
+  return (Object.keys(stored) as (keyof SecurityRecord)[])
+    .filter((k) => JSON.stringify(stored[k]) !== JSON.stringify(record[k]))
+    .map((k) => `${k}: stored ${JSON.stringify(stored[k])}, graded ${JSON.stringify(record[k])}`);
+}
+
 async function runCase(
   ctx: CaseContext,
   c: GoldenCase,
@@ -821,6 +926,7 @@ async function runCase(
   await cleanupCases(sql, ctx.baseline);
   ctx.slot.oracle = c.oracle;
   ctx.slot.errorKind = null;
+  ctx.slot.truthKind = c.truth.expected.kind;
   const servedMark = ctx.guard?.served.length ?? 0;
   const exchangeMark = ctx.exchanges.length;
   const log: string[] = [];
@@ -890,24 +996,31 @@ async function runCase(
   const raw = ex.raw_output === null ? null : ExtractionOutput.parse(ex.raw_output);
   const checks = z.array(CheckResult).parse(ex.check_results);
   const receivedAt = new Date(doc.received_at);
+  const docInput = { sender: doc.sender, subject: doc.subject, bodyText: doc.body_text };
+  // Track 3: the pipeline's own security record, recomputed by its pure evaluator from the stored
+  // output (the same call processDocument made); storedSecurityProblems checks it is what was stored.
+  let security: SecurityRecord | null = null;
+  if (raw?.kind === "security_quote" && status === "extracted") {
+    const ev = evaluateExtraction(ctx.world, docInput, raw, {
+      receivedAt,
+      hasUnreadableAttachment: doc.has_unreadable_attachment,
+    });
+    security = ev.status === "extracted" ? ev.securityQuote : null;
+  }
   const outcome: CaseOutcome = {
     status,
     kind: ex.kind,
-    normalised:
-      raw === null
-        ? null
-        : normaliseExtraction(
-            ctx.world,
-            { sender: doc.sender, subject: doc.subject, bodyText: doc.body_text },
-            raw,
-            receivedAt,
-          ),
+    normalised: raw === null ? null : normaliseExtraction(ctx.world, docInput, raw, receivedAt),
+    security,
     error: ex.error,
     errorKind,
     failedChecks: checks.filter((x) => !x.passed).map((x) => x.check),
   };
   const grade = gradeCase(c.truth, outcome, ctx.keys);
-  const runnerErrors = await storedQuoteProblems(sql, ex.id, status, outcome.normalised);
+  const runnerErrors = [
+    ...(await storedQuoteProblems(sql, ex.id, status, outcome.normalised, ex.kind)),
+    ...(await storedSecurityProblems(sql, ex.id, status, ex.kind, security)),
+  ];
   const row: CaseRow = {
     id,
     run,
@@ -918,6 +1031,7 @@ async function runCase(
     errorKind,
     failedChecks: outcome.failedChecks,
     normalised: outcome.normalised,
+    security,
     grade,
     latencyMs,
     llmLatencyMs: calls.reduce((a, x) => a + x.latencyMs, 0),
@@ -1131,7 +1245,7 @@ export async function runExtractionEval(opts: EvalOptions): Promise<EvalResult> 
   const plan = [
     ...cases.map((c) => ({ c, run: 1 })),
     ...cases
-      .filter((c) => c.truth.tags[0] === "hard")
+      .filter((c) => HARD_TAGS.has(c.truth.tags[0] ?? ""))
       .flatMap((c) => Array.from({ length: repeatHard - 1 }, (_, i) => ({ c, run: i + 2 }))),
   ];
 
@@ -1460,6 +1574,10 @@ export async function main() {
     });
     console.log(`critical-field accuracy ${fmt(card.critical)}`);
     console.log(`unsafe auto-accepts ${fmt(card.unsafeAutoAccepts)}`);
+    if (card.security) {
+      console.log(`security critical-field accuracy ${fmt(card.security.critical)}`);
+      console.log(`security unsafe auto-accepts ${fmt(card.security.unsafeAutoAccepts)}`);
+    }
     console.log(
       `errors ${card.errors.length}; llm_calls cost $${meta.spend.dbUsd.toFixed(6)}` +
         (meta.spend.ledgerUsd === null

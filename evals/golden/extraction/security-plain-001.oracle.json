@@ -1,0 +1,54 @@
+{
+  "kind": "security_quote",
+  "providerName": {
+    "value": "Tridentis Marine Protection",
+    "evidence": "For and on behalf of Tridentis Marine Protection"
+  },
+  "vesselName": {
+    "value": null,
+    "evidence": null
+  },
+  "vesselImo": {
+    "value": "9481025",
+    "evidence": "Vessel: IMO 9481025"
+  },
+  "embarkPort": {
+    "value": "Fujairah",
+    "evidence": "Embarkation point: Fujairah"
+  },
+  "disembarkPort": {
+    "value": "Cape Town",
+    "evidence": "Team leaves at: Cape Town (ZACPT)"
+  },
+  "teamSize": {
+    "value": 3,
+    "unit": "guards",
+    "asWritten": "3 guards",
+    "evidence": "Team size: 3 guards"
+  },
+  "dayRate": {
+    "value": 1050,
+    "currency": "USD",
+    "perUnit": "per day",
+    "asWritten": "USD 1,050.00 per day",
+    "evidence": "Day rate: USD 1,050.00 per day"
+  },
+  "fixedFees": {
+    "value": 4000,
+    "currency": "USD",
+    "perUnit": null,
+    "asWritten": "USD 4000.00",
+    "evidence": "Fixed charges: USD 4000.00"
+  },
+  "minDays": {
+    "value": 7,
+    "unit": "days",
+    "asWritten": "7 days",
+    "evidence": "Minimum charge: 7 days"
+  },
+  "validUntil": {
+    "asWritten": "Nov 18 18:00 UTC",
+    "evidence": "Offer valid until: Nov 18 18:00 UTC"
+  },
+  "notes": null
+}

@@ -1,0 +1,54 @@
+{
+  "kind": "security_quote",
+  "providerName": {
+    "value": "Harbourline Security Services",
+    "evidence": "Harbourline Security Services"
+  },
+  "vesselName": {
+    "value": null,
+    "evidence": null
+  },
+  "vesselImo": {
+    "value": "9485069",
+    "evidence": "Ship             IMO 9485069"
+  },
+  "embarkPort": {
+    "value": "Fujairah",
+    "evidence": "Team boards at   off Fujairah"
+  },
+  "disembarkPort": {
+    "value": "Cape Town",
+    "evidence": "Disembark        Cape Town"
+  },
+  "teamSize": {
+    "value": 3,
+    "unit": "man team",
+    "asWritten": "3-man team",
+    "evidence": "Security team    3-man team"
+  },
+  "dayRate": {
+    "value": 975,
+    "currency": "$",
+    "perUnit": "per day",
+    "asWritten": "$975 per day",
+    "evidence": "Rate             $975 per day"
+  },
+  "fixedFees": {
+    "value": 3500,
+    "currency": "$",
+    "perUnit": "lump sum",
+    "asWritten": "$3,500 lump sum",
+    "evidence": "Fixed fees       $3,500 lump sum"
+  },
+  "minDays": {
+    "value": 5,
+    "unit": "days",
+    "asWritten": "5 days",
+    "evidence": "Minimum charge   5 days"
+  },
+  "validUntil": {
+    "asWritten": "18.11.26 12:00 LT",
+    "evidence": "Valid till       18.11.26 12:00 LT"
+  },
+  "notes": null
+}

@@ -1,0 +1,54 @@
+{
+  "kind": "security_quote",
+  "providerName": {
+    "value": "Tridentis Marine Protection",
+    "evidence": "For and on behalf of Tridentis Marine Protection"
+  },
+  "vesselName": {
+    "value": null,
+    "evidence": null
+  },
+  "vesselImo": {
+    "value": "9482031",
+    "evidence": "Ship        IMO 9482031"
+  },
+  "embarkPort": {
+    "value": "Fujairah",
+    "evidence": "Embark      Fujairah"
+  },
+  "disembarkPort": {
+    "value": "Cape Town",
+    "evidence": "Disembark   Cape Town, South Africa"
+  },
+  "teamSize": {
+    "value": 3,
+    "unit": "armed guards",
+    "asWritten": "3 armed guards",
+    "evidence": "3 armed guards   USD 1,200 per team per day   5 days           US$ 5,000 one-off"
+  },
+  "dayRate": {
+    "value": 1200,
+    "currency": "USD",
+    "perUnit": "per team per day",
+    "asWritten": "USD 1,200 per team per day",
+    "evidence": "3 armed guards   USD 1,200 per team per day   5 days           US$ 5,000 one-off"
+  },
+  "fixedFees": {
+    "value": 5000,
+    "currency": "US$",
+    "perUnit": "one-off",
+    "asWritten": "US$ 5,000 one-off",
+    "evidence": "3 armed guards   USD 1,200 per team per day   5 days           US$ 5,000 one-off"
+  },
+  "minDays": {
+    "value": 5,
+    "unit": "days",
+    "asWritten": "5 days",
+    "evidence": "3 armed guards   USD 1,200 per team per day   5 days           US$ 5,000 one-off"
+  },
+  "validUntil": {
+    "asWritten": "19.11.26",
+    "evidence": "Validity: 19.11.26"
+  },
+  "notes": null
+}

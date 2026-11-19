@@ -1,0 +1,30 @@
+{
+  "id": "security-html-009",
+  "tags": [
+    "security-html",
+    "layout:grid",
+    "vessel:name-imo",
+    "team:guards",
+    "fees:lump",
+    "route:DJJIB-ZADUR"
+  ],
+  "source": "generated",
+  "expected": {
+    "kind": "security_quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": null,
+    "security": {
+      "provider": "Harbourline Security Services",
+      "vesselImo": "9484053",
+      "embarkUnlocode": "DJJIB",
+      "disembarkUnlocode": "ZADUR",
+      "teamSize": 6,
+      "dayRate": 1350,
+      "currency": "USD",
+      "fixedFees": 5000,
+      "minDays": 4,
+      "validUntil": "2026-11-17"
+    }
+  }
+}

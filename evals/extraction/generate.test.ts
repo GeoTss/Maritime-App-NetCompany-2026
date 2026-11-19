@@ -9,8 +9,21 @@ import { sourceText } from "../../apps/api/src/ai/extract.js";
 import { evaluateExtraction } from "../../apps/api/src/ingest/evaluate.js";
 import { parseEmail } from "../../apps/api/src/ingest/parse-email.js";
 import { GENERATED_BAND, upcomingServedPorts } from "./facts.js";
-import { diffGolden, GENERATED, type RenderedCase, renderGoldenFiles } from "./generate.js";
-import { REVIEW_GENERATED_SAMPLE, reviewSample } from "./review.js";
+import {
+  diffGolden,
+  GENERATED,
+  type RenderedCase,
+  renderGoldenFiles,
+  SECURITY_GENERATED,
+} from "./generate.js";
+import {
+  isSecurityCase,
+  REVIEW_GENERATED_SAMPLE,
+  reviewSample,
+  securityReviewSample,
+} from "./review.js";
+import { DISEMBARK_POINTS, EMBARK_POINTS, SECURITY_RANGES } from "./security-facts.js";
+import { SECURITY_HARD_NAMES } from "./security-hard-cases.js";
 import { GOLDEN_DIR } from "./split.js";
 import { EVAL_ANCHOR, eurUsd, evalWorld, marketPriceUsd, openRequirementOf } from "./world.js";
 
@@ -40,7 +53,7 @@ describe("golden extraction set: files", () => {
     const again = await renderGoldenFiles(world);
     expect([...again.files.entries()]).toEqual([...files.entries()]);
     expect(await diffGolden(files, GOLDEN_DIR)).toEqual([]);
-    expect(files.size).toBe(240 * 3 + 2);
+    expect(files.size).toBe(300 * 3 + 2);
   });
 
   it("npm run eval:golden -- --check passes on the committed set", () => {
@@ -48,7 +61,7 @@ describe("golden extraction set: files", () => {
       cwd: ROOT,
       encoding: "utf8",
     });
-    expect(out).toContain("golden set OK: 722 files match (240 cases)");
+    expect(out).toContain("golden set OK: 902 files match (300 cases)");
   }, 60_000);
 
   describe("diffGolden on a changed copy (what makes --check exit 1)", () => {
@@ -74,7 +87,7 @@ describe("golden extraction set: files", () => {
 
   it("every truth parses ExtractionTruth and is named after its id", () => {
     const all = truths();
-    expect(all).toHaveLength(240);
+    expect(all).toHaveLength(300);
     for (const { file, truth } of all) expect(file).toBe(`${truth.id}.truth.json`);
   });
 
@@ -166,6 +179,24 @@ describe("golden extraction set: oracles", () => {
           e.reviewChecks.some((r) => failed.includes(r)),
           `${c.truth.id}: one of ${e.reviewChecks.join(", ")} fails (failed: ${failed.join(", ")})`,
         ).toBe(true);
+      }
+      if (e.kind === "security_quote") {
+        const sq = ev.status === "extracted" ? ev.securityQuote : null;
+        const record = sq && {
+          provider: world.securityProviders.find((p) => p.id === sq.providerId)?.name ?? null,
+          vesselImo: sq.vesselImo,
+          embarkUnlocode: world.ports.find((p) => p.id === sq.embarkPortId)?.unlocode ?? null,
+          disembarkUnlocode: world.ports.find((p) => p.id === sq.disembarkPortId)?.unlocode ?? null,
+          teamSize: sq.teamSize,
+          dayRate: sq.dayRate,
+          currency: sq.currency,
+          fixedFees: sq.fixedFees,
+          minDays: sq.minDays,
+          validUntil: sq.validUntil,
+        };
+        // The pipeline stores a security record only when every check passes.
+        expect(record, c.truth.id).toEqual(e.status === "extracted" ? e.security : null);
+        continue;
       }
       if (e.quote === null) continue;
       const n = ev.normalised;
@@ -319,24 +350,201 @@ describe("golden extraction set: hygiene", () => {
     expect(leaks).toEqual([]);
   });
 
-  it("REVIEW.md shows the 20 new variants first, then the 20 hard and 15 generated cases", () => {
+  it("REVIEW.md shows the Track 3 security cases, then the 20 variants, 20 hard and 15 generated", () => {
     const review = onDisk.get("REVIEW.md") ?? "";
     const sample = reviewSample(cases.map((c) => c.truth));
     expect(sample).toHaveLength(REVIEW_GENERATED_SAMPLE);
     const strata = new Set(sample.map((id) => cases.find((c) => c.truth.id === id)?.truth.tags[0]));
     expect(strata.size).toBe(7);
+    const securitySample = securityReviewSample(cases.map((c) => c.truth));
+    expect(securitySample).toHaveLength(6);
     const headings = [...review.matchAll(/^### (\S+) \(/gm)].map((m) => m[1]);
     const isVariant = (c: RenderedCase) => c.truth.tags.includes("variant:v2");
+    const isSecurity = (c: RenderedCase) => isSecurityCase(c.truth);
     expect(headings).toEqual([
+      ...cases.filter((c) => isSecurity(c) && c.truth.source === "hard").map((c) => c.truth.id),
+      ...cases.filter((c) => securitySample.includes(c.truth.id)).map((c) => c.truth.id),
       ...cases.filter(isVariant).map((c) => c.truth.id),
-      ...cases.filter((c) => c.truth.source === "hard" && !isVariant(c)).map((c) => c.truth.id),
+      ...cases
+        .filter((c) => c.truth.source === "hard" && !isVariant(c) && !isSecurity(c))
+        .map((c) => c.truth.id),
       ...sample,
     ]);
+    expect(review.indexOf("## New: Track 3 security quotes — please review")).toBeLessThan(
+      review.indexOf("## New dev trap variants — please review"),
+    );
     expect(review.indexOf("## New dev trap variants — please review")).toBeLessThan(
       review.indexOf("## What to check for each case"),
     );
     expect(review).toContain("dev-only trap variants");
     expect(review).toContain("How corrections are applied");
     expect(review).toContain("never edited by hand");
+  });
+});
+
+describe("golden extraction set: Track 3 security quotes", () => {
+  const security = () => cases.filter((c) => c.truth.expected.kind === "security_quote");
+
+  it("has 48 generated (16 per template) and 12 hard cases (6 traps x 2 renders)", () => {
+    expect(SECURITY_GENERATED.map((g) => [g.prefix, g.count])).toEqual([
+      ["security-plain", 16],
+      ["security-html", 16],
+      ["security-pdf", 16],
+    ]);
+    const all = security();
+    expect(all).toHaveLength(60);
+    expect(all.filter((c) => c.truth.source === "generated")).toHaveLength(48);
+    const hard = all.filter((c) => c.truth.source === "hard");
+    expect(hard.map((c) => c.truth.tags[1]).sort()).toEqual(
+      [...SECURITY_HARD_NAMES, ...SECURITY_HARD_NAMES].sort(),
+    );
+    for (const c of all) expect(isSecurityCase(c.truth), c.truth.id).toBe(true);
+    // Every earlier case is a fuel or not-a-quote truth.
+    expect(cases.filter((c) => isSecurityCase(c.truth))).toHaveLength(60);
+  });
+
+  it("every security truth names a seeded provider, a fleet vessel and seeded ports", () => {
+    for (const c of security()) {
+      const q = c.truth.expected.security;
+      if (!q) throw new Error(`${c.truth.id} has no security truth`);
+      const provider = world.securityProviders.find((p) => p.name === q.provider);
+      expect(provider, c.truth.id).toBeDefined();
+      expect(c.doc.sender?.endsWith(`@${provider?.emailDomain}`), c.truth.id).toBe(true);
+      expect(world.vessels.map((v) => v.imo)).toContain(q.vesselImo);
+      expect(EMBARK_POINTS as readonly string[]).toContain(q.embarkUnlocode);
+      if (q.disembarkUnlocode !== null) {
+        expect(DISEMBARK_POINTS as readonly string[]).toContain(q.disembarkUnlocode);
+        expect(q.disembarkUnlocode).not.toBe(q.embarkUnlocode);
+      }
+    }
+  });
+
+  it("generated security quotes state every field, in USD, inside the plan's ranges", () => {
+    const r = SECURITY_RANGES;
+    const generated = security().filter((c) => c.truth.source === "generated");
+    for (const c of generated) {
+      const id = c.truth.id;
+      const q = c.truth.expected.security;
+      if (!q || !c.receivedAt) throw new Error(`${id}: no truth or Date header`);
+      expect(c.truth.expected.status, id).toBe("extracted");
+      expect(Object.values(q).includes(null), id).toBe(false);
+      expect(q.currency, id).toBe("USD");
+      expect(q.teamSize).toBeGreaterThanOrEqual(r.teamSize[0]);
+      expect(q.teamSize).toBeLessThanOrEqual(r.teamSize[1]);
+      expect(q.dayRate).toBeGreaterThanOrEqual(r.dayRateUsd[0]);
+      expect(q.dayRate).toBeLessThanOrEqual(r.dayRateUsd[1]);
+      expect(q.fixedFees).toBeGreaterThanOrEqual(r.fixedFeesUsd[0]);
+      expect(q.fixedFees).toBeLessThanOrEqual(r.fixedFeesUsd[1]);
+      expect(q.minDays).toBeGreaterThanOrEqual(r.minDays[0]);
+      expect(q.minDays).toBeLessThanOrEqual(r.minDays[1]);
+      const ageH = (EVAL_ANCHOR.getTime() - c.receivedAt.getTime()) / 3_600_000;
+      expect(ageH, id).toBeGreaterThanOrEqual(2);
+      expect(ageH, id).toBeLessThanOrEqual(44);
+      const received = c.receivedAt.toISOString().slice(0, 10);
+      expect(daysBetween(received, q.validUntil as string), id).toBeGreaterThan(0);
+      expect(daysBetween(received, q.validUntil as string), id).toBeLessThanOrEqual(8);
+    }
+    const templates = new Set(generated.map((c) => c.truth.tags[0]));
+    expect([...templates].sort()).toEqual(["security-html", "security-pdf", "security-plain"]);
+    expect(
+      generated.filter((c) => c.doc.bodyText.includes("ARMED SECURITY TEAM OFFER")),
+    ).toHaveLength(16);
+  });
+
+  it("each trap holds the value it is about, and its truth follows the trap's rule", () => {
+    const byId = new Map(security().map((c) => [c.truth.id, c]));
+    const get = (id: string) => {
+      const c = byId.get(id);
+      if (!c?.truth.expected.security) throw new Error(`no ${id}`);
+      return { c, e: c.truth.expected, q: c.truth.expected.security, text: sourceText(c.doc) };
+    };
+    for (const r of ["a", "b"]) {
+      const six = get(`security-hard-four-six-guards-${r}`);
+      expect(six.text).toContain(r === "a" ? "4/6 guards" : "3 or 4 guards");
+      expect([six.e.status, six.e.reviewChecks, six.q.teamSize]).toEqual([
+        "needs_review",
+        ["team_size_unambiguous"],
+        null,
+      ]);
+      const eur = get(`security-hard-eur-day-rate-${r}`);
+      expect([eur.e.status, eur.q.currency]).toEqual(["extracted", "EUR"]);
+      const fwd = get(`security-hard-forwarded-older-offer-${r}`);
+      expect(fwd.e.status).toBe("extracted");
+      const quoted = fwd.text.search(/^(?:-----Original Message-----|On .* wrote:)/m);
+      expect(quoted).toBeGreaterThan(0);
+      if (fwd.c.oracle.kind !== "security_quote") throw new Error("security oracle expected");
+      for (const ev of [fwd.c.oracle.dayRate.evidence, fwd.c.oracle.fixedFees.evidence]) {
+        expect(fwd.text.indexOf(ev ?? "\u0000")).toBeGreaterThanOrEqual(0);
+        expect(fwd.text.indexOf(ev ?? "\u0000")).toBeLessThan(quoted);
+      }
+      const dis = get(`security-hard-missing-disembark-${r}`);
+      expect([dis.e.status, dis.e.reviewChecks, dis.q.disembarkUnlocode]).toEqual([
+        "needs_review",
+        ["disembark_port_resolved"],
+        null,
+      ]);
+      const fees = get(`security-hard-fees-separate-charges-${r}`);
+      const parts = [
+        ...(fees.c.oracle.kind === "security_quote"
+          ? (fees.c.oracle.fixedFees.asWritten ?? "")
+          : ""
+        ).matchAll(/USD ([\d,]+)/g),
+      ].map((m) => Number(m[1]?.replace(/,/g, "")));
+      expect(parts).toHaveLength(3);
+      expect(
+        parts.reduce((a, b) => a + b, 0),
+        "truth total is the sum",
+      ).toBe(fees.q.fixedFees);
+      expect([fees.e.status, fees.e.reviewChecks]).toEqual(["needs_review", ["amounts_parsed"]]);
+      const words = get(`security-hard-team-in-words-${r}`);
+      expect(words.e.status).toBe("extracted");
+      expect(words.text).toMatch(/\b(?:three|four|five|six)\b(?: armed)? guards/);
+    }
+    expect(get("security-hard-team-in-words-a").text).toContain("a team of four");
+    expect(get("security-hard-team-in-words-a").q.teamSize).toBe(4);
+  });
+
+  it("dev holds one render of every trap and half of every template", async () => {
+    const split = JSON.parse(onDisk.get("split.json") ?? "{}") as {
+      dev: string[];
+      heldout: string[];
+    };
+    for (const name of SECURITY_HARD_NAMES) {
+      const dev = split.dev.filter((id) => id.startsWith(`security-hard-${name}-`));
+      const held = split.heldout.filter((id) => id.startsWith(`security-hard-${name}-`));
+      expect([dev.length, held.length], name).toEqual([1, 1]);
+    }
+    for (const t of ["security-plain", "security-html", "security-pdf"]) {
+      expect(split.dev.filter((id) => id.startsWith(`${t}-`))).toHaveLength(8);
+      expect(split.heldout.filter((id) => id.startsWith(`${t}-`))).toHaveLength(8);
+    }
+  });
+
+  it("leak check: of the security traps' own spans only the spec's '4/6 guards' is in the prompt", async () => {
+    const prompt = (
+      await readFile(join(ROOT, "apps/api/src/ai/prompts/extract-quote.ts"), "utf8")
+    ).toLowerCase();
+    const spans: string[] = [];
+    for (const c of security().filter((x) => x.truth.source === "hard")) {
+      if (c.oracle.kind !== "security_quote") continue;
+      const o = c.oracle;
+      // The span that makes each trap hard (short generic spans such as "4 guards" or "5 days"
+      // are the prompt's format examples, not the trap).
+      const trap: Record<string, (typeof o.dayRate | typeof o.teamSize)[]> = {
+        "four-six-guards": [o.teamSize],
+        "team-in-words": [o.teamSize],
+        "eur-day-rate": [o.dayRate, o.fixedFees],
+        "fees-separate-charges": [o.fixedFees],
+        "forwarded-older-offer": [o.dayRate, o.fixedFees],
+        "missing-disembark": [],
+      };
+      for (const f of trap[c.truth.tags[1] ?? ""] ?? []) {
+        if (f.asWritten !== null) spans.push(f.asWritten);
+      }
+    }
+    expect(spans.length).toBe(14);
+    // "4/6 guards" is the spec's own example, and the v3 prompt quotes it (reported to the lead).
+    const leaks = [...new Set(spans.filter((s) => prompt.includes(s.toLowerCase())))];
+    expect(leaks).toEqual(["4/6 guards"]);
   });
 });

@@ -1,0 +1,54 @@
+{
+  "kind": "security_quote",
+  "providerName": {
+    "value": "Aegis Watch Maritime",
+    "evidence": "For and on behalf of Aegis Watch Maritime"
+  },
+  "vesselName": {
+    "value": "MV THESSALY STAR",
+    "evidence": "Ship: MV THESSALY STAR / IMO 9481025"
+  },
+  "vesselImo": {
+    "value": "9481025",
+    "evidence": "Ship: MV THESSALY STAR / IMO 9481025"
+  },
+  "embarkPort": {
+    "value": "Fujairah",
+    "evidence": "Embarkation: Fujairah anchorage"
+  },
+  "disembarkPort": {
+    "value": "Djibouti",
+    "evidence": "Team leaves at: off Djibouti"
+  },
+  "teamSize": {
+    "value": 6,
+    "unit": "armed guards",
+    "asWritten": "6 armed guards",
+    "evidence": "Guards: 6 armed guards"
+  },
+  "dayRate": {
+    "value": 1600,
+    "currency": "USD",
+    "perUnit": "per day",
+    "asWritten": "USD 1,600 per day",
+    "evidence": "Day rate: USD 1,600 per day"
+  },
+  "fixedFees": {
+    "value": 7500,
+    "currency": "USD",
+    "perUnit": null,
+    "asWritten": "USD 7,500",
+    "evidence": "Fixed charges: USD 7,500"
+  },
+  "minDays": {
+    "value": 6,
+    "unit": "days",
+    "asWritten": "6 days",
+    "evidence": "Minimum period: 6 days"
+  },
+  "validUntil": {
+    "asWritten": "16 November 2026 noon LT",
+    "evidence": "Offer valid until: 16 November 2026 noon LT"
+  },
+  "notes": null
+}

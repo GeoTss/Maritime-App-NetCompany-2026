@@ -1,0 +1,23 @@
+{
+  "id": "security-hard-four-six-guards-a",
+  "tags": ["security-hard", "four-six-guards", "render:a", "layout:plain-labels"],
+  "source": "hard",
+  "expected": {
+    "kind": "security_quote",
+    "status": "needs_review",
+    "reviewChecks": ["team_size_unambiguous"],
+    "quote": null,
+    "security": {
+      "provider": "Tridentis Marine Protection",
+      "vesselImo": "9484053",
+      "embarkUnlocode": "DJJIB",
+      "disembarkUnlocode": "ZACPT",
+      "teamSize": null,
+      "dayRate": 1400,
+      "currency": "USD",
+      "fixedFees": 5500,
+      "minDays": 7,
+      "validUntil": "2026-11-17"
+    }
+  }
+}

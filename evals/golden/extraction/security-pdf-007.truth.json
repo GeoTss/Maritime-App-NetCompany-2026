@@ -1,0 +1,30 @@
+{
+  "id": "security-pdf-007",
+  "tags": [
+    "security-pdf",
+    "layout:letter",
+    "vessel:name-imo",
+    "team:man-team",
+    "fees:lump",
+    "route:AEFJR-EGSUZ"
+  ],
+  "source": "generated",
+  "expected": {
+    "kind": "security_quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": null,
+    "security": {
+      "provider": "Harbourline Security Services",
+      "vesselImo": "9481025",
+      "embarkUnlocode": "AEFJR",
+      "disembarkUnlocode": "EGSUZ",
+      "teamSize": 5,
+      "dayRate": 925,
+      "currency": "USD",
+      "fixedFees": 7250,
+      "minDays": 7,
+      "validUntil": "2026-11-18"
+    }
+  }
+}

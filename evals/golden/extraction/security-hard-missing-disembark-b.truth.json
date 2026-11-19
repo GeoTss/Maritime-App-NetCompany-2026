@@ -1,0 +1,23 @@
+{
+  "id": "security-hard-missing-disembark-b",
+  "tags": ["security-hard", "missing-disembark", "render:b", "layout:html-kv-table"],
+  "source": "hard",
+  "expected": {
+    "kind": "security_quote",
+    "status": "needs_review",
+    "reviewChecks": ["disembark_port_resolved"],
+    "quote": null,
+    "security": {
+      "provider": "Harbourline Security Services",
+      "vesselImo": "9486075",
+      "embarkUnlocode": "AEFJR",
+      "disembarkUnlocode": null,
+      "teamSize": 4,
+      "dayRate": 1500,
+      "currency": "USD",
+      "fixedFees": 6250,
+      "minDays": 5,
+      "validUntil": "2026-11-18"
+    }
+  }
+}

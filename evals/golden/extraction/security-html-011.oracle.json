@@ -1,0 +1,54 @@
+{
+  "kind": "security_quote",
+  "providerName": {
+    "value": "Harbourline Security Services",
+    "evidence": "Harbourline Security Services"
+  },
+  "vesselName": {
+    "value": "ATLANTIC MERIDIAN",
+    "evidence": "Ship             ATLANTIC MERIDIAN, IMO No. 9485069"
+  },
+  "vesselImo": {
+    "value": "9485069",
+    "evidence": "Ship             ATLANTIC MERIDIAN, IMO No. 9485069"
+  },
+  "embarkPort": {
+    "value": "Fujairah",
+    "evidence": "Team boards at   off Fujairah"
+  },
+  "disembarkPort": {
+    "value": "Cape Town",
+    "evidence": "Disembark        Cape Town anchorage"
+  },
+  "teamSize": {
+    "value": 6,
+    "unit": "PCASP",
+    "asWritten": "6 PCASP",
+    "evidence": "6 PCASP   USD 950 daily   5 days           USD 3,500 lump sum"
+  },
+  "dayRate": {
+    "value": 950,
+    "currency": "USD",
+    "perUnit": "daily",
+    "asWritten": "USD 950 daily",
+    "evidence": "6 PCASP   USD 950 daily   5 days           USD 3,500 lump sum"
+  },
+  "fixedFees": {
+    "value": 3500,
+    "currency": "USD",
+    "perUnit": "lump sum",
+    "asWritten": "USD 3,500 lump sum",
+    "evidence": "6 PCASP   USD 950 daily   5 days           USD 3,500 lump sum"
+  },
+  "minDays": {
+    "value": 5,
+    "unit": "days",
+    "asWritten": "5 days",
+    "evidence": "6 PCASP   USD 950 daily   5 days           USD 3,500 lump sum"
+  },
+  "validUntil": {
+    "asWritten": "18 November 2026 at 16:00 LT",
+    "evidence": "Rates valid until: 18 November 2026 at 16:00 LT"
+  },
+  "notes": null
+}

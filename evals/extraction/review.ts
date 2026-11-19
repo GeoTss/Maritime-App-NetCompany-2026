@@ -5,12 +5,18 @@
  */
 import type { World } from "@pharos/db";
 import { SUPPLIERS } from "@pharos/db";
-import type { ExtractionTruth, FuelGrade, TruthQuote } from "@pharos/shared";
+import type { ExtractionTruth, FuelGrade, TruthQuote, TruthSecurityQuote } from "@pharos/shared";
 import { sha256Hex } from "./prng.js";
 import { computeSplit, type Split, VARIANT_TAG } from "./split.js";
 import { EVAL_SEED, eurUsd, marketPriceUsd, openRequirementOf } from "./world.js";
 
 export const REVIEW_GENERATED_SAMPLE = 15;
+/** Generated security cases shown per template stratum (Track 3). */
+export const REVIEW_SECURITY_PER_TEMPLATE = 2;
+
+/** A Track 3 security case (its tags[0] starts with `security-`). */
+export const isSecurityCase = (t: ExtractionTruth): boolean =>
+  (t.tags[0] ?? "").startsWith("security-");
 
 export interface ReviewCase {
   truth: ExtractionTruth;
@@ -39,7 +45,8 @@ function allocate(sizes: [string, number][], total: number): Map<string, number>
 
 /** The generated cases shown in REVIEW.md: stratified by tags[0], chosen by sha256 order. */
 export function reviewSample(truths: ExtractionTruth[], seed: number = EVAL_SEED): string[] {
-  const generated = truths.filter((t) => t.source === "generated");
+  // The fuel sample, as approved in Phase 3: Track 3 security cases have their own sample.
+  const generated = truths.filter((t) => t.source === "generated" && !isSecurityCase(t));
   const strata = new Map<string, string[]>();
   for (const t of generated) {
     const k = t.tags[0] as string;
@@ -107,6 +114,46 @@ function quoteLines(world: World, q: TruthQuote): string[] {
   return context.length > 0 ? [...out, "", "World context:", ...context.map((c) => `  ${c}`)] : out;
 }
 
+/** The generated security cases shown: REVIEW_SECURITY_PER_TEMPLATE per template, by sha256. */
+export function securityReviewSample(
+  truths: ExtractionTruth[],
+  seed: number = EVAL_SEED,
+): string[] {
+  const byTemplate = new Map<string, string[]>();
+  for (const t of truths.filter((x) => x.source === "generated" && isSecurityCase(x))) {
+    const k = t.tags[0] as string;
+    byTemplate.set(k, [...(byTemplate.get(k) ?? []), t.id]);
+  }
+  return [...byTemplate.keys()].sort().flatMap((k) =>
+    (byTemplate.get(k) ?? [])
+      .map((id) => ({ id, key: sha256Hex(`review:${seed}:${id}`) }))
+      .sort((a, b) => (a.key < b.key ? -1 : 1))
+      .slice(0, REVIEW_SECURITY_PER_TEMPLATE)
+      .map((x) => x.id)
+      .sort(),
+  );
+}
+
+function securityLines(world: World, q: TruthSecurityQuote): string[] {
+  const vessel = world.vessels.find((v) => v.imo === q.vesselImo);
+  const port = (code: string | null) =>
+    code === null ? NA : `${code}  ${world.ports.find((p) => p.unlocode === code)?.name ?? "?"}`;
+  const provider = world.securityProviders.find((p) => p.name === q.provider);
+  const cur = q.currency ?? "";
+  return [
+    `${pad("Provider")}${q.provider === null ? `${NA}  (sender domain is not a provider)` : `${q.provider}  (${provider?.emailDomain ?? "?"}, from the sender domain)`}`,
+    `${pad("Vessel")}${q.vesselImo === null ? NA : `${q.vesselImo}  ${vessel?.name ?? "?"}`}`,
+    `${pad("Embark")}${port(q.embarkUnlocode)}`,
+    `${pad("Disembark")}${port(q.disembarkUnlocode)}`,
+    `${pad("Team")}${q.teamSize === null ? NA : `${q.teamSize} guards`}`,
+    `${pad("Day rate")}${q.dayRate === null ? NA : `${q.dayRate} ${cur} per team per day`}`,
+    `${pad("Currency")}${show(q.currency)}`,
+    `${pad("Fixed fees")}${q.fixedFees === null ? NA : `${q.fixedFees} ${cur} (total of the one-off charges)`}`,
+    `${pad("Minimum days")}${show(q.minDays)}`,
+    `${pad("Valid until")}${show(q.validUntil)}`,
+  ];
+}
+
 function truthBlock(world: World, c: ReviewCase): string {
   const e = c.truth.expected;
   const lines = [
@@ -115,9 +162,13 @@ function truthBlock(world: World, c: ReviewCase): string {
     `${pad("Kind")}${e.kind}`,
     `${pad("Received")}${c.receivedAt ? fmtUtc(c.receivedAt) : "(no Date header)"}`,
     "",
-    ...(e.quote === null
-      ? [e.kind === "quote" ? "Quote values: none (content unreadable)" : "No quote values."]
-      : quoteLines(world, e.quote)),
+    ...(e.kind === "security_quote"
+      ? e.security
+        ? securityLines(world, e.security)
+        : ["Security values: none (content unreadable)"]
+      : e.quote === null
+        ? [e.kind === "quote" ? "Quote values: none (content unreadable)" : "No quote values."]
+        : quoteLines(world, e.quote)),
   ];
   return lines.join("\n");
 }
@@ -193,13 +244,61 @@ function worldReference(world: World): string {
   ].join("\n");
 }
 
+function securitySection(
+  world: World,
+  cases: ReviewCase[],
+  inDev: (id: string) => string,
+): string[] {
+  const security = cases.filter((c) => isSecurityCase(c.truth));
+  if (security.length === 0) return [];
+  const hard = security.filter((c) => c.truth.source === "hard");
+  const sample = new Set(securityReviewSample(security.map((c) => c.truth)));
+  const generated = security.filter((c) => sample.has(c.truth.id));
+  const total = (prefix: string) => security.filter((c) => c.truth.tags[0] === prefix).length;
+  const providers = world.securityProviders.map(
+    (p) => `| ${p.name} | ${p.emailDomain} | ${p.erpCode} |`,
+  );
+  return [
+    "## New: Track 3 security quotes — please review",
+    "",
+    `Track 3 adds ${security.length} security-quote cases: emails from maritime security companies offering an armed team for a transit. ${total("security-plain") + total("security-html") + total("security-pdf")} are generated (${total("security-plain")} plain text, ${total("security-html")} HTML only, ${total("security-pdf")} PDF attachment) and ${hard.length} are hard cases (6 traps, each rendered twice, \`-a\` and \`-b\`). Every value is drawn by code from the eval world and the email is rendered from it (\`evals/extraction/security-facts.ts\`, \`templates/security*.ts\`, \`security-hard-cases.ts\`); nothing is typed by hand or written by a model. They split half dev, half held-out, in their own strata (generated by template, hard by trap: one render of each trap in dev, the other held out), so no earlier case moves. This sheet shows all ${hard.length} hard cases and ${generated.length} generated ones (${REVIEW_SECURITY_PER_TEMPLATE} per template, picked by sha256 order).`,
+    "",
+    "### Rules the security truth follows",
+    "",
+    "- Values are what a perfect transcription of the email, followed by Pharos's deterministic readers, gives: the provider from the sender's domain, the vessel by IMO, the embarkation and disembarkation points by UN/LOCODE, the team size and minimum days as whole numbers, the day rate and fixed fees in the quote's own currency (never converted), the validity as an ISO date read against the received date.",
+    "- Generated quotes state every field, in USD: a team of 3–6 guards, USD 900–1,600 per team per day, fixed fees USD 3,000–8,000, a minimum of 3–7 days, valid 2–6 days after receipt (illustrative ranges from the plan). The team boards at Fujairah or Djibouti and leaves at Djibouti, Suez, Durban or Cape Town.",
+    "- Null where the email does not settle a value: a choice of team sizes (`4/6 guards`), a disembarkation point left out or 'to be advised'. A null critical value must never be stored automatically, so these are `needs_review`.",
+    "- Security critical fields (`SECURITY_CRITICAL_FIELDS`): vessel, embarkation and disembarkation points, team size, day rate, currency, fixed fees, minimum days and validity. The provider is not critical but an auto-accept with the wrong provider is unsafe (like the fuel supplier).",
+    "",
+    "### Judgement calls worth a second opinion",
+    "",
+    "- `security-hard-fees-separate-charges-*`: three itemised charges and no total is `needs_review` (`amounts_parsed`), with the truth total their sum. Storing one charge would understate the cost; adding them up is arithmetic the model must not do, and Pharos has no fee-summing step.",
+    "- `security-hard-team-in-words-*`: a team written in words (`a team of four`) is one unambiguous number, so `extracted` with team size 4.",
+    "- `security-hard-forwarded-older-offer-*`: the revised offer on top is complete, and the truth never takes a value from the older offer quoted below.",
+    "- `security-hard-eur-day-rate-*`: day rate and fees in EUR are stored in EUR; the generation ranges are the USD ones converted at EURUSD.",
+    "",
+    "| Security provider | Email domain | ERP code |",
+    "|---|---|---|",
+    ...providers,
+    "",
+    "### Security hard cases",
+    "",
+    ...hard.map((c) => caseSection(world, c, `${c.truth.id} (${inDev(c.truth.id)})`)),
+    "### Generated security sample",
+    "",
+    ...generated.map((c) => caseSection(world, c, `${c.truth.id} (${inDev(c.truth.id)})`)),
+  ];
+}
+
 export function renderReview(world: World, cases: ReviewCase[]): string {
   const truths = cases.map((c) => c.truth);
   const split: Split = computeSplit(truths);
   const sample = new Set(reviewSample(truths));
   const isVariant = (c: ReviewCase) => c.truth.tags.includes(VARIANT_TAG);
   const variants = cases.filter(isVariant);
-  const hard = cases.filter((c) => c.truth.source === "hard" && !isVariant(c));
+  const hard = cases.filter(
+    (c) => c.truth.source === "hard" && !isVariant(c) && !isSecurityCase(c.truth),
+  );
   const generated = cases.filter((c) => sample.has(c.truth.id));
   const counts = Object.entries(split.strata)
     .map(([k, v]) => `${k} ${v.total}`)
@@ -212,6 +311,7 @@ export function renderReview(world: World, cases: ReviewCase[]): string {
     "",
     `Set: ${cases.length} cases (${counts}). Split: dev ${split.dev.length}, held-out ${split.heldout.length}.`,
     "",
+    ...securitySection(world, cases, inDev),
     "## New dev trap variants — please review",
     "",
     `These ${variants.length} cases are new: a second version of each hard trap (id \`hard-<name>-v2\`, tag \`variant:v2\`) with the same trap, status and review check as the original, but other values, mostly another vessel, port and supplier, another layout and fresh phrasing. They are **dev-only trap variants**: by rule they form their own split stratum (\`hard-variant\`) that is all dev, so the dev gate exercises every trap while the 220 approved cases keep their split. Their truth is written by hand in \`evals/extraction/hard-variants.ts\`. The checks and rules in the sections below apply to them as well.`,

@@ -1,0 +1,54 @@
+{
+  "kind": "security_quote",
+  "providerName": {
+    "value": "Aegis Watch Maritime",
+    "evidence": "Aegis Watch Maritime"
+  },
+  "vesselName": {
+    "value": null,
+    "evidence": null
+  },
+  "vesselImo": {
+    "value": "9480019",
+    "evidence": "We can provide a team of 4 guards for IMO 9480019, embarking at Djibouti and disembarking at Durban (ZADUR)."
+  },
+  "embarkPort": {
+    "value": "Djibouti",
+    "evidence": "We can provide a team of 4 guards for IMO 9480019, embarking at Djibouti and disembarking at Durban (ZADUR)."
+  },
+  "disembarkPort": {
+    "value": "Durban",
+    "evidence": "We can provide a team of 4 guards for IMO 9480019, embarking at Djibouti and disembarking at Durban (ZADUR)."
+  },
+  "teamSize": {
+    "value": 4,
+    "unit": "guards",
+    "asWritten": "4 guards",
+    "evidence": "We can provide a team of 4 guards for IMO 9480019, embarking at Djibouti and disembarking at Durban (ZADUR)."
+  },
+  "dayRate": {
+    "value": 1500,
+    "currency": "USD",
+    "perUnit": "per day",
+    "asWritten": "USD 1,500 per day",
+    "evidence": "The day rate is USD 1,500 per day, with a minimum of 5 days."
+  },
+  "fixedFees": {
+    "value": 6000,
+    "currency": "$",
+    "perUnit": "lump sum",
+    "asWritten": "$6000 lump sum",
+    "evidence": "Fixed fees for embarkation, disembarkation and arms storage: $6000 lump sum."
+  },
+  "minDays": {
+    "value": 5,
+    "unit": "days",
+    "asWritten": "5 days",
+    "evidence": "The day rate is USD 1,500 per day, with a minimum of 5 days."
+  },
+  "validUntil": {
+    "asWritten": "19 November 12:00 LT",
+    "evidence": "This offer is valid until 19 November 12:00 LT."
+  },
+  "notes": null
+}

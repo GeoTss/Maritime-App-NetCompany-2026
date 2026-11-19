@@ -1,0 +1,23 @@
+{
+  "id": "security-hard-team-in-words-b",
+  "tags": ["security-hard", "team-in-words", "render:b", "layout:html-kv-table"],
+  "source": "hard",
+  "expected": {
+    "kind": "security_quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": null,
+    "security": {
+      "provider": "Aegis Watch Maritime",
+      "vesselImo": "9481025",
+      "embarkUnlocode": "AEFJR",
+      "disembarkUnlocode": "ZACPT",
+      "teamSize": 4,
+      "dayRate": 1050,
+      "currency": "USD",
+      "fixedFees": 4500,
+      "minDays": 5,
+      "validUntil": "2026-11-19"
+    }
+  }
+}

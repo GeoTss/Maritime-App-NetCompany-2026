@@ -1,0 +1,30 @@
+{
+  "id": "security-pdf-013",
+  "tags": [
+    "security-pdf",
+    "layout:letter",
+    "vessel:name-imo",
+    "team:man-team",
+    "fees:lump",
+    "route:AEFJR-ZACPT"
+  ],
+  "source": "generated",
+  "expected": {
+    "kind": "security_quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": null,
+    "security": {
+      "provider": "Tridentis Marine Protection",
+      "vesselImo": "9486075",
+      "embarkUnlocode": "AEFJR",
+      "disembarkUnlocode": "ZACPT",
+      "teamSize": 6,
+      "dayRate": 1100,
+      "currency": "USD",
+      "fixedFees": 6500,
+      "minDays": 5,
+      "validUntil": "2026-11-20"
+    }
+  }
+}

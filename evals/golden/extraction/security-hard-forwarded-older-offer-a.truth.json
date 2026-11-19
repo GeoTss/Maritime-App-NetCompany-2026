@@ -1,0 +1,23 @@
+{
+  "id": "security-hard-forwarded-older-offer-a",
+  "tags": ["security-hard", "forwarded-older-offer", "render:a", "layout:forwarded-outlook"],
+  "source": "hard",
+  "expected": {
+    "kind": "security_quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": null,
+    "security": {
+      "provider": "Aegis Watch Maritime",
+      "vesselImo": "9487081",
+      "embarkUnlocode": "AEFJR",
+      "disembarkUnlocode": "ZACPT",
+      "teamSize": 5,
+      "dayRate": 1425,
+      "currency": "USD",
+      "fixedFees": 4000,
+      "minDays": 4,
+      "validUntil": "2026-11-18"
+    }
+  }
+}

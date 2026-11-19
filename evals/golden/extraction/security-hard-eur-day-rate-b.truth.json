@@ -1,0 +1,23 @@
+{
+  "id": "security-hard-eur-day-rate-b",
+  "tags": ["security-hard", "eur-day-rate", "render:b", "layout:pdf-letter"],
+  "source": "hard",
+  "expected": {
+    "kind": "security_quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": null,
+    "security": {
+      "provider": "Tridentis Marine Protection",
+      "vesselImo": "9486075",
+      "embarkUnlocode": "AEFJR",
+      "disembarkUnlocode": "ZACPT",
+      "teamSize": 4,
+      "dayRate": 1225,
+      "currency": "EUR",
+      "fixedFees": 5750,
+      "minDays": 6,
+      "validUntil": "2026-11-20"
+    }
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "kind": "security_quote",
+  "providerName": {
+    "value": "Aegis Watch Maritime",
+    "evidence": "For and on behalf of Aegis Watch Maritime"
+  },
+  "vesselName": {
+    "value": "MV Coral Horizon",
+    "evidence": "Vessel: MV Coral Horizon"
+  },
+  "vesselImo": {
+    "value": null,
+    "evidence": null
+  },
+  "embarkPort": {
+    "value": "Djibouti",
+    "evidence": "Embark: off Djibouti"
+  },
+  "disembarkPort": {
+    "value": "Durban",
+    "evidence": "Disembarkation point: Durban (ZADUR)"
+  },
+  "teamSize": {
+    "value": 6,
+    "unit": "guards",
+    "asWritten": "6 guards",
+    "evidence": "6 guards USD 1,100 per team per day 3 days USD 5,750.00 lump sum"
+  },
+  "dayRate": {
+    "value": 1100,
+    "currency": "USD",
+    "perUnit": "per team per day",
+    "asWritten": "USD 1,100 per team per day",
+    "evidence": "6 guards USD 1,100 per team per day 3 days USD 5,750.00 lump sum"
+  },
+  "fixedFees": {
+    "value": 5750,
+    "currency": "USD",
+    "perUnit": "lump sum",
+    "asWritten": "USD 5,750.00 lump sum",
+    "evidence": "6 guards USD 1,100 per team per day 3 days USD 5,750.00 lump sum"
+  },
+  "minDays": {
+    "value": 3,
+    "unit": "days",
+    "asWritten": "3 days",
+    "evidence": "6 guards USD 1,100 per team per day 3 days USD 5,750.00 lump sum"
+  },
+  "validUntil": {
+    "asWritten": "16 Nov 2026 noon LT",
+    "evidence": "Valid till: 16 Nov 2026 noon LT"
+  },
+  "notes": null
+}

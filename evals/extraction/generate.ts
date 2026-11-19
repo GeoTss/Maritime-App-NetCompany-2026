@@ -1,7 +1,9 @@
 /**
  * Generates the extraction golden set: 200 generated cases from the seeded PRNG (truth first,
  * then rendered through templates), the 20 hand-specified hard cases, and 20 dev-only trap
- * variants of them (hard-variants.ts).
+ * variants of them (hard-variants.ts). Track 3 appends 48 generated security quotes and 12
+ * security hard cases (6 traps, 2 renders each; security-hard-cases.ts), after every earlier
+ * case, so no earlier file changes.
  *
  *   npm run eval:golden              write evals/golden/extraction/ (removes stale case files)
  *   npm run eval:golden -- --check   exit 1 if any file on disk differs (byte-stable)
@@ -24,6 +26,7 @@ import { renderMime } from "./mime.js";
 import { buildOracle } from "./oracle.js";
 import { casePrng, sha256Hex } from "./prng.js";
 import { type ReviewCase, renderReview } from "./review.js";
+import { buildSecurityHardCases } from "./security-hard-cases.js";
 import { computeSplit, GOLDEN_DIR, splitJson } from "./split.js";
 import { renderEur } from "./templates/eur.js";
 import { renderForwarded } from "./templates/forwarded.js";
@@ -33,6 +36,11 @@ import { NOT_A_QUOTE_KINDS, renderNotAQuote } from "./templates/not-a-quote.js";
 import { renderPdf } from "./templates/pdf.js";
 import { renderPlain } from "./templates/plain.js";
 import type { Template } from "./templates/quote-block.js";
+import {
+  renderSecurityHtml,
+  renderSecurityPdf,
+  renderSecurityPlain,
+} from "./templates/security.js";
 import { EVAL_SEED, evalWorld } from "./world.js";
 
 /** Generated categories: id prefix, count, template. tags[0] is set by each template. */
@@ -54,17 +62,31 @@ export const GENERATED: readonly { prefix: string; count: number; template: Temp
   },
 ];
 
+/** Track 3 generated security quotes (tags[0] = prefix; split half dev, half held-out). */
+export const SECURITY_GENERATED: readonly { prefix: string; count: number; template: Template }[] =
+  [
+    { prefix: "security-plain", count: 16, template: renderSecurityPlain },
+    { prefix: "security-html", count: 16, template: renderSecurityHtml },
+    { prefix: "security-pdf", count: 16, template: renderSecurityPdf },
+  ];
+
 export async function buildCases(world: World): Promise<GoldenCase[]> {
   const cases: GoldenCase[] = [];
-  for (const { prefix, count, template } of GENERATED) {
-    for (let i = 1; i <= count; i++) {
-      const id = `${prefix}-${String(i).padStart(3, "0")}`;
-      cases.push(await template({ world, prng: casePrng(EVAL_SEED, id), id }));
+  const generate = async (list: typeof GENERATED) => {
+    for (const { prefix, count, template } of list) {
+      for (let i = 1; i <= count; i++) {
+        const id = `${prefix}-${String(i).padStart(3, "0")}`;
+        cases.push(await template({ world, prng: casePrng(EVAL_SEED, id), id }));
+      }
     }
-  }
+  };
+  await generate(GENERATED);
   for (const spec of HARD_CASES) cases.push(await renderHardCase(spec));
   // Dev-only trap variants, after the 220 approved cases (whose bytes they never change).
   for (const spec of HARD_VARIANTS) cases.push(await renderVariant(world, spec));
+  // Track 3 security quotes, after every earlier case (each case has its own PRNG stream).
+  await generate(SECURITY_GENERATED);
+  cases.push(...(await buildSecurityHardCases(world)));
   return cases;
 }
 

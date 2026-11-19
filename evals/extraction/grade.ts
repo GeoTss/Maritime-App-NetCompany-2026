@@ -16,6 +16,17 @@
  * grade; the lines left on both sides are then paired in order. A truth line left over has every
  * field missing; a predicted line left over (an extra line) is graded against null: each value
  * it holds is wrong, each null correct.
+ *
+ * Security quotes (Track 3) are graded against the pipeline's own security record, the
+ * `securityQuote` that `evaluateExtraction` returns and the workflow stores, and its status.
+ * The pipeline makes that record only when every check passes (evaluate-security.ts), so:
+ *   - a truth-`extracted` case gets every field graded; with no record (sent to review, failed,
+ *     or read as another kind) each truth value is missing;
+ *   - a truth-`needs_review` case gets its fields graded only when a record was stored (an
+ *     auto-accept); sent to review, it has no record and no field grades, and its outcome is
+ *     measured by needs-review recall.
+ * Comparison: day rate and fixed fees to the cent, team size and minimum days exactly, validity
+ * the same ISO day, provider / vessel / ports / currency the same name / IMO / UN/LOCODE / code.
  */
 import { SUPPLIERS, type World } from "@pharos/db";
 import {
@@ -27,6 +38,8 @@ import {
   type IsoDate,
   type NormalisedLine,
   type NormalisedView,
+  SECURITY_CRITICAL_FIELDS,
+  type TruthSecurityQuote,
   type TruthStatus,
 } from "@pharos/shared";
 
@@ -37,11 +50,33 @@ export type ErrorKind = (typeof ERROR_KINDS)[number];
 /** The extraction status after `processDocument` has finished with the row. */
 export type PipelineStatus = "extracted" | "needs_review" | "not_a_quote" | "failed";
 
+/** `extractions.kind`: what the model said the document is. */
+export type OutputKind = "quote" | "not_a_quote" | "security_quote";
+
+/**
+ * The pipeline's security record (`NormalisedSecurityQuote` of apps/api evaluate-security.ts):
+ * what `evaluateExtraction` returns and the workflow stores in `security_quotes`, in world ids.
+ */
+export interface SecurityRecord {
+  providerId: Id;
+  vesselImo: string | null;
+  embarkPortId: Id;
+  disembarkPortId: Id;
+  teamSize: number;
+  dayRate: number;
+  fixedFees: number;
+  minDays: number;
+  currency: Currency;
+  validUntil: IsoDate | null;
+}
+
 /** What the pipeline did with one golden email (ruling R11, plus the failed checks). */
 export interface CaseOutcome {
   status: PipelineStatus;
   /** `extractions.kind`: what the model said the document is; null when there is no output. */
-  kind: "quote" | "not_a_quote" | null;
+  kind: OutputKind | null;
+  /** The security record the pipeline stored (status extracted, kind security_quote); else null. */
+  security?: SecurityRecord | null;
   /** `normaliseExtraction` of the stored raw output; null when there is none. */
   normalised: NormalisedView | null;
   /** `extractions.error`. */
@@ -98,6 +133,8 @@ export interface EntityKeys {
   vesselImo(id: Id): string | null;
   portUnlocode(id: Id): string | null;
   supplierKey(id: Id): string | null;
+  /** The security provider's seeded name (Track 3). */
+  providerName?(id: Id): string | null;
 }
 
 export function entityKeys(world: World): EntityKeys {
@@ -105,10 +142,125 @@ export function entityKeys(world: World): EntityKeys {
   const unlocode = new Map(world.ports.map((p) => [p.id, p.unlocode]));
   const keyByName = new Map(SUPPLIERS.map((s) => [s.name, s.key]));
   const key = new Map(world.suppliers.map((s) => [s.id, keyByName.get(s.name) ?? null]));
+  const provider = new Map((world.securityProviders ?? []).map((p) => [p.id, p.name]));
   return {
     vesselImo: (id) => imo.get(id) ?? null,
     portUnlocode: (id) => unlocode.get(id) ?? null,
     supplierKey: (id) => key.get(id) ?? null,
+    providerName: (id) => provider.get(id) ?? null,
+  };
+}
+
+// ---------- security quotes (Track 3) ----------
+
+export const SECURITY_GRADED_FIELDS = [
+  "provider",
+  "vessel",
+  "embarkPort",
+  "disembarkPort",
+  "teamSize",
+  "dayRate",
+  "currency",
+  "fixedFees",
+  "minDays",
+  "validUntil",
+] as const;
+export type SecurityField = (typeof SECURITY_GRADED_FIELDS)[number];
+/** Compile-time check: every security critical field is a graded security field. */
+const SECURITY_CRITICAL: ReadonlySet<SecurityField> = new Set<SecurityField>(
+  SECURITY_CRITICAL_FIELDS,
+);
+export const isSecurityCritical = (f: SecurityField): boolean => SECURITY_CRITICAL.has(f);
+/** Fields that make a stored security quote unsafe when wrong or missing: critical + provider. */
+const SECURITY_UNSAFE_IF_OFF: ReadonlySet<SecurityField> = new Set<SecurityField>([
+  ...SECURITY_CRITICAL_FIELDS,
+  "provider",
+]);
+
+export interface SecurityFieldGrade {
+  field: SecurityField;
+  critical: boolean;
+  verdict: Verdict;
+  truth: string | number | null;
+  predicted: string | number | null;
+}
+
+/** The pipeline's security record in the truth's terms (names, IMO, UN/LOCODEs). */
+export type PredictedSecurity = TruthSecurityQuote;
+
+export interface SecurityGrade {
+  /** The stored record in truth terms; null when the pipeline stored none. */
+  predicted: PredictedSecurity | null;
+  /** Empty for a truth-needs_review case the pipeline did not store (see the module comment). */
+  fields: SecurityFieldGrade[];
+  /** Every critical field correct; null when no field was graded. */
+  criticalAllCorrect: boolean | null;
+}
+
+export function securityToTruthSpace(r: SecurityRecord, keys: EntityKeys): PredictedSecurity {
+  const name = (id: Id) => keys.providerName?.(id) ?? `unknown provider id ${id}`;
+  return {
+    provider: name(r.providerId),
+    vesselImo: r.vesselImo,
+    embarkUnlocode: code(r.embarkPortId, keys.portUnlocode),
+    disembarkUnlocode: code(r.disembarkPortId, keys.portUnlocode),
+    teamSize: r.teamSize,
+    dayRate: r.dayRate,
+    currency: r.currency,
+    fixedFees: r.fixedFees,
+    minDays: r.minDays,
+    validUntil: r.validUntil,
+  };
+}
+
+function gradeSecurityFields(
+  t: TruthSecurityQuote,
+  p: PredictedSecurity | null,
+): SecurityFieldGrade[] {
+  const out: SecurityFieldGrade[] = [];
+  const add = <T extends string | number>(
+    field: SecurityField,
+    tv: T | null,
+    pv: T | null,
+    equal: (a: T, b: T) => boolean,
+  ) =>
+    out.push({
+      field,
+      critical: isSecurityCritical(field),
+      verdict: verdictOf(tv, pv, equal),
+      truth: tv,
+      predicted: pv,
+    });
+  add("provider", t.provider, p?.provider ?? null, same);
+  add("vessel", t.vesselImo, p?.vesselImo ?? null, same);
+  add("embarkPort", t.embarkUnlocode, p?.embarkUnlocode ?? null, same);
+  add("disembarkPort", t.disembarkUnlocode, p?.disembarkUnlocode ?? null, same);
+  add("teamSize", t.teamSize, p?.teamSize ?? null, same);
+  add("dayRate", t.dayRate, p?.dayRate ?? null, sameCent);
+  add("currency", t.currency, p?.currency ?? null, same);
+  add("fixedFees", t.fixedFees, p?.fixedFees ?? null, sameCent);
+  add("minDays", t.minDays, p?.minDays ?? null, same);
+  add("validUntil", t.validUntil, p?.validUntil ?? null, same);
+  return out;
+}
+
+/** See the module comment. Null when the truth is not a security quote. */
+export function gradeSecurity(
+  truth: ExtractionTruth,
+  outcome: CaseOutcome,
+  keys: EntityKeys,
+): SecurityGrade | null {
+  const e = truth.expected;
+  if (e.kind !== "security_quote") return null;
+  const record = outcome.status === "extracted" ? (outcome.security ?? null) : null;
+  const predicted = record === null ? null : securityToTruthSpace(record, keys);
+  const graded = e.security != null && (e.status === "extracted" || predicted !== null);
+  const fields = graded && e.security ? gradeSecurityFields(e.security, predicted) : [];
+  return {
+    predicted,
+    fields,
+    criticalAllCorrect:
+      fields.length === 0 ? null : fields.every((f) => !f.critical || f.verdict === "correct"),
   };
 }
 
@@ -217,6 +369,8 @@ export interface CaseGrade {
   falseReview: boolean | null;
   /** Truth needs_review only: at least one of `truth.expected.reviewChecks` failed. */
   reviewCheckMatched: boolean | null;
+  /** Track 3: the security grade of a truth security quote; null (or absent) otherwise. */
+  security?: SecurityGrade | null;
 }
 
 const EMPTY_VIEW: NormalisedView = {
@@ -309,10 +463,12 @@ export function gradeCase(
       unsafeAutoAccept: null,
       falseReview: null,
       reviewCheckMatched: null,
+      security: null,
     };
   }
 
   const predicted = outcome.normalised === null ? null : toTruthSpace(outcome.normalised, keys);
+  const security = gradeSecurity(truth, outcome, keys);
   const graded =
     e.kind === "quote" && e.quote !== null
       ? gradeFields(e.quote, predicted ?? toTruthSpace(EMPTY_VIEW, keys))
@@ -322,6 +478,13 @@ export function gradeCase(
     (f) => UNSAFE_IF_OFF.has(f.field) && f.verdict !== "correct",
   );
   const extracted = outcome.status === "extracted";
+  // A stored security quote is unsafe unless the truth is a clean security quote, the model read
+  // it as one, and every critical value and the provider are right.
+  const securityUnsafe =
+    security === null ||
+    outcome.kind !== "security_quote" ||
+    e.status !== "extracted" ||
+    security.fields.some((f) => SECURITY_UNSAFE_IF_OFF.has(f.field) && f.verdict !== "correct");
   return {
     ...base,
     error: null,
@@ -330,11 +493,16 @@ export function gradeCase(
     lines: graded.lines,
     predicted,
     criticalAllCorrect: e.kind === "quote" && e.quote !== null ? !criticalOff : null,
-    unsafeAutoAccept: extracted && (e.kind !== "quote" || e.status !== "extracted" || unsafeOff),
+    unsafeAutoAccept:
+      extracted &&
+      (e.kind === "security_quote"
+        ? securityUnsafe
+        : e.kind !== "quote" || e.status !== "extracted" || unsafeOff),
     falseReview: e.status === "extracted" && !extracted,
     reviewCheckMatched:
       e.status === "needs_review"
         ? e.reviewChecks.some((c) => outcome.failedChecks.includes(c))
         : null,
+    security,
   };
 }

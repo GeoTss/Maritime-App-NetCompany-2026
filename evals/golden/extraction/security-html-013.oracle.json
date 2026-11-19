@@ -1,0 +1,54 @@
+{
+  "kind": "security_quote",
+  "providerName": {
+    "value": "Harbourline Security Services",
+    "evidence": "Harbourline Security Services"
+  },
+  "vesselName": {
+    "value": null,
+    "evidence": null
+  },
+  "vesselImo": {
+    "value": "9482031",
+    "evidence": "Ship              IMO 9482031"
+  },
+  "embarkPort": {
+    "value": "Fujairah",
+    "evidence": "Embark            Fujairah, UAE"
+  },
+  "disembarkPort": {
+    "value": "Suez",
+    "evidence": "Disembark         Suez (EGSUZ)"
+  },
+  "teamSize": {
+    "value": 3,
+    "unit": "guards",
+    "asWritten": "3 guards",
+    "evidence": "Guards            3 guards"
+  },
+  "dayRate": {
+    "value": 1250,
+    "currency": "US$",
+    "perUnit": "/day",
+    "asWritten": "US$ 1,250/day",
+    "evidence": "Day rate          US$ 1,250/day"
+  },
+  "fixedFees": {
+    "value": 7750,
+    "currency": "US$",
+    "perUnit": "one-off",
+    "asWritten": "US$ 7,750 one-off",
+    "evidence": "One-off charges   US$ 7,750 one-off"
+  },
+  "minDays": {
+    "value": 3,
+    "unit": "days",
+    "asWritten": "3 days",
+    "evidence": "Minimum           3 days"
+  },
+  "validUntil": {
+    "asWritten": "17/11/2026 17:00 LT",
+    "evidence": "Valid till        17/11/2026 17:00 LT"
+  },
+  "notes": null
+}

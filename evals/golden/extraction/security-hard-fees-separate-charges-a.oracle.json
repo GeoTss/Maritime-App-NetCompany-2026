@@ -1,0 +1,54 @@
+{
+  "kind": "security_quote",
+  "providerName": {
+    "value": "Aegis Watch Maritime",
+    "evidence": "For and on behalf of Aegis Watch Maritime"
+  },
+  "vesselName": {
+    "value": "Atlantic Meridian",
+    "evidence": "Vessel: Atlantic Meridian"
+  },
+  "vesselImo": {
+    "value": null,
+    "evidence": null
+  },
+  "embarkPort": {
+    "value": "Fujairah",
+    "evidence": "Team boards at: off Fujairah"
+  },
+  "disembarkPort": {
+    "value": "Djibouti",
+    "evidence": "Disembarkation: Djibouti (DJJIB)"
+  },
+  "teamSize": {
+    "value": 6,
+    "unit": "man team",
+    "asWritten": "6-man team",
+    "evidence": "Team: 6-man team"
+  },
+  "dayRate": {
+    "value": 1600,
+    "currency": "USD",
+    "perUnit": "daily",
+    "asWritten": "USD 1,600 daily",
+    "evidence": "Daily rate: USD 1,600 daily"
+  },
+  "fixedFees": {
+    "value": null,
+    "currency": "USD",
+    "perUnit": null,
+    "asWritten": "embarkation USD 500 + disembarkation USD 500 + arms storage USD 2,250",
+    "evidence": "Fixed charges: embarkation USD 500 + disembarkation USD 500 + arms storage USD 2,250"
+  },
+  "minDays": {
+    "value": 4,
+    "unit": "days",
+    "asWritten": "4 days",
+    "evidence": "Minimum charge: 4 days"
+  },
+  "validUntil": {
+    "asWritten": "19 Nov 2026 18:00 UTC",
+    "evidence": "Rates valid until: 19 Nov 2026 18:00 UTC"
+  },
+  "notes": null
+}

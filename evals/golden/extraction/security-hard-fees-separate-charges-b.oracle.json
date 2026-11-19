@@ -1,0 +1,54 @@
+{
+  "kind": "security_quote",
+  "providerName": {
+    "value": "Tridentis Marine Protection",
+    "evidence": "For and on behalf of Tridentis Marine Protection"
+  },
+  "vesselName": {
+    "value": "MV Iberian Dawn",
+    "evidence": "MV Iberian Dawn - IMO: 9483047 / Fujairah, UAE - Suez / 4 guards @ USD 1,525 per day"
+  },
+  "vesselImo": {
+    "value": "9483047",
+    "evidence": "MV Iberian Dawn - IMO: 9483047 / Fujairah, UAE - Suez / 4 guards @ USD 1,525 per day"
+  },
+  "embarkPort": {
+    "value": "Fujairah",
+    "evidence": "MV Iberian Dawn - IMO: 9483047 / Fujairah, UAE - Suez / 4 guards @ USD 1,525 per day"
+  },
+  "disembarkPort": {
+    "value": "Suez",
+    "evidence": "MV Iberian Dawn - IMO: 9483047 / Fujairah, UAE - Suez / 4 guards @ USD 1,525 per day"
+  },
+  "teamSize": {
+    "value": 4,
+    "unit": "guards",
+    "asWritten": "4 guards",
+    "evidence": "MV Iberian Dawn - IMO: 9483047 / Fujairah, UAE - Suez / 4 guards @ USD 1,525 per day"
+  },
+  "dayRate": {
+    "value": 1525,
+    "currency": "USD",
+    "perUnit": "per day",
+    "asWritten": "USD 1,525 per day",
+    "evidence": "MV Iberian Dawn - IMO: 9483047 / Fujairah, UAE - Suez / 4 guards @ USD 1,525 per day"
+  },
+  "fixedFees": {
+    "value": null,
+    "currency": "USD",
+    "perUnit": null,
+    "asWritten": "USD 750 for embarkation, USD 750 for disembarkation and USD 1,500 for arms storage",
+    "evidence": "Fees: USD 750 for embarkation, USD 750 for disembarkation and USD 1,500 for arms storage"
+  },
+  "minDays": {
+    "value": 3,
+    "unit": "days",
+    "asWritten": "3 days",
+    "evidence": "Minimum: 3 days"
+  },
+  "validUntil": {
+    "asWritten": "16/11",
+    "evidence": "Valid until: 16/11"
+  },
+  "notes": null
+}

@@ -1,0 +1,54 @@
+{
+  "kind": "security_quote",
+  "providerName": {
+    "value": "Harbourline Security Services",
+    "evidence": "Harbourline Security Services"
+  },
+  "vesselName": {
+    "value": "MV Aegean Pioneer",
+    "evidence": "Vessel           MV Aegean Pioneer (IMO 9480019)"
+  },
+  "vesselImo": {
+    "value": "9480019",
+    "evidence": "Vessel           MV Aegean Pioneer (IMO 9480019)"
+  },
+  "embarkPort": {
+    "value": "Fujairah",
+    "evidence": "Team boards at   Fujairah, UAE"
+  },
+  "disembarkPort": {
+    "value": "Djibouti",
+    "evidence": "Disembarkation   Djibouti"
+  },
+  "teamSize": {
+    "value": 6,
+    "unit": "PCASP",
+    "asWritten": "6 PCASP",
+    "evidence": "6 PCASP     USD 1,225 daily   7 days    USD 3,250 lump sum"
+  },
+  "dayRate": {
+    "value": 1225,
+    "currency": "USD",
+    "perUnit": "daily",
+    "asWritten": "USD 1,225 daily",
+    "evidence": "6 PCASP     USD 1,225 daily   7 days    USD 3,250 lump sum"
+  },
+  "fixedFees": {
+    "value": 3250,
+    "currency": "USD",
+    "perUnit": "lump sum",
+    "asWritten": "USD 3,250 lump sum",
+    "evidence": "6 PCASP     USD 1,225 daily   7 days    USD 3,250 lump sum"
+  },
+  "minDays": {
+    "value": 7,
+    "unit": "days",
+    "asWritten": "7 days",
+    "evidence": "6 PCASP     USD 1,225 daily   7 days    USD 3,250 lump sum"
+  },
+  "validUntil": {
+    "asWritten": "16.11.26 17:00 LT",
+    "evidence": "Validity: 16.11.26 17:00 LT"
+  },
+  "notes": null
+}

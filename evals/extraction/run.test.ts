@@ -61,7 +61,9 @@ const HELDOUT_HARD = (
       ),
     ),
   )
-).filter((t) => t.tags[0] === "hard").length;
+).filter((t) => t.tags[0] === "hard" || t.tags[0] === "security-hard").length;
+/** The Track 3 security cases of the held-out split (30, of which 6 hard). */
+const HELDOUT_SECURITY = HELDOUT.filter((id) => id.startsWith("security-"));
 /** A passes file in a temp directory, with these rows already in it (or none: no file yet). */
 const tempPasses = async (ids: string[] = []) => {
   const path = join(await mkdtemp(join(tmpdir(), "eval-extraction-passes-")), "passes.jsonl");
@@ -466,7 +468,7 @@ describe("runExtractionEval refusals (before any database, network or spend)", (
 
   it("the dev variance pass: the largest --repeat-hard under the cap fits one pass, one more is refused", async () => {
     const all = { ids: undefined, apiKey: undefined, ledgerPath: await tempLedger(0) };
-    const hard = STRATA.get("hard")?.length ?? 0;
+    const hard = (STRATA.get("hard")?.length ?? 0) + (STRATA.get("security-hard")?.length ?? 0);
     const runs = (r: number) => SPLIT.dev.length + hard * (r - 1);
     let fits = 1;
     while (runs(fits + 1) * ESTIMATE_PER_CASE_RUN_USD <= RUN_CAP_USD) fits++;
@@ -486,8 +488,11 @@ describe("runExtractionEval refusals (before any database, network or spend)", (
     expect(assertPassEstimate(250)).toBeCloseTo(0.25, 12);
     expect(() => assertPassEstimate(251)).toThrow(BudgetError);
     expect(() => assertPassEstimate(251)).toThrow(/\$0\.251 \(251 case runs .*per-pass cap/);
-    // The held-out pass as planned: every case once, each hard case 3 times (--repeat-hard 3).
-    expect(HELDOUT.length + 2 * HELDOUT_HARD).toBe(184);
+    // The Phase 7 fuel held-out pass as planned (and run): 156 cases, each of the 14 hard ones 3
+    // times, 184 runs. Track 3 adds 30 security cases, 6 of them hard: 42 runs at --repeat-hard 3.
+    expect(HELDOUT_SECURITY).toHaveLength(30);
+    expect(HELDOUT.length - 30 + 2 * (HELDOUT_HARD - 6)).toBe(184);
+    expect(HELDOUT.length + 2 * HELDOUT_HARD).toBe(184 + 42);
     const heldout = {
       split: "heldout" as const,
       final: true,
@@ -495,7 +500,7 @@ describe("runExtractionEval refusals (before any database, network or spend)", (
       apiKey: undefined,
       ledgerPath: await tempLedger(0),
     };
-    // 184 runs fit, so it reaches the key check; --repeat-hard 8 is over the cap, refused first.
+    // 226 runs fit, so it reaches the key check; --repeat-hard 8 is over the cap, refused first.
     await expect(runEval(await base({ ...heldout, repeatHard: 3 }))).rejects.toThrow(
       /ANTHROPIC_API_KEY/,
     );
@@ -652,9 +657,23 @@ describe.skipIf(!sql)("extraction runner (database)", () => {
     expect(card.errors).toEqual([]);
     expect(card.critical.rate).toBe(1);
     expect(card.critical.n).toBe(criticalInstances(TEN_DEV));
-    expect(card.unsafeAutoAccepts).toMatchObject({ k: 0, n: 10 });
+    // The fuel headline counts the fuel and not-a-quote cases; the security ones are scored apart.
+    const fuel = TEN_DEV.filter((id) => !id.startsWith("security-"));
+    const security = TEN_DEV.filter((id) => id.startsWith("security-"));
+    expect(security.length).toBeGreaterThan(0);
+    expect(card.unsafeAutoAccepts).toMatchObject({ k: 0, n: fuel.length });
     expect(card.falseReview.k).toBe(0);
-    const reviews = reviewCount(TEN_DEV);
+    expect(card.security).toMatchObject({
+      graded: security.length,
+      critical: { rate: 1 },
+      unsafeAutoAccepts: { k: 0, n: security.length },
+      recall: { rate: 1 },
+      precision: { rate: 1 },
+      falseReview: { k: 0 },
+    });
+    for (const f of Object.values(card.security?.fields ?? {})) expect(f.rate).toBe(1);
+    expect(r.meta.runnerErrors).toEqual([]);
+    const reviews = reviewCount(fuel);
     expect(reviews).toBeGreaterThan(0);
     expect(card.needsReviewRecall).toMatchObject({ k: reviews, n: reviews });
     expect(card.reviewCheckMatched).toMatchObject({ k: reviews, n: reviews });
@@ -700,7 +719,14 @@ describe.skipIf(!sql)("extraction runner (database)", () => {
     const r = await dry({ extractor: "empty", label: "empty" });
     expect(r.scorecard.critical.rate).toBeLessThanOrEqual(0.02);
     expect(r.scorecard.unsafeAutoAccepts.k).toBe(0);
-    expect(r.scorecard.reviewQueue).toMatchObject({ k: 10, n: 10 });
+    const security = TEN_DEV.filter((id) => id.startsWith("security-")).length;
+    expect(r.scorecard.reviewQueue).toMatchObject({ k: 10 - security, n: 10 - security });
+    // An all-null security quote stores nothing: 0 % security critical fields, nothing accepted.
+    expect(r.scorecard.security).toMatchObject({
+      critical: { k: 0 },
+      unsafeAutoAccepts: { k: 0, n: security },
+      reviewQueue: { k: security, n: security },
+    });
   }, 120_000);
 
   it("replay misses are listed as errors and excluded from accuracy", async () => {

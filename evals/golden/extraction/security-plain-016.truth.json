@@ -1,0 +1,30 @@
+{
+  "id": "security-plain-016",
+  "tags": [
+    "security-plain",
+    "layout:labels",
+    "vessel:name",
+    "team:guards",
+    "fees:lump",
+    "route:AEFJR-ZADUR"
+  ],
+  "source": "generated",
+  "expected": {
+    "kind": "security_quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": null,
+    "security": {
+      "provider": "Tridentis Marine Protection",
+      "vesselImo": "9481025",
+      "embarkUnlocode": "AEFJR",
+      "disembarkUnlocode": "ZADUR",
+      "teamSize": 3,
+      "dayRate": 1300,
+      "currency": "USD",
+      "fixedFees": 5250,
+      "minDays": 5,
+      "validUntil": "2026-11-18"
+    }
+  }
+}

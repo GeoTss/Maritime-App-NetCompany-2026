@@ -1,0 +1,54 @@
+{
+  "kind": "security_quote",
+  "providerName": {
+    "value": "Harbourline Security Services",
+    "evidence": "For and on behalf of Harbourline Security Services"
+  },
+  "vesselName": {
+    "value": "MV Aegean Pioneer",
+    "evidence": "We can provide a team of 3 armed guards for MV Aegean Pioneer, embarking at Djibouti anchorage and disembarking at Suez anchorage."
+  },
+  "vesselImo": {
+    "value": null,
+    "evidence": null
+  },
+  "embarkPort": {
+    "value": "Djibouti",
+    "evidence": "We can provide a team of 3 armed guards for MV Aegean Pioneer, embarking at Djibouti anchorage and disembarking at Suez anchorage."
+  },
+  "disembarkPort": {
+    "value": "Suez",
+    "evidence": "We can provide a team of 3 armed guards for MV Aegean Pioneer, embarking at Djibouti anchorage and disembarking at Suez anchorage."
+  },
+  "teamSize": {
+    "value": 3,
+    "unit": "armed guards",
+    "asWritten": "3 armed guards",
+    "evidence": "We can provide a team of 3 armed guards for MV Aegean Pioneer, embarking at Djibouti anchorage and disembarking at Suez anchorage."
+  },
+  "dayRate": {
+    "value": 1175,
+    "currency": "$",
+    "perUnit": "per day",
+    "asWritten": "$1,175.00 per day",
+    "evidence": "The day rate is $1,175.00 per day, with a minimum of 3 days."
+  },
+  "fixedFees": {
+    "value": 3250,
+    "currency": "USD",
+    "perUnit": null,
+    "asWritten": "USD 3,250",
+    "evidence": "Fixed fees for embarkation, disembarkation and arms storage: USD 3,250."
+  },
+  "minDays": {
+    "value": 3,
+    "unit": "days",
+    "asWritten": "3 days",
+    "evidence": "The day rate is $1,175.00 per day, with a minimum of 3 days."
+  },
+  "validUntil": {
+    "asWritten": "19 Nov 18:00 UTC",
+    "evidence": "This offer is valid until 19 Nov 18:00 UTC."
+  },
+  "notes": null
+}
