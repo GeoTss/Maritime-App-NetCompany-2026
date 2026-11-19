@@ -249,3 +249,58 @@ export const HAZARD_EDGE_PENALTY = 1000;
 
 /** Highest significant wave height (m) at which a barge can bunker alongside (planning limit). */
 export const BUNKERING_MAX_WAVE_M = 2.0;
+
+/**
+ * Heavy weather: a route option or stop plan that meets a significant wave height above this (m)
+ * at the time the ship is there is infeasible (`heavy_weather`). Illustrative planning limit.
+ */
+export const HEAVY_WEATHER_MAX_WAVE_M = 6.0;
+
+/** Storm cells: grid points over the limit within ± this many hours of the baseline's pass time. */
+export const STORM_WINDOW_HOURS = 6;
+
+/**
+ * Keep-out radius (nm) of a storm cell. At least the half-diagonal of a 2° grid cell anywhere in the
+ * 30–56°N grid, so outside the circle the cell is never the nearest sample (`sampleWeather` takes
+ * the nearest grid point).
+ */
+export const STORM_CELL_RADIUS_NM = 80;
+
+/** Provisions: the reserve (days) the company keeps at the end of a voyage. Illustrative. */
+export const PROVISIONS_RESERVE_DAYS = 7;
+
+/** Provisions: the days of stores a resupply tops up to. Illustrative. */
+export const PROVISIONS_TARGET_DAYS = 60;
+
+/**
+ * Purifier sludge (m³) per tonne of fuel burned, by grade (MARPOL Annex I sludge tank; residual
+ * fuels leave far more than distillates). Illustrative planning rates.
+ */
+export const SLUDGE_M3_PER_MT: Record<"HSFO" | "VLSFO" | "LSMGO", number> = {
+  HSFO: 0.015,
+  VLSFO: 0.01,
+  LSMGO: 0.003,
+};
+
+/**
+ * Sewage into the holding tank per person per day (m³), counted only in port or at anchor: at sea
+ * the treatment plant discharges (MARPOL Annex IV). Illustrative.
+ */
+export const SEWAGE_M3_PER_PERSON_DAY = 0.07;
+
+/** Waste tanks are planned to this share of capacity at most. Illustrative. */
+export const WASTE_MAX_FILL = 0.9;
+
+/**
+ * Hours before arrival each notice is due: security information under SOLAS XI-2/9; the advance
+ * waste notification under Directive (EU) 2019/883 Art. 6 (EU ports only); the agent's
+ * appointment by desk practice.
+ */
+export const NOTICE_LEAD_HOURS: Record<
+  "agent_appointment" | "security_pre_arrival" | "eu_waste_notification",
+  number
+> = {
+  agent_appointment: 24,
+  security_pre_arrival: 24,
+  eu_waste_notification: 24,
+};

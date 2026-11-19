@@ -6,7 +6,7 @@ Base for the comparison: git commit b49da3f (the Phase 5 gate), whose truth file
 
 ## What you are approving
 
-- 30 of 84 required facts moved value; 38 of 61 existing questions are unchanged.
+- 32 of 84 required facts moved value; 37 of 61 existing questions are unchanged.
 - Guard (`compareToBase`, also run by generate.test.ts): no question text, tag, kind, proposed option, fact count, unit or string fact value (best option, recommended route, rank, source) changed.
 - Best option, proposed option and recommended route: none changed (computed by the guard above).
 - Split unchanged for existing questions; new stratum `compliance`: dev 2, held-out 2. stratified by tags[0]; dev = ceil(n / 2) per stratum, lowest sha256(seed + id) first.
@@ -149,8 +149,14 @@ Base for the comparison: git commit b49da3f (the Phase 5 gate), whose truth file
 | Fact | Old | New | Change |
 | --- | --- | --- | --- |
 | MMSI 205795000: recommended route -> MMSI 215217000: recommended route | A | A | unchanged |
-| MMSI 205795000, route A: recommended speed -> MMSI 215217000, route A: recommended speed | 10 kn | 10 kn | unchanged |
-| MMSI 205795000, route A: ETA at Rotterdam (UTC) -> MMSI 215217000, route A: ETA at Rotterdam (UTC) | 2026-11-20T10:15:10.852Z | 2026-11-20T10:15:31.580Z | changed |
+| MMSI 205795000, route A: recommended speed -> MMSI 215217000, route A: recommended speed | 10 kn | 12.5 kn | 25% |
+| MMSI 205795000, route A: ETA at Rotterdam (UTC) -> MMSI 215217000, route A: ETA at Rotterdam (UTC) | 2026-11-20T10:15:10.852Z | 2026-11-19T03:33:07.574Z | changed |
+
+### route-speed-08 [dev] What is the best route to Rotterdam for the ship with MMSI 999000001?
+
+| Fact | Old | New | Change |
+| --- | --- | --- | --- |
+| MMSI 999000001, route A: recommended speed | 10 kn | 12.5 kn | 25% |
 
 ### route-speed-09 [dev] Prepare the voyage instruction for Aegean Pioneer's recommended route and speed.
 
@@ -170,9 +176,9 @@ Base for the comparison: git commit b49da3f (the Phase 5 gate), whose truth file
 | --- | --- | --- | --- |
 | MV Thessaly Star: recommended route -> MV Thessaly Star: best route ignoring fuel on board | B | B | unchanged |
 
-## Unchanged (38)
+## Unchanged (37)
 
-abstain-01, abstain-02, abstain-03, abstain-04, abstain-05, abstain-06, calculate-01, calculate-02, calculate-03, calculate-04, calculate-06, comparison-01, comparison-02, comparison-05, comparison-06, comparison-07, comparison-08, congestion-02, congestion-04, injection-01, injection-02, injection-03, injection-04, lookup-02, lookup-03, lookup-04, lookup-05, lookup-06, lookup-07, lookup-08, lookup-09, no-action-01, no-action-02, no-action-03, no-action-04, route-speed-04, route-speed-05, route-speed-08
+abstain-01, abstain-02, abstain-03, abstain-04, abstain-05, abstain-06, calculate-01, calculate-02, calculate-03, calculate-04, calculate-06, comparison-01, comparison-02, comparison-05, comparison-06, comparison-07, comparison-08, congestion-02, congestion-04, injection-01, injection-02, injection-03, injection-04, lookup-02, lookup-03, lookup-04, lookup-05, lookup-06, lookup-07, lookup-08, lookup-09, no-action-01, no-action-02, no-action-03, no-action-04, route-speed-04, route-speed-05
 
 ## New questions (compliance)
 

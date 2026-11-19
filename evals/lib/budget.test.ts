@@ -120,9 +120,9 @@ describe("per-phase budget", () => {
     const cfg = tempBudget(4, 1);
     expect(() => assertBudget(0.1, tempLedger(""), 3, cfg)).toThrow(/covers Phase 4, not Phase 3/);
   });
-  it("the real budget file covers Phase 8 (the UI round), the current phase", () => {
-    expect(readBudgetConfig(DEFAULT_BUDGET_PATH).phase).toBe(8);
-    expect(currentPhase()).toBe(8);
+  it("the real budget file covers Phase 9 (port call and storms), the current phase", () => {
+    expect(readBudgetConfig(DEFAULT_BUDGET_PATH).phase).toBe(9);
+    expect(currentPhase()).toBe(9);
   });
   it("rejects a malformed budget file naming it", () => {
     const path = join(mkdtempSync(join(tmpdir(), "budget-")), "budget.json");

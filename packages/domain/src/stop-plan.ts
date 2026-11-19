@@ -15,11 +15,16 @@ import {
   type StopPlanReason,
   type StopPlanResult,
   type StopTimeline,
+  type TrackFuel,
 } from "@pharos/shared";
+import { areaPasses } from "./areas.js";
 import { stopTimeline } from "./bunker-stop.js";
+import { HEAVY_WEATHER_MAX_WAVE_M } from "./constants.js";
 import { portStayFuelMt } from "./consumption.js";
 import { co2Tonnes, etsCost } from "./emissions.js";
 import { fuelEuCost } from "./fueleu.js";
+import { polylineNm } from "./geo.js";
+import { outdatedItems, portCallPlan } from "./port-call.js";
 import { hazardIdsOfSteps, subSteps } from "./track.js";
 import { projectFuelAlongTrack } from "./track-fuel.js";
 
@@ -51,6 +56,8 @@ function noSeaRoute(input: RouteSpeedInput, stop: StopCandidate, speedKn: number
     totalCostUsd: 0,
     qtyMt: stop.qtyMt,
     hazardIds: [],
+    maxWaveHeightM: 0,
+    portCall: null,
     feasible: false,
     reasons: ["no_sea_route"],
   };
@@ -69,42 +76,113 @@ export function evaluateStopPlan(
 ): StopPlanResult {
   if (stop.routeError !== null) return noSeaRoute(input, stop, speedKn);
   const onBoard = input.fuel;
-  let timeline: StopTimeline | null = null;
-  const fuel = projectFuelAlongTrack(
-    {
-      startAt: input.startAt,
-      points: stop.points,
-      speedKn,
-      stepNm: input.stepNm,
-      curve: input.curve,
-      weather: input.weather,
-      robMt: onBoard?.robMt ?? zero(),
-      safetyMarginDays: onBoard?.safetyMarginDays ?? 0,
-      stop: {
-        pointIndex: stop.stopPointIndex,
-        position: stop.position,
-        waitingHours: stop.waitingHours,
-        bunkeringHours: stop.bunkeringHours,
-        stayGrade: stop.stayGrade,
-        grade: stop.grade,
-        qtyMt: stop.qtyMt,
-      },
-      probesNm: [],
-    },
-    (arriveAt) => {
-      const t = stopTimeline({
-        arriveAt,
-        position: stop.position,
-        waitingHours: stop.waitingHours,
-        bunkeringHours: stop.bunkeringHours,
+  const clearanceHours = stop.terms && input.stores ? stop.terms.clearanceHours : 0;
+  const passes =
+    stop.terms && input.stores
+      ? areaPasses(
+          stop.points,
+          input.stepNm,
+          (input.nautical ?? []).map((i) => ({ id: i.itemId, boxes: i.coverage })),
+        )
+      : [];
+  const walk = (serviceHours: number): { fuel: TrackFuel; timeline: StopTimeline | null } => {
+    let timeline: StopTimeline | null = null;
+    const fuel = projectFuelAlongTrack(
+      {
+        startAt: input.startAt,
+        points: stop.points,
+        speedKn,
+        stepNm: input.stepNm,
+        curve: input.curve,
         weather: input.weather,
-      });
-      timeline = t;
-      return (Date.parse(t.departAt) - arriveAt.getTime()) / HOUR_MS;
-    },
-  );
+        robMt: onBoard?.robMt ?? zero(),
+        safetyMarginDays: onBoard?.safetyMarginDays ?? 0,
+        stop: {
+          pointIndex: stop.stopPointIndex,
+          position: stop.position,
+          waitingHours: stop.waitingHours,
+          bunkeringHours: stop.bunkeringHours,
+          stayGrade: stop.stayGrade,
+          grade: stop.grade,
+          qtyMt: stop.qtyMt,
+        },
+        probesNm: passes.map((p) => p.enterNm),
+      },
+      (arriveAt) => {
+        const t = stopTimeline({
+          arriveAt,
+          position: stop.position,
+          waitingHours: stop.waitingHours,
+          bunkeringHours: stop.bunkeringHours,
+          clearanceHours,
+          serviceHours,
+          weather: input.weather,
+        });
+        timeline = t;
+        return (Date.parse(t.departAt) - arriveAt.getTime()) / HOUR_MS;
+      },
+    );
+    return { fuel, timeline };
+  };
+
+  // Pass 1 decides what the call must do; pass 2 times the call with those jobs.
+  let { fuel, timeline } = walk(stop.bunkeringHours);
+  let call: ReturnType<typeof portCallPlan> | null = null;
+  if (stop.terms && input.stores) {
+    const startMsCall = Date.parse(input.startAt);
+    const t1 = timeline as StopTimeline | null;
+    const arrival1 = fuel.breakpoints.find((b) => b.kind === "stop_arrival");
+    const end1 = fuel.breakpoints[fuel.breakpoints.length - 1];
+    const fuelToStopMt = zero();
+    for (const g of FUEL_GRADES) {
+      fuelToStopMt[g] = Math.max(0, (onBoard?.robMt[g] ?? 0) - (arrival1?.robMt[g] ?? 0));
+      if (!onBoard) fuelToStopMt[g] = 0;
+    }
+    const fuelTotalMt = zero();
+    for (const g of FUEL_GRADES) fuelTotalMt[g] = fuel.grades[g].neededMt;
+    const stopNm = polylineNm(stop.points.slice(0, stop.stopPointIndex + 1));
+    const timeAt = (probes: TrackFuel["probes"]) => (nm: number) =>
+      probes.find((p) => p.nm === nm)?.at ?? input.startAt;
+    const outdated = outdatedItems(
+      input.stores.onBoard,
+      input.nautical ?? [],
+      passes,
+      { nm: stopNm, position: stop.position },
+      timeAt(fuel.probes),
+    );
+    const arriveMs = t1 ? Date.parse(t1.arriveAt) : startMsCall;
+    call = portCallPlan({
+      stores: input.stores,
+      terms: stop.terms,
+      portIsEu: stop.portIsEu,
+      now: new Date(startMsCall),
+      arriveAt: new Date(arriveMs),
+      hoursToStop: (arriveMs - startMsCall) / HOUR_MS,
+      hoursToEta: ((end1 ? Date.parse(end1.at) : startMsCall) - startMsCall) / HOUR_MS,
+      stayHours: t1
+        ? t1.waitingHours + t1.clearanceHours + t1.weatherDelayHours + t1.serviceHours
+        : 0,
+      fuelToStopMt,
+      fuelTotalMt,
+      outdated,
+      bunkeringHours: stop.bunkeringHours,
+    });
+    ({ fuel, timeline } = walk(call.serviceHours));
+    call = {
+      ...call,
+      outdated: outdatedItems(
+        input.stores.onBoard,
+        input.nautical ?? [],
+        passes,
+        { nm: stopNm, position: stop.position },
+        timeAt(fuel.probes),
+      ),
+    };
+  }
   const t = timeline as StopTimeline | null;
-  const stayHours = t ? t.waitingHours + t.weatherDelayHours + t.bunkeringHours : 0;
+  const stayHours = t
+    ? t.waitingHours + t.clearanceHours + t.weatherDelayHours + t.serviceHours
+    : 0;
   const startMs = Date.parse(input.startAt);
   const end = fuel.breakpoints[fuel.breakpoints.length - 1];
   const etaMs = end ? Date.parse(end.at) : startMs;
@@ -159,6 +237,8 @@ export function evaluateStopPlan(
     reasons.push("exceeds_tank_capacity");
   }
   if (stop.offeredQtyMt < stop.qtyMt) reasons.push("insufficient_quantity");
+  if (call) for (const r of call.reasons) if (!reasons.includes(r)) reasons.push(r);
+  if (fuel.maxWaveHeightM > HEAVY_WEATHER_MAX_WAVE_M) reasons.push("heavy_weather");
   if (
     (stop.deliveryFrom !== null && arrivalMs < Date.parse(stop.deliveryFrom)) ||
     (stop.deliveryTo !== null && arrivalMs > Date.parse(stop.deliveryTo))
@@ -187,9 +267,22 @@ export function evaluateStopPlan(
     voyageCostUsd,
     bunkerFuelCostUsd,
     bargeFeeUsd,
-    totalCostUsd: voyageCostUsd + bunkerFuelCostUsd + bargeFeeUsd,
+    totalCostUsd: voyageCostUsd + bunkerFuelCostUsd + bargeFeeUsd + (call?.extraCostUsd ?? 0),
     qtyMt: stop.qtyMt,
     hazardIds,
+    maxWaveHeightM: fuel.maxWaveHeightM,
+    portCall: call
+      ? {
+          jobs: call.jobs,
+          costLines: call.costLines,
+          extraCostUsd: call.extraCostUsd,
+          notices: call.notices,
+          outdated: call.outdated,
+          provisionsDaysAtEta: call.provisionsDaysAtEta,
+          sludgeM3AtEta: call.sludgeM3AtEta,
+          sewageM3AtEta: call.sewageM3AtEta,
+        }
+      : null,
     feasible: reasons.length === 0,
     reasons,
   };
@@ -269,7 +362,8 @@ export function recommendPlan(
     kind: "stop",
     optionId: top.optionId,
     addedHours: top.hours - best.hours,
-    addedUsd: top.voyageCostUsd + top.bargeFeeUsd - best.totalCostUsd,
+    addedUsd:
+      top.voyageCostUsd + top.bargeFeeUsd + (top.portCall?.extraCostUsd ?? 0) - best.totalCostUsd,
     next: next
       ? {
           optionId: next.optionId,

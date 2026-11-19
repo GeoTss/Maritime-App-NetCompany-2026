@@ -3,8 +3,10 @@
  * Drizzle instance and drizzle.config use `casing: "snake_case"`). Checked by `schema.test.ts`.
  */
 import type {
+  Box,
   CheckResult,
   ConsumptionCurve,
+  DraftedMessage,
   EtsCoverageFactor,
   FactId,
   FuelGrade,
@@ -13,7 +15,9 @@ import type {
   Id,
   LatLon,
   NavHazardKind,
+  PortCallTerms,
   RecommendationStatus,
+  VesselStores,
 } from "@pharos/shared";
 import {
   type AnyPgColumn,
@@ -41,6 +45,8 @@ export const ports = pgTable(
     isEu: boolean().notNull(),
     inEca: boolean().notNull(),
     approachNm: doublePrecision().notNull(),
+    /** What the port offers and charges a calling vessel (synthetic); null = unknown. */
+    callTerms: jsonb().$type<PortCallTerms>(),
   },
   (t) => [uniqueIndex("ports_unlocode_uq").on(t.unlocode)],
 );
@@ -82,6 +88,8 @@ export const vessels = pgTable(
     tankCapacityMt: jsonb().$type<GradeAmounts>().notNull(),
     consumptionCurve: jsonb().$type<ConsumptionCurve>().notNull(),
     dailyCostUsd: doublePrecision().notNull(),
+    /** Crew, provisions, waste and charts on board (synthetic); null = unknown. */
+    stores: jsonb().$type<VesselStores>(),
   },
   (t) => [uniqueIndex("vessels_imo_uq").on(t.imo)],
 );
@@ -354,7 +362,7 @@ export const draftedMessages = pgTable(
     recommendationId: integer()
       .notNull()
       .references(() => recommendations.id, { onDelete: "restrict" }),
-    kind: text().$type<"supplier_confirmation" | "master_instruction">().notNull(),
+    kind: text().$type<DraftedMessage["kind"]>().notNull(),
     // `to` is a reserved word in SQL, so the column is named explicitly.
     to: text("to_address").notNull(),
     subject: text().notNull(),
@@ -436,6 +444,18 @@ export const auditEvents = pgTable("audit_events", {
   actor: text().notNull(),
   detail: jsonb().$type<unknown>(),
   at: ts().notNull(),
+});
+
+/** Charts and publications at their current editions (seeded from the supplier checklist). */
+export const nauticalItems = pgTable("nautical_items", {
+  itemId: text().primaryKey(),
+  kind: text().$type<"chart" | "publication">().notNull(),
+  title: text().notNull(),
+  edition: text().notNull(),
+  editionDate: text().notNull(),
+  priceUsd: doublePrecision().notNull(),
+  coverage: jsonb().$type<Box[]>().notNull(),
+  source: text().notNull(),
 });
 
 export const referenceRates = pgTable("reference_rates", {

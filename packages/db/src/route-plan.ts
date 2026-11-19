@@ -16,6 +16,9 @@ import {
   routeHazardIds,
   SHIP_EU_COVERAGE,
   sailedNmAt,
+  stormCells,
+  subSteps,
+  walkSteps,
   withLoad,
 } from "@pharos/domain";
 import {
@@ -31,6 +34,7 @@ import {
   type RouteSpeedInput,
   type ShipType,
   type StopCandidate,
+  type StormCell,
   type WeatherGrid,
 } from "@pharos/shared";
 import { type CongestionMode, waitingHoursAt } from "./current-plan.js";
@@ -48,6 +52,8 @@ export type RoutePlan = {
   profile: "own" | ShipType;
   /** Ids of the hazard zones the unconstrained shortest sea route passes through, sorted: those the plan goes round. */
   avoidedHazardIds: string[];
+  /** Forecast cells over the heavy-weather limit around the time the baseline passes them. */
+  stormCells: StormCell[];
   /**
    * For an AIS ship, the load read from its reported draught ("assumed_laden" when none is
    * reported); null for a fleet vessel, whose load comes from the voyage's cargo and ballast.
@@ -58,6 +64,50 @@ export type RoutePlan = {
 /** Speed grid step (kn) and the longest sub-step (nm) the optimiser walks. */
 const SPEED_STEP_KN = 0.5;
 const STEP_NM = 20;
+
+/**
+ * The storm cells the baseline meets (walked at its speed from `startAt`), and, when there are
+ * any, one more candidate "S" ("Around the storm") routed round them and the hazards, unless the
+ * graph can't or it repeats a candidate already there.
+ */
+export function withStormDetour(
+  graph: RouteGraph,
+  start: LatLon,
+  end: LatLon,
+  input: Pick<RouteSpeedInput, "candidates" | "baseline" | "startAt" | "weather" | "hazards">,
+): { candidates: RouteCandidate[]; stormCells: StormCell[] } {
+  const base = input.candidates.find((c) => c.id === input.baseline.candidateId);
+  if (!base || !input.weather) return { candidates: input.candidates, stormCells: [] };
+  const walked = walkSteps(
+    subSteps(base.points, STEP_NM).steps,
+    new Date(input.startAt),
+    input.baseline.speedKn,
+    input.weather,
+  );
+  const cells = stormCells(input.weather, walked);
+  if (cells.length === 0) return { candidates: input.candidates, stormCells: [] };
+  const avoid: HazardZone[] = [
+    ...input.hazards,
+    ...cells.map((c) => ({ id: c.id, center: c.center, radiusNm: c.radiusNm })),
+  ];
+  let detour: RouteCandidate | undefined;
+  try {
+    [detour] = candidateRoutes(graph, start, end, { max: 1, avoid });
+  } catch (e) {
+    if (!(e instanceof RouteError)) throw e;
+  }
+  const key = (c: RouteCandidate): string => JSON.stringify(c.points);
+  if (!detour || input.candidates.some((c) => key(c) === key(detour as RouteCandidate))) {
+    return { candidates: input.candidates, stormCells: cells };
+  }
+  return {
+    candidates: [
+      ...input.candidates,
+      { id: "S", label: "Around the storm", points: detour.points },
+    ],
+    stormCells: cells,
+  };
+}
 
 /** Zones the shortest sea route, searched without `avoid`, passes through; [] when there is none. */
 function avoidedBy(graph: RouteGraph, start: LatLon, end: LatLon, hazards: HazardZone[]): string[] {
@@ -184,6 +234,7 @@ function stopCandidates(
       deliveryTo: quote?.deliveryTo?.toISOString() ?? null,
       orderRecommendationId: opts.fixedOrder?.recommendationId ?? null,
       routeError: via.routeError,
+      terms: port.callTerms ?? null,
     });
   }
   return out;
@@ -230,7 +281,7 @@ export function fleetRoutePlan(
   const discharge = world.portCalls.find(
     (c) => c.voyageId === voyage.id && c.purpose === "discharge",
   );
-  return {
+  const out: RoutePlan = {
     input: {
       startAt: report.ts.toISOString(),
       candidates,
@@ -255,12 +306,21 @@ export function fleetRoutePlan(
         tankCapacityMt: vessel.tankCapacityMt,
       },
       stops: stopCandidates(world, voyage.id, graph, position, latLon(destination), hazards, opts),
+      stores: vessel.stores ?? null,
+      nautical: world.nauticalItems,
     },
     subject: vessel.name,
     destination,
     profile: "own",
     avoidedHazardIds: avoidedBy(graph, position, latLon(destination), hazards),
+    stormCells: [],
     loadCondition: null,
+  };
+  const storm = withStormDetour(graph, position, latLon(destination), out.input);
+  return {
+    ...out,
+    input: { ...out.input, candidates: storm.candidates },
+    stormCells: storm.stormCells,
   };
 }
 
@@ -289,7 +349,7 @@ export function shipRoutePlan(
     sog === null || sog < curve.minSpeedKn
       ? curve.refSpeedKn
       : clampSpeed(curve, sog, SPEED_STEP_KN);
-  return {
+  const out: RoutePlan = {
     input: {
       startAt: ship.updatedAt.toISOString(),
       candidates,
@@ -312,6 +372,13 @@ export function shipRoutePlan(
     destination,
     profile,
     avoidedHazardIds: avoidedBy(graph, latLon(ship), latLon(destination), hazards),
+    stormCells: [],
     loadCondition: condition,
+  };
+  const storm = withStormDetour(graph, latLon(ship), latLon(destination), out.input);
+  return {
+    ...out,
+    input: { ...out.input, candidates: storm.candidates },
+    stormCells: storm.stormCells,
   };
 }

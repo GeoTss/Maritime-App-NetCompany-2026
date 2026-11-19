@@ -65,15 +65,17 @@ A proposal appears: "Proposal N waiting for your decision" (N is the proposal's 
 Ask question 2. Click the button "Aegean Pioneer, has an alert" (the vessel's marker on the map), then "Plan route". The tray shows two answers.
 The best route ignoring fuel on board avoids the labelled synthetic hazard, but runs short of LSMGO before Rotterdam: the tray says where.
 The recommended plan calls at Marsaxlokk for Kestrel's 300 t: the stop's arrival, waiting, weather and bunkering times, what it adds in hours and dollars, and how it compares with the next quote (Algeciras). The fuel curve shows LSMGO jumping at the stop and staying above the margin; the map marks the stop.
-Say: the route and the bunker quote are planned together, so the ETA includes the port stop. Point at the load factor and the FuelEU column; each number has a fact chip.
+Under the stop card, "Port call, alongside the bunkering" shows everything the call does: provisions (the crew would end the voyage under its 7-day reserve), the out-of-date charts and publications the route needs (the new editions of chart 142 Strait of Gibraltar and 773 from the supplier checklist of 16 Nov, each with when it is first needed), the sludge delivered ashore (the tank would pass 90 % before Rotterdam), the port dues and the EU waste fee, and the notices due 24 h before arrival. Clearance and the time alongside are in the stop card, so the ETA includes them.
+Say: the route and the bunker quote are planned together, so the ETA includes the port stop, and the cheapest fuel is not the cheapest call: the whole call is costed. Point at the load factor and the FuelEU column; each number has a fact chip.
 Then open the command palette (Ctrl+K or Cmd+K), pick a public ship (in recorded mode FRANKA DEYMANN: type 211121690), choose Rotterdam as destination and plan its route: the same question works for any ship on the map.
+Storm: pick FAUN (type 314886000, a cargo ship off Gibraltar at 9.1 kn) and plan its route to Rotterdam. At its own speed it would cross the Bay of Biscay as the recorded storm peaks (waves over 6 m, 17 to 19 Nov): route A at 9 kn is blocked by heavy weather, the map draws the storm cells, and a route "Around the storm" is added. The recommended plan sails route A at 12.5 kn and passes before the storm. Say: heavy weather is a limit, not just a cost, and the plan checks it at the time the ship is there.
 Ask question 3 to draft the voyage instruction: it sails the recommended plan, stop included.
 
 ### 5. Approvals
 
 Go to Approvals. Select the voyage instruction first: it waits for the purchase order for Kestrel at Marsaxlokk, and Approve is disabled until that order is approved.
 Select the purchase order, approve and confirm: it returns a PO number from the ERP simulator. Open "Facts, drafted messages and audit trail":
-the drafts read "draft, not sent" and the audit trail lists every step. Select the voyage instruction again, approve and confirm: "Instruction recorded". The master's draft names the bunker stop.
+the drafts read "draft, not sent" and the audit trail lists every step. Select the voyage instruction again, approve and confirm: "Instruction recorded". The master's draft names the bunker stop; beside it, the port agent's request (provisions, the charts by number and edition, the sludge to deliver) and the pre-arrival notices with their due times, all drafts.
 Say: the model only proposes; a person approves; nothing leaves the building.
 
 ### 6. Evaluation

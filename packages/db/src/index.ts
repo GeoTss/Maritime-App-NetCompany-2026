@@ -14,6 +14,7 @@ export {
   fleetRoutePlan,
   type RoutePlan,
   shipRoutePlan,
+  withStormDetour,
 } from "./route-plan.js";
 export * as schema from "./schema.js";
 export {

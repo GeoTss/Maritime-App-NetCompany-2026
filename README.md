@@ -65,7 +65,10 @@ The demo story has six steps. The full script, with what to click and what to sa
 3. **Ask where to bunker.** The answer ranks the quotes by total delivered cost, not headline price,
    and proposes a purchase order.
 4. **Route and speed.** "Plan route" compares routes with the forecast and plans the bunker stop
-   with the route, so the ETA includes the port call.
+   with the route, so the ETA includes the port call. The stop is a whole port call: provisions,
+   out-of-date charts and publications, sludge delivery, port dues and pre-arrival notices, costed
+   and timed. Heavy weather is a limit: a ship that would meet waves over 6 m changes speed or
+   route, and the map draws the storm cells.
 5. **Approvals.** Approve the purchase order (the ERP simulator returns a PO number), then the
    voyage instruction, which waits for that order.
 6. **Evaluation.** Measured accuracy as k of N with 95 % intervals, held-out split beside dev.

@@ -334,6 +334,44 @@ export function VesselPanel({
         )}
       </Section>
 
+      {facts?.needs ? (
+        <Section title="Stores and waste for the next call">
+          <dl className="flex flex-col gap-1" data-testid="vessel-needs">
+            <Field label="Crew">
+              <FactCell fact={facts.needs.crew} />
+            </Field>
+            <Field label="Provisions">
+              <FactCell fact={facts.needs.provisionsPersonDays} />
+              <span className="text-text-2"> person-days</span>
+            </Field>
+            <Field label="Sludge">
+              <FactCell fact={facts.needs.sludgeM3} />
+              <span className="text-text-2"> of </span>
+              <FactCell fact={facts.needs.sludgeCapacityM3} />
+            </Field>
+            <Field label="Sewage holding">
+              <FactCell fact={facts.needs.sewageM3} />
+              <span className="text-text-2"> of </span>
+              <FactCell fact={facts.needs.sewageCapacityM3} />
+            </Field>
+          </dl>
+          {facts.needs.outdated.length > 0 ? (
+            <ul className="mt-2 flex flex-col gap-0.5 text-text-1" data-testid="vessel-outdated">
+              {facts.needs.outdated.map((o) => (
+                <li key={o.current.id}>
+                  <span className="text-text-2">
+                    {o.current.label.replace(/ current edition$/, "")}:{" "}
+                  </span>
+                  {o.onBoard ? <FactCell fact={o.onBoard} /> : "missing"}
+                  <span className="text-text-2"> on board, current </span>
+                  <FactCell fact={o.current} />
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </Section>
+      ) : null}
+
       <Section title="Fuel on board along the current plan">
         {detail.isPending ? (
           <Skeleton className="h-32 w-full" />

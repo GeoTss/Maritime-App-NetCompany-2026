@@ -371,6 +371,11 @@ test("demo story: six steps", async ({ page }) => {
     await expect(summary.getByTestId("plan-title")).toContainText("Marsaxlokk");
     await expect(summary.getByTestId("plan-title")).toContainText("Kestrel Marine Fuels");
     await expect(summary.getByTestId("stop-card")).toBeVisible();
+    // The whole port call: provisions, the out-of-date Gibraltar charts and the sludge delivery.
+    const call = summary.getByTestId("port-call");
+    await expect(call).toContainText("Provisions");
+    await expect(call).toContainText("Sludge delivered ashore");
+    await expect(call).toContainText("Strait of Gibraltar");
     await expect(summary.getByTestId("plan-adds")).toBeVisible();
     await expect(page.getByTestId("fuel-blind-best-summary")).toContainText("Runs short of LSMGO");
     await expect(page.getByTestId("fuel-curve")).toBeVisible();
@@ -456,6 +461,8 @@ test("demo story: six steps", async ({ page }) => {
       .click();
     const waits = detail.getByTestId("dependency-line");
     await expect(waits).toHaveAttribute("data-satisfied", "false");
+    // The instruction's facts carry the port call it sets up.
+    await expect(detail).toContainText("port call cost (dues, stores, charts and waste)");
     await expect(waits).toContainText("Kestrel Marine Fuels at Marsaxlokk");
     await expect(
       detail.getByRole("button", { name: /^Approve voyage instruction/ }),

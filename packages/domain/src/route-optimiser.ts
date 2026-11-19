@@ -13,6 +13,7 @@ import {
   RouteSpeedInput,
   type RouteSpeedResult,
 } from "@pharos/shared";
+import { HEAVY_WEATHER_MAX_WAVE_M } from "./constants.js";
 import { dailyConsumptionMt } from "./consumption.js";
 import { co2Tonnes, etsCost } from "./emissions.js";
 import { fuelEuCost } from "./fueleu.js";
@@ -86,6 +87,7 @@ function evaluateSteps(
   const reasons: RouteOptionResult["reasons"] = [];
   if (!meetsArriveBy) reasons.push("misses_arrive_by");
   if (hazardIds.length > 0) reasons.push("crosses_hazard");
+  if (maxWaveHeightM > HEAVY_WEATHER_MAX_WAVE_M) reasons.push("heavy_weather");
   const feasible = reasons.length === 0;
 
   return {
@@ -154,7 +156,7 @@ interface Ranked {
  * Feasible before infeasible, then cost, fuel, earlier candidate, lower speed. When none is
  * feasible, the earliest ETA first, then the same order. `passes` says what counts as feasible:
  * across candidates the real verdict; across one candidate's speeds only the speed-dependent
- * reasons, since `crosses_hazard` is the same at every speed (so the speed is chosen as if the
+ * reasons (the berth window and heavy weather), since `crosses_hazard` is the same at every speed (so the speed is chosen as if the
  * hazard were absent, and the option is still reported infeasible).
  */
 function pickBest(list: Ranked[], passes: (o: RouteOptionResult) => boolean): Ranked {
@@ -207,7 +209,10 @@ export function optimiseRouteSpeed(rawInput: RouteSpeedInput): RouteSpeedResult 
       if (i === baseIndex && s === input.baseline.speedKn) baseline = option;
       return { option, candidate: i };
     });
-    return pickBest(ranked, (o) => !o.reasons.includes("misses_arrive_by"));
+    return pickBest(
+      ranked,
+      (o) => !o.reasons.includes("misses_arrive_by") && !o.reasons.includes("heavy_weather"),
+    );
   });
   // The fuel-blind choice: berth window and hazards only (fuel is checked below, not ranked on).
   const best = pickBest(options, (o) => o.feasible).option;

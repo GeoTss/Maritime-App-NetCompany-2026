@@ -18,6 +18,7 @@ import { StateFlag } from "@/components/primitives/state-flag";
 import { possessive } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { FactCell } from "./fact-cell";
+import { PortCallBlock } from "./port-call-block";
 import { ProposeFromPlan } from "./propose-from-plan";
 import {
   ARRIVE_BY_FIELD,
@@ -73,8 +74,10 @@ function CardRow({ term, children }: { term: string; children: ReactNode }) {
 const STOP_ROWS: { field: StopField; term: string; kind?: "time" }[] = [
   { field: "arriveAt", term: "Arrives", kind: "time" },
   { field: "waitingHours", term: "Waiting at anchor" },
+  { field: "clearanceHours", term: "Clearance" },
   { field: "weatherDelayHours", term: "Waiting for workable weather" },
   { field: "bunkeringHours", term: "Bunkering" },
+  { field: "serviceHours", term: "Alongside (bunkers, stores, waste)" },
   { field: "departAt", term: "Departs", kind: "time" },
 ];
 
@@ -302,6 +305,9 @@ export function PlanSummary({ plan, names }: { plan: RoutePlanView; names?: Stop
       <ProposeFromPlan calculationId={plan.calculationId} plan={result.plan} />
       <AddsAndNext plan={plan} names={names} />
       {stop ? <StopCard plan={plan} index={track.index} destination={plan.destination} /> : null}
+      {stop ? (
+        <PortCallBlock plan={plan} index={track.index} destination={plan.destination} />
+      ) : null}
     </section>
   );
 }

@@ -31,6 +31,7 @@ import {
   type FuelGrade,
   type Id,
   type LatLon,
+  type PortCallResult,
   type RecommendationStatus,
   RouteCandidate,
   RouteSpeedResult,
@@ -42,7 +43,9 @@ import { orderDependencyOf, unmetDependencyMessage } from "../approvals/dependen
 import { transition } from "../approvals/state.js";
 import {
   type DraftedMessageInput,
+  draftAgentRequest,
   draftMessages,
+  draftPreArrivalNotices,
   draftVoyageInstruction,
   type VoyageInstructionDraftInput,
 } from "./drafts.js";
@@ -258,6 +261,8 @@ interface ApprovedRoute {
   points: LatLon[];
   option: Pick<StopPlanResult, "speedKn" | "eta" | "distanceNm">;
   stop: ApprovedStop | null;
+  /** The approved stop plan's port call; null for a route, or a plan made without stores data. */
+  portCall: PortCallResult | null;
 }
 
 /** The approved route of a stored route calculation, or why it cannot be executed. */
@@ -300,6 +305,7 @@ async function approvedRoute(
       label: null,
       points: stop.points,
       option: plan,
+      portCall: plan.portCall,
       stop: {
         portId: stop.portId,
         supplierId: stop.supplierId,
@@ -315,7 +321,14 @@ async function approvedRoute(
   const candidate = inputs.data.optimiser.candidates.find((c) => c.id === rec.option_id);
   if (!option || !candidate) return { ok: false, why: `the plan has no route ${rec.option_id}.` };
   if (!option.feasible) return { ok: false, why: `route ${rec.option_id} is not feasible.` };
-  return { ...base, label: candidate.label, points: candidate.points, option, stop: null };
+  return {
+    ...base,
+    label: candidate.label,
+    points: candidate.points,
+    option,
+    stop: null,
+    portCall: null,
+  };
 }
 
 /** Records the approved route option as the voyage's instruction (the voyage itself is unchanged). */
@@ -381,8 +394,23 @@ async function finishInstruction(deps: ExecutorDeps, recId: Id): Promise<void> {
         option: route.option,
         stop,
       });
+      const call =
+        stop && route.portCall
+          ? {
+              recommendation: { id: recId },
+              vessel: { name: vessel.name },
+              portName: stop.portName,
+              arriveAt: stop.arriveAt,
+              portCall: route.portCall,
+            }
+          : null;
+      const callDrafts = call
+        ? [draftAgentRequest(call), draftPreArrivalNotices(call)].filter(
+            (d): d is DraftedMessageInput => d !== null,
+          )
+        : [];
       const at = clock(deps);
-      const kinds = await insertDrafts(tx, [draft], at);
+      const kinds = await insertDrafts(tx, [draft, ...callDrafts], at);
       if (kinds.length > 0) await audit(tx, recId, "drafts.created", EXECUTOR, { kinds }, at);
       await tx`update recommendations set status = ${transition(rec.status, "succeed")} where id = ${recId}`;
       await audit(

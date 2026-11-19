@@ -118,7 +118,7 @@ describe("numericTokens", () => {
     ]);
   });
 
-  it("reads a bare lowercase m as metres, but not after a currency or in m/s, m² or m³", () => {
+  it("reads a bare lowercase m as metres, but not after a currency or in m/s or m² (m³ is volume)", () => {
     expect(
       numericTokens("draught 9.5 m, 12 metres, EUR 5 m, $1.2m, 10 m/s, 300 m³, 20 m²").map((t) => [
         t.text,
@@ -131,7 +131,7 @@ describe("numericTokens", () => {
       ["5 m", 5e6, null],
       ["1.2m", 1_200_000, null],
       ["10", 10, null],
-      ["300", 300, null],
+      ["300", 300, "m3"],
       ["20", 20, null],
     ]);
   });
@@ -1161,5 +1161,24 @@ describe("statesFact: the text shows a fact's value as the gate reads it", () =>
     expect(statesFact("It holds 300 mt.", labelled("f_q", 300, "mt"))).toBe(true);
     expect(statesFact("That is 70%.", labelled("f_r", 0.7, null))).toBe(true);
     expect(statesFact("That is 70%.", labelled("f_r", 0.7, "USD"))).toBe(false);
+  });
+});
+
+describe("m3 unit", () => {
+  const sludge = calc("f_s", 11.8, "m3");
+  it("passes a cited volume written m3 or m³, without reading the 3 as a number", () => {
+    for (const answer of [
+      "Sludge on board at Rotterdam: 11.8 m3 [f_s].",
+      "Sludge on board at Rotterdam: 11.8 m³ [f_s].",
+    ]) {
+      const r = checkNumbers(answer, [sludge]);
+      expect(r.passed, answer).toBe(true);
+      expect(r.ungroundedNumbers).toEqual([]);
+    }
+  });
+  it("fails a volume no fact holds", () => {
+    const r = checkNumbers("Sludge on board at Rotterdam: 11.8 m3.", []);
+    expect(r.passed).toBe(false);
+    expect(r.ungroundedNumbers).toEqual(["11.8"]);
   });
 });

@@ -20,7 +20,19 @@ export type Currency = "USD" | "EUR";
  * The units the gate reads. "/mt" is a price per tonne: "USD 738 per mt", "$712/mt". "kg" and "g"
  * are read so that they never pass for tonnes: no fact unit means either.
  */
-export type Unit = "/mt" | "mt" | "%" | "kn" | "nm" | "h" | "days" | "t CO₂" | "kg" | "g" | "m";
+export type Unit =
+  | "/mt"
+  | "mt"
+  | "%"
+  | "kn"
+  | "nm"
+  | "h"
+  | "days"
+  | "t CO₂"
+  | "kg"
+  | "g"
+  | "m"
+  | "m3";
 
 /** How each currency is written right before a number ("USD 738", "$738") or right after it. */
 const CURRENCIES: { code: Currency; before: string[]; after: string[] }[] = [
@@ -48,6 +60,8 @@ const UNITS: Record<Unit, string[]> = {
   // Metres (a draught). A lowercase "m" after a currency is million (`scaleOf`) and is read
   // before units; "m/s", "m²" and "m³" are not metres (see `scan`).
   m: ["m", "metre", "metres", "meter", "meters"],
+  // A volume (sludge, sewage). Matched before "m" (longest form first).
+  m3: ["m³", "m3", "cbm", "cubic metre", "cubic metres", "cubic meter", "cubic meters"],
 };
 
 interface Dimension {
@@ -72,6 +86,7 @@ const FACT_UNITS = new Map<string, Dimension>([
   ["h", { currency: null, unit: "h" }],
   ["days", { currency: null, unit: "days" }],
   ["m", { currency: null, unit: "m" }],
+  ["m3", { currency: null, unit: "m3" }],
   ["t CO₂", { currency: null, unit: "t CO₂" }],
   ["t CO2", { currency: null, unit: "t CO₂" }],
 ]);
@@ -89,6 +104,11 @@ const NOT_CLAIMS: {
   {
     what: "a chemical or regulation name",
     pattern: /CO2(?!\d)|IMO 2020(?!\d)|ISO 8217(?::\d{4})?(?!\d)|MARPOL Annex VI/gi,
+    exempt: () => true,
+  },
+  {
+    what: "the 3 of a volume unit written m3 right after a number",
+    pattern: /(?<=\d[ \t]?)m3(?![A-Za-z0-9])/g,
     exempt: () => true,
   },
   {
@@ -354,7 +374,8 @@ function scan(text: string, facts: Fact[]): Scanned[] {
       end += after[0].length;
     }
     let unitMatch = UNIT_AFTER.exec(source.slice(end));
-    // "10 m/s", "300 m³": a compound of metres is not a length, so no unit is read.
+    // "10 m/s", "20 m²": a compound of metres is not a length, so no unit is read ("m³" is read
+    // as the volume unit m3 before this, longest form first).
     if (unitMatch && /^[/²³^]/u.test(source.slice(end + unitMatch[0].length))) {
       if (UNIT_FORMS.get(formKey(unitMatch[1] ?? "")) === "m") unitMatch = null;
     }

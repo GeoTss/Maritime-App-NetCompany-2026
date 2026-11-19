@@ -338,3 +338,21 @@ describe("PlanSummary: proposing from the plan", () => {
     await waitFor(() => expect((orderButton() as HTMLButtonElement).disabled).toBe(false));
   });
 });
+
+describe("PlanSummary: the port call", () => {
+  it("shows the jobs the stop does beside the bunkering, as fact chips", () => {
+    renderSummary(makeFuelPlan({ portCall: true }));
+    const call = screen.getByTestId("port-call");
+    expect(within(call).getByTestId("port-call-provisions").textContent).toBe(
+      "1,115.75 person-days, USD 13,389.00",
+    );
+    expect(within(call).getByTestId("cell-port-call-total").textContent).toBe("USD 17,929.00");
+    expect(call.textContent).toContain("142 Strait of Gibraltar");
+    expect(chipIds(call).length).toBeGreaterThan(2);
+  });
+
+  it("shows nothing for a plan made without stores data", () => {
+    renderSummary();
+    expect(screen.queryByTestId("port-call")).toBeNull();
+  });
+});

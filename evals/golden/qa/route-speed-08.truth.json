@@ -13,9 +13,9 @@
       },
       {
         "label": "MMSI 999000001, route A: recommended speed",
-        "value": 10,
+        "value": 12.5,
         "unit": "kn",
-        "tolerance": 0
+        "tolerance": 0.06
       }
     ],
     "proposedOptionId": null,

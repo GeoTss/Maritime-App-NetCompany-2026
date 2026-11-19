@@ -29,6 +29,7 @@ import type {
   VesselPosition,
   Voyage,
 } from "@pharos/shared";
+import { NAUTICAL_ITEMS, portCallTermsFor, vesselStoresFor } from "./nautical.js";
 import { createPrng } from "./prng.js";
 import routesJson from "./routes.generated.json" with { type: "json" };
 import { PORTS, SEED_VERSION, VESSELS } from "./scenario.js";
@@ -52,7 +53,13 @@ function buildPorts(): Port[] {
   return PORTS.map((p, i) => {
     const c = ROUTES.ports[p.unlocode];
     if (!c) throw new Error(`routes.generated.json has no coordinates for ${p.unlocode}`);
-    return { id: i + 1, ...p, lat: c.lat, lon: c.lon };
+    return {
+      id: i + 1,
+      ...p,
+      lat: c.lat,
+      lon: c.lon,
+      callTerms: portCallTermsFor(p.unlocode, p.isEu),
+    };
   });
 }
 
@@ -115,6 +122,7 @@ function buildFleet(anchor: Date, ports: Port[], legs: RouteLeg[]): Fleet {
       tankCapacityMt: { ...s.tankCapacityMt },
       consumptionCurve: { ...s.consumptionCurve },
       dailyCostUsd: s.dailyCostUsd,
+      stores: vesselStoresFor(s.name),
     };
     out.vessels.push(vessel);
 
@@ -253,5 +261,9 @@ export function generateWorld(opts: { seed: number; anchor: Date }): World {
     purchaseOrders: commercial.purchaseOrders,
     orderLines: commercial.orderLines,
     referenceRates: commercial.referenceRates,
+    // Sorted by item id, the order the loader reads them back in.
+    nauticalItems: [...NAUTICAL_ITEMS]
+      .sort((a, b) => (a.itemId < b.itemId ? -1 : a.itemId > b.itemId ? 1 : 0))
+      .map((i) => ({ ...i, coverage: i.coverage.map((b) => ({ ...b })) })),
   };
 }

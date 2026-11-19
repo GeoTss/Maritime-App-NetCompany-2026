@@ -19,6 +19,7 @@ import {
 import { NormalisedView } from "./evals/extraction-truth.js";
 import { ExtractionOutput } from "./extraction/index.js";
 import { Fact, FactId } from "./facts.js";
+import { StormCell } from "./port-call.js";
 import {
   Currency,
   EtsCoverageFactor,
@@ -58,12 +59,29 @@ export type VesselSummary = z.infer<typeof VesselSummary>;
  * The facts behind a vessel's panel readouts, the same facts `get_vessel_status` cites (same ids,
  * labels and values). Null entries: the vessel has no current voyage, or no later port call.
  */
+/** What a vessel carries for its next call (raw stores, waste and out-of-date items). */
+export const VesselNeedsFacts = z
+  .object({
+    crew: Fact,
+    provisionsPersonDays: Fact,
+    sludgeM3: Fact,
+    sludgeCapacityM3: Fact,
+    sewageM3: Fact,
+    sewageCapacityM3: Fact,
+    /** Each chart or publication missing or older than its current edition. */
+    outdated: z.array(z.object({ onBoard: Fact.nullable(), current: Fact }).strict()),
+  })
+  .strict();
+export type VesselNeedsFacts = z.infer<typeof VesselNeedsFacts>;
+
 export const VesselFacts = z
   .object({
     robMt: z.object({ LSMGO: Fact, VLSFO: Fact, HSFO: Fact }).strict().nullable(),
     voyageNo: Fact.nullable(),
     nextPort: Fact.nullable(),
     nextPortEta: Fact.nullable(),
+    /** Null for a vessel without stores data; absent in old payloads. */
+    needs: VesselNeedsFacts.nullable().optional(),
   })
   .strict();
 export type VesselFacts = z.infer<typeof VesselFacts>;
@@ -547,6 +565,8 @@ export const RoutePlanResponse = z
     result: RouteSpeedResult,
     /** The plan's citable facts, the ones `plan_route_speed` returns: every number the map shows. */
     facts: z.array(Fact),
+    /** Forecast cells over the heavy-weather limit the baseline meets (for the map); absent in old plans. */
+    stormCells: z.array(StormCell).optional(),
     /** Milliseconds to plan: resolving the subject, building the route graph and candidates, optimising. */
     computeMs: z.number().nonnegative(),
   })

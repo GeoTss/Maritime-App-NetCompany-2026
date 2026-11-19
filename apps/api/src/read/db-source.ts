@@ -36,6 +36,7 @@ import {
   RouteSpeedResult,
   ShipType,
   StopCandidate,
+  StormCell,
   type TrackFuel,
   type VoyageInstructionView,
 } from "@pharos/shared";
@@ -214,6 +215,7 @@ const RouteCalculationInputs = z.object({
   destination: z.string().min(1),
   profile: z.union([z.literal("own"), ShipType]),
   avoidedHazardIds: z.array(z.string()),
+  stormCells: z.array(StormCell).default([]),
   optimiser: z.object({
     candidates: z.array(RouteCandidate),
     arriveBy: IsoDateTime.nullable(),
@@ -244,7 +246,8 @@ function storedRoutePlan(row: { inputs: unknown; outputs: unknown }): StoredRout
   const stored = RouteCalculationInputs.safeParse(row.inputs);
   const result = RouteSpeedResult.safeParse(row.outputs);
   if (!stored.success || !result.success) return null;
-  const { subject, mmsi, destination, profile, avoidedHazardIds, optimiser } = stored.data;
+  const { subject, mmsi, destination, profile, avoidedHazardIds, stormCells, optimiser } =
+    stored.data;
   return {
     plan: {
       subject,
@@ -252,6 +255,7 @@ function storedRoutePlan(row: { inputs: unknown; outputs: unknown }): StoredRout
       destination: { name: destination },
       input: optimiser,
       avoidedHazardIds,
+      stormCells,
     },
     result: result.data,
     stops: optimiser.stops,
@@ -398,6 +402,7 @@ async function routePlan(sql: Sql, id: Id): Promise<RoutePlanView | null> {
     destination: plan.destination.name,
     candidates: viewCandidates(plan.input.candidates, stored.stops),
     result,
+    stormCells: plan.stormCells ?? [],
     facts: routePlanFacts({
       response: { calculationId: row.id, result },
       plan,

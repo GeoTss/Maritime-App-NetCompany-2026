@@ -129,6 +129,7 @@ export const VESSEL_DETAIL: VesselDetail = {
       },
     },
     keepsMargins: false,
+    maxWaveHeightM: 0,
     probes: [],
   },
 };
@@ -515,6 +516,7 @@ const shortFuel = (endNm: number): TrackFuel => ({
     HSFO: noCheck,
   },
   keepsMargins: false,
+  maxWaveHeightM: 0,
   probes: [],
 });
 
@@ -533,6 +535,7 @@ const stopFuel = (stopNm: number, endNm: number): TrackFuel => ({
     HSFO: noCheck,
   },
   keepsMargins: true,
+  maxWaveHeightM: 0,
   probes: [],
 });
 
@@ -556,6 +559,8 @@ const stopPlan = (
     waitingHours: 4,
     weatherDelayHours: 2.5,
     bunkeringHours: 6,
+    clearanceHours: 0,
+    serviceHours: 6,
     departAt: "2026-11-18T08:30:00.000Z",
     beyondForecast: false,
   },
@@ -572,10 +577,80 @@ const stopPlan = (
   totalCostUsd: 645800,
   qtyMt: 300,
   hazardIds: [],
+  maxWaveHeightM: 0,
+  portCall: null,
   feasible: true,
   reasons: [],
   ...over,
 });
+
+/** Kestrel's port call: provisions and four out-of-date items done at Marsaxlokk, an EU port. */
+const KESTREL_CALL: NonNullable<StopPlanResult["portCall"]> = {
+  jobs: [
+    {
+      kind: "provisions",
+      needed: true,
+      done: true,
+      qty: 1115.75,
+      unit: "person-days",
+      costUsd: 13389,
+      hours: 4,
+    },
+    { kind: "charts", needed: true, done: true, qty: 4, unit: "items", costUsd: 390, hours: 4 },
+    { kind: "sludge", needed: false, done: false, qty: 0, unit: "m3", costUsd: 0, hours: 0 },
+    { kind: "sewage", needed: false, done: false, qty: 0, unit: "m3", costUsd: 0, hours: 0 },
+  ],
+  costLines: [
+    { kind: "port_dues", usd: 3200 },
+    { kind: "provisions", usd: 13389 },
+    { kind: "charts", usd: 390 },
+    { kind: "eu_waste_fee", usd: 950 },
+  ],
+  extraCostUsd: 17929,
+  notices: [{ kind: "security_pre_arrival", dueAt: "2026-11-16T20:00:00.000Z", overdue: false }],
+  outdated: [
+    {
+      itemId: "142",
+      kind: "chart",
+      title: "Strait of Gibraltar",
+      onBoardEdition: "2023",
+      currentEdition: "2026",
+      priceUsd: 45,
+      neededAt: "2026-11-21T06:00:00.000Z",
+      inTime: true,
+    },
+  ],
+  provisionsDaysAtEta: 51.6,
+  sludgeM3AtEta: 12.4,
+  sewageM3AtEta: 6.4,
+};
+
+const kestrelCallFacts = (): Fact[] => {
+  const c = "stopPlans[0].portCall";
+  return [
+    routeCalcFact(`${c}.jobs[0].qty`, "MTMLA-kestrel: provisions quantity", 1115.75, null),
+    routeCalcFact(`${c}.jobs[0].costUsd`, "MTMLA-kestrel: provisions cost", 13389, "USD"),
+    routeCalcFact(`${c}.jobs[1].qty`, "MTMLA-kestrel: charts quantity", 4, null),
+    routeCalcFact(`${c}.jobs[1].costUsd`, "MTMLA-kestrel: charts cost", 390, "USD"),
+    routeCalcFact(`${c}.costLines[0].usd`, "MTMLA-kestrel: port dues", 3200, "USD"),
+    routeCalcFact(`${c}.costLines[3].usd`, "MTMLA-kestrel: EU waste fee", 950, "USD"),
+    routeCalcFact(`${c}.extraCostUsd`, "MTMLA-kestrel: port call cost", 17929, "USD"),
+    routeCalcFact(`${c}.provisionsDaysAtEta`, "MTMLA-kestrel: provisions left", 51.6, "days"),
+    routeCalcFact(`${c}.sludgeM3AtEta`, "MTMLA-kestrel: sludge at Rotterdam", 12.4, "m3"),
+    routeCalcFact(
+      `${c}.notices[0].dueAt`,
+      "MTMLA-kestrel: security due",
+      "2026-11-16T20:00:00.000Z",
+      null,
+    ),
+    routeCalcFact(
+      `${c}.outdated[0].neededAt`,
+      "MTMLA-kestrel: chart 142 needed by",
+      "2026-11-21T06:00:00.000Z",
+      null,
+    ),
+  ];
+};
 
 /** Quote ids of the stop plans, for `GET /api/quotes` names. */
 export const STOP_NAMES = new Map([
@@ -590,7 +665,13 @@ export const STOP_NAMES = new Map([
  * feasible quote. `infeasible`: every quote's stop plan fails, so there is no recommended plan.
  */
 export function makeFuelPlan(
-  opts: { infeasible?: boolean; beyondForecast?: boolean; omitFact?: (fact: Fact) => boolean } = {},
+  opts: {
+    infeasible?: boolean;
+    beyondForecast?: boolean;
+    omitFact?: (fact: Fact) => boolean;
+    /** Give Kestrel's stop a port call (provisions and charts done), with its facts. */
+    portCall?: boolean;
+  } = {},
 ): RoutePlanView {
   const base = makePlan();
   const [a, b, c] = base.result.options as [
@@ -610,9 +691,12 @@ export function makeFuelPlan(
       waitingHours: 4,
       weatherDelayHours: 2.5,
       bunkeringHours: 6,
+      clearanceHours: 0,
+      serviceHours: 6,
       departAt: "2026-11-18T08:30:00.000Z",
       beyondForecast: opts.beyondForecast ?? false,
     },
+    portCall: opts.portCall ? KESTREL_CALL : null,
   });
   const nordwind = stopPlan("ESALG-nordwind", 12, "ESALG", {
     distanceNm: 3260,
@@ -658,6 +742,7 @@ export function makeFuelPlan(
       ),
     );
   }
+  if (opts.portCall) facts.push(...kestrelCallFacts());
   stopPlans.forEach((s, i) => {
     const P = `${s.optionId}`;
     const p = (field: string) => `stopPlans[${i}].${field}`;

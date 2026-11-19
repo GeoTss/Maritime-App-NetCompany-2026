@@ -249,3 +249,63 @@ describe("optimiseRouteSpeed with fuel on board", () => {
     expect(s?.speedKn).toBe(curve.maxSpeedKn);
   });
 });
+
+describe("the stop plan does the whole port call", () => {
+  const HOUR = 3_600_000;
+  const stores = {
+    crew: 22,
+    provisionsPersonDays: 264,
+    sludgeM3: 11,
+    sludgeCapacityM3: 14,
+    sewageM3: 6,
+    sewageCapacityM3: 15,
+    onBoard: [],
+  };
+  const terms = {
+    portDuesUsd: 3200,
+    clearanceHours: 2,
+    stores: true,
+    provisionsUsdPerPersonDay: 12,
+    storesHours: 8,
+    wasteReception: true,
+    sludgeUsdPerM3: 180,
+    sewageUsdPerM3: 60,
+    wasteHours: 3,
+    euWasteFeeUsd: 950,
+  };
+
+  it("no stores, no port call: today's plan", () => {
+    const p = evaluateStopPlan(input(), stop(), 12);
+    expect(p.portCall).toBeNull();
+    expect(p.stop?.clearanceHours).toBe(0);
+    expect(p.stop?.serviceHours).toBe(6);
+  });
+
+  it("call adds clearance and cost", () => {
+    const base = evaluateStopPlan(input(), stop(), 12);
+    const p = evaluateStopPlan(input({ stores, nautical: [] }), stop({ terms }), 12);
+    expect(p.portCall?.extraCostUsd).toBe(3200 + 950);
+    expect(Date.parse(p.eta) - Date.parse(base.eta)).toBe(2 * HOUR);
+    expect(p.totalCostUsd - base.totalCostUsd).toBeGreaterThan(4150);
+  });
+
+  it("storing longer than bunkering moves the ETA by the difference too", () => {
+    const short = { ...stores, provisionsPersonDays: 22 * 3 };
+    const base = evaluateStopPlan(input(), stop(), 12);
+    const p = evaluateStopPlan(input({ stores: short, nautical: [] }), stop({ terms }), 12);
+    expect(p.portCall?.jobs.find((j) => j.kind === "provisions")?.done).toBe(true);
+    expect(p.stop?.serviceHours).toBe(8);
+    expect(Date.parse(p.eta) - Date.parse(base.eta)).toBe(4 * HOUR);
+  });
+
+  it("no stores at port: provisions needed make the plan infeasible", () => {
+    const short = { ...stores, provisionsPersonDays: 22 * 3 };
+    const p = evaluateStopPlan(
+      input({ stores: short, nautical: [] }),
+      stop({ terms: { ...terms, stores: false } }),
+      12,
+    );
+    expect(p.reasons).toContain("provisions_unavailable");
+    expect(p.feasible).toBe(false);
+  });
+});
