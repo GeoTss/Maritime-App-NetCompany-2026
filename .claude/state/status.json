@@ -5,14 +5,14 @@
     "phase": 9,
     "result": "PASS",
     "at": "2026-11-19",
-    "note": "Port call (provisions, charts and publications from the 16 Nov supplier checklist, sludge/sewage, dues, EU waste fee, clearance, pre-arrival notices) in every stop plan; heavy-weather limit (>6 m at pass time) with storm cells and an \"Around the storm\" candidate; agent request and pre-arrival drafts on instruction approval. Demo recommendation unchanged (Kestrel at Marsaxlokk, port call $20,085.93). Storm subject FAUN (MMSI 314886000) to Rotterdam: best A at 12.5 kn. Dev key route-speed-08 10 -> 12.5 kn (user-approved), held-out byte-identical. Story and dev Q&A re-recorded ($0.0746 of $0.50); dev record = replay scorecard: grounded 33/33, answers 23/25, abstention 3/4, injection 3/3, no-action 2/2, unauthorised 0/33 (record pass, not a measurement; published dev figures stay those of 16 Nov). Story replay PASS twice (20.7 s, 20.4 s, 0 replay misses). verify green (172 files / 3359 tests, purity OK). Cut: stores-only calls. Track 3 (Suez or the Cape) not started.",
+    "note": "Port call (provisions, charts and publications from the 16 Nov supplier checklist, sludge/sewage, dues, EU waste fee, clearance, pre-arrival notices) in every stop plan; heavy-weather limit (>6 m at pass time) with storm cells and an \"Around the storm\" candidate; agent request and pre-arrival drafts on instruction approval. Demo recommendation unchanged (Kestrel at Marsaxlokk, port call $20,085.93). Storm subject FAUN (MMSI 314886000) to Rotterdam: best A at 12.5 kn. Dev key route-speed-08 10 -> 12.5 kn (user-approved), held-out byte-identical. Story and dev Q&A re-recorded ($0.0746 of $0.50); dev record = replay scorecard: grounded 33/33, answers 23/25, abstention 3/4, injection 3/3, no-action 2/2, unauthorised 0/33 (record pass, not a measurement; published dev figures stay those of 16 Nov). Story replay PASS twice (20.7 s, 20.4 s, 0 replay misses). verify green (172 files / 3359 tests, purity OK). Cut: stores-only calls. Track 3 (Suez or the Cape) not started. Follow-up (2026-11-19, user: \"Yes, add it\"): heavy weather drawn as one purple area (grid squares, one outline); labelled synthetic demo storm west of Crete (DEMO_STORM=on in the demo stack, off in the eval world: answer keys unchanged, dev Q&A replay identical); fleet sea routes and bunker-stop routes steer round storm cells; Kestrel still recommended, Nordwind next. Story re-recorded ($0.0144), replay PASS twice (18.8 s, 17.8 s, 0 misses); verify green (174 files / 3366 tests).",
     "evidence": {
       "plan": "docs/superpowers/plans/2026-11-19-port-call-and-storms.md",
       "spec": "docs/superpowers/specs/2026-11-19-port-call-and-storms-design.md",
       "qaRecord": "evals/reports/20261119T000503Z-qa-dev-record",
       "qaReplay": "evals/reports/20261119T000813Z-qa-dev-replay",
       "spendUsd": {
-        "phase9Total": 0.0746,
+        "phase9Total": 0.089,
         "cap": 0.5
       }
     }
