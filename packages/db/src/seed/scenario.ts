@@ -88,6 +88,8 @@ export interface ScenarioVessel {
     /** Cargo and ballast water on board for the passage, mt (synthetic; cargo + ballast ≤ dwt). */
     cargoMt: number;
     ballastMt: number;
+    /** The discharge berth window around the planned ETA (hours before, after); default 6 and 48. */
+    dischargeWindowHours?: { before: number; after: number };
   };
   /** Current (k = 0 noon report) remaining on board. */
   currentRobMt: GradeAmounts;
@@ -235,8 +237,11 @@ export const VESSELS: readonly ScenarioVessel[] = [
       departedHoursAgo: null,
       cargoMt: 100_000,
       ballastMt: 0,
+      // The charterer accepts arrival up to 16 days late: room for the Cape (10–16 days longer).
+      dischargeWindowHours: { before: 6, after: 16 * 24 },
     },
-    currentRobMt: { LSMGO: 380, VLSFO: 1_400, HSFO: 500 },
+    // Bunkered at Fujairah for the long way if it comes to that (within the tanks).
+    currentRobMt: { LSMGO: 600, VLSFO: 2_450, HSFO: 500 },
   },
   {
     name: "MV Coral Horizon",

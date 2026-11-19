@@ -160,6 +160,7 @@ function buildFleet(anchor: Date, ports: Port[], legs: RouteLeg[]): Fleet {
     }
 
     // Port calls: origin (load), intermediate (passage), destination (discharge, berth window).
+    const window = s.voyage.dischargeWindowHours ?? { before: 6, after: 48 };
     const sailedNow = sailedNmAt(path, anchor);
     const cum = cumulativeNm(path);
     route.forEach((portId, seq) => {
@@ -178,8 +179,8 @@ function buildFleet(anchor: Date, ports: Port[], legs: RouteLeg[]): Fleet {
         sequence: seq,
         purpose: seq === 0 ? "load" : last ? "discharge" : "passage",
         eta,
-        berthWindowStart: last ? atOffset(eta, -6 * HOUR_MS) : null,
-        berthWindowEnd: last ? atOffset(eta, 48 * HOUR_MS) : null,
+        berthWindowStart: last ? atOffset(eta, -window.before * HOUR_MS) : null,
+        berthWindowEnd: last ? atOffset(eta, window.after * HOUR_MS) : null,
       });
     });
 

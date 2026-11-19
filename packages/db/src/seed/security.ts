@@ -35,7 +35,8 @@ export const SECURITY_AREAS: readonly SecurityArea[] = [
     name: "Gulf of Aden",
     level: "SUBSTANTIAL",
     policy: "guards",
-    boxes: [box(10.8, 15.0, 43.3, 51.5)],
+    // East of the Bab-el-Mandeb strait (about 43.4°E) to the Arabian Sea.
+    boxes: [box(10.8, 15.0, 43.6, 51.5)],
     asOf: "2026-11-09",
     source: PALAEMON,
     note: "Houthi campaign against Saudi-linked shipping since 20 Jul 2026, and the Somali piracy route.",
@@ -55,7 +56,8 @@ export const SECURITY_AREAS: readonly SecurityArea[] = [
     name: "Arabian Sea and Somali Basin",
     level: "MODERATE",
     policy: "guards",
-    boxes: [box(-6.75, 16.0, 41.5, 65.0)],
+    // The Somali Basin south of the Gulf of Aden, and the Arabian Sea east of it, to 65°E.
+    boxes: [box(-6.75, 11.0, 41.5, 65.0), box(11.0, 16.0, 51.5, 65.0)],
     asOf: "2026-11-16",
     source:
       "Maritime piracy incidents remain at historic lows despite Somali piracy concerns, ICC, 15 Oct 2026, https://iccwbo.org/news-publications/news/maritime-piracy-incidents-remain-at-historic-lows-despite-somali-piracy-concerns/; Armed Skiff Approaches Tanker Far Out in Arabian Sea, gCaptain, 16 Nov 2026",
