@@ -8,7 +8,8 @@ import { createRequire } from "node:module";
 import { feature } from "topojson-client";
 import type { GeometryCollection, Topology } from "topojson-specification";
 
-const BBOX = { minLon: -20, maxLon: 45, minLat: 25, maxLat: 66 } as const;
+// Europe and the Mediterranean, the Red Sea and Arabian Sea, and Africa down to the Cape (Track 3).
+const BBOX = { minLon: -30, maxLon: 75, minLat: -40, maxLat: 66 } as const;
 const OUT = new URL("../apps/web/public/basemap.generated.geojson", import.meta.url);
 
 const require = createRequire(import.meta.url);
