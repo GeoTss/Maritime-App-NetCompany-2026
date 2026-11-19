@@ -29,3 +29,4 @@
 {"phase":8,"at":"2026-11-17T18:15:11.956Z","run":"record-demo-ask","label":"ask-recording","costUsd":0.00123944}
 {"phase":9,"at":"2026-11-19T00:04:56.898Z","run":"demo-story-record","label":"phase9-story","costUsd":0.013383}
 {"phase":9,"at":"2026-11-19T00:07:57.710Z","run":"eval-qa","label":"record","costUsd":0.061236189999999996}
+{"phase":9,"at":"2026-11-19T00:45:59.203Z","run":"demo-story-record","label":"phase9-storm-story","costUsd":0.014361}
