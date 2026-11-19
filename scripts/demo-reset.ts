@@ -26,6 +26,7 @@ export function composeEnv(base: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
     AIS_MODE: "replay",
     WEATHER_MODE: "recorded",
     DEMO_HAZARDS: "on",
+    DEMO_STORM: "on",
   };
 }
 

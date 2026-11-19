@@ -617,7 +617,9 @@ export function routeSpeedFactRows(
   }
   rows.push(...planRows(result, S, D));
   (plan.stormCells ?? []).forEach((cell, k) => {
-    const at = `${S}: storm cell at ${cell.center.lat}°, ${cell.center.lon}°`;
+    // A synthetic demo cell says so in its label, as the synthetic hazard does.
+    const kind = cell.synthetic ? "synthetic demo storm cell" : "storm cell";
+    const at = `${S}: ${kind} at ${cell.center.lat}°, ${cell.center.lon}°`;
     rows.push(
       {
         path: `inputs.stormCells.${k}.maxWaveHeightM`,

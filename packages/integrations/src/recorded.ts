@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Sql } from "@pharos/db";
@@ -30,6 +30,7 @@ export const RECORDED_DIR = fileURLToPath(new URL("../../../fixtures/recorded", 
 const CAPTURE_FILE = "ais-capture.jsonl";
 const SNAPSHOT_FILE = "weather-snapshot.json";
 const SYNTHETIC_FILE = "synthetic-hazards.json";
+const STORM_FILE = "synthetic-storm.json";
 
 const SyntheticHazards = z.array(
   z
@@ -88,15 +89,57 @@ export function syntheticHazards(dir: string, anchor: Date): NavHazard[] {
   }));
 }
 
-function recordedWeather(dir: string, anchor: Date): WeatherGrid {
+const SyntheticStorm = z
+  .object({
+    label: z.string().min(1),
+    points: z.array(z.object({ lat: z.number(), lon: z.number() }).strict()).min(1),
+    waveHeightM: z.number().positive(),
+    windSpeedKn: z.number().nonnegative(),
+  })
+  .strict();
+
+/**
+ * The labelled synthetic demo storm laid over a recorded grid: its points hold the storm's wave
+ * height and wind at every step and are marked `synthetic`. A point the grid lacks is ignored.
+ * Without the fixture file the grid is returned as it is.
+ */
+export function withSyntheticStorm(grid: WeatherGrid, dir: string): WeatherGrid {
+  const path = join(dir, STORM_FILE);
+  if (!existsSync(path)) return grid;
+  const storm = SyntheticStorm.parse(JSON.parse(readFileSync(path, "utf8")) as unknown);
+  const hit = (p: { lat: number; lon: number }) =>
+    storm.points.some((s) => s.lat === p.lat && s.lon === p.lon);
+  return {
+    ...grid,
+    points: grid.points.map((p) =>
+      hit(p)
+        ? {
+            ...p,
+            waveHeightM: p.waveHeightM.map(() => storm.waveHeightM),
+            windSpeedKn: p.windSpeedKn.map(() => storm.windSpeedKn),
+            synthetic: true as const,
+          }
+        : p,
+    ),
+  };
+}
+
+function recordedWeather(dir: string, anchor: Date, syntheticStorm = false): WeatherGrid {
   const grid = WeatherGrid.parse(
     JSON.parse(readFixture(join(dir, SNAPSHOT_FILE), "record:weather")) as unknown,
   );
-  return shiftWeatherGrid(grid, floorToHour(anchor));
+  const shifted = shiftWeatherGrid(grid, floorToHour(anchor));
+  return syntheticStorm ? withSyntheticStorm(shifted, dir) : shifted;
 }
 
 /** The recorded weather and AIS traffic as they would look at `anchor`, computed without a database. */
-export function recordedLiveData(opts: { anchor: Date; ports: Port[]; dir?: string }): {
+export function recordedLiveData(opts: {
+  anchor: Date;
+  ports: Port[];
+  dir?: string;
+  /** Lay the labelled synthetic demo storm over the recorded weather (the demo stack only). */
+  syntheticStorm?: boolean;
+}): {
   weather: WeatherGrid;
   traffic: AisTraffic[];
   hazards: NavHazard[];
@@ -119,7 +162,7 @@ export function recordedLiveData(opts: { anchor: Date; ports: Port[]; dir?: stri
     (t) => t.updatedAt.getTime() >= opts.anchor.getTime() - CONGESTION_WINDOW_MS,
   );
   return {
-    weather: recordedWeather(dir, opts.anchor),
+    weather: recordedWeather(dir, opts.anchor, opts.syntheticStorm ?? false),
     traffic,
     hazards,
     congestion: congestionFor(opts.ports, recent, opts.anchor),
@@ -136,14 +179,14 @@ export interface PortCongestionRow {
 /** Write the recorded weather and AIS capture into the database as if observed at `anchor`. */
 export async function loadRecordedSources(
   sql: Sql,
-  opts: { anchor: Date; now?: Date; dir?: string },
+  opts: { anchor: Date; now?: Date; dir?: string; syntheticStorm?: boolean },
 ): Promise<{ snapshotId: Id; vessels: number; congestionRows: number }> {
   const dir = opts.dir ?? RECORDED_DIR;
   // The instant the rows are stamped with (fetch time, congestion observation, source status);
   // the capture itself is rebased to `anchor`. Defaults to `anchor`.
   const now = opts.now ?? opts.anchor;
   const items = rebasedCapture(dir, opts.anchor);
-  const grid = recordedWeather(dir, opts.anchor);
+  const grid = recordedWeather(dir, opts.anchor, opts.syntheticStorm ?? false);
 
   const snapshotId = await insertWeatherSnapshot(sql, {
     grid,
@@ -179,7 +222,7 @@ export async function loadRecordedSources(
  */
 export async function ensurePinnedSources(
   sql: Sql,
-  opts: { anchor: Date; now: Date; dir?: string },
+  opts: { anchor: Date; now: Date; dir?: string; syntheticStorm?: boolean },
 ): Promise<{ loaded: boolean }> {
   const [c] = await sql<{ weather: number; traffic: number; sources: number }[]>`
     select (select count(*)::int from weather_snapshots) as weather,

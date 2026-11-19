@@ -88,6 +88,7 @@ services:
       WEATHER_MODE: ${WEATHER_MODE:-recorded}
       # The labelled synthetic demo hazard: always loaded in replay mode; with live AIS only when on (default on).
       DEMO_HAZARDS: ${DEMO_HAZARDS:-on}
+      DEMO_STORM: ${DEMO_STORM:-on}
       # Pinned by default (recorded demo): the worker loads the recorded sources once at that instant and ignores
       # AIS_MODE / WEATHER_MODE. An explicitly empty DEMO_ANCHOR (npm run demo:live) = wall clock and the modes above.
       DEMO_ANCHOR: ${DEMO_ANCHOR-2026-11-14T08:00:00Z}

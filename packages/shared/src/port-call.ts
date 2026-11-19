@@ -162,6 +162,8 @@ export const StormCell = z
     to: IsoDateTime,
     /** The grid square the point's forecast stands for (half a grid step each way); for the map. */
     box: Box.optional(),
+    /** A labelled synthetic demo cell (the demo storm), not a real forecast. */
+    synthetic: z.literal(true).optional(),
   })
   .strict();
 export type StormCell = z.infer<typeof StormCell>;

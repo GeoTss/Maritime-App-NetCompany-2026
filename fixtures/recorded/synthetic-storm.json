@@ -1,0 +1,9 @@
+{
+  "label": "SYNTHETIC STORM (demo data): a stationary gale west of Crete",
+  "points": [
+    { "lat": 34, "lon": 20 },
+    { "lat": 34, "lon": 22 }
+  ],
+  "waveHeightM": 8.5,
+  "windSpeedKn": 50
+}

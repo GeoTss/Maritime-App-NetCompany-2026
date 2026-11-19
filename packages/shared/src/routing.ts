@@ -59,6 +59,8 @@ export const WeatherPoint = z
     windDirDeg: Series,
     currentSpeedKn: Series,
     currentDirDeg: Series,
+    /** Set on a labelled synthetic demo point (the demo storm); absent on real forecasts. */
+    synthetic: z.literal(true).optional(),
   })
   .strict();
 export type WeatherPoint = z.infer<typeof WeatherPoint>;

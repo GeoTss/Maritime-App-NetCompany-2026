@@ -153,3 +153,32 @@ describe("demo world: port call and storms (R7, R8)", () => {
     expect(again.stormCells.length).toBeGreaterThan(0);
   });
 });
+
+describe("demo world: the synthetic storm (R9)", () => {
+  // The demo stack lays a labelled synthetic gale west of Crete over the recorded weather.
+  const stormy = recordedLiveData({ anchor: ANCHOR, ports: world.ports, syntheticStorm: true });
+  const plan9 = fleetRoutePlan(world, voyage.id, graph, stormy.weather, zones, {
+    congestion: "seed",
+    offers,
+    fixedOrder: null,
+  });
+  const result9 = optimiseRouteSpeed(plan9.input);
+
+  it("R9 the plan steers round it: Kestrel stays recommended, its route and B and C avoid the cells", () => {
+    expect(plan9.stormCells.map((c) => [c.id, c.synthetic])).toEqual([
+      ["storm:34,20", true],
+      ["storm:34,22", true],
+    ]);
+    expect(result9.plan?.optionId).toBe("MTMLA-kestrel");
+    const kestrel = result9.stopPlans.find((s) => s.optionId === "MTMLA-kestrel");
+    expect(kestrel?.feasible).toBe(true);
+    expect(kestrel?.maxWaveHeightM).toBeLessThanOrEqual(6);
+    const ids = plan9.input.candidates.map((c) => c.id);
+    expect(ids).toEqual(["A", "B", "C"]);
+    for (const id of ["B", "C"]) {
+      const o = result9.options.find((x) => x.candidateId === id);
+      expect(o?.reasons, id).not.toContain("heavy_weather");
+    }
+    expect(result9.plan?.next?.optionId).toBe("ESALG-nordwind");
+  });
+});

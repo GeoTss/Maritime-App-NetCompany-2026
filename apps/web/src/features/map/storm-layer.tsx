@@ -10,6 +10,7 @@
 import type { Box, RoutePlanView } from "@pharos/shared";
 import { useMemo } from "react";
 import { Layer, Marker, Source } from "react-map-gl/maplibre";
+import { DataTag } from "@/components/source-badge";
 import type { MapColors } from "./basemap-style";
 import { FactCell } from "./fact-cell";
 import { LABEL_PRIORITY, useFlipLabel } from "./map-labels";
@@ -66,10 +67,13 @@ function StormCallout({
   plan,
   index,
   at,
+  synthetic,
 }: {
   plan: RoutePlanView;
   index: number;
   at: { lat: number; lon: number };
+  /** The labelled synthetic demo storm, tagged as the demo hazard is. */
+  synthetic: boolean;
 }) {
   const { ref, flip, below } = useFlipLabel<HTMLDivElement>(at.lon, at.lat);
   // Stored inputs of the calculation are cited as its row's fields (`inputs.stormCells.k.*`).
@@ -85,8 +89,11 @@ function StormCallout({
           data-map-label={LABEL_PRIORITY.hazard}
           className={`absolute flex w-max max-w-60 flex-col gap-0.5 rounded-sm border border-storm/70 bg-ink-950/85 px-1.5 py-1 text-xs ${below ? "top-2" : "bottom-2"} ${flip ? "right-2" : "left-2"}`}
         >
-          <span className="text-storm">
-            Heavy weather: waves to <FactCell fact={fact("maxWaveHeightM")} metric="storm-wave" />
+          <span className="flex items-center gap-1.5 text-storm">
+            <span>
+              Heavy weather: waves to <FactCell fact={fact("maxWaveHeightM")} metric="storm-wave" />
+            </span>
+            {synthetic ? <DataTag kind="synthetic" /> : null}
           </span>
           <span className="text-text-2">
             <FactCell fact={fact("from")} kind="time" /> to{" "}
@@ -151,7 +158,14 @@ export function StormLayer({ plan, colors }: { plan: RoutePlanView | null; color
           paint={{ "line-color": colors.storm, "line-width": 1.5, "line-opacity": 0.9 }}
         />
       </Source>
-      {cells[worst] ? <StormCallout plan={plan} index={worst} at={cornerOf(cells)} /> : null}
+      {cells[worst] ? (
+        <StormCallout
+          plan={plan}
+          index={worst}
+          at={cornerOf(cells)}
+          synthetic={cells.some((c) => c.synthetic)}
+        />
+      ) : null}
     </>
   );
 }

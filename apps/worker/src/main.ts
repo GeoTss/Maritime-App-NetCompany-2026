@@ -69,10 +69,14 @@ async function supervise(
  * Pinned demo: no real-time AIS and no live fetch. The recorded sources are loaded once at the
  * anchor and again whenever a reseed has emptied them; every timestamp is the pinned clock.
  */
-async function runPinned(sql: Sql, anchor: Date, signal: AbortSignal) {
+async function runPinned(sql: Sql, anchor: Date, signal: AbortSignal, syntheticStorm: boolean) {
   log(`worker: pinned demo at ${anchor.toISOString()}; recorded sources only`);
   await every("pinned", CONGESTION_INTERVAL_MS, signal, async () => {
-    const r = await ensurePinnedSources(sql, { anchor, now: pinnedNow(anchor) });
+    const r = await ensurePinnedSources(sql, {
+      anchor,
+      now: pinnedNow(anchor),
+      syntheticStorm,
+    });
     if (r.loaded) log("worker: recorded sources loaded (pinned)");
   });
 }
@@ -85,7 +89,7 @@ async function main() {
   const { signal } = ctrl;
 
   if (cfg.demoAnchor) {
-    await runPinned(sql, cfg.demoAnchor, signal);
+    await runPinned(sql, cfg.demoAnchor, signal, cfg.loadSyntheticStorm);
     await sql.end({ timeout: 5 });
     log("worker: stopped");
     return;

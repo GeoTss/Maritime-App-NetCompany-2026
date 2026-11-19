@@ -245,7 +245,8 @@ function stopCandidates(
  * routes from the graph follow as "B" (shortest) and "C" (alternative). When the graph cannot
  * route the voyage, only "A" remains. The baseline is "A" at the planned speed; the berth window
  * of the discharge call bounds the arrival; the planned speed is rounded to 0.5 kn and clamped to
- * the curve. `hazards` are routed round in B and C (A is the planned route, kept as it is). The
+ * the curve. `hazards`, and the storm cells the planned route meets at its planned speed, are
+ * routed round in B, C and the routes through a bunker port (A is the planned route, kept as it is). The
  * fuel on board is the noon report's, and each offer becomes a stop candidate through its port.
  */
 export function fleetRoutePlan(
@@ -260,10 +261,23 @@ export function fleetRoutePlan(
   const planned = remainingRoutePoints(path, sailedNmAt(path, report.ts));
   const position = planned[0] as LatLon;
   const destination = path.destination;
+  const baselineKn = clampSpeed(path.curve, voyage.plannedSpeedKn, SPEED_STEP_KN);
+  // The storm cells the planned route meets at its planned speed: the sea routes and the routes
+  // through a bunker port steer round them as round the hazards (the planned route stays as it is).
+  const cells = weather
+    ? stormCells(
+        weather,
+        walkSteps(subSteps(planned, STEP_NM).steps, report.ts, baselineKn, weather),
+      )
+    : [];
+  const avoid: HazardZone[] = [
+    ...hazards,
+    ...cells.map((c) => ({ id: c.id, center: c.center, radiusNm: c.radiusNm })),
+  ];
 
   let sea: RouteCandidate[] = [];
   try {
-    sea = candidateRoutes(graph, position, latLon(destination), { max: 2, avoid: hazards });
+    sea = candidateRoutes(graph, position, latLon(destination), { max: 2, avoid });
   } catch (e) {
     if (!(e instanceof RouteError)) throw e;
   }
@@ -285,10 +299,7 @@ export function fleetRoutePlan(
     input: {
       startAt: report.ts.toISOString(),
       candidates,
-      baseline: {
-        candidateId: "A",
-        speedKn: clampSpeed(path.curve, voyage.plannedSpeedKn, SPEED_STEP_KN),
-      },
+      baseline: { candidateId: "A", speedKn: baselineKn },
       curve: path.curve,
       speedStepKn: SPEED_STEP_KN,
       stepNm: STEP_NM,
@@ -305,7 +316,7 @@ export function fleetRoutePlan(
         safetyMarginDays: DEMO_SCENARIO.safetyMarginDays,
         tankCapacityMt: vessel.tankCapacityMt,
       },
-      stops: stopCandidates(world, voyage.id, graph, position, latLon(destination), hazards, opts),
+      stops: stopCandidates(world, voyage.id, graph, position, latLon(destination), avoid, opts),
       stores: vessel.stores ?? null,
       nautical: world.nauticalItems,
     },

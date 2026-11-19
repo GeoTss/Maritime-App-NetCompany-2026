@@ -90,3 +90,17 @@ describe("heavy weather", () => {
     expect(evaluateRoute(input(null), A, 12).reasons).not.toContain("heavy_weather");
   });
 });
+
+describe("synthetic storm cells", () => {
+  it("carry the synthetic flag of their grid point", () => {
+    const w = passingStorm();
+    const synthetic = {
+      ...w,
+      points: w.points.map((p) => (p.lon === 5 ? { ...p, synthetic: true as const } : p)),
+    };
+    const walked = walkSteps(subSteps(A.points, 20).steps, new Date(START), 12, synthetic);
+    const cells = stormCells(synthetic, walked);
+    expect(cells.find((c) => c.id === "storm:0,5")?.synthetic).toBe(true);
+    expect(cells.find((c) => c.id === "storm:0,4.5")?.synthetic).toBeUndefined();
+  });
+});
