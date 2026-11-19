@@ -58,7 +58,11 @@ describe.skipIf(!sql)("live smoke runner (in-process, replay)", () => {
 
   async function build() {
     const llm = createLlm({
-      mode: "replay",
+      // Re-record (paid; only misses reach the model): LLM_MODE=record, key from .env, e.g.
+      // LLM_MODE=record node --env-file=.env node_modules/vitest/vitest.mjs run evals/smoke/run.test.ts
+      ...(process.env.LLM_MODE === "record"
+        ? { mode: "record" as const, apiKey: process.env.ANTHROPIC_API_KEY }
+        : { mode: "replay" as const }),
       recordingsDir: DEFAULT_RECORDINGS_DIR,
       onCall: captureLlmCall,
     });
