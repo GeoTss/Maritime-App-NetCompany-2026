@@ -72,7 +72,7 @@ describe("agent request", () => {
     expect("temperature" in params).toBe(false);
     expect("betas" in params).toBe(false);
     expect("fallbacks" in params).toBe(false);
-    expect(PROMPT_VERSION).toBe("agent-system/v5");
+    expect(PROMPT_VERSION).toBe("agent-system/v6");
   });
 
   it("the prompt cites speeds and quantities like money and names a recommended route by its id", () => {

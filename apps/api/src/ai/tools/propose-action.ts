@@ -297,7 +297,8 @@ export const proposeActionDef = defineTool({
   description:
     "Propose an action for a human to approve: a purchase order (type purchase_order) for one " +
     "feasible option of a stored bunker plan, or a voyage instruction (type voyage_instruction) " +
-    "for one feasible route of a stored route plan of a fleet vessel. Use it only when the " +
+    "for one feasible route of a stored route plan of a fleet vessel, or a security order (type " +
+    "security_order) for the armed team a feasible route of a stored route plan needs. Use it only when the " +
     "operator asks you to decide (where or from whom to buy, which offer to take, a " +
     "recommendation or an order) or to instruct the master (prepare or issue the voyage " +
     "instruction, put the route and speed into effect), never when they only look something up, " +
@@ -308,7 +309,9 @@ export const proposeActionDef = defineTool({
     "such as MTMLA-kestrel when the route needs a bunker stop), and factRefs that are facts of " +
     "that same plan; quantities, prices, speeds and ETAs come from the stored plan, never from " +
     "you. A voyage instruction with a bunker stop waits for an approved purchase order for that " +
-    "stop's quote; never propose that order unless the operator asks for it.",
+    "stop's quote; never propose that order unless the operator asks for it. A voyage " +
+    "instruction through a guarded danger area waits for an approved security order for the " +
+    "team its plan chose.",
   inputSchema: ProposeActionInput,
   run: proposeAction,
 });

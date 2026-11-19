@@ -205,4 +205,34 @@ describe.skipIf(!sql)("list_quotes (Postgres)", () => {
     // Fact ids are unique within one result.
     expect(new Set(result.facts.map((f) => f.id)).size).toBe(result.facts.length);
   });
+
+  it("lists security quotes (Track 3) unless a grade is asked, never one for another vessel", async () => {
+    const id = async (sqlText: string) => (await db.unsafe<{ id: number }[]>(sqlText))[0]?.id ?? 0;
+    const fjr = await id("select id from ports where unlocode = 'AEFJR'");
+    const djb = await id("select id from ports where unlocode = 'DJJIB'");
+    const tri = await id("select id from security_providers where erp_code = 'SEC-TRI'");
+    const add = (imo: string | null, status: string) => db`
+      insert into security_quotes (provider_id, vessel_imo, embark_port_id, disembark_port_id,
+        team_size, day_rate, fixed_fees, min_days, currency, valid_until, status, extraction_id,
+        received_at)
+      values (${tri}, ${imo}, ${fjr}, ${djb}, 4, 1250, 6500, 4, 'USD', null, ${status}, null,
+        ${ASK_FIXTURE_NOW.toISOString()}::timestamptz)`;
+    await add(null, "received");
+    await add("0000000", "received");
+    await add(null, "needs_review");
+    const [am] = await db<
+      { imo: string }[]
+    >`select imo from vessels where name = 'MT Atlantic Meridian'`;
+    const r = await listQuotes(ctx(), { vessel: am?.imo ?? "" });
+    const sec = (r.data as { securityQuotes?: { provider: string; embark: string }[] })
+      .securityQuotes;
+    expect(sec).toEqual([
+      expect.objectContaining({ provider: "Tridentis Marine Protection", embark: "Fujairah" }),
+    ]);
+    expect(r.facts.some((f) => f.label.endsWith("day rate for the team") && f.value === 1250)).toBe(
+      true,
+    );
+    const graded = await listQuotes(ctx(), { grade: "LSMGO" });
+    expect((graded.data as { securityQuotes?: unknown }).securityQuotes).toBeUndefined();
+  });
 });
