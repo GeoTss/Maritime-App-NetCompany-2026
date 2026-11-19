@@ -539,3 +539,25 @@ Hand-read of the 7 answers the parked grader limits touch (pre-registered; no gr
 
 **Spend:** extraction $0.131250 + Q&A $0.031535 = $0.162785 (ledgered, phase 7). Phase 7 total $0.1834 of $1.00.
 **Decision:** none — the held-out split has now run once and is closed. Nothing is changed in response to these results.
+
+## 2026-11-19 — Track 3 — `extract-quote/v4` and `agent-system/v6` (pre-registration)
+
+**Change under test:** extraction reads a second kind, `security_quote` (armed-team quotes: provider,
+vessel, embark and disembark ports, team size, day rate, fixed fees, minimum days, validity), v3
+added the kind and v4 removed the one trap span the v3 prompt quoted ("4/6 guards") and sends
+several separate fees to review instead of keeping the first. The pipeline's security checks now
+read every amount from its as-written span, never default fees or minimum days to 0, and require
+the validity when a validity word sits on a dated line (commit af13df8). The agent prompt v6 adds
+security quotes to `list_quotes`, `security_order` to `propose_action`, and a security-orders rule.
+Golden set: 60 security cases added (dev 30, held-out 30), split by `eval:split`; fuel dev 84
+unchanged. Sample truths reviewed and approved by the user (2026-11-19).
+Run: Haiku 5.5, effort medium, `LLM_FALLBACKS=off`, phase 10 ledger (cap $1.50).
+
+**Hypotheses (written before the run):**
+- **H25:** the fuel dev cases are unaffected by the new kind: critical-field accuracy stays inside
+  the last dev interval (99.0 %), unsafe 0/84, and no fuel email is classed `security_quote`.
+- **H26:** security dev: critical fields at or above 95 %, unsafe 0/30; the three trap pairs in dev
+  go to review for the right check. Risk: the model fills `value` on "3 or 4 guards" (caught by the
+  as-written rule) or adds up itemised fees (caught: the sum is not written).
+- **H27:** the live smoke passes with v6: both demo fuel emails extracted, the demo ask passes the
+  gate and proposes `MTMLA-kestrel` (the security tools do not change the bunker answer).
