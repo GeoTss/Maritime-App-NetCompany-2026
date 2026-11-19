@@ -21,11 +21,7 @@ export async function proposeFromPlan(
   deps: { sql: Sql; now: () => Date },
   body: ProposeBody,
 ): Promise<ProposeResult> {
-  // Security orders are proposed through their own path (Track 3, Task 8).
-  if (body.type === "security_order") {
-    throw new ProposeError("A security order is proposed from a route plan's security block.");
-  }
-  const fuelOrRoute = { ...body, type: body.type };
+  const fuelOrRoute = body;
   let checked: { expectedSavingUsd: number | null };
   try {
     const { kind, outputs } = await proposalSource(deps.sql, fuelOrRoute);

@@ -39,6 +39,7 @@ type SourceKind = keyof typeof TOOL_OF;
 const SOURCES: Record<ProposedAction["type"], readonly SourceKind[]> = {
   purchase_order: ["bunker_plan", "route_speed"],
   voyage_instruction: ["route_speed"],
+  security_order: ["route_speed"],
 };
 
 const sourceList = (kinds: readonly SourceKind[]) =>
@@ -48,6 +49,8 @@ const NOTE = {
   purchase_order: "Pending human approval. Nothing has been ordered or sent.",
   voyage_instruction:
     "Pending human approval. No voyage change has been made and nothing has been sent to the vessel.",
+  security_order:
+    "Pending human approval. No security team has been ordered and nothing has been sent.",
 } as const;
 
 const OWN_VESSELS_ONLY = "Pharos can only instruct the operator's own vessels.";
@@ -86,6 +89,22 @@ export function checkedOption(
     };
   }
   const result = RouteSpeedResult.parse(outputs);
+  if (action.type === "security_order") {
+    // A security order buys the team a route option's security plan chose (Track 3).
+    const option = result.options.find((o) => o.candidateId === action.optionId);
+    if (!option) throw new Error(`Calculation ${id} has no route ${action.optionId}.`);
+    if (!option.security?.needsTeam || option.security.quoteId === null) {
+      throw new Error(
+        `Route ${action.optionId} ${option.security?.needsTeam ? "has no security quote that covers it" : "needs no security team"}; no security order can be proposed.`,
+      );
+    }
+    if (!option.feasible) {
+      throw new Error(
+        `Route ${action.optionId} is not feasible (${option.reasons.join(", ")}); it cannot be proposed.`,
+      );
+    }
+    return { expectedSavingUsd: null };
+  }
   const stops = result.stopPlans.map((s) => s.optionId).join(", ") || "none";
   const stop = result.stopPlans.find((s) => s.optionId === action.optionId);
   if (action.type === "purchase_order") {
@@ -149,7 +168,10 @@ export async function proposalSource(
     );
   }
   // A route plan for a ship seen on AIS has no voyage of ours: never instruct another ship.
-  if (action.type === "voyage_instruction" && calc.voyage_id === null) {
+  if (
+    (action.type === "voyage_instruction" || action.type === "security_order") &&
+    calc.voyage_id === null
+  ) {
     throw new Error(OWN_VESSELS_ONLY);
   }
   return { kind, outputs: calc.outputs };
@@ -248,14 +270,18 @@ export async function proposeAction(ctx: ToolContext, input: unknown): Promise<T
       });
       data.dependsOnRecommendationId = dependency?.recommendationId ?? null;
       if (status === "pending" && dependency && !dependency.satisfied) {
-        data.note = `${NOTE.voyage_instruction} Needs an approved purchase order for ${dependency.optionLabel} before it can be approved.`;
+        const what =
+          dependency.orderType === "security_order" ? "security order" : "purchase order";
+        data.note = `${NOTE.voyage_instruction} Needs an approved ${what} for ${dependency.optionLabel} before it can be approved.`;
       }
       if (dependency?.recommendationId != null) {
         facts.push(
           dbFact(
             TOOL,
             { table: "recommendations", rowId: dependency.recommendationId, field: "id" },
-            "Purchase order proposal the instruction depends on",
+            dependency.orderType === "security_order"
+              ? "Security order proposal the instruction depends on"
+              : "Purchase order proposal the instruction depends on",
             dependency.recommendationId,
             null,
           ),

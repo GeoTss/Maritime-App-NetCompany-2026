@@ -431,6 +431,31 @@ export const purchaseOrders = pgTable(
   ],
 );
 
+/** An approved armed security team, pushed to the ERP like a fuel order (Track 3). */
+export const securityOrders = pgTable(
+  "security_orders",
+  {
+    id: id(),
+    securityQuoteId: integer()
+      .notNull()
+      .references(() => securityQuotes.id, { onDelete: "restrict" }),
+    recommendationId: integer().references(() => recommendations.id, { onDelete: "restrict" }),
+    teamDays: integer().notNull(),
+    dayRate: doublePrecision().notNull(),
+    fixedFees: doublePrecision().notNull(),
+    currency: text().$type<"USD" | "EUR">().notNull(),
+    status: text().$type<"approved" | "confirmed" | "cancelled">().notNull(),
+    erpPoNumber: text(),
+    erpSyncStatus: text().$type<"pending" | "synced" | "failed">().notNull(),
+    idempotencyKey: text().notNull(),
+    createdAt: ts().notNull(),
+  },
+  (t) => [
+    uniqueIndex("security_orders_quote_id_uq").on(t.securityQuoteId),
+    uniqueIndex("security_orders_idempotency_key_uq").on(t.idempotencyKey),
+  ],
+);
+
 export const orderLines = pgTable("order_lines", {
   id: id(),
   orderId: integer()

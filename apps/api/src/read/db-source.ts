@@ -34,6 +34,7 @@ import {
   RouteCandidate,
   type RoutePlanView,
   RouteSpeedResult,
+  SecurityInput,
   ShipType,
   StopCandidate,
   StormCell,
@@ -180,6 +181,9 @@ interface RecommendationRow {
   option_id: string;
   fact_refs: string[];
   expected_saving_usd: number | null;
+  security_order_id: number | null;
+  security_po_number: string | null;
+  security_sync_status: "pending" | "synced" | "failed" | null;
   kind: string;
   inputs: unknown;
   outputs: unknown;
@@ -222,6 +226,7 @@ const RouteCalculationInputs = z.object({
     curve: ConsumptionCurve,
     hazards: z.array(HazardZone),
     stops: z.array(StopCandidate),
+    security: SecurityInput.optional(),
   }),
 });
 
@@ -293,6 +298,47 @@ function routeOptionView(
     optionLabel: candidate.label,
     facts,
   };
+}
+
+/**
+ * A route's security order (Track 3): a summary naming the provider and the team's ports, and that
+ * route's description and security facts. Null when the route has no team to order.
+ */
+function securityOrderView(
+  calculationId: Id,
+  stored: StoredRoutePlan,
+  optionId: string,
+  labels: ReadonlyMap<Id, string>,
+): { summary: string; optionLabel: string; facts: Fact[] } | null {
+  const { plan, result, mmsi } = stored;
+  const index = result.options.findIndex((o) => o.candidateId === optionId);
+  const at = plan.input.candidates.findIndex((c) => c.id === optionId);
+  const quoteId = result.options[index]?.security?.quoteId ?? null;
+  if (index < 0 || at < 0 || quoteId === null) return null;
+  const team = labels.get(quoteId) ?? `security quote ${quoteId}`;
+  const facts = routeSpeedFactRows(plan, result, null, { mmsi })
+    .filter(
+      (row) =>
+        row.path.startsWith(`options[${index}].security.`) ||
+        row.path === `inputs.optimiser.candidates.${at}.label`,
+    )
+    .map((row) => routeFactOfRow(calculationId, row));
+  return {
+    summary: `Order an armed security team for ${subjectLabel(plan, mmsi)} on route ${optionId}: ${team}.`,
+    optionLabel: team,
+    facts,
+  };
+}
+
+/** Each security quote's label: "Provider (Embark to Disembark)", as the dependency names it. */
+async function securityQuoteLabels(sql: Sql): Promise<Map<Id, string>> {
+  const rows = await sql<{ id: number; provider: string; embark: string; disembark: string }[]>`
+    select q.id, p.name as provider, e.name as embark, d.name as disembark
+    from security_quotes q
+      join security_providers p on p.id = q.provider_id
+      join ports e on e.id = q.embark_port_id
+      join ports d on d.id = q.disembark_port_id`;
+  return new Map(rows.map((r) => [r.id, `${r.provider} (${r.embark} to ${r.disembark})`]));
 }
 
 /**
@@ -498,6 +544,8 @@ async function recommendations(sql: Sql, id?: Id): Promise<RecommendationView[]>
            r.expected_saving_usd, c.kind, c.inputs, c.outputs, vo.vessel_id, vo.voyage_no,
            (m.content -> 'gate' ->> 'passed')::boolean as gate_passed,
            po.id as order_id, po.erp_po_number, po.erp_sync_status,
+           so.id as security_order_id, so.erp_po_number as security_po_number,
+           so.erp_sync_status as security_sync_status,
            vi.id as instruction_id, vi.candidate_id as instruction_candidate_id,
            vi.speed_kn as instruction_speed_kn, vi.eta as instruction_eta,
            vi.stop_quote_id as instruction_stop_quote_id,
@@ -514,6 +562,10 @@ async function recommendations(sql: Sql, id?: Id): Promise<RecommendationView[]>
         select id, erp_po_number, erp_sync_status from purchase_orders
         where recommendation_id = r.id order by id limit 1
       ) po on true
+      left join lateral (
+        select id, erp_po_number, erp_sync_status from security_orders
+        where recommendation_id = r.id order by id limit 1
+      ) so on true
       -- At most one per recommendation (unique index).
       left join voyage_instructions vi on vi.recommendation_id = r.id
       left join ports sp on sp.id = vi.stop_port_id
@@ -521,6 +573,9 @@ async function recommendations(sql: Sql, id?: Id): Promise<RecommendationView[]>
     order by r.id desc`;
   if (rows.length === 0) return [];
   const lookups = await bunkerLookups(sql);
+  const securityLabels = rows.some((r) => r.type === "security_order")
+    ? await securityQuoteLabels(sql)
+    : new Map<Id, string>();
   // The purchase order each instruction on a bunker stop waits for (the executor's own rule).
   const dependsOn = new Map<Id, RecommendationView["dependsOn"]>();
   for (const r of rows) {
@@ -544,9 +599,15 @@ async function recommendations(sql: Sql, id?: Id): Promise<RecommendationView[]>
       bunkerPlan: null,
       dependsOn: dependsOn.get(r.id) ?? null,
       order:
-        r.order_id === null || r.erp_sync_status === null
-          ? null
-          : { orderId: r.order_id, erpPoNumber: r.erp_po_number, erpSyncStatus: r.erp_sync_status },
+        r.order_id !== null && r.erp_sync_status !== null
+          ? { orderId: r.order_id, erpPoNumber: r.erp_po_number, erpSyncStatus: r.erp_sync_status }
+          : r.security_order_id !== null && r.security_sync_status !== null
+            ? {
+                orderId: r.security_order_id,
+                erpPoNumber: r.security_po_number,
+                erpSyncStatus: r.security_sync_status,
+              }
+            : null,
       instruction:
         r.instruction_id === null ||
         r.instruction_candidate_id === null ||
@@ -564,12 +625,14 @@ async function recommendations(sql: Sql, id?: Id): Promise<RecommendationView[]>
     if (r.kind === "route_speed") {
       const stored = storedRoutePlan(r);
       // A bunker stop (an instruction through it, or the order bought there), else a route.
-      const view = stored
-        ? (stopPlanView(r.calculation_id, stored, r, lookups) ??
-          (r.type === "voyage_instruction"
-            ? routeOptionView(r.calculation_id, stored, r.option_id)
-            : null))
-        : null;
+      const view = !stored
+        ? null
+        : r.type === "security_order"
+          ? securityOrderView(r.calculation_id, stored, r.option_id, securityLabels)
+          : (stopPlanView(r.calculation_id, stored, r, lookups) ??
+            (r.type === "voyage_instruction"
+              ? routeOptionView(r.calculation_id, stored, r.option_id)
+              : null));
       if (!view) {
         return {
           ...base,

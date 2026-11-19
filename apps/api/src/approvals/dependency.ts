@@ -12,6 +12,7 @@
 import type { Sql } from "@pharos/db";
 import { Id, type RecommendationDependency, RecommendationStatus } from "@pharos/shared";
 import { z } from "zod";
+import { securityQuoteOf } from "./existing.js";
 
 /** The states of a purchase-order proposal that let its instruction be approved. */
 const SATISFIED: ReadonlySet<RecommendationStatus> = new Set(["approved", "executing", "executed"]);
@@ -66,7 +67,7 @@ export async function orderDependencyOf(
     select kind, outputs, voyage_id from calculations where id = ${rec.calculation_id}`;
   if (calc?.kind !== "route_speed" || calc.voyage_id === null) return null;
   const quoteId = stopQuoteOf(calc.outputs, rec.option_id);
-  if (quoteId === null) return null;
+  if (quoteId === null) return securityDependencyOf(sql, calc, rec.option_id);
 
   const [names] = await sql<{ supplier: string; port: string }[]>`
     select s.name as supplier, p.name as port
@@ -96,11 +97,53 @@ export async function orderDependencyOf(
   };
 }
 
+/**
+ * Track 3: an instruction on a route whose security plan needs a team waits for the security
+ * order of the same voyage for that quote. Null when the route needs no team or has no quote.
+ */
+async function securityDependencyOf(
+  sql: Db,
+  calc: { outputs: unknown; voyage_id: number | null },
+  optionId: string,
+): Promise<RecommendationDependency | null> {
+  const quoteId = securityQuoteOf(calc.outputs, optionId);
+  if (quoteId === null || calc.voyage_id === null) return null;
+  const [names] = await sql<{ provider: string; embark: string; disembark: string }[]>`
+    select p.name as provider, e.name as embark, d.name as disembark
+    from security_quotes q join security_providers p on p.id = q.provider_id
+      join ports e on e.id = q.embark_port_id join ports d on d.id = q.disembark_port_id
+    where q.id = ${quoteId}`;
+  const orders = await sql<
+    { id: number; status: RecommendationStatus; option_id: string; outputs: unknown }[]
+  >`
+    select r.id, r.status, r.option_id, c.outputs
+    from recommendations r join calculations c on c.id = r.calculation_id
+    where r.type = 'security_order' and c.voyage_id = ${calc.voyage_id}
+    order by r.id desc`;
+  const matching = orders.filter((o) => securityQuoteOf(o.outputs, o.option_id) === quoteId);
+  const match =
+    matching.find((o) => SATISFIED.has(o.status)) ??
+    matching.find((o) => o.status !== "rejected") ??
+    matching[0] ??
+    null;
+  return {
+    quoteId,
+    optionLabel: names
+      ? `${names.provider} (${names.embark} to ${names.disembark})`
+      : `security quote ${quoteId}`,
+    recommendationId: match?.id ?? null,
+    status: match ? RecommendationStatus.parse(match.status) : null,
+    satisfied: match !== null && SATISFIED.has(match.status),
+    orderType: "security_order",
+  };
+}
+
 /** Why an instruction cannot be approved yet, in the operator's words. */
 export function unmetDependencyMessage(dep: RecommendationDependency): string {
   const why =
     dep.recommendationId === null
       ? "none has been proposed yet"
       : `proposal ${dep.recommendationId} is ${dep.status}`;
-  return `It needs an approved purchase order for ${dep.optionLabel} before it can be approved; ${why}.`;
+  const what = dep.orderType === "security_order" ? "security order" : "purchase order";
+  return `It needs an approved ${what} for ${dep.optionLabel} before it can be approved; ${why}.`;
 }

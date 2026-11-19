@@ -299,6 +299,8 @@ export const RecommendationDependency = z
     status: RecommendationStatus.nullable(),
     /** The order is approved, executing or executed. */
     satisfied: z.boolean(),
+    /** What the instruction waits for: a fuel order (default) or a security order (Track 3). */
+    orderType: z.enum(["purchase_order", "security_order"]).optional(),
   })
   .strict();
 export type RecommendationDependency = z.infer<typeof RecommendationDependency>;
@@ -344,6 +346,8 @@ export const PlanProposals = z
   .object({
     purchaseOrder: PlanProposal.nullable(),
     voyageInstruction: PlanProposal.nullable(),
+    /** The security order this option already has (Track 3); absent or null when none. */
+    securityOrder: PlanProposal.nullable().optional(),
     /**
      * The voyage's instruction in force when it is not this option's (another route, stop or
      * speed): a new instruction from this plan would replace it. Null when there is none, or when

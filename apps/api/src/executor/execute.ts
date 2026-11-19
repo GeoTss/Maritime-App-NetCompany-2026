@@ -27,7 +27,7 @@ import {
   BunkerPlanInput,
   DecisionResult,
   DraftedMessage,
-  type ErpOrderRequest,
+  ErpOrderRequest,
   type FuelGrade,
   type Id,
   type LatLon,
@@ -46,6 +46,7 @@ import {
   draftAgentRequest,
   draftMessages,
   draftPreArrivalNotices,
+  draftSecurityConfirmation,
   draftVoyageInstruction,
   type VoyageInstructionDraftInput,
 } from "./drafts.js";
@@ -178,6 +179,7 @@ export async function approveRecommendation(
 
 /** The second half of an execution, by type: push the order, or draft the voyage instruction. */
 function finish(deps: ExecutorDeps, rec: RecommendationRow): Promise<void> {
+  if (rec.type === "security_order") return pushSecurityAndFinish(deps, rec.id);
   return rec.type === "voyage_instruction"
     ? finishInstruction(deps, rec.id)
     : pushAndFinish(deps, rec.id);
@@ -226,6 +228,12 @@ async function beginExecution(
     const [existing] = await tx<{ id: number }[]>`
       select id from voyage_instructions where recommendation_id = ${rec.id}`;
     if (!existing) await recordInstruction(tx, rec, now);
+    return;
+  }
+  if (rec.type === "security_order") {
+    const [existing] = await tx<{ id: number }[]>`
+      select id from security_orders where recommendation_id = ${rec.id} order by id limit 1`;
+    if (!existing) await createSecurityOrder(tx, rec, now);
     return;
   }
   const [existing] = await tx<{ id: number }[]>`
@@ -699,6 +707,191 @@ async function pushAndFinish(deps: ExecutorDeps, recId: Id): Promise<void> {
     const error = err instanceof Error ? err.message : String(err);
     deps.log?.(`[executor] order ${orderId} (${key}): recording the success failed: ${error}`);
     await failRecommendation(deps, recId, { orderId, error: `after the ERP push: ${error}` });
+  }
+}
+
+/** The parts of a stored route calculation's outputs a security order reads. */
+const SecurityOutputs = z.object({
+  options: z.array(
+    z.object({
+      candidateId: z.string(),
+      feasible: z.boolean(),
+      security: z
+        .object({ quoteId: z.number().nullable(), teamDays: z.number().int() })
+        .nullable()
+        .optional(),
+    }),
+  ),
+});
+
+/**
+ * Track 3: writes the security order for the team the approved route option's security plan
+ * chose: its quote, team days (from the plan, never from the model) and the quote's rates.
+ */
+async function createSecurityOrder(tx: Tx, rec: RecommendationRow, now: Date): Promise<Id> {
+  const refuse = (why: string): never => {
+    throw new DecisionError(
+      "not_executable",
+      `Recommendation ${rec.id} cannot be executed: ${why}`,
+    );
+  };
+  const [calc] = await tx<{ outputs: unknown }[]>`
+    select outputs from calculations where id = ${rec.calculation_id}`;
+  const parsed = SecurityOutputs.safeParse(calc?.outputs);
+  if (!parsed.success) refuse(`calculation ${rec.calculation_id} is unreadable.`);
+  const option = parsed.data?.options.find((o) => o.candidateId === rec.option_id);
+  const quoteId = option?.security?.quoteId ?? null;
+  if (!option || quoteId === null || !option.security) {
+    return refuse(`route ${rec.option_id} has no security team to order.`);
+  }
+  if (!option.feasible) refuse(`route ${rec.option_id} is not feasible.`);
+  const [quote] = await tx<{ day_rate: number; fixed_fees: number; currency: "USD" | "EUR" }[]>`
+    select day_rate, fixed_fees, currency from security_quotes where id = ${quoteId}`;
+  if (!quote) return refuse(`security quote ${quoteId} does not exist.`);
+  const [world] = await tx<{ seeded_at: Date | string }[]>`
+    select seeded_at from world_meta order by id limit 1`;
+  if (!world) throw new Error("world_meta is empty; seed the database first");
+  const key = idempotencyKeyFor(rec.id, new Date(world.seeded_at));
+  const [order] = await tx<{ id: number }[]>`
+    insert into security_orders (security_quote_id, recommendation_id, team_days, day_rate,
+                                 fixed_fees, currency, status, erp_po_number, erp_sync_status,
+                                 idempotency_key, created_at)
+    values (${quoteId}, ${rec.id}, ${option.security.teamDays}, ${quote.day_rate},
+            ${quote.fixed_fees}, ${quote.currency}, 'approved', null, 'pending', ${key},
+            ${iso(now)}::timestamptz)
+    returning id`;
+  if (!order) throw new Error("security_orders insert returned no row");
+  await audit(
+    tx,
+    rec.id,
+    "order.created",
+    EXECUTOR,
+    { securityOrderId: order.id, securityQuoteId: quoteId, idempotencyKey: key },
+    now,
+  );
+  return order.id;
+}
+
+/**
+ * Pushes the security order to the ERP (one service line: team days at the day rate, the fixed
+ * fees as the delivery charge), drafts the provider's confirmation (never sent) and executes. Any
+ * failure leaves the recommendation failed and audited; a later approve retries with the same key.
+ */
+async function pushSecurityAndFinish(deps: ExecutorDeps, recId: Id): Promise<void> {
+  const { sql } = deps;
+  const [order] = await sql<
+    {
+      id: number;
+      team_days: number;
+      day_rate: number;
+      fixed_fees: number;
+      currency: "USD" | "EUR";
+      erp_sync_status: string;
+      erp_po_number: string | null;
+      idempotency_key: string;
+      erp_code: string;
+      provider: string;
+      email_domain: string;
+      embark: string;
+      embark_name: string;
+      disembark_name: string;
+      team_size: number;
+      vessel_imo: string | null;
+      vessel_name: string | null;
+    }[]
+  >`
+    select o.id, o.team_days, o.day_rate, o.fixed_fees, o.currency, o.erp_sync_status,
+           o.erp_po_number, o.idempotency_key, p.erp_code, p.name as provider,
+           p.email_domain, e.unlocode as embark, e.name as embark_name, d.name as disembark_name,
+           q.team_size, v.imo as vessel_imo, v.name as vessel_name
+    from security_orders o
+      join security_quotes q on q.id = o.security_quote_id
+      join security_providers p on p.id = q.provider_id
+      join ports e on e.id = q.embark_port_id
+      join ports d on d.id = q.disembark_port_id
+      join recommendations r on r.id = o.recommendation_id
+      join calculations c on c.id = r.calculation_id
+      left join voyages vo on vo.id = c.voyage_id
+      left join vessels v on v.id = vo.vessel_id
+    where o.recommendation_id = ${recId} order by o.id limit 1`;
+  if (!order) throw new Error(`recommendation ${recId} has no security order`);
+  const key = order.idempotency_key;
+  let poNumber = order.erp_po_number;
+  if (order.erp_sync_status !== "synced") {
+    try {
+      const confirmed = await deps.erp.placeOrder(
+        ErpOrderRequest.parse({
+          supplierErpCode: order.erp_code,
+          vesselImo: order.vessel_imo ?? "",
+          port: order.embark,
+          currency: order.currency,
+          lines: [{ service: "security_team", days: order.team_days, dayRate: order.day_rate }],
+          bargeFee: order.fixed_fees,
+          reference: key,
+        }),
+        key,
+      );
+      poNumber = confirmed.poNumber;
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      deps.log?.(`[executor] security order ${order.id} (${key}): ERP push failed: ${error}`);
+      await sql.begin(async (tx) => {
+        await tx`update security_orders set erp_sync_status = 'failed' where id = ${order.id}`;
+        await audit(
+          tx,
+          recId,
+          "order.sync_failed",
+          EXECUTOR,
+          { securityOrderId: order.id, error },
+          clock(deps),
+        );
+      });
+      await failRecommendation(deps, recId, { orderId: order.id, error });
+      return;
+    }
+  }
+  try {
+    await sql.begin(async (tx) => {
+      const rec = await lockRecommendation(tx, recId);
+      const at = clock(deps);
+      await tx`
+        update security_orders set erp_sync_status = 'synced', erp_po_number = ${poNumber},
+          status = 'confirmed'
+        where id = ${order.id}`;
+      await tx`update security_quotes set status = 'accepted'
+        where id = (select security_quote_id from security_orders where id = ${order.id})`;
+      await audit(tx, recId, "order.pushed", EXECUTOR, { securityOrderId: order.id, poNumber }, at);
+      const draft = draftSecurityConfirmation({
+        recommendation: { id: recId },
+        provider: { name: order.provider, emailDomain: order.email_domain },
+        vessel: { name: order.vessel_name ?? "the vessel", imo: order.vessel_imo },
+        embark: order.embark_name,
+        disembark: order.disembark_name,
+        teamSize: order.team_size,
+        teamDays: order.team_days,
+        dayRate: order.day_rate,
+        fixedFees: order.fixed_fees,
+        currency: order.currency,
+        poNumber: poNumber ?? "",
+      });
+      const kinds = await insertDrafts(tx, [draft], at);
+      if (kinds.length > 0) await audit(tx, recId, "drafts.created", EXECUTOR, { kinds }, at);
+      await tx`update recommendations set status = ${transition(rec.status, "succeed")} where id = ${recId}`;
+      await audit(
+        tx,
+        recId,
+        "recommendation.executed",
+        EXECUTOR,
+        { securityOrderId: order.id },
+        at,
+      );
+    });
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err);
+    await failRecommendation(deps, recId, {
+      orderId: order.id,
+      error: `after the ERP push: ${error}`,
+    });
   }
 }
 
