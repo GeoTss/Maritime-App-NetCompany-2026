@@ -17,6 +17,8 @@ import type {
   NavHazardKind,
   PortCallTerms,
   RecommendationStatus,
+  SecurityArea,
+  SecurityQuote,
   VesselStores,
 } from "@pharos/shared";
 import {
@@ -90,6 +92,8 @@ export const vessels = pgTable(
     dailyCostUsd: doublePrecision().notNull(),
     /** Crew, provisions, waste and charts on board (synthetic); null = unknown. */
     stores: jsonb().$type<VesselStores>(),
+    /** Hull value (USD) for the war-risk premium (illustrative); null = unknown. */
+    hullValueUsd: doublePrecision(),
   },
   (t) => [uniqueIndex("vessels_imo_uq").on(t.imo)],
 );
@@ -444,6 +448,50 @@ export const auditEvents = pgTable("audit_events", {
   actor: text().notNull(),
   detail: jsonb().$type<unknown>(),
   at: ts().notNull(),
+});
+
+/** Danger areas with their JMIC level and planning policy (seeded from cited sources). */
+export const securityAreas = pgTable("security_areas", {
+  id: text().primaryKey(),
+  name: text().notNull(),
+  level: text().$type<SecurityArea["level"]>().notNull(),
+  policy: text().$type<SecurityArea["policy"]>().notNull(),
+  boxes: jsonb().$type<Box[]>().notNull(),
+  asOf: text().notNull(),
+  source: text().notNull(),
+  note: text().notNull(),
+});
+
+/** Companies that supply armed security teams. */
+export const securityProviders = pgTable("security_providers", {
+  id: id(),
+  name: text().notNull(),
+  emailDomain: text().notNull(),
+  erpCode: text().notNull(),
+});
+
+/** Security teams quoted by providers, as extracted from their emails. */
+export const securityQuotes = pgTable("security_quotes", {
+  id: id(),
+  providerId: integer()
+    .notNull()
+    .references(() => securityProviders.id),
+  vesselImo: text(),
+  embarkPortId: integer()
+    .notNull()
+    .references(() => ports.id),
+  disembarkPortId: integer()
+    .notNull()
+    .references(() => ports.id),
+  teamSize: integer().notNull(),
+  dayRate: doublePrecision().notNull(),
+  fixedFees: doublePrecision().notNull(),
+  minDays: integer().notNull(),
+  currency: text().$type<"USD" | "EUR">().notNull(),
+  validUntil: ts(),
+  status: text().$type<SecurityQuote["status"]>().notNull(),
+  extractionId: integer(),
+  receivedAt: ts().notNull(),
 });
 
 /** Charts and publications at their current editions (seeded from the supplier checklist). */

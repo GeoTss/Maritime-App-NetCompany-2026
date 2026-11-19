@@ -45,6 +45,15 @@ export const SecurityArea = z
   .strict();
 export type SecurityArea = z.infer<typeof SecurityArea>;
 
+/** A security provider (a company that supplies armed teams). */
+export const SecurityProvider = z.object({
+  id: Id,
+  name: z.string().min(1),
+  emailDomain: z.string().min(1),
+  erpCode: z.string().min(1),
+});
+export type SecurityProvider = z.infer<typeof SecurityProvider>;
+
 /** A security provider's offer for an armed team, as stored after extraction (or seeded history). */
 export const SecurityQuote = z.object({
   id: Id,

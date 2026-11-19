@@ -48,6 +48,18 @@ export async function loadWorld(sql: Sql): Promise<World> {
       .select()
       .from(schema.nauticalItems)
       .orderBy(asc(schema.nauticalItems.itemId)),
+    securityAreas: await db
+      .select()
+      .from(schema.securityAreas)
+      .orderBy(asc(schema.securityAreas.id)),
+    securityProviders: await db
+      .select()
+      .from(schema.securityProviders)
+      .orderBy(asc(schema.securityProviders.id)),
+    securityQuotes: await db
+      .select()
+      .from(schema.securityQuotes)
+      .orderBy(asc(schema.securityQuotes.id)),
   };
   return World.parse({
     meta: { seed: meta.seed, anchor: meta.anchor, seedVersion: meta.seedVersion },

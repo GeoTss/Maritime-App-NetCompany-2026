@@ -42,6 +42,9 @@ function worldInserts(world: ReturnType<typeof generateWorld>): [PgTable, object
     [schema.orderLines, world.orderLines],
     [schema.referenceRates, world.referenceRates],
     [schema.nauticalItems, world.nauticalItems],
+    [schema.securityAreas, world.securityAreas],
+    [schema.securityProviders, world.securityProviders],
+    [schema.securityQuotes, world.securityQuotes],
   ];
 }
 

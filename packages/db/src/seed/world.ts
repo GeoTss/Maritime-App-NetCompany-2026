@@ -33,6 +33,7 @@ import { NAUTICAL_ITEMS, portCallTermsFor, vesselStoresFor } from "./nautical.js
 import { createPrng } from "./prng.js";
 import routesJson from "./routes.generated.json" with { type: "json" };
 import { PORTS, SEED_VERSION, VESSELS } from "./scenario.js";
+import { HULL_VALUE_USD, SECURITY_AREAS, SECURITY_PROVIDERS } from "./security.js";
 import { RoutesFile, type World } from "./types.js";
 import { buildCommercial } from "./world-commercial.js";
 
@@ -123,6 +124,7 @@ function buildFleet(anchor: Date, ports: Port[], legs: RouteLeg[]): Fleet {
       consumptionCurve: { ...s.consumptionCurve },
       dailyCostUsd: s.dailyCostUsd,
       stores: vesselStoresFor(s.name),
+      hullValueUsd: HULL_VALUE_USD[s.name] ?? null,
     };
     out.vessels.push(vessel);
 
@@ -262,6 +264,12 @@ export function generateWorld(opts: { seed: number; anchor: Date }): World {
     orderLines: commercial.orderLines,
     referenceRates: commercial.referenceRates,
     // Sorted by item id, the order the loader reads them back in.
+    securityAreas: SECURITY_AREAS.map((a) => ({
+      ...a,
+      boxes: a.boxes.map((b) => ({ ...b })),
+    })).sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)),
+    securityProviders: SECURITY_PROVIDERS.map((p, i) => ({ id: i + 1, ...p })),
+    securityQuotes: [],
     nauticalItems: [...NAUTICAL_ITEMS]
       .sort((a, b) => (a.itemId < b.itemId ? -1 : a.itemId > b.itemId ? 1 : 0))
       .map((i) => ({ ...i, coverage: i.coverage.map((b) => ({ ...b })) })),

@@ -77,6 +77,8 @@ export const Vessel = z.object({
   dailyCostUsd: NonNeg,
   /** Crew, provisions, waste and charts on board (synthetic); null = unknown. */
   stores: VesselStores.nullable().optional(),
+  /** Hull value (USD) for the war-risk premium (illustrative); null = unknown. */
+  hullValueUsd: NonNeg.nullable().optional(),
 });
 export type Vessel = z.infer<typeof Vessel>;
 
