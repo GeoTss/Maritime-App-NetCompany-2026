@@ -19,7 +19,7 @@ import { co2Tonnes, etsCost } from "./emissions.js";
 import { fuelEuCost } from "./fueleu.js";
 import { securityPlan } from "./security.js";
 import { bestStopPlan, recommendPlan } from "./stop-plan.js";
-import { hazardIdsOfSteps, type SubStep, subSteps, walkSteps } from "./track.js";
+import { hazardIdsOfSteps, type SubStep, subSteps, type WalkedStep, walkSteps } from "./track.js";
 import { projectFuelAlongTrack } from "./track-fuel.js";
 
 const HOUR_MS = 3_600_000;
@@ -146,6 +146,25 @@ export function evaluateRoute(
   speedKn: number,
 ): RouteOptionResult {
   return evaluateSteps(input, candidate.id, subSteps(candidate.points, input.stepNm), speedKn);
+}
+
+/**
+ * The walk `evaluateSteps` makes for one candidate at one speed (the same sub-steps, start and
+ * weather), for whatever needs the times and positions along it (the voyage timeline). Null when
+ * the input has no such candidate.
+ */
+export function walkRouteOption(
+  input: RouteSpeedInput,
+  candidateId: string,
+  speedKn: number,
+): { points: LatLon[]; steps: WalkedStep[] } | null {
+  const candidate = input.candidates.find((c) => c.id === candidateId);
+  if (!candidate) return null;
+  const { steps } = subSteps(candidate.points, input.stepNm);
+  return {
+    points: candidate.points,
+    steps: walkSteps(steps, new Date(Date.parse(input.startAt)), speedKn, input.weather),
+  };
 }
 
 const round2 = (x: number): number => Math.round(x * 100) / 100;

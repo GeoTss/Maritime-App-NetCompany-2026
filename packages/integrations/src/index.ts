@@ -26,6 +26,7 @@ export {
   recordedLiveData,
   syntheticHazards,
 } from "./recorded.js";
+export { loadCoastline } from "./routes/coastline.js";
 export { loadSeaNetwork } from "./routes/network.js";
 export { insertSourceStatusIfMissing, upsertSourceStatus } from "./source-status.js";
 export { DEMO_REGION, gridPoints } from "./weather/grid-points.js";

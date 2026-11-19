@@ -33,6 +33,7 @@ import {
 } from "./primitives.js";
 import { RouteCandidate, RouteSpeedResult, TrackFuel } from "./routing.js";
 import { SecurityArea, SecurityQuote } from "./security.js";
+import { VoyageTimeline } from "./timeline.js";
 import { AgentToolName } from "./tools.js";
 
 export const ApiError = z.object({ error: z.string().min(1) });
@@ -595,6 +596,11 @@ export const RoutePlanResponse = z
     facts: z.array(Fact),
     /** Forecast cells over the heavy-weather limit the baseline meets (for the map); absent in old plans. */
     stormCells: z.array(StormCell).optional(),
+    /**
+     * What the recommended plan does along its way, with its own facts. For the console only:
+     * `plan_route_speed` returns `facts`, never this. Null when there is no plan to follow.
+     */
+    timeline: VoyageTimeline.nullable().optional(),
     /** Milliseconds to plan: resolving the subject, building the route graph and candidates, optimising. */
     computeMs: z.number().nonnegative(),
   })
