@@ -3,11 +3,14 @@ import { PgTable } from "drizzle-orm/pg-core";
 import { createDb } from "../client.js";
 import * as schema from "../schema.js";
 import type { Sql } from "../sql.js";
+import type { VoyageOverride } from "./scenario.js";
 import { generateWorld } from "./world.js";
 
 export interface SeedOptions {
   seed: number;
   anchor: Date;
+  /** Passed to generateWorld: vessels whose voyage an eval golden set fixes. */
+  voyageOverrides?: Readonly<Record<string, VoyageOverride>>;
   /**
    * `reset` wipes every table and reseeds; `if-empty` seeds only when no world is stored and every
    * table is empty (it throws rather than delete existing rows).
@@ -83,7 +86,11 @@ export async function seedDatabase(
     }
   }
 
-  const world = generateWorld({ seed: opts.seed, anchor: opts.anchor });
+  const world = generateWorld({
+    seed: opts.seed,
+    anchor: opts.anchor,
+    voyageOverrides: opts.voyageOverrides,
+  });
 
   await db.transaction(async (tx) => {
     const names = ALL_TABLES.map((t) => `"${getTableName(t)}"`).join(", ");

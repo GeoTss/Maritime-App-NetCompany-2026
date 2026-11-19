@@ -426,3 +426,26 @@ export const DEMO_SCENARIO = {
    */
   needsReview: { supplierKey: "nordwind", qtyAsWritten: "300/350 mt" },
 };
+
+/** A vessel's voyage and fuel on board, to generate the world as it stood at an earlier date. */
+export type VoyageOverride = Pick<ScenarioVessel, "voyage" | "currentRobMt">;
+
+/**
+ * The extraction golden set (held-out run 16 Nov) was generated before Track 3 gave Atlantic
+ * Meridian its Fujairah voyage. Quotes in those emails target its voyage then (Algeciras → Sines
+ * → Brest) and its fuel on board then, so the extraction eval world, and the eval runner's
+ * database, generate it as it was: every golden file stays byte-identical.
+ */
+export const GOLDEN_SET_VOYAGES: Readonly<Record<string, VoyageOverride>> = {
+  "MT Atlantic Meridian": {
+    voyage: {
+      voyageNo: "AM-2612",
+      route: ["ESALG", "PTSIE", "FRBES"],
+      plannedSpeedKn: 12.5,
+      departedHoursAgo: 20,
+      cargoMt: 100_000,
+      ballastMt: 0,
+    },
+    currentRobMt: { LSMGO: 380, VLSFO: 1_400, HSFO: 500 },
+  },
+};

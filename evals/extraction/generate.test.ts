@@ -122,21 +122,23 @@ describe("golden extraction set: oracles", () => {
       const evidence: (string | null)[] =
         oracle.kind === "not_a_quote"
           ? [oracle.evidence]
-          : [
-              oracle.supplierName.evidence,
-              oracle.vesselName.evidence,
-              oracle.vesselImo.evidence,
-              oracle.port.evidence,
-              oracle.deliveryFrom.evidence,
-              oracle.deliveryTo.evidence,
-              oracle.validUntil.evidence,
-              oracle.bargeFee.evidence,
-              ...oracle.lines.flatMap((l) => [
-                l.grade.evidence,
-                l.quantity.evidence,
-                l.price.evidence,
-              ]),
-            ];
+          : oracle.kind === "security_quote"
+            ? [oracle.providerName.evidence, oracle.dayRate.evidence]
+            : [
+                oracle.supplierName.evidence,
+                oracle.vesselName.evidence,
+                oracle.vesselImo.evidence,
+                oracle.port.evidence,
+                oracle.deliveryFrom.evidence,
+                oracle.deliveryTo.evidence,
+                oracle.validUntil.evidence,
+                oracle.bargeFee.evidence,
+                ...oracle.lines.flatMap((l) => [
+                  l.grade.evidence,
+                  l.quantity.evidence,
+                  l.price.evidence,
+                ]),
+              ];
       for (const e of evidence) {
         if (e === null) continue;
         evidenceCount++;

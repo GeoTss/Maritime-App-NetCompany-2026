@@ -27,7 +27,7 @@ export {
   optionIdFor,
   voyageState,
 } from "./seed/demo-plan.js";
-export { DEMO_SCENARIO, SUPPLIERS } from "./seed/scenario.js";
+export { DEMO_SCENARIO, GOLDEN_SET_VOYAGES, SUPPLIERS } from "./seed/scenario.js";
 export { type SeedOptions, seedDatabase } from "./seed/seed.js";
 export type { World } from "./seed/types.js";
 export { generateWorld } from "./seed/world.js";

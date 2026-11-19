@@ -46,6 +46,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { APIError } from "@anthropic-ai/sdk";
 import {
   createDb,
+  GOLDEN_SET_VOYAGES,
   generateWorld,
   loadWorld,
   type Sql,
@@ -512,8 +513,18 @@ async function tableCounts(sql: Sql): Promise<Record<string, number>> {
  * Returns the stored world (what the pipeline reads) and the baseline for per-case cleanup.
  */
 export async function prepareEvalDb(sql: Sql): Promise<{ world: World; baseline: Baseline }> {
-  await seedDatabase(sql, { seed: EVAL_SEED, anchor: EVAL_ANCHOR, mode: "reset" });
-  const generated = generateWorld({ seed: EVAL_SEED, anchor: EVAL_ANCHOR });
+  // Atlantic Meridian as the golden set was generated with it (see GOLDEN_SET_VOYAGES).
+  await seedDatabase(sql, {
+    seed: EVAL_SEED,
+    anchor: EVAL_ANCHOR,
+    mode: "reset",
+    voyageOverrides: GOLDEN_SET_VOYAGES,
+  });
+  const generated = generateWorld({
+    seed: EVAL_SEED,
+    anchor: EVAL_ANCHOR,
+    voyageOverrides: GOLDEN_SET_VOYAGES,
+  });
   const extra = evalExtraRequirements(generated);
   if (extra.length > 0) await createDb(sql).insert(schema.bunkerRequirements).values(extra);
   await sql`select setval(pg_get_serial_sequence('bunker_requirements', 'id'),

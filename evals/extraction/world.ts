@@ -7,6 +7,7 @@
 import {
   currentVoyage,
   DEMO_SCENARIO,
+  GOLDEN_SET_VOYAGES,
   generateWorld,
   openRequirements,
   type World,
@@ -104,7 +105,9 @@ function withGoldenSetRob(world: World): World {
 }
 
 export function evalWorld(): World {
-  const world = withGoldenSetRob(generateWorld({ seed: EVAL_SEED, anchor: EVAL_ANCHOR }));
+  const world = withGoldenSetRob(
+    generateWorld({ seed: EVAL_SEED, anchor: EVAL_ANCHOR, voyageOverrides: GOLDEN_SET_VOYAGES }),
+  );
   return {
     ...world,
     bunkerRequirements: [...world.bunkerRequirements, ...evalExtraRequirements(world)],

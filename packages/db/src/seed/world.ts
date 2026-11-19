@@ -32,7 +32,7 @@ import type {
 import { NAUTICAL_ITEMS, portCallTermsFor, vesselStoresFor } from "./nautical.js";
 import { createPrng } from "./prng.js";
 import routesJson from "./routes.generated.json" with { type: "json" };
-import { PORTS, SEED_VERSION, VESSELS } from "./scenario.js";
+import { PORTS, SEED_VERSION, VESSELS, type VoyageOverride } from "./scenario.js";
 import { HULL_VALUE_USD, SECURITY_AREAS, SECURITY_PROVIDERS } from "./security.js";
 import { RoutesFile, type World } from "./types.js";
 import { buildCommercial } from "./world-commercial.js";
@@ -95,7 +95,12 @@ interface Fleet {
   vesselPositions: VesselPosition[];
 }
 
-function buildFleet(anchor: Date, ports: Port[], legs: RouteLeg[]): Fleet {
+function buildFleet(
+  anchor: Date,
+  ports: Port[],
+  legs: RouteLeg[],
+  overrides: Readonly<Record<string, VoyageOverride>> = {},
+): Fleet {
   const byCode = new Map(ports.map((p) => [p.unlocode, p]));
   const portOf = (code: string): Port => {
     const p = byCode.get(code);
@@ -110,7 +115,7 @@ function buildFleet(anchor: Date, ports: Port[], legs: RouteLeg[]): Fleet {
     vesselPositions: [],
   };
 
-  VESSELS.forEach((s, i) => {
+  VESSELS.map((v) => ({ ...v, ...(overrides[v.name] ?? {}) })).forEach((s, i) => {
     const vessel: Vessel = {
       id: i + 1,
       imo: imoWithCheckDigit(s.imoBase),
@@ -238,13 +243,18 @@ function buildFleet(anchor: Date, ports: Port[], legs: RouteLeg[]): Fleet {
   return out;
 }
 
-export function generateWorld(opts: { seed: number; anchor: Date }): World {
+export function generateWorld(opts: {
+  seed: number;
+  anchor: Date;
+  /** Generate these vessels' voyages as an earlier world had them (the eval golden sets). */
+  voyageOverrides?: Readonly<Record<string, VoyageOverride>>;
+}): World {
   const { seed, anchor } = opts;
   if (Number.isNaN(anchor.getTime())) throw new RangeError("anchor must be a valid Date");
   const prng = createPrng(seed);
   const ports = buildPorts();
   const routeLegs = buildLegs(ports);
-  const fleet = buildFleet(anchor, ports, routeLegs);
+  const fleet = buildFleet(anchor, ports, routeLegs, opts.voyageOverrides);
   const commercial = buildCommercial(anchor, prng, ports, fleet.voyages);
   return {
     meta: { seed, anchor: new Date(anchor.getTime()), seedVersion: SEED_VERSION },

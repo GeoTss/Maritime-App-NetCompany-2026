@@ -78,7 +78,7 @@ describe("createLlmExtractor request", () => {
       usage: { input_tokens: 900, output_tokens: 120 },
     });
     expect(extractor).toMatchObject({ model: "claude-haiku-5-5", promptVersion: PROMPT_VERSION });
-    expect(PROMPT_VERSION).toBe("extract-quote/v2");
+    expect(PROMPT_VERSION).toBe("extract-quote/v3");
 
     expect(seen).toHaveLength(1);
     const body = seen[0]?.body ?? {};
