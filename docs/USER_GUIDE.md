@@ -36,9 +36,11 @@ the sea routes are real.
 
 The map is where you see the fleet and plan a voyage.
 
-**Layers.** Switch each on or off: AIS traffic (public ships), Fleet (your vessels), Weather (wave
-height and direction), Hazards, and Port queues (ships at anchor). The forecast slider moves the
-weather overlay through the forecast.
+**Layers.** Switch each on or off: AIS traffic (public ships), Fleet (your vessels), Waves, Wind,
+Hazards, Danger areas and Port queues (ships at anchor). Waves and wind are drawn as darts pointing
+the way they travel; a dart grows and brightens as the sea or the wind gets stronger, and a wave
+dart turns purple at the heavy-weather limit the routing respects (6 m). The forecast slider moves
+both through the forecast; Legend shows the scale.
 
 **Needs you.** The column on the left lists what is waiting: proposals awaiting your decision,
 vessel alerts, and reported hazards. Each has a shortcut, for example "Ask where to bunker" or
@@ -58,6 +60,15 @@ forecast and the reported hazards. The route tray then shows two answers side by
 
 ![The route tray with the recommended plan and the bunker stop on the map](screenshots/phase-6/story-4-route-plan.png)
 
+**Voyage timeline.** Under the plan, the tray lists what the voyage does, in time order: departure,
+each port call with what it does there (bunkers, provisions when they run low, charts and
+publications, sludge or sewage ashore, clearance, port dues; open it for the quantities and costs),
+the fuel changeover at each sulphur-ECA line (it starts an hour before), where holding-tank sewage
+may go overboard (more than 12 nm from land at 4 kn or more), danger areas with the armed team
+boarding and leaving, the storms passed and how far off, the notices due before a call, and the
+arrival with the provisions left. A switch per kind hides what you do not need; the same events are
+pins on the map, and a pin brings its row into view.
+
 Planning stores a calculation. Nothing is sent or changed.
 
 **Propose from the plan.** From a planned route you can propose the purchase order and the voyage
@@ -70,6 +81,15 @@ fuel figures then rest on the ship's reported draught; the console says which lo
 assumed.
 
 Routes are planning-grade. They are not for navigation.
+
+**Demo scenario.** On the pinned demo, the Scenario button beside Needs you opens a panel to change
+the demo world: a fleet vessel's fuel on board, tanks, speeds and consumption, costs and stores; a
+hazard; or weather (wave height and direction, wind speed and direction) over a circle. Type a
+position or use "Pick on map"; the circle shows dashed until you add it. The top bar then says
+"scenario edited", and an open route plan says it was made before the edit, with Plan again.
+"Reset the demo world" puts everything back, chats, approvals and the inbox included. The
+assistant's recorded replies cover the unedited demo only; to ask about an edited world, run
+`LLM_MODE=live npm run demo:reset` (paid model calls).
 
 ## Inbox
 
