@@ -147,16 +147,20 @@ afterEach(() => {
 });
 
 describe("MapPage", () => {
-  it("the wave-forecast slider is named and speaks the step time; days are ticked", async () => {
+  it("the weather-forecast slider is named and speaks the step time; days are ticked", async () => {
     renderPage();
-    const thumb = await screen.findByRole("slider", { name: "Wave forecast time" });
+    const thumb = await screen.findByRole("slider", { name: "Weather forecast time" });
     expect(thumb.getAttribute("aria-valuetext")).toBe("14 Nov 08:00Z");
     const ticks = screen.getByTestId("day-ticks").textContent ?? "";
     expect(ticks).toContain("24 Nov");
     // The legend explains the layer; it opens on request.
     expect(screen.queryByTestId("wave-legend")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Legend" }));
-    expect(screen.getByTestId("wave-legend").textContent).toBe("Wave height0 to 3+ m");
+    const waves = screen.getByTestId("wave-legend").textContent ?? "";
+    expect(waves).toContain("Waves, m");
+    // The storm sample reads the limit the API sent, not a copy of it.
+    expect(waves).toContain("6+ (heavy weather)");
+    expect(screen.getByTestId("wind-legend").textContent).toContain("Wind, kn");
   });
 
   it("a pressed layer toggle shows a check; an unpressed one has none", async () => {
@@ -181,21 +185,30 @@ describe("MapPage", () => {
   it("no weather snapshot disables the layer", async () => {
     stubApi({ weather: "none" });
     renderPage();
-    const toggle = await screen.findByRole("button", { name: /weather/i });
-    await waitFor(() => expect(toggle.hasAttribute("disabled")).toBe(true));
-    expect(toggle.textContent).toMatch(/no snapshot/i);
-    expect(screen.queryByTestId("layer-weather-points")).toBeNull();
+    for (const name of [/^waves/i, /^wind/i]) {
+      const toggle = await screen.findByRole("button", { name });
+      await waitFor(() => expect(toggle.hasAttribute("disabled")).toBe(true));
+      expect(toggle.textContent).toMatch(/no snapshot/i);
+    }
+    expect(screen.queryByTestId("layer-weather-waves")).toBeNull();
+    expect(screen.queryByTestId("layer-weather-wind")).toBeNull();
   });
 
-  it("draws the weather layer from the start when a snapshot exists; the switch hides it", async () => {
+  it("draws the wave darts from the start when a snapshot exists; each switch hides its own", async () => {
     renderPage();
-    const toggle = await screen.findByRole("button", { name: /weather/i });
-    await waitFor(() => expect(toggle.hasAttribute("disabled")).toBe(false));
-    expect(toggle.getAttribute("aria-pressed")).toBe("true");
-    expect(await screen.findByTestId("layer-weather-points")).toBeTruthy();
+    const waves = await screen.findByRole("button", { name: /^waves/i });
+    const wind = screen.getByRole("button", { name: /^wind/i });
+    await waitFor(() => expect(waves.hasAttribute("disabled")).toBe(false));
+    expect(waves.getAttribute("aria-pressed")).toBe("true");
+    expect(wind.getAttribute("aria-pressed")).toBe("false");
+    expect(await screen.findByTestId("layer-weather-waves")).toBeTruthy();
+    expect(screen.queryByTestId("layer-weather-wind")).toBeNull();
     expect(screen.getByTestId("forecast-time").textContent).toMatch(/14 Nov 08:00Z/);
-    fireEvent.click(toggle);
-    await waitFor(() => expect(screen.queryByTestId("layer-weather-points")).toBeNull());
+    fireEvent.click(wind);
+    expect(await screen.findByTestId("layer-weather-wind")).toBeTruthy();
+    fireEvent.click(waves);
+    await waitFor(() => expect(screen.queryByTestId("layer-weather-waves")).toBeNull());
+    expect(screen.getByTestId("layer-weather-wind")).toBeTruthy();
   });
 
   it("forecast label reads stepTimes", async () => {

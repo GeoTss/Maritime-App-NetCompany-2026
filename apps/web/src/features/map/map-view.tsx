@@ -47,6 +47,7 @@ import { StormLayer } from "./storm-layer";
 const NO_AREAS: readonly SecurityArea[] = [];
 
 import { drawShipArrow, SHIP_ARROW_IMAGE, TRAFFIC_LAYER_IDS, TrafficLayer } from "./traffic-layer";
+import { DART_IMAGE, drawDart } from "./weather-darts";
 import { WeatherLayer } from "./weather-layer";
 
 // The worker is bundled with the app (offline, same origin); MapLibre otherwise looks for it
@@ -153,9 +154,16 @@ export function MapView(props: MapViewProps) {
   const onLoad = useCallback(() => {
     setLoaded(true);
     const map = ref.current?.getMap();
-    if (!map || map.hasImage(SHIP_ARROW_IMAGE)) return;
-    const image = drawShipArrow();
-    if (image) map.addImage(SHIP_ARROW_IMAGE, image, { sdf: true });
+    if (!map) return;
+    if (!map.hasImage(SHIP_ARROW_IMAGE)) {
+      const image = drawShipArrow();
+      if (image) map.addImage(SHIP_ARROW_IMAGE, image, { sdf: true });
+    }
+    for (const kind of ["wave", "wind"] as const) {
+      if (map.hasImage(DART_IMAGE[kind])) continue;
+      const dart = drawDart(kind);
+      if (dart) map.addImage(DART_IMAGE[kind], dart, { sdf: true, pixelRatio: 2 });
+    }
   }, []);
 
   // The first view: on a narrow canvas the demo view cuts off the flagged vessel and the hazard,
@@ -358,7 +366,13 @@ export function MapView(props: MapViewProps) {
         style={{ width: "100%", height: "100%" }}
       >
         <NavigationControl position="bottom-left" showCompass={false} />
-        {layers.weather && weather ? <WeatherLayer weather={weather} colors={colors} /> : null}
+        {(layers.waves || layers.wind) && weather ? (
+          <WeatherLayer
+            weather={weather}
+            colors={colors}
+            show={{ waves: layers.waves, wind: layers.wind }}
+          />
+        ) : null}
         {layers.hazards ? (
           <HazardLayer hazards={hazards} colors={colors} showId={hazardShown(focus)} />
         ) : null}

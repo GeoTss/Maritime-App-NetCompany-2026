@@ -649,6 +649,8 @@ export const WeatherView = z
     validAt: IsoDateTime,
     /** Every step's time (UTC), `steps` entries: startAt + k x stepHours. */
     stepTimes: z.array(IsoDateTime),
+    /** The planning limit on significant wave height (m): the map draws heavier seas as storm. */
+    heavyWeatherWaveM: z.number().positive(),
     points: z.array(
       z
         .object({

@@ -1,6 +1,6 @@
 /**
- * Layer switches and the weather forecast slider. Weather is on from the start (the demo's first
- * step shows the wave and wind overlay); it is off, and says why, when the API has no snapshot
+ * Layer switches and the weather forecast slider. Waves are on from the start, wind is one switch
+ * away (both draw from the one snapshot); both are off, and say why, when the API has no snapshot
  * (404). Counts are animated metrics; the forecast time is the API's time for that step, written in UTC.
  *
  * The strip is kept small so it does not sit over the map: the forecast time, the slider and its
@@ -26,13 +26,21 @@ import { formatUtc, formatUtcDay } from "@/lib/format";
 import { useMediaQuery } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
-export type LayerKey = "traffic" | "fleet" | "weather" | "hazards" | "security" | "congestion";
+export type LayerKey =
+  | "traffic"
+  | "fleet"
+  | "waves"
+  | "wind"
+  | "hazards"
+  | "security"
+  | "congestion";
 export type LayerState = Record<LayerKey, boolean>;
 
 export const DEFAULT_LAYERS: LayerState = {
   traffic: true,
   fleet: true,
-  weather: true,
+  waves: true,
+  wind: false,
   hazards: true,
   security: true,
   congestion: true,
@@ -41,7 +49,8 @@ export const DEFAULT_LAYERS: LayerState = {
 export const LAYER_LABEL: Record<LayerKey, string> = {
   traffic: "AIS traffic",
   fleet: "Fleet",
-  weather: "Weather",
+  waves: "Waves",
+  wind: "Wind",
   hazards: "Hazards",
   security: "Danger areas",
   congestion: "Port queues",
@@ -59,7 +68,40 @@ export function dayTicks(stepTimes: readonly string[]): { index: number; label: 
   return ticks;
 }
 
-const WAVE_SWATCHES = ["bg-wave-0", "bg-wave-1", "bg-wave-2", "bg-wave-3"];
+/** Both weather switches draw from the one forecast snapshot. */
+const isWeather = (key: LayerKey) => key === "waves" || key === "wind";
+
+/** Legend samples: the dart at a few points of each drawing scale (sizes as in `weather-layer`). */
+const WAVE_SAMPLES = [
+  { label: "0", size: 0.45, tone: "text-wave-dart-0" },
+  { label: "2", size: 0.65, tone: "text-wave-dart-1" },
+  { label: "4", size: 0.9, tone: "text-wave-dart-3" },
+] as const;
+const WIND_SAMPLES = [
+  { label: "0", size: 0.4, tone: "text-wind-0" },
+  { label: "10", size: 0.55, tone: "text-wind-1" },
+  { label: "20", size: 0.75, tone: "text-wind-2" },
+  { label: "34+", size: 0.95, tone: "text-wind-3" },
+] as const;
+
+function DartSample({ kind, size, tone }: { kind: "wave" | "wind"; size: number; tone: string }) {
+  const px = Math.round(22 * size);
+  return (
+    <svg
+      aria-hidden
+      viewBox="0 0 48 48"
+      width={px}
+      height={px}
+      className={cn("fill-current", tone)}
+    >
+      {kind === "wave" ? (
+        <path d="M24 7 L40 38 L24 30 L8 38 Z" strokeLinejoin="round" />
+      ) : (
+        <path d="M24 4 L31 34 L24 44 L17 34 Z" />
+      )}
+    </svg>
+  );
+}
 
 export type WeatherStatus = "loading" | "ready" | "none" | "error";
 
@@ -112,7 +154,7 @@ export function LayerToggles({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
             {(Object.keys(LAYER_LABEL) as LayerKey[]).map((key) => {
-              const disabled = key === "weather" && weatherOff;
+              const disabled = isWeather(key) && weatherOff;
               return (
                 <DropdownMenuCheckboxItem
                   key={key}
@@ -131,7 +173,7 @@ export function LayerToggles({
       ) : (
         <div className="flex flex-wrap items-center gap-1">
           {(Object.keys(LAYER_LABEL) as LayerKey[]).map((key) => {
-            const disabled = key === "weather" && weatherOff;
+            const disabled = isWeather(key) && weatherOff;
             const on = layers[key] && !disabled;
             return (
               <Toggle
@@ -169,7 +211,7 @@ export function LayerToggles({
         </div>
       )}
 
-      {layers.weather && !weatherOff ? (
+      {(layers.waves || layers.wind) && !weatherOff ? (
         <Collapsible
           open={legend}
           onOpenChange={setLegend}
@@ -193,7 +235,7 @@ export function LayerToggles({
               <Slider
                 aria-label="Forecast step"
                 thumbProps={{
-                  "aria-label": "Wave forecast time",
+                  "aria-label": "Weather forecast time",
                   "aria-valuetext": weather.stepTimes[shown]
                     ? formatUtc(weather.stepTimes[shown])
                     : undefined,
@@ -240,16 +282,33 @@ export function LayerToggles({
                   className="flex items-center gap-2 text-2xs text-text-2"
                   data-testid="wave-legend"
                 >
-                  <span>Wave height</span>
-                  <span aria-hidden className="flex">
-                    {WAVE_SWATCHES.map((c) => (
-                      <i key={c} className={cn("h-2 w-4 border border-line", c)} />
-                    ))}
+                  <span className="w-16">Waves, m</span>
+                  {WAVE_SAMPLES.map((d) => (
+                    <span key={d.label} className="flex items-center gap-0.5">
+                      <DartSample kind="wave" size={d.size} tone={d.tone} />
+                      {d.label}
+                    </span>
+                  ))}
+                  <span className="flex items-center gap-0.5">
+                    <DartSample kind="wave" size={1.15} tone="text-storm" />
+                    {weather.heavyWeatherWaveM}+ (heavy weather)
                   </span>
-                  <span>0 to 3+ m</span>
+                </div>
+                <div
+                  className="flex items-center gap-2 text-2xs text-text-2"
+                  data-testid="wind-legend"
+                >
+                  <span className="w-16">Wind, kn</span>
+                  {WIND_SAMPLES.map((d) => (
+                    <span key={d.label} className="flex items-center gap-0.5">
+                      <DartSample kind="wind" size={d.size} tone={d.tone} />
+                      {d.label}
+                    </span>
+                  ))}
                 </div>
                 <div className="text-2xs text-text-3">
-                  Dot size: wave height. Tick: direction the waves travel.
+                  Each dart points the way the waves or the wind travel; bigger and brighter is
+                  stronger.
                 </div>
                 <div className="text-2xs text-text-3">
                   Snapshot {weather.snapshotId}, {weather.source}, fetched{" "}

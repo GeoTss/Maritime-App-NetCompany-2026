@@ -1,94 +1,154 @@
 /**
- * Wave height and direction from one `WeatherView` forecast step. Dot size and brightness follow
- * the wave height; a tick shows the direction the waves travel. The tick's length is drawing
- * geometry, not a result.
+ * Waves and wind from one `WeatherView` forecast step, as soft darts pointing the way each
+ * travels. A dart grows, brightens and firms up with the wave height or the wind speed; a wave
+ * dart turns storm-coloured at the planning limit the API sends (`heavyWeatherWaveM`). The stops
+ * below are a drawing scale, not results: the routing maths never reads them.
  */
 import type { WeatherView } from "@pharos/shared";
 import { useMemo } from "react";
 import { Layer, Source } from "react-map-gl/maplibre";
 import type { MapColors } from "./basemap-style";
+import { DART_IMAGE, dartFeatures } from "./weather-darts";
 
-/** Degrees of latitude a direction tick spans on the map. */
-const TICK_DEG = 0.7;
+/** Wind speeds (kn) where the wind dart steps up: breeze, fresh, strong, gale. */
+const WIND_STOPS = [0, 10, 20, 34] as const;
 
-/** Wave height as a neutral lightness ramp (never a hue): the --wave-* tokens, calm to rough. */
-function WAVE_RAMP(colors: MapColors) {
-  return [
+const softDart = {
+  "icon-rotate": ["get", "dir"] as never,
+  "icon-rotation-alignment": "map" as const,
+  "icon-allow-overlap": true,
+  "icon-ignore-placement": true,
+};
+
+export function WeatherLayer({
+  weather,
+  colors,
+  show,
+}: {
+  weather: WeatherView;
+  colors: MapColors;
+  show: { waves: boolean; wind: boolean };
+}) {
+  const waves = useMemo(() => dartFeatures(weather, "waves"), [weather]);
+  const wind = useMemo(() => dartFeatures(weather, "wind"), [weather]);
+  const limit = weather.heavyWeatherWaveM;
+  // The ramps must rise: a limit at or under 4 m would break `interpolate`, so the storm stop sits
+  // just above the last wave stop then.
+  const top = Math.max(limit, 4.01);
+
+  const waveColor = [
+    "step",
+    ["get", "v"],
+    [
+      "interpolate",
+      ["linear"],
+      ["get", "v"],
+      0,
+      colors.waveDart0,
+      1,
+      colors.waveDart1,
+      2.5,
+      colors.waveDart2,
+      4,
+      colors.waveDart3,
+    ],
+    limit,
+    colors.storm,
+  ] as never;
+  const windColor = [
     "interpolate",
     ["linear"],
-    ["get", "h"],
-    0,
-    colors.wave0,
-    1,
-    colors.wave1,
-    2.5,
-    colors.wave2,
-    4,
-    colors.wave3,
+    ["get", "v"],
+    WIND_STOPS[0],
+    colors.wind0,
+    WIND_STOPS[1],
+    colors.wind1,
+    WIND_STOPS[2],
+    colors.wind2,
+    WIND_STOPS[3],
+    colors.wind3,
   ] as never;
-}
-
-export function WeatherLayer({ weather, colors }: { weather: WeatherView; colors: MapColors }) {
-  const { dots, ticks } = useMemo(() => {
-    const dotFeatures = [];
-    const tickFeatures = [];
-    for (const p of weather.points) {
-      if (p.waveHeightM === null) continue;
-      dotFeatures.push({
-        type: "Feature" as const,
-        geometry: { type: "Point" as const, coordinates: [p.lon, p.lat] },
-        properties: { h: p.waveHeightM },
-      });
-      if (p.waveDirDeg !== null) {
-        // Wave direction is where waves come from; the tick points the way they travel.
-        const rad = ((p.waveDirDeg + 180) * Math.PI) / 180;
-        const cosLat = Math.max(Math.cos((p.lat * Math.PI) / 180), 0.2);
-        tickFeatures.push({
-          type: "Feature" as const,
-          geometry: {
-            type: "LineString" as const,
-            coordinates: [
-              [p.lon, p.lat],
-              [p.lon + (Math.sin(rad) * TICK_DEG) / cosLat, p.lat + Math.cos(rad) * TICK_DEG],
-            ],
-          },
-          properties: { h: p.waveHeightM },
-        });
-      }
-    }
-    return {
-      dots: { type: "FeatureCollection" as const, features: dotFeatures },
-      ticks: { type: "FeatureCollection" as const, features: tickFeatures },
-    };
-  }, [weather]);
 
   return (
     <>
-      <Source id="weather-ticks" type="geojson" data={ticks}>
-        <Layer
-          id="weather-ticks"
-          type="line"
-          paint={{
-            "line-color": WAVE_RAMP(colors),
-            "line-width": 1,
-            "line-opacity": ["interpolate", ["linear"], ["get", "h"], 0.5, 0.4, 4, 1],
-          }}
-        />
-      </Source>
-      <Source id="weather-dots" type="geojson" data={dots}>
-        <Layer
-          id="weather-points"
-          type="circle"
-          paint={{
-            "circle-color": WAVE_RAMP(colors),
-            "circle-radius": ["interpolate", ["linear"], ["get", "h"], 0, 1.5, 2, 4, 5, 8],
-            "circle-opacity": ["interpolate", ["linear"], ["get", "h"], 0.5, 0.7, 4, 1],
-            "circle-stroke-width": 1,
-            "circle-stroke-color": colors.wave2,
-            "circle-stroke-opacity": 0.8,
-          }}
-        />
-      </Source>
+      {show.waves ? (
+        <Source id="weather-waves" type="geojson" data={waves}>
+          <Layer
+            id="weather-waves"
+            type="symbol"
+            layout={{
+              ...softDart,
+              "icon-image": DART_IMAGE.wave,
+              "icon-size": [
+                "interpolate",
+                ["linear"],
+                ["get", "v"],
+                0,
+                0.45,
+                2,
+                0.65,
+                4,
+                0.9,
+                top,
+                1.15,
+              ] as never,
+            }}
+            paint={{
+              "icon-color": waveColor,
+              "icon-opacity": [
+                "interpolate",
+                ["linear"],
+                ["get", "v"],
+                0,
+                0.45,
+                2,
+                0.65,
+                4,
+                0.85,
+                top,
+                1,
+              ] as never,
+              "icon-halo-color": waveColor,
+              "icon-halo-width": 1,
+              "icon-halo-blur": 1.5,
+            }}
+          />
+        </Source>
+      ) : null}
+      {show.wind ? (
+        <Source id="weather-wind" type="geojson" data={wind}>
+          <Layer
+            id="weather-wind"
+            type="symbol"
+            layout={{
+              ...softDart,
+              "icon-image": DART_IMAGE.wind,
+              "icon-size": [
+                "interpolate",
+                ["linear"],
+                ["get", "v"],
+                0,
+                0.4,
+                10,
+                0.55,
+                20,
+                0.75,
+                34,
+                0.95,
+                48,
+                1.15,
+              ] as never,
+            }}
+            paint={{
+              "icon-color": windColor,
+              "icon-opacity": ["interpolate", ["linear"], ["get", "v"], 0, 0.45, 34, 1] as never,
+              "icon-halo-color": windColor,
+              "icon-halo-width": 0.5,
+              "icon-halo-blur": 1,
+            }}
+          />
+        </Source>
+      ) : null}
     </>
   );
 }

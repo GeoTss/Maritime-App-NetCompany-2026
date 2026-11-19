@@ -14,6 +14,14 @@ export interface MapColors {
   wave1: string;
   wave2: string;
   wave3: string;
+  waveDart0: string;
+  waveDart1: string;
+  waveDart2: string;
+  waveDart3: string;
+  wind0: string;
+  wind1: string;
+  wind2: string;
+  wind3: string;
   plan: string;
   alarm: string;
   storm: string;
@@ -32,6 +40,14 @@ const TOKEN: Record<keyof MapColors, string> = {
   wave1: "--wave-1",
   wave2: "--wave-2",
   wave3: "--wave-3",
+  waveDart0: "--wave-dart-0",
+  waveDart1: "--wave-dart-1",
+  waveDart2: "--wave-dart-2",
+  waveDart3: "--wave-dart-3",
+  wind0: "--wind-0",
+  wind1: "--wind-1",
+  wind2: "--wind-2",
+  wind3: "--wind-3",
   plan: "--plan",
   alarm: "--alarm",
   storm: "--storm",
