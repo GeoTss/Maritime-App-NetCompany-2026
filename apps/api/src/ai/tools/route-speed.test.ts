@@ -97,6 +97,21 @@ describe.skipIf(!sql)("plan_route_speed (Postgres)", () => {
     return { plan, result: optimiseRouteSpeed(plan.input), snapshotId: snap?.id };
   };
 
+  it("tool output unchanged: the timeline rides on the HTTP response only", async () => {
+    const before = await count();
+    const planned = await planRouteSpeed(
+      { sql: db, now: () => ASK_FIXTURE_NOW },
+      { vessel: "Aegean Pioneer" },
+    );
+    // One calculation row per plan: the timeline stores nothing of its own.
+    expect(await count()).toBe(before + 1);
+    expect(planned.response.timeline?.events.length ?? 0).toBeGreaterThan(0);
+    const out = await planRouteSpeedFacts(ctx(), { vessel: "Aegean Pioneer" });
+    expect(Object.keys(out).sort()).toEqual(["data", "facts"]);
+    expect(JSON.stringify(out)).not.toContain("timeline");
+    expect(out.facts.some((f) => f.id.includes("voyage_timeline"))).toBe(false);
+  });
+
   it("plans Aegean Pioneer: best route, baseline, stored calculation, facts equal the domain result", async () => {
     const c = ctx();
     const before = await count();
