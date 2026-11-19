@@ -1,5 +1,6 @@
 import type { Sql } from "@pharos/db";
 import { type Id, WeatherGrid } from "@pharos/shared";
+import { loadWeatherAreas, withWeatherAreas } from "./areas.js";
 
 /**
  * The grid goes in as JSON text cast to jsonb (`::text::jsonb`): a bare `::jsonb` parameter is
@@ -31,11 +32,14 @@ export async function latestWeatherSnapshot(
   >`select id, source, model_run, fetched_at, grid from weather_snapshots order by id desc limit 1`;
   const r = rows[0];
   if (!r) return null;
+  // The demo scenario's weather areas (the Scenario panel) are laid over the stored grid here, so
+  // every reader (the weather view, route planning) sees them and the snapshot id stays put.
+  const areas = await loadWeatherAreas(sql);
   return {
     id: r.id,
-    source: r.source,
+    source: areas.length > 0 ? `${r.source} + scenario areas` : r.source,
     modelRun: new Date(r.model_run),
     fetchedAt: new Date(r.fetched_at),
-    grid: WeatherGrid.parse(r.grid),
+    grid: withWeatherAreas(WeatherGrid.parse(r.grid), areas),
   };
 }

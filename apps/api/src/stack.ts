@@ -85,6 +85,7 @@ export function createStackApp(deps: StackDeps) {
     live: { sql, now, congestion },
     clock,
     evalSummary: { path: deps.evalSummaryPath ?? DEFAULT_EVAL_SUMMARY_PATH },
+    scenario: { sql, clock, config },
   });
   return { app, inbox };
 }

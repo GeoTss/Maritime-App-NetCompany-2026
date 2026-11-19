@@ -567,4 +567,23 @@ export const worldMeta = pgTable("world_meta", {
   anchor: ts().notNull(),
   seedVersion: text().notNull(),
   seededAt: ts().notNull(),
+  /** The last demo-scenario edit (the request clock); null since the last seed or reset. */
+  scenarioEditedAt: ts(),
+});
+
+/**
+ * Demo scenario weather (the Scenario panel): stationary waves and wind laid over every forecast
+ * step inside a circle when the latest snapshot is read. Directions are where they come from.
+ */
+export const scenarioWeatherAreas = pgTable("scenario_weather_areas", {
+  id: id(),
+  label: text().notNull(),
+  lat: doublePrecision().notNull(),
+  lon: doublePrecision().notNull(),
+  radiusNm: doublePrecision().notNull(),
+  waveHeightM: doublePrecision().notNull(),
+  waveDirDeg: integer().notNull(),
+  windSpeedKn: doublePrecision().notNull(),
+  windDirDeg: integer().notNull(),
+  createdAt: ts().notNull(),
 });

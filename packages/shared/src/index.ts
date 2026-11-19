@@ -13,6 +13,7 @@ export * from "./providers/erp.js";
 export * from "./providers/weather.js";
 export * from "./routing.js";
 export * from "./runtime.js";
+export * from "./scenario.js";
 export * from "./security.js";
 export * from "./timeline.js";
 export * from "./tools.js";

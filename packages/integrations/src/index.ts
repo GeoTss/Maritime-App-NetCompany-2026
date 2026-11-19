@@ -38,4 +38,5 @@ export {
   type WeatherMode,
   type WeatherProvider,
 } from "./weather/provider.js";
+export { loadWeatherAreas, pointsInArea, withWeatherAreas } from "./weather/areas.js";
 export { insertWeatherSnapshot, latestWeatherSnapshot } from "./weather/store.js";

@@ -53,6 +53,10 @@ services:
       # Recorded by default: the demo world is pinned to this instant and the request clock frozen at
       # anchor + 5 min, so recorded model replies replay. An explicitly empty DEMO_ANCHOR (npm run demo:live) = wall clock.
       DEMO_ANCHOR: ${DEMO_ANCHOR-2026-11-14T08:00:00Z}
+      # The Scenario panel's edits (on|off; npm run demo:reset turns them on) and whether its reset
+      # lays the synthetic storm, as the worker does (keep it equal to the worker's DEMO_STORM).
+      DEMO_CONTROLS: ${DEMO_CONTROLS:-off}
+      DEMO_STORM: ${DEMO_STORM:-on}
       # Model per prompt (default Claude Haiku 5.5), effort, refusal fallbacks (on|off). Blank = app default.
       EXTRACT_MODEL: ${EXTRACT_MODEL:-}
       AGENT_MODEL: ${AGENT_MODEL:-}
