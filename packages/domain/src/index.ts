@@ -29,6 +29,7 @@ export * from "./route-optimiser.js";
 export * from "./security.js";
 export * from "./stop-plan.js";
 export * from "./storms.js";
+export * from "./timeline.js";
 export * from "./track.js";
 export * from "./track-fuel.js";
 export * from "./units.js";
