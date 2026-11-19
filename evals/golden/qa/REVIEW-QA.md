@@ -161,7 +161,7 @@ Split: dev 23, held-out 23. stratified by tags[0]; dev = ceil(n / 2) per stratum
 - Proposed option: none
 - Required facts:
   - VLSFO remaining on board (latest noon report): **1900 mt**
-  - VLSFO remaining on board (latest noon report): **1400 mt**
+  - VLSFO remaining on board (latest noon report): **2450 mt**
 
 ### comparison-07 [dev]
 

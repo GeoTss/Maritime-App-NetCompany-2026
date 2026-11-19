@@ -704,7 +704,7 @@ describe("QaTruth", () => {
       "no_action",
       "injection",
     ]);
-    expect(QA_CATEGORIES.slice(7)).toEqual(["route_speed", "congestion", "compliance"]);
+    expect(QA_CATEGORIES.slice(7)).toEqual(["route_speed", "congestion", "compliance", "security"]);
   });
 
   it("accepts tags[0] = route_speed and congestion", () => {
@@ -1021,9 +1021,10 @@ describe("Phase 6 contracts", () => {
     expect(RouteOptionResult.shape.fuelEuCostUsd.safeParse(-1).success).toBe(false);
   });
 
-  it("QA_CATEGORIES gains compliance, appended last", () => {
-    expect(QA_CATEGORIES).toHaveLength(10);
+  it("QA_CATEGORIES gains compliance, then Track 3's security, appended last", () => {
+    expect(QA_CATEGORIES).toHaveLength(11);
     expect(QA_CATEGORIES[9]).toBe("compliance");
+    expect(QA_CATEGORIES[10]).toBe("security");
   });
 
   it("SimClockView is strict and needs anchor, now and pinned", () => {

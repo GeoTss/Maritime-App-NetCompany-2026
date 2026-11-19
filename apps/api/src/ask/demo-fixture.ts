@@ -61,6 +61,60 @@ export async function insertDemoQuotes(sql: Sql): Promise<Id[]> {
 }
 
 /**
+ * Track 3: the two security offers of demo emails 04 and 05 for MT Atlantic Meridian's Fujairah
+ * departure, as the pipeline stores them once extracted (validity at the start of its day). Only
+ * the Q&A world adds them (`insertDemoSecurityQuotes`); the demo ask keeps the two fuel quotes.
+ */
+export const DEMO_SECURITY_QUOTES = [
+  {
+    provider: "Tridentis Marine Protection",
+    vesselName: "MT Atlantic Meridian",
+    embark: "AEFJR",
+    disembark: "DJJIB",
+    teamSize: 4,
+    dayRate: 1250,
+    fixedFees: 6000,
+    minDays: 4,
+    currency: "USD",
+    validUntil: "2026-11-20",
+  },
+  {
+    provider: "Harbourline Security Services",
+    vesselName: "MT Atlantic Meridian",
+    embark: "AEFJR",
+    disembark: "ZADUR",
+    teamSize: 3,
+    dayRate: 1100,
+    fixedFees: 5000,
+    minDays: 5,
+    currency: "USD",
+    validUntil: "2026-11-21",
+  },
+] as const;
+
+/** Inserts DEMO_SECURITY_QUOTES (received at the anchor) and returns their ids in order. */
+export async function insertDemoSecurityQuotes(sql: Sql): Promise<Id[]> {
+  const ids: Id[] = [];
+  for (const q of DEMO_SECURITY_QUOTES) {
+    const [row] = await sql<{ id: number }[]>`
+      insert into security_quotes (provider_id, vessel_imo, embark_port_id, disembark_port_id,
+                                   team_size, day_rate, fixed_fees, min_days, currency,
+                                   valid_until, status, extraction_id, received_at)
+      values ((select id from security_providers where name = ${q.provider}),
+              (select imo from vessels where name = ${q.vesselName}),
+              (select id from ports where unlocode = ${q.embark}),
+              (select id from ports where unlocode = ${q.disembark}),
+              ${q.teamSize}, ${q.dayRate}, ${q.fixedFees}, ${q.minDays}, ${q.currency},
+              ${`${q.validUntil}T00:00:00.000Z`}::timestamptz, 'received', null,
+              ${FIXTURE_ANCHOR.toISOString()}::timestamptz)
+      returning id`;
+    if (!row) throw new Error("demo fixture: security_quotes insert returned no row");
+    ids.push(row.id);
+  }
+  return ids;
+}
+
+/**
  * Resets the database to the seeded world, loads the recorded AIS capture, weather snapshot and
  * synthetic hazard as observed at the anchor, and inserts the two demo quotes.
  */

@@ -47,10 +47,11 @@ describe("split.json of the Q&A golden set", () => {
       expect(s.dev).toBeGreaterThan(0);
       expect(s.dev).toBe(Math.ceil(s.total / 2));
     }
-    expect(split.dev).toHaveLength(33);
-    expect(split.heldout).toHaveLength(32);
+    expect(split.dev).toHaveLength(35);
+    expect(split.heldout).toHaveLength(34);
     expect(split.strata.route_speed).toMatchObject({ total: 11, dev: 6, heldout: 5 });
     expect(split.strata.congestion).toMatchObject({ total: 4, dev: 2, heldout: 2 });
     expect(split.strata.compliance).toMatchObject({ total: 4, dev: 2, heldout: 2 });
+    expect(split.strata.security).toMatchObject({ total: 4, dev: 2, heldout: 2 });
   });
 });

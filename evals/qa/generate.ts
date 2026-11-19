@@ -33,7 +33,9 @@ export const PHASE4_CATEGORY_COUNT = 7;
 const PHASE4_CATEGORIES: readonly string[] = QA_CATEGORIES.slice(0, PHASE4_CATEGORY_COUNT);
 /** Phase 5's two categories (route_speed, congestion); Phase 6 adds compliance. */
 const PHASE5_CATEGORIES: readonly string[] = QA_CATEGORIES.slice(PHASE4_CATEGORY_COUNT, 9);
-const PHASE6_CATEGORIES: readonly string[] = QA_CATEGORIES.slice(9);
+const PHASE6_CATEGORIES: readonly string[] = QA_CATEGORIES.slice(9, 10);
+/** Track 3 (phase 10): the security questions, reviewed in REVIEW-QA-P10.md. */
+const TRACK3_CATEGORIES: readonly string[] = QA_CATEGORIES.slice(10);
 
 /** The Phase 5 gate commit: the last state of the 61 truths before the load-condition and FuelEU numbers. */
 export const PHASE5_GATE_COMMIT = "b49da3f";
@@ -274,7 +276,7 @@ export function renderQaReviewP6(
   const lines: string[] = [
     "# Q&A golden set, Phase 6: review sheet (new numbers and compliance questions)",
     "",
-    `${truths.length} questions (${old.length} existing, ${compliance.length} new). Expected answers are still computed by reference code (the same domain functions and fact-label builders the agent's tools use) and are still never typed by hand or written by a model. Phase 6 changed the numbers underneath: fuel burn now follows the load condition (displacement), and every cost now includes FuelEU Maritime exposure.`,
+    `${old.length + compliance.length} questions (${old.length} existing, ${compliance.length} new; Track 3's security questions are in REVIEW-QA-P10.md). Expected answers are still computed by reference code (the same domain functions and fact-label builders the agent's tools use) and are still never typed by hand or written by a model. Phase 6 changed the numbers underneath: fuel burn now follows the load condition (displacement), and every cost now includes FuelEU Maritime exposure.`,
     "",
     `Base for the comparison: git commit ${PHASE5_GATE_COMMIT} (the Phase 5 gate), whose truth files are read through git.`,
     "",
@@ -385,10 +387,27 @@ export function renderQaGolden(): { files: Map<string, string>; truths: QaTruth[
       loadShip: info(qaRealShipWithDraught(world)),
     }),
   );
+  const security = truths.filter((t) => TRACK3_CATEGORIES.includes(t.tags[0] ?? ""));
+  files.set(
+    "REVIEW-QA-P10.md",
+    [
+      "# Q&A golden set: Track 3 security questions (review)",
+      "",
+      "The Q&A world adds the two demo security quotes for MT Atlantic Meridian's Fujairah departure",
+      "(demo emails 04 and 05, as the pipeline stores them: `insertDemoSecurityQuotes`). Every value",
+      "below is computed by the reference code from that world; no model wrote any of them.",
+      "",
+      renderQaReview(security, split, TRACK3_CATEGORIES)
+        .split("\n## ")
+        .slice(1)
+        .map((x) => `## ${x}`)
+        .join("\n"),
+    ].join("\n"),
+  );
   return { files, truths };
 }
 
-const MANAGED = /\.truth\.json$|^split\.json$|^REVIEW-QA(?:-P5|-P6)?\.md$/;
+const MANAGED = /\.truth\.json$|^split\.json$|^REVIEW-QA(?:-P5|-P6|-P10)?\.md$/;
 
 export async function diffQaGolden(files: Map<string, string>, dir: string): Promise<string[]> {
   const onDisk = await readdir(dir).catch(() => [] as string[]);

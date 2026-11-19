@@ -63,8 +63,13 @@ export type RouteField =
   | "fuelEu"
   | "etsCost"
   | "loadCondition"
-  | "aisDraught";
-export type RouteOption = "best" | "A" | "B" | "C" | "baseline";
+  | "aisDraught"
+  /** Track 3: what security adds to an option's cost, the team's days and when it boards. */
+  | "securityCost"
+  | "teamDays"
+  | "teamBoards";
+/** K is the Cape of Good Hope candidate (Track 3). */
+export type RouteOption = "best" | "A" | "B" | "C" | "K" | "baseline";
 export type CongestionField = "anchored" | "waitingHours" | "source";
 
 /**
@@ -94,6 +99,8 @@ export type FactRef =
       option?: RouteOption;
     }
   | { src: "congestion"; port: CongestionPort; field: CongestionField }
+  /** Track 3: the provider of the armed team the vessel's recommended route uses (its quote). */
+  | { src: "securityTeam"; vessel: string; field: "provider" }
   | { src: "calc"; op: CalcOp; operands: FactRef[] };
 
 export interface QuestionSpec {
@@ -235,6 +242,15 @@ const routeQ = (
   facts,
   mustNotPropose: true,
   ...(tags.length > 0 ? { tags } : {}),
+});
+const AM = "Atlantic Meridian";
+const securityQ = (id: string, question: string, facts: FactRef[]): QuestionSpec => ({
+  id,
+  category: "security",
+  question,
+  kind: "answer",
+  facts,
+  mustNotPropose: true,
 });
 const congestionQ = (id: string, question: string, facts: FactRef[]): QuestionSpec => ({
   id,
@@ -544,4 +560,22 @@ export const QUESTIONS: readonly QuestionSpec[] = [
     facts: [],
     mustNotPropose: true,
   },
+  // ---- security (4, Track 3): Atlantic Meridian, Fujairah to Rotterdam, with the two demo security quotes
+  securityQ("security-01", "Should Atlantic Meridian go through the Red Sea or round the Cape?", [
+    route(AM, "bestRoute"),
+    route(AM, "totalCost", "best"),
+    route(AM, "totalCost", "K"),
+  ]),
+  securityQ("security-02", "Which security provider should we use for Atlantic Meridian?", [
+    { src: "securityTeam", vessel: AM, field: "provider" },
+    route(AM, "teamDays", "best"),
+  ]),
+  securityQ(
+    "security-03",
+    "How much does security add to Atlantic Meridian's voyage cost on the recommended route?",
+    [route(AM, "securityCost", "best")],
+  ),
+  securityQ("security-04", "When does the armed security team board Atlantic Meridian?", [
+    route(AM, "teamBoards", "best"),
+  ]),
 ];

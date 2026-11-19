@@ -59,7 +59,7 @@ import {
   type WeatherGrid,
 } from "@pharos/shared";
 import { quoteExpiry } from "../../apps/api/src/ai/tools/common.js";
-import { ASK_FIXTURE_NOW } from "../../apps/api/src/ask/demo-fixture.js";
+import { ASK_FIXTURE_NOW, DEMO_SECURITY_QUOTES } from "../../apps/api/src/ask/demo-fixture.js";
 import { buildDemoEmails } from "../../apps/api/src/read/fixtures.js";
 import {
   AIS_DRAUGHT_PATH,
@@ -113,7 +113,10 @@ export async function insertInjectedShip(sql: Sql): Promise<void> {
             ${s.destination}, ${s.updatedAt.toISOString()}::timestamptz)`;
 }
 
-/** The Q&A world: the seed world plus the two demo quotes, as `insertDemoQuotes` stores them. */
+/**
+ * The Q&A world: the seed world plus the two demo quotes, as `insertDemoQuotes` stores them, and
+ * the two demo security quotes (Track 3), as `insertDemoSecurityQuotes` stores them.
+ */
 export function qaWorld(): World {
   const world = generateWorld({ seed: QA_SEED, anchor: QA_ANCHOR });
   const vessel = must(
@@ -160,10 +163,41 @@ export function qaWorld(): World {
       pricePerMt: o.pricePerMt,
     });
   }
+  // Track 3: the two demo security quotes, as insertDemoSecurityQuotes stores them.
+  let securityId = Math.max(0, ...world.securityQuotes.map((q) => q.id));
+  const securityQuotes = DEMO_SECURITY_QUOTES.map((q) => ({
+    id: ++securityId,
+    providerId: must(
+      world.securityProviders.find((p) => p.name === q.provider),
+      q.provider,
+    ).id,
+    vesselImo: must(
+      world.vessels.find((v) => v.name === q.vesselName),
+      q.vesselName,
+    ).imo,
+    embarkPortId: must(
+      world.ports.find((p) => p.unlocode === q.embark),
+      q.embark,
+    ).id,
+    disembarkPortId: must(
+      world.ports.find((p) => p.unlocode === q.disembark),
+      q.disembark,
+    ).id,
+    teamSize: q.teamSize,
+    dayRate: q.dayRate,
+    fixedFees: q.fixedFees,
+    minDays: q.minDays,
+    currency: q.currency,
+    validUntil: new Date(`${q.validUntil}T00:00:00.000Z`),
+    status: "received" as const,
+    extractionId: null,
+    receivedAt: QA_ANCHOR,
+  }));
   return {
     ...world,
     quotes: [...world.quotes, ...quotes],
     quoteLines: [...world.quoteLines, ...lines],
+    securityQuotes: [...world.securityQuotes, ...securityQuotes],
   };
 }
 
@@ -398,7 +432,42 @@ const ROUTE_OPTION_FIELD = {
   weatherDelay: "weatherDelayHours",
   fuelEu: "fuelEuCostUsd",
   etsCost: "etsCostUsd",
+  securityCost: "security.extraCostUsd",
+  teamDays: "security.teamDays",
+  teamBoards: "security.embarkAt",
 } as const;
+
+/** Track 3: the provider whose quote the recommended route of a fleet vessel uses for its team. */
+function resolveSecurityTeam(
+  world: World,
+  ref: Extract<FactRef, { src: "securityTeam" }>,
+): QaRequiredFact {
+  const { result } = qaRoute(world, "fleet", ref.vessel);
+  const best = must(
+    result.options.find((o) => o.candidateId === result.bestCandidateId),
+    `recommended route of ${ref.vessel}`,
+  );
+  const quoteId = must(
+    best.security?.quoteId,
+    `security team of ${ref.vessel}'s recommended route`,
+  );
+  const quote = must(
+    world.securityQuotes.find((q) => q.id === quoteId),
+    `security quote ${quoteId}`,
+  );
+  const provider = must(
+    world.securityProviders.find((p) => p.id === quote.providerId),
+    `security provider ${quote.providerId}`,
+  ).name;
+  const portName = (id: number) =>
+    must(
+      world.ports.find((p) => p.id === id),
+      `port ${id}`,
+    ).name;
+  // list_quotes' own label for that quote's provider fact.
+  const prefix = `${provider} security quote (${portName(quote.embarkPortId)} to ${portName(quote.disembarkPortId)})`;
+  return fact(`${prefix}: provider`, provider, null);
+}
 
 function resolveRoute(world: World, ref: Extract<FactRef, { src: "route" }>): QaRequiredFact {
   const { plan, result, mmsi, modelRun, ship } = qaRoute(world, ref.subject, ref.vessel);
@@ -723,6 +792,8 @@ export function resolveFact(world: World, ref: FactRef): QaRequiredFact {
       return resolveRoute(world, ref);
     case "congestion":
       return resolveCongestion(world, ref);
+    case "securityTeam":
+      return resolveSecurityTeam(world, ref);
     case "calc": {
       const operands = ref.operands.map((o) => resolveFact(world, o));
       const numeric = operands.map((o) => {

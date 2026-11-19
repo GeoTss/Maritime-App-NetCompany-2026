@@ -7,7 +7,8 @@
  *                   [--oracle | --empty] [--label x] [--offset n] [--limit n] [--final]
  *
  * Database: `connectTestDb("eval_qa")`. Before EVERY question it is reset to the Q&A world
- * (`prepareAskFixture`: seed 20261114, anchor 2026-11-14T08:00Z, plus the two demo quotes), so
+ * (`prepareAskFixture`: seed 20261114, anchor 2026-11-14T08:00Z, plus the two demo quotes, and
+ * Track 3's two demo security quotes), so
  * serial ids, and so replay keys, never depend on question order. The agent clock is
  * ASK_FIXTURE_NOW.
  *
@@ -46,7 +47,11 @@ import { captureLlmCall } from "../../apps/api/src/ai/call-capture.js";
 import { createLlm, type LlmFetch } from "../../apps/api/src/ai/llm.js";
 import { PROMPT_VERSION } from "../../apps/api/src/ai/prompts/agent-system.js";
 import { citedFactIds } from "../../apps/api/src/ai/release-gate.js";
-import { ASK_FIXTURE_NOW, prepareAskFixture } from "../../apps/api/src/ask/demo-fixture.js";
+import {
+  ASK_FIXTURE_NOW,
+  insertDemoSecurityQuotes,
+  prepareAskFixture,
+} from "../../apps/api/src/ask/demo-fixture.js";
 import { classifyAskFailure } from "../../apps/api/src/ask/failure.js";
 import { DEFAULT_RECORDINGS_DIR } from "../../apps/api/src/config.js";
 import {
@@ -362,6 +367,7 @@ async function runQuestion(
   ctx.exchanges.length = 0;
   ctx.slot.erpCalled = false;
   await prepareAskFixture(sql);
+  await insertDemoSecurityQuotes(sql);
   await insertInjectedShip(sql);
   const before = await guardedFingerprints(sql);
   const recsBefore = new Map(
