@@ -302,7 +302,16 @@ export function PlanSummary({ plan, names }: { plan: RoutePlanView; names?: Stop
         </Readout>
       </dl>
       {/* The decision sits with the headline, in view as the tray opens; the detail follows. */}
-      <ProposeFromPlan calculationId={plan.calculationId} plan={result.plan} />
+      <ProposeFromPlan
+        calculationId={plan.calculationId}
+        plan={result.plan}
+        securityTeam={
+          result.plan.kind === "route" &&
+          result.options.some(
+            (o) => o.candidateId === result.plan?.optionId && o.security?.quoteId != null,
+          )
+        }
+      />
       <AddsAndNext plan={plan} names={names} />
       {stop ? <StopCard plan={plan} index={track.index} destination={plan.destination} /> : null}
       {stop ? (

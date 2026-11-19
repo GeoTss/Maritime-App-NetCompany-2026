@@ -32,6 +32,7 @@ import {
   ShipType,
 } from "./primitives.js";
 import { RouteCandidate, RouteSpeedResult, TrackFuel } from "./routing.js";
+import { SecurityArea, SecurityQuote } from "./security.js";
 import { AgentToolName } from "./tools.js";
 
 export const ApiError = z.object({ error: z.string().min(1) });
@@ -219,6 +220,29 @@ export const QuoteView = z.object({
   documentId: Id.nullable(),
 });
 export type QuoteView = z.infer<typeof QuoteView>;
+
+/** The danger areas (Track 3), ranked most-needed first: by level, then by what they need. */
+export const SecurityAreaList = z.object({ items: z.array(SecurityArea) });
+export type SecurityAreaList = z.infer<typeof SecurityAreaList>;
+
+/** A security provider's quote as the console lists it (names resolved, dates as ISO strings). */
+export const SecurityQuoteView = z.object({
+  id: Id,
+  providerName: z.string(),
+  embarkPortName: z.string(),
+  disembarkPortName: z.string(),
+  teamSize: z.number().int().positive(),
+  dayRate: z.number().positive(),
+  fixedFees: z.number().nonnegative(),
+  minDays: z.number().int().nonnegative(),
+  currency: Currency,
+  validUntil: IsoDateTime.nullable(),
+  status: SecurityQuote.shape.status,
+  receivedAt: IsoDateTime,
+});
+export type SecurityQuoteView = z.infer<typeof SecurityQuoteView>;
+export const SecurityQuoteList = z.object({ items: z.array(SecurityQuoteView) });
+export type SecurityQuoteList = z.infer<typeof SecurityQuoteList>;
 
 /** Where an approved purchase order stands with the ERP. */
 export const ErpSyncStatus = z.enum(["pending", "synced", "failed"]);

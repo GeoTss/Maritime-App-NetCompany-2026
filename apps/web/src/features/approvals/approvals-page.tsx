@@ -178,9 +178,12 @@ export function ApprovalsPage() {
         );
       },
       onError: (err) =>
-        toast.error("The purchase order was not proposed", {
-          description: describeFailure(err),
-        }),
+        toast.error(
+          `The ${body.type === "security_order" ? "security order" : "purchase order"} was not proposed`,
+          {
+            description: describeFailure(err),
+          },
+        ),
     });
 
   const items = list.data?.items;

@@ -6,6 +6,7 @@ import {
   HazardZoneList,
   PortCongestionList,
   RoutePlanResponse,
+  SecurityAreaList,
   SourceStatusList,
   WeatherView,
 } from "@pharos/shared";
@@ -197,6 +198,20 @@ describe.skipIf(!sql)("live routes (Postgres)", () => {
     const { items: views } = HazardZoneList.parse(await (await app.request("/api/hazards")).json());
     const synthetic = views.find((h) => h.id === "synthetic:1");
     expect(synthetic?.zoneRadiusNm).toBeGreaterThan(0);
+  });
+
+  it("GET /api/security-areas ranks the danger areas most-needed first", async () => {
+    const { items } = SecurityAreaList.parse(
+      await (await app.request("/api/security-areas")).json(),
+    );
+    expect(items.map((a) => a.id)).toEqual([
+      "strait-of-hormuz",
+      "gulf-of-aden",
+      "southern-red-sea",
+      "arabian-sea-somali-basin",
+      "gulf-of-oman",
+      "gulf-of-guinea",
+    ]);
   });
 
   it("is not mounted without deps.live", async () => {

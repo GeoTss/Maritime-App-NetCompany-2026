@@ -1,6 +1,6 @@
 /**
  * Live-data routes for the map and the route planner: POST /route-plan, GET /traffic, /congestion,
- * /weather, /hazards and /sources (mounted under /api). Read-only except that planning stores one
+ * /weather, /hazards, /security-areas, /security-quotes and /sources (mounted under /api). Read-only  except that planning stores one
  * calculation.
  */
 import type { CongestionMode, Sql } from "@pharos/db";
@@ -15,6 +15,9 @@ import {
   type PortCongestionList,
   type PortCongestionView,
   type RoutePlanResponse,
+  type SecurityArea,
+  type SecurityAreaList,
+  type SecurityQuoteList,
   type SourceStatusList,
   type SourceStatusView,
   type WeatherView,
@@ -31,6 +34,23 @@ import {
 } from "../routing/plan.js";
 
 export const TRAFFIC_LIMIT = 2000;
+
+/** Danger areas rank by level, then by what they need: a no-go, an armed team, the premium. */
+const LEVEL_RANK: readonly SecurityArea["level"][] = [
+  "CRITICAL",
+  "SEVERE",
+  "SUBSTANTIAL",
+  "MODERATE",
+  "LOW",
+  "LISTED",
+];
+const POLICY_RANK: readonly SecurityArea["policy"][] = [
+  "avoid",
+  "guards",
+  "premium",
+  "escort",
+  "measures",
+];
 
 export interface LiveDeps {
   sql: Sql;
@@ -91,6 +111,60 @@ export function createLiveRoutes(deps: LiveDeps) {
         : [{ ...h, observedAt: h.observedAt.toISOString(), zoneRadiusNm }];
     });
     return c.json({ items } satisfies HazardZoneList);
+  });
+
+  // Track 3: the danger areas, ranked most-needed first (level, then what the area needs).
+  app.get("/security-areas", async (c) => {
+    const rows = await sql<SecurityArea[]>`
+      select id, name, level, policy, boxes, as_of as "asOf", source, note from security_areas`;
+    const items = [...rows].sort(
+      (a, b) =>
+        LEVEL_RANK.indexOf(a.level) - LEVEL_RANK.indexOf(b.level) ||
+        POLICY_RANK.indexOf(a.policy) - POLICY_RANK.indexOf(b.policy) ||
+        a.name.localeCompare(b.name),
+    );
+    return c.json({ items } satisfies SecurityAreaList);
+  });
+
+  app.get("/security-quotes", async (c) => {
+    const rows = await sql<
+      {
+        id: number;
+        provider_name: string;
+        embark_port_name: string;
+        disembark_port_name: string;
+        team_size: number;
+        day_rate: number;
+        fixed_fees: number;
+        min_days: number;
+        currency: "USD" | "EUR";
+        valid_until: string | Date | null;
+        status: SecurityQuoteList["items"][number]["status"];
+        received_at: string | Date;
+      }[]
+    >`select q.id, p.name as provider_name, e.name as embark_port_name,
+             d.name as disembark_port_name, q.team_size, q.day_rate, q.fixed_fees, q.min_days,
+             q.currency, q.valid_until, q.status, q.received_at
+      from security_quotes q
+        join security_providers p on p.id = q.provider_id
+        join ports e on e.id = q.embark_port_id
+        join ports d on d.id = q.disembark_port_id
+      order by q.id`;
+    const items = rows.map((r) => ({
+      id: r.id,
+      providerName: r.provider_name,
+      embarkPortName: r.embark_port_name,
+      disembarkPortName: r.disembark_port_name,
+      teamSize: r.team_size,
+      dayRate: r.day_rate,
+      fixedFees: r.fixed_fees,
+      minDays: r.min_days,
+      currency: r.currency,
+      validUntil: r.valid_until === null ? null : new Date(r.valid_until).toISOString(),
+      status: r.status,
+      receivedAt: new Date(r.received_at).toISOString(),
+    }));
+    return c.json({ items } satisfies SecurityQuoteList);
   });
 
   app.get("/congestion", async (c) => {

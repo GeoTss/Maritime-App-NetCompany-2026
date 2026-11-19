@@ -39,6 +39,7 @@ import {
   savingFact,
 } from "./route-facts";
 import { ROLE_SWATCH, ROLE_TEXT, routeRole } from "./route-style";
+import { SecurityBlock, type SecurityNames, SuezOrCape } from "./security-block";
 
 export { FactCell } from "./fact-cell";
 
@@ -55,7 +56,15 @@ const COLUMNS: { metric: OptionMetric; label: string; kind?: "time" }[] = [
 
 const numeric = "text-right tabular-nums whitespace-nowrap";
 
-export function RouteComparison({ plan, names }: { plan: RoutePlanView; names?: StopNames }) {
+export function RouteComparison({
+  plan,
+  names,
+  security,
+}: {
+  plan: RoutePlanView;
+  names?: StopNames;
+  security?: SecurityNames;
+}) {
   const { facts, result } = plan;
   const load = loadFacts(facts);
   const baselineSpeed = baselineFact(facts, "speedKn");
@@ -108,6 +117,7 @@ export function RouteComparison({ plan, names }: { plan: RoutePlanView; names?: 
           </div>
         </div>
       </dl>
+      <SuezOrCape plan={plan} />
 
       <Table>
         <TableHeader>
@@ -163,6 +173,7 @@ export function RouteComparison({ plan, names }: { plan: RoutePlanView; names?: 
                       Best route ignoring fuel on board
                     </div>
                   ) : null}
+                  <SecurityBlock plan={plan} index={index} names={security} />
                   {option.feasible && option.meetsArriveBy ? (
                     <div className="pl-7 text-2xs text-text-2" data-testid="meets-window">
                       Meets the berth window
@@ -253,6 +264,7 @@ function unhideRestOfPage() {
 export function RouteTray({
   plan,
   names,
+  security,
   container,
   snap,
   onSnapChange,
@@ -261,6 +273,8 @@ export function RouteTray({
   plan: RoutePlanView;
   /** Supplier and port of each stop plan's quote, by quote id (`GET /api/quotes`). */
   names?: StopNames;
+  /** Each security quote's team and each danger area's name (Track 3). */
+  security?: SecurityNames;
   container: HTMLElement | null;
   snap: number | string | null;
   onSnapChange: (snap: number | string | null) => void;
@@ -323,7 +337,7 @@ export function RouteTray({
           </Button>
         </div>
         <div className="min-h-0 flex-1 overflow-auto p-3" data-vaul-no-drag>
-          <RouteComparison plan={plan} names={names} />
+          <RouteComparison plan={plan} names={names} security={security} />
         </div>
       </DrawerContent>
     </Drawer>
