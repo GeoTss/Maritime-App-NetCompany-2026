@@ -235,6 +235,9 @@ export function RouteComparison({
   );
 }
 
+/** The drawer's drag handle above the body: `mt-4` + `h-1` in `components/ui/drawer.tsx`. */
+const HANDLE_REM = 1.25;
+
 /** Closed (0) to open: fractions of the map canvas. */
 export const TRAY_SNAPS = [0.12, 0.5, 0.88] as const;
 
@@ -283,6 +286,7 @@ export function RouteTray({
   useEffect(unhideRestOfPage, []);
   // The tray can be dragged, but never has to be: Taller and Shorter step through the same snaps.
   const at = snapIndex(snap);
+  const visible = typeof snap === "number" ? snap : TRAY_SNAPS[1];
   const step = (by: 1 | -1) => onSnapChange(TRAY_SNAPS[at + by] ?? TRAY_SNAPS[at] ?? null);
   return (
     <Drawer
@@ -300,44 +304,57 @@ export function RouteTray({
         aria-describedby="route-tray-description"
         className="absolute! inset-x-0 bottom-0 mt-0! h-full max-h-none! p-0 before:inset-0 before:rounded-none before:border-x-0 before:border-b-0"
       >
-        <div className="flex h-9 shrink-0 items-center gap-3 border-b border-line px-3 pt-0">
-          <DrawerTitle className="min-w-0 truncate text-sm font-medium font-title">
-            Route options: <UntrustedText text={plan.subject} /> to{" "}
-            <UntrustedText text={plan.destination} />
-          </DrawerTitle>
-          <DrawerDescription
-            id="route-tray-description"
-            className="ml-auto hidden text-2xs sm:block"
-          >
-            Calculation #{plan.calculationId}
-            {plan.weatherSnapshotId === null
-              ? ", no weather forecast"
-              : `, weather snapshot #${plan.weatherSnapshotId}`}
-          </DrawerDescription>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label="Make route options shorter"
-            disabled={at === 0}
-            onClick={() => step(-1)}
-          >
-            <HugeiconsIcon icon={ArrowDown01Icon} size={14} />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label="Make route options taller"
-            disabled={at === TRAY_SNAPS.length - 1}
-            onClick={() => step(1)}
-          >
-            <HugeiconsIcon icon={ArrowUp01Icon} size={14} />
-          </Button>
-          <Button variant="ghost" size="icon-sm" aria-label="Close route options" onClick={onClose}>
-            <HugeiconsIcon icon={Cancel01Icon} size={14} />
-          </Button>
-        </div>
-        <div className="min-h-0 flex-1 overflow-auto p-3" data-vaul-no-drag>
-          <RouteComparison plan={plan} names={names} security={security} />
+        {/* vaul slides the full-height drawer down by (1 - snap): the body takes only the visible
+            part below the handle, so its scroll area ends at the canvas edge, not below it. */}
+        <div
+          data-testid="route-tray-body"
+          className="flex min-h-0 flex-col"
+          style={{ height: `calc(${visible * 100}% - ${HANDLE_REM}rem)` }}
+        >
+          <div className="flex h-9 shrink-0 items-center gap-3 border-b border-line px-3 pt-0">
+            <DrawerTitle className="min-w-0 truncate text-sm font-medium font-title">
+              Route options: <UntrustedText text={plan.subject} /> to{" "}
+              <UntrustedText text={plan.destination} />
+            </DrawerTitle>
+            <DrawerDescription
+              id="route-tray-description"
+              className="ml-auto hidden text-2xs sm:block"
+            >
+              Calculation #{plan.calculationId}
+              {plan.weatherSnapshotId === null
+                ? ", no weather forecast"
+                : `, weather snapshot #${plan.weatherSnapshotId}`}
+            </DrawerDescription>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Make route options shorter"
+              disabled={at === 0}
+              onClick={() => step(-1)}
+            >
+              <HugeiconsIcon icon={ArrowDown01Icon} size={14} />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Make route options taller"
+              disabled={at === TRAY_SNAPS.length - 1}
+              onClick={() => step(1)}
+            >
+              <HugeiconsIcon icon={ArrowUp01Icon} size={14} />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Close route options"
+              onClick={onClose}
+            >
+              <HugeiconsIcon icon={Cancel01Icon} size={14} />
+            </Button>
+          </div>
+          <div className="min-h-0 flex-1 overflow-auto p-3" data-vaul-no-drag>
+            <RouteComparison plan={plan} names={names} security={security} />
+          </div>
         </div>
       </DrawerContent>
     </Drawer>
