@@ -9,11 +9,7 @@
   },
   "modelDecision": "Claude Haiku 5.5 only for extraction and agent evals (user decision 2026-11-14); held-out measured once on Haiku 5.5 with extract-quote/v2 and agent-system/v5.",
   "keyCheckpoints": {
-    "2": [
-      "ANTHROPIC_API_KEY"
-    ],
-    "5": [
-      "AISSTREAM_API_KEY"
-    ]
+    "2": ["ANTHROPIC_API_KEY"],
+    "5": ["AISSTREAM_API_KEY"]
   }
 }

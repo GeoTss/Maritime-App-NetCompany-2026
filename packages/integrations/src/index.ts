@@ -29,6 +29,7 @@ export {
 export { loadCoastline } from "./routes/coastline.js";
 export { loadSeaNetwork } from "./routes/network.js";
 export { insertSourceStatusIfMissing, upsertSourceStatus } from "./source-status.js";
+export { loadWeatherAreas, pointsInArea, withWeatherAreas } from "./weather/areas.js";
 export { DEMO_REGION, gridPoints } from "./weather/grid-points.js";
 export { fetchWeatherGrid, WeatherFetchError } from "./weather/open-meteo.js";
 export {
@@ -38,5 +39,4 @@ export {
   type WeatherMode,
   type WeatherProvider,
 } from "./weather/provider.js";
-export { loadWeatherAreas, pointsInArea, withWeatherAreas } from "./weather/areas.js";
 export { insertWeatherSnapshot, latestWeatherSnapshot } from "./weather/store.js";
