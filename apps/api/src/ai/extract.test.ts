@@ -78,7 +78,7 @@ describe("createLlmExtractor request", () => {
       usage: { input_tokens: 900, output_tokens: 120 },
     });
     expect(extractor).toMatchObject({ model: "claude-haiku-5-5", promptVersion: PROMPT_VERSION });
-    expect(PROMPT_VERSION).toBe("extract-quote/v3");
+    expect(PROMPT_VERSION).toBe("extract-quote/v4");
 
     expect(seen).toHaveLength(1);
     const body = seen[0]?.body ?? {};
@@ -205,11 +205,14 @@ describe("createLlmExtractor in replay mode", () => {
       "01-kestrel-marsaxlokk.eml",
       "02-straitline-gibraltar.eml",
       "03-nordwind-algeciras.eml",
+      "04-tridentis-djibouti.eml",
+      "05-harbourline-durban.eml",
+      "06-aegis-suez.eml",
     ]);
     for (const file of files) {
       const email = await parseEmail(new Uint8Array(await readFile(new URL(file, inbox))));
       const { output, metrics } = await extractor.extract(email);
-      expect(output.kind, file).toBe("quote");
+      expect(output.kind, file).toBe(file < "04" ? "quote" : "security_quote");
       expect(metrics).toHaveLength(1);
       expect(metrics[0]?.mode).toBe("replay");
     }

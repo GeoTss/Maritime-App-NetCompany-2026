@@ -60,7 +60,11 @@ const extraction = (team: {
   validUntil: { asWritten: "20 November 2026", evidence: "Offer valid until 20 November 2026." },
   notes: null,
 });
-const ctx = { receivedAt: new Date("2026-11-14T08:00:00Z"), hasUnreadableAttachment: false };
+const ctx = {
+  receivedAt: new Date("2026-11-14T08:00:00Z"),
+  hasUnreadableAttachment: false,
+  validityWritten: true,
+};
 
 describe("evaluateSecurityQuote", () => {
   it("extracts a clean quote: provider by sender domain, both ports, team, rate, fees, days", () => {
@@ -96,5 +100,61 @@ describe("evaluateSecurityQuote", () => {
     expect(r.status).toBe("needs_review");
     expect(r.securityQuote).toBeNull();
     expect(r.checks.find((c) => c.check === "team_size_unambiguous")?.passed).toBe(false);
+  });
+  it("reads the team size from what was written, not from the value alone", () => {
+    const r = evaluateSecurityQuote(
+      world,
+      doc,
+      extraction({ value: 4, asWritten: "4/6 guards" }),
+      ctx,
+    );
+    expect(r.status).toBe("needs_review");
+    expect(r.checks.find((c) => c.check === "team_size_unambiguous")?.passed).toBe(false);
+  });
+
+  const failed = (r: ReturnType<typeof evaluateSecurityQuote>) =>
+    r.checks.filter((c) => !c.passed).map((c) => c.check);
+  const absent = { value: null, asWritten: null, evidence: null };
+
+  it("holds a quote for review when its fees, minimum days or validity were not transcribed", () => {
+    const base = extraction({ value: 4, asWritten: "4 guards" });
+    const noFees = { ...base, fixedFees: { ...absent, currency: null, perUnit: null } };
+    const noDays = { ...base, minDays: { ...absent, unit: null } };
+    const noValidity = { ...base, validUntil: { asWritten: null, evidence: null } };
+    for (const [q, check] of [
+      [noFees, "amounts_parsed"],
+      [noDays, "amounts_parsed"],
+      [noValidity, "dates_parsed"],
+    ] as const) {
+      const r = evaluateSecurityQuote(world, doc, q, ctx);
+      expect(r.status).toBe("needs_review");
+      expect(r.securityQuote).toBeNull();
+      expect(failed(r)).toContain(check);
+    }
+  });
+
+  it("reads a team size written as one number word, and not two", () => {
+    const one = evaluateSecurityQuote(
+      world,
+      doc,
+      extraction({ value: 4, asWritten: "four guards" }),
+      ctx,
+    );
+    expect(failed(one)).not.toContain("team_size_unambiguous");
+    const two = evaluateSecurityQuote(
+      world,
+      doc,
+      extraction({ value: 4, asWritten: "four or six guards" }),
+      ctx,
+    );
+    expect(failed(two)).toContain("team_size_unambiguous");
+  });
+
+  it("holds several separate fees (value left null) for review rather than storing the first", () => {
+    const base = extraction({ value: 4, asWritten: "4 guards" });
+    const q = { ...base, fixedFees: { ...base.fixedFees, value: null } };
+    const r = evaluateSecurityQuote(world, doc, q, ctx);
+    expect(r.status).toBe("needs_review");
+    expect(failed(r)).toContain("amounts_parsed");
   });
 });

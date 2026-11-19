@@ -520,7 +520,7 @@ describe("golden extraction set: Track 3 security quotes", () => {
     }
   });
 
-  it("leak check: of the security traps' own spans only the spec's '4/6 guards' is in the prompt", async () => {
+  it("leak check: no security trap's own span is in the prompt", async () => {
     const prompt = (
       await readFile(join(ROOT, "apps/api/src/ai/prompts/extract-quote.ts"), "utf8")
     ).toLowerCase();
@@ -543,8 +543,8 @@ describe("golden extraction set: Track 3 security quotes", () => {
       }
     }
     expect(spans.length).toBe(14);
-    // "4/6 guards" is the spec's own example, and the v3 prompt quotes it (reported to the lead).
+    // The v3 prompt quoted "4/6 guards"; v4 states the rule without any trap's span.
     const leaks = [...new Set(spans.filter((s) => prompt.includes(s.toLowerCase())))];
-    expect(leaks).toEqual(["4/6 guards"]);
+    expect(leaks).toEqual([]);
   });
 });

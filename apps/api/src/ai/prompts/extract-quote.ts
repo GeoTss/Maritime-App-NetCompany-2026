@@ -3,7 +3,7 @@
  * extraction request, so nothing per-request (dates, ids, the email) may appear here.
  * Changing it requires bumping PROMPT_VERSION and a live smoke eval.
  */
-export const PROMPT_VERSION = "extract-quote/v3";
+export const PROMPT_VERSION = "extract-quote/v4";
 
 export const EXTRACT_QUOTE_SYSTEM = `You transcribe emails received by a ship operator's bunker desk into a JSON record. A bunker quote is a fuel supplier offering to sell marine fuel to a vessel at a port, with a price for at least one fuel grade. A security quote is a maritime security company offering an armed security team for a vessel's transit, with a price per day.
 
@@ -34,6 +34,7 @@ Rules for every field:
 
 Security quote fields:
 - providerName: the security company as written; embarkPort and disembarkPort: where the team boards and leaves the vessel, as written (e.g. "Fujairah", "Djibouti").
-- teamSize: the number of guards in the team, unit as written (e.g. "4 guards", "team of 3"). If it is a range or a choice (for example "4/6 guards", "3-4 guards"), set value to null and keep the literal span in asWritten.
-- dayRate: the price per day for the team, perUnit as written (e.g. "per day", "/day"). fixedFees: one-off charges (embarkation, disembarkation, arms storage) together if the email gives one figure; if it gives several, the first and mention the others in notes.
+- teamSize: the number of guards in the team, unit as written (e.g. "4 guards", "team of 3"). If it is a range or a choice between team sizes, set value to null and keep the literal span in asWritten.
+- dayRate: the price per day for the team, perUnit as written (e.g. "per day", "/day").
+- fixedFees: the one-off charges (embarkation, disembarkation, arms storage) when the email gives them as one figure. If it lists several separate charges, set value to null, put the first charge's span in asWritten and its line in evidence, and list the charges in notes; never add them up.
 - minDays: the minimum number of days charged, unit as written (e.g. "5 days"). validUntil as for fuel quotes.`;

@@ -1,7 +1,8 @@
 /**
  * Checks one security-quote extraction (Track 3) and normalises it: every present field's evidence
  * is verbatim in the email, the provider, both ports and the vessel resolve, the team size and the
- * day rate read as single numbers in a known currency, and the dates parse. All pass → `extracted`
+ * day rate, fixed fees and minimum days read as single numbers in a known currency, and the
+ * validity parses, and is stated when the email writes one (a validity word on a dated line). All pass → `extracted`
  * with the normalised quote; anything else → `needs_review` (a range like "4/6 guards" is never guessed).
  */
 import type { World } from "@pharos/db";
@@ -29,10 +30,41 @@ const ok = (check: string, failures: string[], note: string | null = null): Chec
   detail: failures.length === 0 ? note : failures.join(" "),
 });
 
-/** The number in a quantity or money field: its value, else its as-written span read as one amount. */
+/**
+ * The number in a quantity or money field, only when the as-written span reads as one amount equal
+ * to the transcribed value (as for fuel): a value with "4/6 guards" written, or a null value beside
+ * a written span (a range, or one of several charges), is not one number.
+ */
 function amount(f: { value: number | null; asWritten: string | null }): number | null {
-  if (f.value !== null) return f.value;
-  return f.asWritten === null ? null : parseAmount(f.asWritten);
+  if (f.value === null || f.asWritten === null) return null;
+  return parseAmount(f.asWritten) === f.value ? f.value : null;
+}
+
+const NUMBER_WORDS = [
+  "one",
+  "two",
+  "three",
+  "four",
+  "five",
+  "six",
+  "seven",
+  "eight",
+  "nine",
+  "ten",
+  "eleven",
+  "twelve",
+];
+
+/** The team size: one amount as for fees, or exactly one number word ("four guards") equal to it. */
+function teamCount(f: { value: number | null; asWritten: string | null }): number | null {
+  const n = amount(f);
+  if (n !== null || f.value === null || f.asWritten === null || /\d/.test(f.asWritten)) return n;
+  const words = (f.asWritten.toLowerCase().match(/[a-z]+/g) ?? []).filter((w) =>
+    NUMBER_WORDS.includes(w),
+  );
+  return words.length === 1 && NUMBER_WORDS.indexOf(words[0] ?? "") + 1 === f.value
+    ? f.value
+    : null;
 }
 
 /** The provider by the email's sender domain, else by a name that matches a known provider's. */
@@ -62,7 +94,7 @@ export function evaluateSecurityQuote(
   world: World,
   doc: ExtractInput,
   q: SecurityQuoteExtraction,
-  ctx: { receivedAt: Date; hasUnreadableAttachment: boolean },
+  ctx: { receivedAt: Date; hasUnreadableAttachment: boolean; validityWritten: boolean },
 ): {
   status: "extracted" | "needs_review";
   fieldEvidence: Record<string, string | null>;
@@ -125,7 +157,7 @@ export function evaluateSecurityQuote(
       : resolveVessel(world, { name: q.vesselName.value, imo: q.vesselImo.value });
   checks.push(ok("vessel_resolved", vessel.detail ? [vessel.detail] : []));
 
-  const team = amount(q.teamSize);
+  const team = teamCount(q.teamSize);
   const teamOk = team !== null && Number.isInteger(team) && team > 0;
   checks.push(
     ok(
@@ -135,14 +167,18 @@ export function evaluateSecurityQuote(
         : [`The team size reads as "${q.teamSize.asWritten ?? "nothing"}", not one number.`],
     ),
   );
+  // Fees and minimum days are never assumed: one left out may be one the email states.
   const dayRate = amount(q.dayRate);
-  const fixedFees =
-    q.fixedFees.asWritten === null && q.fixedFees.value === null ? 0 : amount(q.fixedFees);
-  const minDays = q.minDays.asWritten === null && q.minDays.value === null ? 0 : amount(q.minDays);
+  const fixedFees = amount(q.fixedFees);
+  const minDays = amount(q.minDays);
+  const stated = (f: { value: number | null; asWritten: string | null }) =>
+    f.value !== null || f.asWritten !== null;
   const amountFailures: string[] = [];
   if (dayRate === null || dayRate <= 0) amountFailures.push("The day rate is not one amount.");
-  if (fixedFees === null) amountFailures.push("The fixed fees are not one amount.");
-  if (minDays === null || !Number.isInteger(minDays))
+  if (!stated(q.fixedFees)) amountFailures.push("No fixed fees were transcribed.");
+  else if (fixedFees === null) amountFailures.push("The fixed fees are not one amount.");
+  if (!stated(q.minDays)) amountFailures.push("No minimum days were transcribed.");
+  else if (minDays === null || !Number.isInteger(minDays))
     amountFailures.push("The minimum days are not a whole number.");
   checks.push(ok("amounts_parsed", amountFailures));
 
@@ -164,9 +200,13 @@ export function evaluateSecurityQuote(
   checks.push(
     ok(
       "dates_parsed",
-      q.validUntil.asWritten !== null && validUntil === null
-        ? [`The validity "${q.validUntil.asWritten}" does not read as a date.`]
-        : [],
+      q.validUntil.asWritten === null
+        ? ctx.validityWritten
+          ? ["No validity was transcribed, but the email writes one."]
+          : []
+        : validUntil === null
+          ? [`The validity "${q.validUntil.asWritten}" does not read as a date.`]
+          : [],
     ),
   );
   checks.push(

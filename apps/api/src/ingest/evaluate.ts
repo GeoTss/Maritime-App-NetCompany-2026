@@ -674,7 +674,12 @@ export function evaluateExtraction(
 ): Evaluation {
   const source = sourceText(doc);
   if (output.kind === "security_quote") {
-    const r = evaluateSecurityQuote(world, doc, output, ctx);
+    const r = evaluateSecurityQuote(world, doc, output, {
+      ...ctx,
+      // A validity word on a dated line, as fuel's "written but not transcribed" detector: not
+      // any date, since a team of "4/6 guards" reads as 4 June.
+      validityWritten: dateWrittenWith(source, VALIDITY_WORD),
+    });
     const base = {
       fieldEvidence: r.fieldEvidence,
       checks: r.checks,
