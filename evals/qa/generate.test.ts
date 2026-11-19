@@ -58,7 +58,8 @@ describe("reference answers", () => {
     const a = QUESTIONS.map((q) => buildTruth(world, q));
     const b = QUESTIONS.map((q) => buildTruth(qaWorld(), q));
     expect(b).toEqual(a);
-  });
+    // Two full builds (about 15 s alone since Track 3 added the Cape routes): a 60 s budget.
+  }, 60_000);
 
   it("make the demo question's expected option MTMLA-kestrel", () => {
     expect(qaPlan(world).result.bestOptionId).toBe("MTMLA-kestrel");

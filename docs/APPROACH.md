@@ -176,6 +176,16 @@ limits.
 
 **The data and models**
 
+- **Danger areas are planning boxes from secondary reports** (Track 3). Levels, policies and
+  limits come from the sources listed in `docs/research/2026-11-19-maritime-security-sources.md`
+  (JMIC levels as reported by Palaemon Maritime on 9 Nov 2026, the JWC listed areas of 16 Sep 2026,
+  ICC/IMB piracy figures), each area with its date. The boxes approximate the published limits;
+  team day rates, the war-risk premium rate and hull values are illustrative. Security quote
+  extraction is measured on dev only (dev pass of 19 Nov, `extract-quote/v4`: critical fields
+  234/243, unsafe auto-accepts 0/30; the one miss was a false review, since fixed in code). The 30
+  held-out security cases have not been run, and the held-out Q&A security questions are not run
+  either.
+
 - **Synthetic private data.** The fleet, its fuel and load, suppliers, prices, quotes and the golden
   emails are synthetic. Real: public AIS ships and their positions, weather, ports and sea routes.
   Extraction accuracy is measured on synthetic emails, not real supplier mail.
