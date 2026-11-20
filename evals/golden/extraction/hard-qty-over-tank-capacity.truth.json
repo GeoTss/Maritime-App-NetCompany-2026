@@ -1,0 +1,27 @@
+{
+  "id": "hard-qty-over-tank-capacity",
+  "tags": ["hard", "qty-over-tank-capacity", "pdf", "layout:grid"],
+  "source": "hard",
+  "expected": {
+    "kind": "quote",
+    "status": "needs_review",
+    "reviewChecks": ["quantity_within_tank_capacity"],
+    "quote": {
+      "vesselImo": "9487081",
+      "portUnlocode": "FRLEH",
+      "supplierKey": "atlanticshelf",
+      "currency": "USD",
+      "validUntil": "2026-11-14",
+      "deliveryFrom": "2026-11-14",
+      "deliveryTo": "2026-11-15",
+      "bargeFee": 2000,
+      "lines": [
+        {
+          "grade": "LSMGO",
+          "qtyMt": 500,
+          "pricePerMt": 745
+        }
+      ]
+    }
+  }
+}

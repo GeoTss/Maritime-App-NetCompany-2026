@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Atlantic Shelf Fuels",
+    "evidence": "Atlantic Shelf Fuels | Trading Desk"
+  },
+  "vesselName": {
+    "value": null,
+    "evidence": null
+  },
+  "vesselImo": {
+    "value": "9485069",
+    "evidence": "Vessel name: IMO 9485069"
+  },
+  "port": {
+    "value": "Sines",
+    "evidence": "Port: Sines (PTSIE)"
+  },
+  "deliveryFrom": {
+    "asWritten": "Nov 21-24",
+    "evidence": "Delivery date: Nov 21-24"
+  },
+  "deliveryTo": {
+    "asWritten": "Nov 21-24",
+    "evidence": "Delivery date: Nov 21-24"
+  },
+  "validUntil": {
+    "asWritten": "16th November 1700 LT",
+    "evidence": "Valid till: 16th November 1700 LT"
+  },
+  "bargeFee": {
+    "value": 3300,
+    "currency": "USD",
+    "perUnit": "LS",
+    "asWritten": "USD 3,300 LS",
+    "evidence": "Barging: USD 3,300 LS"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "HSFO",
+        "evidence": "Grade: HSFO"
+      },
+      "quantity": {
+        "value": 300,
+        "unit": "tonnes",
+        "asWritten": "300 tonnes",
+        "evidence": "Qty: 300 tonnes"
+      },
+      "price": {
+        "value": 484,
+        "currency": "USD",
+        "perUnit": "/MT",
+        "asWritten": "484 USD/MT",
+        "evidence": "Price: 484 USD/MT"
+      }
+    }
+  ],
+  "notes": null
+}

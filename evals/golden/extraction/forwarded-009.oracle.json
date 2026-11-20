@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Kestrel Marine Fuels",
+    "evidence": "For and on behalf of Kestrel Marine Fuels"
+  },
+  "vesselName": {
+    "value": "MV Aegean Pioneer",
+    "evidence": "Ship: MV Aegean Pioneer (IMO 9480019)"
+  },
+  "vesselImo": {
+    "value": "9480019",
+    "evidence": "Ship: MV Aegean Pioneer (IMO 9480019)"
+  },
+  "port": {
+    "value": "Marsaxlokk",
+    "evidence": "Port: Marsaxlokk"
+  },
+  "deliveryFrom": {
+    "asWritten": "23-24 November 2026",
+    "evidence": "Delivery: 23-24 November 2026"
+  },
+  "deliveryTo": {
+    "asWritten": "23-24 November 2026",
+    "evidence": "Delivery: 23-24 November 2026"
+  },
+  "validUntil": {
+    "asWritten": "15/11/2026",
+    "evidence": "Firm until: 15/11/2026"
+  },
+  "bargeFee": {
+    "value": 1650,
+    "currency": "US$",
+    "perUnit": "lumpsum",
+    "asWritten": "US$ 1,650 lumpsum",
+    "evidence": "Barge: US$ 1,650 lumpsum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "MGO",
+        "evidence": "Grade: MGO"
+      },
+      "quantity": {
+        "value": 300,
+        "unit": "metric tons",
+        "asWritten": "300 metric tons",
+        "evidence": "Quantity: 300 metric tons"
+      },
+      "price": {
+        "value": 740,
+        "currency": "USD",
+        "perUnit": "PMT",
+        "asWritten": "USD 740 PMT",
+        "evidence": "Offer price: USD 740 PMT"
+      }
+    }
+  ],
+  "notes": null
+}

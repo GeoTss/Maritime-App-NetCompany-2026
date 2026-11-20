@@ -1,0 +1,27 @@
+{
+  "id": "hard-delivery-window-before-received-v2",
+  "tags": ["hard", "delivery-window-before-received", "variant:v2", "layout:prose"],
+  "source": "hard",
+  "expected": {
+    "kind": "quote",
+    "status": "needs_review",
+    "reviewChecks": ["delivery_window_valid"],
+    "quote": {
+      "vesselImo": "9481025",
+      "portUnlocode": "ESALG",
+      "supplierKey": "straitline",
+      "currency": "USD",
+      "validUntil": "2026-11-14",
+      "deliveryFrom": "2026-11-09",
+      "deliveryTo": "2026-11-10",
+      "bargeFee": 1550,
+      "lines": [
+        {
+          "grade": "LSMGO",
+          "qtyMt": 125,
+          "pricePerMt": 726
+        }
+      ]
+    }
+  }
+}

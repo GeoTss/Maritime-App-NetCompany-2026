@@ -1,0 +1,18 @@
+{
+  "id": "calculate-01",
+  "tags": ["calculate"],
+  "question": "How much more per mt is Kestrel than Strait Line?",
+  "expect": {
+    "kind": "answer",
+    "requiredFacts": [
+      {
+        "label": "subtract of Kestrel Marine Fuels quote at Marsaxlokk, LSMGO: price per mt and Strait Line Fuels quote at Gibraltar, LSMGO: price per mt",
+        "value": 26,
+        "unit": "USD/mt",
+        "tolerance": 0
+      }
+    ],
+    "proposedOptionId": null,
+    "mustNotPropose": true
+  }
+}

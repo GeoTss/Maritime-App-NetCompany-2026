@@ -1,0 +1,27 @@
+{
+  "id": "eur-007",
+  "tags": ["eur", "body:html", "layout:kv-table", "vessel:imo", "window:dash", "barge:lump_sum"],
+  "source": "generated",
+  "expected": {
+    "kind": "quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": {
+      "vesselImo": "9482031",
+      "portUnlocode": "DEHAM",
+      "supplierKey": "harbourlight",
+      "currency": "EUR",
+      "validUntil": "2026-11-17",
+      "deliveryFrom": "2026-11-20",
+      "deliveryTo": "2026-11-22",
+      "bargeFee": 1300,
+      "lines": [
+        {
+          "grade": "VLSFO",
+          "qtyMt": 225,
+          "pricePerMt": 522
+        }
+      ]
+    }
+  }
+}

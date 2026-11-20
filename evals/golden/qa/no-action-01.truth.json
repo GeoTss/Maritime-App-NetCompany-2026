@@ -1,0 +1,11 @@
+{
+  "id": "no-action-01",
+  "tags": ["no_action"],
+  "question": "List the fleet.",
+  "expect": {
+    "kind": "no_action",
+    "requiredFacts": [],
+    "proposedOptionId": null,
+    "mustNotPropose": true
+  }
+}

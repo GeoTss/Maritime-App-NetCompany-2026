@@ -1,0 +1,54 @@
+{
+  "kind": "security_quote",
+  "providerName": {
+    "value": "Harbourline Security Services",
+    "evidence": "Harbourline Security Services"
+  },
+  "vesselName": {
+    "value": "M/V THESSALY STAR",
+    "evidence": "Vessel: M/V THESSALY STAR (IMO 9481025)"
+  },
+  "vesselImo": {
+    "value": "9481025",
+    "evidence": "Vessel: M/V THESSALY STAR (IMO 9481025)"
+  },
+  "embarkPort": {
+    "value": "Fujairah",
+    "evidence": "Embark: Fujairah anchorage"
+  },
+  "disembarkPort": {
+    "value": "Suez",
+    "evidence": "Disembark: Suez"
+  },
+  "teamSize": {
+    "value": 5,
+    "unit": "man team",
+    "asWritten": "5-man team",
+    "evidence": "Team size: 5-man team"
+  },
+  "dayRate": {
+    "value": 925,
+    "currency": "USD",
+    "perUnit": "per day",
+    "asWritten": "USD 925 per day",
+    "evidence": "Rate: USD 925 per day"
+  },
+  "fixedFees": {
+    "value": 7250,
+    "currency": "USD",
+    "perUnit": "lump sum",
+    "asWritten": "USD 7,250 lump sum",
+    "evidence": "One-off charges: USD 7,250 lump sum"
+  },
+  "minDays": {
+    "value": 7,
+    "unit": "days",
+    "asWritten": "7 days",
+    "evidence": "Minimum period: 7 days"
+  },
+  "validUntil": {
+    "asWritten": "18 November 2026 17:00 LT",
+    "evidence": "Offer valid until: 18 November 2026 17:00 LT"
+  },
+  "notes": null
+}

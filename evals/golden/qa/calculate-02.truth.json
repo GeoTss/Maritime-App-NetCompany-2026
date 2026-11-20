@@ -1,0 +1,18 @@
+{
+  "id": "calculate-02",
+  "tags": ["calculate"],
+  "question": "What is the combined LSMGO on board of Thessaly Star and Nordic Lantern?",
+  "expect": {
+    "kind": "answer",
+    "requiredFacts": [
+      {
+        "label": "add of LSMGO remaining on board (latest noon report) and LSMGO remaining on board (latest noon report)",
+        "value": 590,
+        "unit": "mt",
+        "tolerance": 0
+      }
+    ],
+    "proposedOptionId": null,
+    "mustNotPropose": true
+  }
+}

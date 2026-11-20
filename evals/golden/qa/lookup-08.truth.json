@@ -1,0 +1,18 @@
+{
+  "id": "lookup-08",
+  "tags": ["lookup"],
+  "question": "What voyage number is Coral Horizon on?",
+  "expect": {
+    "kind": "answer",
+    "requiredFacts": [
+      {
+        "label": "MV Coral Horizon: current voyage number",
+        "value": "CH-2613",
+        "unit": null,
+        "tolerance": 0
+      }
+    ],
+    "proposedOptionId": null,
+    "mustNotPropose": true
+  }
+}

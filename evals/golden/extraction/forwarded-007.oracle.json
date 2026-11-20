@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Harbourlight Energy",
+    "evidence": "For and on behalf of Harbourlight Energy"
+  },
+  "vesselName": {
+    "value": "MV Aegean Pioneer",
+    "evidence": "Vessel name: MV Aegean Pioneer"
+  },
+  "vesselImo": {
+    "value": null,
+    "evidence": null
+  },
+  "port": {
+    "value": "Rotterdam",
+    "evidence": "Delivery port: Rotterdam"
+  },
+  "deliveryFrom": {
+    "asWritten": "20/11-21/11",
+    "evidence": "Delivery period: 20/11-21/11"
+  },
+  "deliveryTo": {
+    "asWritten": "20/11-21/11",
+    "evidence": "Delivery period: 20/11-21/11"
+  },
+  "validUntil": {
+    "asWritten": "16 November 2026",
+    "evidence": "Validity: 16 November 2026"
+  },
+  "bargeFee": {
+    "value": 3600,
+    "currency": "USD",
+    "perUnit": "LS",
+    "asWritten": "USD 3600 LS",
+    "evidence": "Delivery charge: USD 3600 LS"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "LSMGO",
+        "evidence": "Fuel: LSMGO"
+      },
+      "quantity": {
+        "value": 300,
+        "unit": "mt",
+        "asWritten": "300 mt",
+        "evidence": "Quantity: 300 mt"
+      },
+      "price": {
+        "value": 724,
+        "currency": "USD",
+        "perUnit": "/mt",
+        "asWritten": "USD 724.00/mt",
+        "evidence": "Price: USD 724.00/mt"
+      }
+    }
+  ],
+  "notes": null
+}

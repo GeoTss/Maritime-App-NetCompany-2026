@@ -1,0 +1,33 @@
+From: Atlantic Shelf Fuels Trading <bunkers@atlantic-shelf.example>
+To: Bunker Desk <bunker-desk@pharos-demo.example>
+Subject: Offer: IFO for Atlantic Meridian (Brest)
+Date: Fri, 13 Nov 2026 03:36:00 +0000
+Message-ID: <3b2b60fa5da9350f913b@atlantic-shelf.example>
+MIME-Version: 1.0
+Content-Type: text/html; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Offer ASF-2611-2368</title></head>
+<body style="font-family:Arial,sans-serif;font-size:13px;color:#1a1a1a">
+<p>Dear Bunker Desk,</p>
+<p>Please see our firm offer below.</p>
+<table border="1" cellpadding="4" cellspacing="0" style="border-collapse:collapse">
+<tr><td><b>Ship</b></td><td>IMO 9485069</td></tr>
+<tr><td><b>Port</b></td><td>Brest (FRBES)</td></tr>
+<tr><td><b>Delivery period</b></td><td>Nov 22-23</td></tr>
+<tr><td><b>Product</b></td><td>IFO 380</td></tr>
+<tr><td><b>Qty</b></td><td>300 metric tons</td></tr>
+<tr><td><b>Unit price</b></td><td>€ 416.25 pmt</td></tr>
+<tr><td><b>Barge fee</b></td><td>EUR 1,350 lumpsum</td></tr>
+<tr><td><b>Offer valid until</b></td><td>14 November 18:00 UTC</td></tr>
+</table>
+<p style="font-size:11px;color:#555">Subject to availability at time of nomination.<br>
+Our standard terms and conditions apply.<br>
+Price basis: delivered by barge.</p>
+<p>Regards,<br>
+Anke Ferraro<br>
+Senior Trader<br>
+Atlantic Shelf Fuels<br>
+T +47 58 9675 2923 | bunkers@atlantic-shelf.example</p>
+</body></html>

@@ -1,0 +1,54 @@
+{
+  "kind": "security_quote",
+  "providerName": {
+    "value": "Harbourline Security Services",
+    "evidence": "For and on behalf of Harbourline Security Services"
+  },
+  "vesselName": {
+    "value": null,
+    "evidence": null
+  },
+  "vesselImo": {
+    "value": "9480019",
+    "evidence": "Ship: IMO 9480019"
+  },
+  "embarkPort": {
+    "value": "Djibouti",
+    "evidence": "Team boards at: off Djibouti"
+  },
+  "disembarkPort": {
+    "value": "Cape Town",
+    "evidence": "Disembark: Cape Town, South Africa"
+  },
+  "teamSize": {
+    "value": 5,
+    "unit": "guards",
+    "asWritten": "5 guards",
+    "evidence": "5 guards USD 1,450 per day 7 days $7500 lump sum"
+  },
+  "dayRate": {
+    "value": 1450,
+    "currency": "USD",
+    "perUnit": "per day",
+    "asWritten": "USD 1,450 per day",
+    "evidence": "5 guards USD 1,450 per day 7 days $7500 lump sum"
+  },
+  "fixedFees": {
+    "value": 7500,
+    "currency": "$",
+    "perUnit": "lump sum",
+    "asWritten": "$7500 lump sum",
+    "evidence": "5 guards USD 1,450 per day 7 days $7500 lump sum"
+  },
+  "minDays": {
+    "value": 7,
+    "unit": "days",
+    "asWritten": "7 days",
+    "evidence": "5 guards USD 1,450 per day 7 days $7500 lump sum"
+  },
+  "validUntil": {
+    "asWritten": "16.11.26",
+    "evidence": "Offer valid until: 16.11.26"
+  },
+  "notes": null
+}

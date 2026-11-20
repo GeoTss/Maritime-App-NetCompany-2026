@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Harbourlight Energy",
+    "evidence": "Harbourlight Energy"
+  },
+  "vesselName": {
+    "value": null,
+    "evidence": null
+  },
+  "vesselImo": {
+    "value": "9480019",
+    "evidence": "Vessel: IMO 9480019"
+  },
+  "port": {
+    "value": "Rotterdam",
+    "evidence": "Delivery port: Rotterdam (NLRTM)"
+  },
+  "deliveryFrom": {
+    "asWritten": "23-25 Nov",
+    "evidence": "Delivery: 23-25 Nov"
+  },
+  "deliveryTo": {
+    "asWritten": "23-25 Nov",
+    "evidence": "Delivery: 23-25 Nov"
+  },
+  "validUntil": {
+    "asWritten": "2026-11-16 at 16:00 LT",
+    "evidence": "Offer valid until: 2026-11-16 at 16:00 LT"
+  },
+  "bargeFee": {
+    "value": 3350,
+    "currency": "USD",
+    "perUnit": "lump sum",
+    "asWritten": "USD 3350 lump sum",
+    "evidence": "Delivery charge: USD 3350 lump sum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "LSMGO",
+        "evidence": "Fuel: LSMGO"
+      },
+      "quantity": {
+        "value": 300,
+        "unit": "mt",
+        "asWritten": "300 mt",
+        "evidence": "Qty: 300 mt"
+      },
+      "price": {
+        "value": 747.5,
+        "currency": "USD",
+        "perUnit": "per mt",
+        "asWritten": "USD 747.50 per mt",
+        "evidence": "Unit price: USD 747.50 per mt"
+      }
+    }
+  ],
+  "notes": null
+}

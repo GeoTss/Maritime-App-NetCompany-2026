@@ -1,0 +1,24 @@
+{
+  "id": "comparison-05",
+  "tags": ["comparison"],
+  "question": "Who has more LSMGO on board, Thessaly Star or Nordic Lantern?",
+  "expect": {
+    "kind": "answer",
+    "requiredFacts": [
+      {
+        "label": "LSMGO remaining on board (latest noon report)",
+        "value": 310,
+        "unit": "mt",
+        "tolerance": 0
+      },
+      {
+        "label": "LSMGO remaining on board (latest noon report)",
+        "value": 280,
+        "unit": "mt",
+        "tolerance": 0
+      }
+    ],
+    "proposedOptionId": null,
+    "mustNotPropose": true
+  }
+}

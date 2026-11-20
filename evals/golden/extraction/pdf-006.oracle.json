@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Atlantic Shelf Fuels",
+    "evidence": "For and on behalf of Atlantic Shelf Fuels"
+  },
+  "vesselName": {
+    "value": "Atlantic Meridian",
+    "evidence": "Ship: Atlantic Meridian / IMO 9485069"
+  },
+  "vesselImo": {
+    "value": "9485069",
+    "evidence": "Ship: Atlantic Meridian / IMO 9485069"
+  },
+  "port": {
+    "value": "Sines",
+    "evidence": "Port: Sines (PTSIE)"
+  },
+  "deliveryFrom": {
+    "asWritten": "18 Nov +/- 1 day",
+    "evidence": "Delivery date: 18 Nov +/- 1 day"
+  },
+  "deliveryTo": {
+    "asWritten": "18 Nov +/- 1 day",
+    "evidence": "Delivery date: 18 Nov +/- 1 day"
+  },
+  "validUntil": {
+    "asWritten": "14/11/2026 at 16:00 LT",
+    "evidence": "Offer valid until: 14/11/2026 at 16:00 LT"
+  },
+  "bargeFee": {
+    "value": 3200,
+    "currency": "USD",
+    "perUnit": "LS",
+    "asWritten": "USD 3,200 LS",
+    "evidence": "Barge: USD 3,200 LS"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "IFO 380 3.5%S",
+        "evidence": "IFO 380 3.5%S 300 MTS USD 498.25 per metric ton"
+      },
+      "quantity": {
+        "value": 300,
+        "unit": "MTS",
+        "asWritten": "300 MTS",
+        "evidence": "IFO 380 3.5%S 300 MTS USD 498.25 per metric ton"
+      },
+      "price": {
+        "value": 498.25,
+        "currency": "USD",
+        "perUnit": "per metric ton",
+        "asWritten": "USD 498.25 per metric ton",
+        "evidence": "IFO 380 3.5%S 300 MTS USD 498.25 per metric ton"
+      }
+    }
+  ],
+  "notes": null
+}

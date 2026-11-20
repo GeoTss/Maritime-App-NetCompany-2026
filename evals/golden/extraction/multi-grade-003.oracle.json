@@ -1,0 +1,79 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Atlantic Shelf Fuels",
+    "evidence": "For and on behalf of Atlantic Shelf Fuels"
+  },
+  "vesselName": {
+    "value": "MT Atlantic Meridian",
+    "evidence": "Ship: MT Atlantic Meridian / IMO 9485069"
+  },
+  "vesselImo": {
+    "value": "9485069",
+    "evidence": "Ship: MT Atlantic Meridian / IMO 9485069"
+  },
+  "port": {
+    "value": "Sines",
+    "evidence": "Port: Sines anchorage"
+  },
+  "deliveryFrom": {
+    "asWritten": "18-21 Nov",
+    "evidence": "Delivery: 18-21 Nov"
+  },
+  "deliveryTo": {
+    "asWritten": "18-21 Nov",
+    "evidence": "Delivery: 18-21 Nov"
+  },
+  "validUntil": {
+    "asWritten": "17th November 1700 LT",
+    "evidence": "Offer valid until: 17th November 1700 LT"
+  },
+  "bargeFee": {
+    "value": 3200,
+    "currency": "US$",
+    "perUnit": "lumpsum",
+    "asWritten": "US$ 3,200 lumpsum",
+    "evidence": "Barge fee: US$ 3,200 lumpsum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "RMG 380",
+        "evidence": "RMG 380        375 mt      $493.00/mt"
+      },
+      "quantity": {
+        "value": 375,
+        "unit": "mt",
+        "asWritten": "375 mt",
+        "evidence": "RMG 380        375 mt      $493.00/mt"
+      },
+      "price": {
+        "value": 493,
+        "currency": "$",
+        "perUnit": "/mt",
+        "asWritten": "$493.00/mt",
+        "evidence": "RMG 380        375 mt      $493.00/mt"
+      }
+    },
+    {
+      "grade": {
+        "value": "VLSFO 0.50%",
+        "evidence": "VLSFO 0.50%    125 mt      $601.00/mt"
+      },
+      "quantity": {
+        "value": 125,
+        "unit": "mt",
+        "asWritten": "125 mt",
+        "evidence": "VLSFO 0.50%    125 mt      $601.00/mt"
+      },
+      "price": {
+        "value": 601,
+        "currency": "$",
+        "perUnit": "/mt",
+        "asWritten": "$601.00/mt",
+        "evidence": "VLSFO 0.50%    125 mt      $601.00/mt"
+      }
+    }
+  ],
+  "notes": null
+}

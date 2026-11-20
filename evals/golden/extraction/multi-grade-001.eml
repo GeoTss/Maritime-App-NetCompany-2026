@@ -1,0 +1,35 @@
+From: Atlantic Shelf Fuels Trading <offers@atlantic-shelf.example>
+To: Bunker Desk <bunker-desk@pharos-demo.example>
+Subject: Atlantic Meridian - Brest - our offer
+Date: Fri, 13 Nov 2026 21:41:00 +0000
+Message-ID: <fa968873eb408ad28e05@atlantic-shelf.example>
+MIME-Version: 1.0
+Content-Type: text/html; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Offer ASF-2611-3764</title></head>
+<body style="font-family:Arial,sans-serif;font-size:13px;color:#1a1a1a">
+<p>Dear colleagues,</p>
+<p>Please see our firm offer below.</p>
+<table cellpadding="3">
+<tr><td><b>Vessel name</b></td><td>MT Atlantic Meridian</td></tr>
+<tr><td><b>Port</b></td><td>Brest outer anchorage</td></tr>
+<tr><td><b>Delivery window</b></td><td>19-20 November 2026</td></tr>
+</table>
+<br>
+<table border="1" cellpadding="4" cellspacing="0">
+<tr><th>Fuel</th><th>Qty</th><th>Price</th></tr>
+<tr><td>IFO 380</td><td>300 metric tons</td><td>$482.00/mt</td></tr>
+<tr><td>DMA 0.1%</td><td>200 metric tons</td><td>$745.75/mt</td></tr>
+</table>
+<p><b>Barge fee:</b> USD 2600 lump sum</p>
+<p><b>Firm until:</b> Nov 15, 2026 1200 UTC</p>
+<p style="font-size:11px;color:#555">Subject to availability at time of nomination.<br>
+Our standard terms and conditions apply.</p>
+<p>BR,<br>
+Nikos Borg<br>
+Senior Trader<br>
+For and on behalf of Atlantic Shelf Fuels<br>
+T +31 93 6456 4212 | offers@atlantic-shelf.example</p>
+</body></html>

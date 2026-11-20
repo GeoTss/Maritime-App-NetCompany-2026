@@ -1,0 +1,54 @@
+{
+  "kind": "security_quote",
+  "providerName": {
+    "value": "Harbourline Security Services",
+    "evidence": "For and on behalf of Harbourline Security Services"
+  },
+  "vesselName": {
+    "value": "MT Levant Carrier",
+    "evidence": "Vessel: MT Levant Carrier / IMO 9484053"
+  },
+  "vesselImo": {
+    "value": "9484053",
+    "evidence": "Vessel: MT Levant Carrier / IMO 9484053"
+  },
+  "embarkPort": {
+    "value": "Fujairah",
+    "evidence": "Embarkation: Fujairah"
+  },
+  "disembarkPort": {
+    "value": "Cape Town",
+    "evidence": "Team leaves at: Cape Town anchorage"
+  },
+  "teamSize": {
+    "value": 5,
+    "unit": "guards",
+    "asWritten": "5 guards",
+    "evidence": "Guards: 5 guards"
+  },
+  "dayRate": {
+    "value": 1600,
+    "currency": "US$",
+    "perUnit": "/day",
+    "asWritten": "US$ 1600.00/day",
+    "evidence": "Rate: US$ 1600.00/day"
+  },
+  "fixedFees": {
+    "value": 5500,
+    "currency": "USD",
+    "perUnit": "lump sum",
+    "asWritten": "USD 5,500 lump sum",
+    "evidence": "Fixed fees: USD 5,500 lump sum"
+  },
+  "minDays": {
+    "value": 6,
+    "unit": "days",
+    "asWritten": "6 days",
+    "evidence": "Minimum period: 6 days"
+  },
+  "validUntil": {
+    "asWritten": "20/11 1700 LT",
+    "evidence": "Rates valid until: 20/11 1700 LT"
+  },
+  "notes": null
+}

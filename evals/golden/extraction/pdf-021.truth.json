@@ -1,0 +1,27 @@
+{
+  "id": "pdf-021",
+  "tags": ["pdf", "layout:letter", "vessel:name-imo", "window:mon-both", "barge:lump_sum"],
+  "source": "generated",
+  "expected": {
+    "kind": "quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": {
+      "vesselImo": "9480019",
+      "portUnlocode": "PTSIE",
+      "supplierKey": "atlanticshelf",
+      "currency": "USD",
+      "validUntil": "2026-11-15",
+      "deliveryFrom": "2026-11-21",
+      "deliveryTo": "2026-11-24",
+      "bargeFee": 2450,
+      "lines": [
+        {
+          "grade": "LSMGO",
+          "qtyMt": 300,
+          "pricePerMt": 692.75
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "id": "comparison-02",
+  "tags": ["comparison"],
+  "question": "Whose barge fee is higher, Kestrel's or Strait Line's?",
+  "expect": {
+    "kind": "answer",
+    "requiredFacts": [
+      {
+        "label": "Kestrel Marine Fuels quote at Marsaxlokk: barge fee",
+        "value": 2800,
+        "unit": "USD",
+        "tolerance": 0
+      },
+      {
+        "label": "Strait Line Fuels quote at Gibraltar: barge fee",
+        "value": 9000,
+        "unit": "USD",
+        "tolerance": 0
+      }
+    ],
+    "proposedOptionId": null,
+    "mustNotPropose": true
+  }
+}

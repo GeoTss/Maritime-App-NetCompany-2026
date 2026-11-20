@@ -1,0 +1,27 @@
+{
+  "id": "hard-missing-currency",
+  "tags": ["hard", "missing-currency", "plain", "layout:labels"],
+  "source": "hard",
+  "expected": {
+    "kind": "quote",
+    "status": "needs_review",
+    "reviewChecks": ["currency_known"],
+    "quote": {
+      "vesselImo": "9484053",
+      "portUnlocode": "ITGOA",
+      "supplierKey": "meridian",
+      "currency": null,
+      "validUntil": "2026-11-15",
+      "deliveryFrom": "2026-11-18",
+      "deliveryTo": "2026-11-19",
+      "bargeFee": 0,
+      "lines": [
+        {
+          "grade": "HSFO",
+          "qtyMt": 325,
+          "pricePerMt": 456
+        }
+      ]
+    }
+  }
+}

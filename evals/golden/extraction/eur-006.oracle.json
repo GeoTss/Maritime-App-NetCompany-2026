@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Nordwind Bunker Services",
+    "evidence": "For and on behalf of Nordwind Bunker Services"
+  },
+  "vesselName": {
+    "value": "MV Scheldt Express",
+    "evidence": "We are pleased to offer LSMGO for MV Scheldt Express (IMO 9487081) at Antwerp."
+  },
+  "vesselImo": {
+    "value": "9487081",
+    "evidence": "We are pleased to offer LSMGO for MV Scheldt Express (IMO 9487081) at Antwerp."
+  },
+  "port": {
+    "value": "Antwerp",
+    "evidence": "We are pleased to offer LSMGO for MV Scheldt Express (IMO 9487081) at Antwerp."
+  },
+  "deliveryFrom": {
+    "asWritten": "Nov 23-25",
+    "evidence": "Delivery Nov 23-25."
+  },
+  "deliveryTo": {
+    "asWritten": "Nov 23-25",
+    "evidence": "Delivery Nov 23-25."
+  },
+  "validUntil": {
+    "asWritten": "15/11/2026 1700 LT",
+    "evidence": "This offer is valid until 15/11/2026 1700 LT."
+  },
+  "bargeFee": {
+    "value": 1600,
+    "currency": "EUR",
+    "perUnit": "lumpsum",
+    "asWritten": "EUR 1,600 lumpsum",
+    "evidence": "Barging EUR 1,600 lumpsum."
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "LSMGO",
+        "evidence": "We are pleased to offer LSMGO for MV Scheldt Express (IMO 9487081) at Antwerp."
+      },
+      "quantity": {
+        "value": 100,
+        "unit": "metric tonnes",
+        "asWritten": "100 metric tonnes",
+        "evidence": "Quantity 100 metric tonnes, price € 639.00 pmt."
+      },
+      "price": {
+        "value": 639,
+        "currency": "€",
+        "perUnit": "pmt",
+        "asWritten": "€ 639.00 pmt",
+        "evidence": "Quantity 100 metric tonnes, price € 639.00 pmt."
+      }
+    }
+  ],
+  "notes": null
+}

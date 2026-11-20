@@ -1,0 +1,27 @@
+{
+  "id": "hard-spoofed-supplier-name",
+  "tags": ["hard", "spoofed-supplier-name", "plain", "layout:compact"],
+  "source": "hard",
+  "expected": {
+    "kind": "quote",
+    "status": "needs_review",
+    "reviewChecks": ["supplier_name_matches"],
+    "quote": {
+      "vesselImo": "9486075",
+      "portUnlocode": "GIGIB",
+      "supplierKey": "straitline",
+      "currency": "USD",
+      "validUntil": "2026-11-14",
+      "deliveryFrom": "2026-11-14",
+      "deliveryTo": "2026-11-15",
+      "bargeFee": 1900,
+      "lines": [
+        {
+          "grade": "LSMGO",
+          "qtyMt": 100,
+          "pricePerMt": 775
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Atlantic Shelf Fuels",
+    "evidence": "For and on behalf of Atlantic Shelf Fuels"
+  },
+  "vesselName": {
+    "value": "Atlantic Meridian",
+    "evidence": "We are pleased to offer HSFO 3.5% for Atlantic Meridian / IMO 9485069 at Sines outer anchorage."
+  },
+  "vesselImo": {
+    "value": "9485069",
+    "evidence": "We are pleased to offer HSFO 3.5% for Atlantic Meridian / IMO 9485069 at Sines outer anchorage."
+  },
+  "port": {
+    "value": "Sines",
+    "evidence": "We are pleased to offer HSFO 3.5% for Atlantic Meridian / IMO 9485069 at Sines outer anchorage."
+  },
+  "deliveryFrom": {
+    "asWritten": "22 Nov",
+    "evidence": "Delivery from 22 Nov, delivery to 25 Nov."
+  },
+  "deliveryTo": {
+    "asWritten": "25 Nov",
+    "evidence": "Delivery from 22 Nov, delivery to 25 Nov."
+  },
+  "validUntil": {
+    "asWritten": "16th November 17:00 LT",
+    "evidence": "This offer is valid until 16th November 17:00 LT."
+  },
+  "bargeFee": {
+    "value": null,
+    "currency": null,
+    "perUnit": null,
+    "asWritten": null,
+    "evidence": null
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "HSFO 3.5%",
+        "evidence": "We are pleased to offer HSFO 3.5% for Atlantic Meridian / IMO 9485069 at Sines outer anchorage."
+      },
+      "quantity": {
+        "value": 300,
+        "unit": "MTS",
+        "asWritten": "300 MTS",
+        "evidence": "Quantity 300 MTS, price USD 479.50 PMT."
+      },
+      "price": {
+        "value": 479.5,
+        "currency": "USD",
+        "perUnit": "PMT",
+        "asWritten": "USD 479.50 PMT",
+        "evidence": "Quantity 300 MTS, price USD 479.50 PMT."
+      }
+    }
+  ],
+  "notes": null
+}

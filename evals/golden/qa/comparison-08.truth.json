@@ -1,0 +1,24 @@
+{
+  "id": "comparison-08",
+  "tags": ["comparison"],
+  "question": "Between the Marsaxlokk and Gibraltar offers, which one would delay Aegean Pioneer more?",
+  "expect": {
+    "kind": "answer",
+    "requiredFacts": [
+      {
+        "label": "MTMLA-kestrel (Kestrel Marine Fuels, Marsaxlokk): delay",
+        "value": 11.120000000000001,
+        "unit": "h",
+        "tolerance": 0.06
+      },
+      {
+        "label": "GIGIB-straitline (Strait Line Fuels, Gibraltar): delay",
+        "value": 36.32,
+        "unit": "h",
+        "tolerance": 0.06
+      }
+    ],
+    "proposedOptionId": null,
+    "mustNotPropose": true
+  }
+}

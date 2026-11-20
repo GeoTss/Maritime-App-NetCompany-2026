@@ -1,0 +1,30 @@
+{
+  "id": "security-pdf-004",
+  "tags": [
+    "security-pdf",
+    "layout:grid",
+    "vessel:name-imo",
+    "team:pcasp",
+    "fees:lump",
+    "route:AEFJR-DJJIB"
+  ],
+  "source": "generated",
+  "expected": {
+    "kind": "security_quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": null,
+    "security": {
+      "provider": "Tridentis Marine Protection",
+      "vesselImo": "9481025",
+      "embarkUnlocode": "AEFJR",
+      "disembarkUnlocode": "DJJIB",
+      "teamSize": 6,
+      "dayRate": 1325,
+      "currency": "USD",
+      "fixedFees": 4500,
+      "minDays": 5,
+      "validUntil": "2026-11-17"
+    }
+  }
+}

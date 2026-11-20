@@ -1,0 +1,30 @@
+{
+  "id": "security-01",
+  "tags": ["security"],
+  "question": "Should Atlantic Meridian go through the Red Sea or round the Cape?",
+  "expect": {
+    "kind": "answer",
+    "requiredFacts": [
+      {
+        "label": "MT Atlantic Meridian: best route ignoring fuel on board",
+        "value": "B",
+        "unit": null,
+        "tolerance": 0
+      },
+      {
+        "label": "MT Atlantic Meridian, route B: total voyage cost (fuel, EU ETS, FuelEU, vessel time)",
+        "value": 1688632.234885991,
+        "unit": "USD",
+        "tolerance": 0.5
+      },
+      {
+        "label": "MT Atlantic Meridian, route K: total voyage cost (fuel, EU ETS, FuelEU, vessel time)",
+        "value": 2144908.356144039,
+        "unit": "USD",
+        "tolerance": 0.5
+      }
+    ],
+    "proposedOptionId": null,
+    "mustNotPropose": true
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Kestrel Marine Fuels",
+    "evidence": "Kestrel Marine Fuels"
+  },
+  "vesselName": {
+    "value": "Levant Carrier",
+    "evidence": "Levant Carrier, IMO No. 9484053 / Piraeus / HSFO 325 metric tons @ €455.00/mt"
+  },
+  "vesselImo": {
+    "value": "9484053",
+    "evidence": "Levant Carrier, IMO No. 9484053 / Piraeus / HSFO 325 metric tons @ €455.00/mt"
+  },
+  "port": {
+    "value": "Piraeus",
+    "evidence": "Levant Carrier, IMO No. 9484053 / Piraeus / HSFO 325 metric tons @ €455.00/mt"
+  },
+  "deliveryFrom": {
+    "asWritten": "2026-11-20",
+    "evidence": "Delivery from: 2026-11-20"
+  },
+  "deliveryTo": {
+    "asWritten": "2026-11-21",
+    "evidence": "Delivery to: 2026-11-21"
+  },
+  "validUntil": {
+    "asWritten": "17.11.26 12:00 LT",
+    "evidence": "Valid until: 17.11.26 12:00 LT"
+  },
+  "bargeFee": {
+    "value": 1950,
+    "currency": "EUR",
+    "perUnit": "lump sum",
+    "asWritten": "EUR 1,950 lump sum",
+    "evidence": "Barge: EUR 1,950 lump sum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "HSFO",
+        "evidence": "Levant Carrier, IMO No. 9484053 / Piraeus / HSFO 325 metric tons @ €455.00/mt"
+      },
+      "quantity": {
+        "value": 325,
+        "unit": "metric tons",
+        "asWritten": "325 metric tons",
+        "evidence": "Levant Carrier, IMO No. 9484053 / Piraeus / HSFO 325 metric tons @ €455.00/mt"
+      },
+      "price": {
+        "value": 455,
+        "currency": "€",
+        "perUnit": "/mt",
+        "asWritten": "€455.00/mt",
+        "evidence": "Levant Carrier, IMO No. 9484053 / Piraeus / HSFO 325 metric tons @ €455.00/mt"
+      }
+    }
+  ],
+  "notes": null
+}

@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Atlantic Shelf Fuels",
+    "evidence": "Atlantic Shelf Fuels"
+  },
+  "vesselName": {
+    "value": null,
+    "evidence": null
+  },
+  "vesselImo": {
+    "value": "9485069",
+    "evidence": "Ship                IMO 9485069"
+  },
+  "port": {
+    "value": "Brest",
+    "evidence": "Port                Brest (FRBES)"
+  },
+  "deliveryFrom": {
+    "asWritten": "Nov 22-23",
+    "evidence": "Delivery period     Nov 22-23"
+  },
+  "deliveryTo": {
+    "asWritten": "Nov 22-23",
+    "evidence": "Delivery period     Nov 22-23"
+  },
+  "validUntil": {
+    "asWritten": "14 November 18:00 UTC",
+    "evidence": "Offer valid until   14 November 18:00 UTC"
+  },
+  "bargeFee": {
+    "value": 1350,
+    "currency": "EUR",
+    "perUnit": "lumpsum",
+    "asWritten": "EUR 1,350 lumpsum",
+    "evidence": "Barge fee           EUR 1,350 lumpsum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "IFO 380",
+        "evidence": "Product             IFO 380"
+      },
+      "quantity": {
+        "value": 300,
+        "unit": "metric tons",
+        "asWritten": "300 metric tons",
+        "evidence": "Qty                 300 metric tons"
+      },
+      "price": {
+        "value": 416.25,
+        "currency": "€",
+        "perUnit": "pmt",
+        "asWritten": "€ 416.25 pmt",
+        "evidence": "Unit price          € 416.25 pmt"
+      }
+    }
+  ],
+  "notes": null
+}

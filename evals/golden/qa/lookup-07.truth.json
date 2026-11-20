@@ -1,0 +1,18 @@
+{
+  "id": "lookup-07",
+  "tags": ["lookup"],
+  "question": "What barge fee is Strait Line charging at Gibraltar?",
+  "expect": {
+    "kind": "answer",
+    "requiredFacts": [
+      {
+        "label": "Strait Line Fuels quote at Gibraltar: barge fee",
+        "value": 9000,
+        "unit": "USD",
+        "tolerance": 0
+      }
+    ],
+    "proposedOptionId": null,
+    "mustNotPropose": true
+  }
+}

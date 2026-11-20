@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Nordwind Bunker Services",
+    "evidence": "Nordwind Bunker Services | Trading Desk"
+  },
+  "vesselName": {
+    "value": "MV SCHELDT EXPRESS",
+    "evidence": "Ship: MV SCHELDT EXPRESS"
+  },
+  "vesselImo": {
+    "value": null,
+    "evidence": null
+  },
+  "port": {
+    "value": "Antwerp",
+    "evidence": "Port: Antwerp (BEANR)"
+  },
+  "deliveryFrom": {
+    "asWritten": "22.11.2026 - 25.11.2026",
+    "evidence": "Dates: 22.11.2026 - 25.11.2026"
+  },
+  "deliveryTo": {
+    "asWritten": "22.11.2026 - 25.11.2026",
+    "evidence": "Dates: 22.11.2026 - 25.11.2026"
+  },
+  "validUntil": {
+    "asWritten": "14/11/2026 at 16:00 LT",
+    "evidence": "Prices valid until: 14/11/2026 at 16:00 LT"
+  },
+  "bargeFee": {
+    "value": null,
+    "currency": null,
+    "perUnit": null,
+    "asWritten": null,
+    "evidence": null
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "DMA 0.1%",
+        "evidence": "Grade: DMA 0.1%"
+      },
+      "quantity": {
+        "value": 125,
+        "unit": "MTS",
+        "asWritten": "125 MTS",
+        "evidence": "Quantity: 125 MTS"
+      },
+      "price": {
+        "value": 695.75,
+        "currency": "USD",
+        "perUnit": "/mt",
+        "asWritten": "USD 695.75/mt",
+        "evidence": "Price: USD 695.75/mt"
+      }
+    }
+  ],
+  "notes": null
+}

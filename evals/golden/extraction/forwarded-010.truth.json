@@ -1,0 +1,33 @@
+{
+  "id": "forwarded-010",
+  "tags": [
+    "forwarded",
+    "style:gmail-forward",
+    "vessel:name-imo",
+    "window:mon-both",
+    "barge:lump_sum"
+  ],
+  "source": "generated",
+  "expected": {
+    "kind": "quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": {
+      "vesselImo": "9487081",
+      "portUnlocode": "FRLEH",
+      "supplierKey": "atlanticshelf",
+      "currency": "USD",
+      "validUntil": "2026-11-15",
+      "deliveryFrom": "2026-11-19",
+      "deliveryTo": "2026-11-22",
+      "bargeFee": 1450,
+      "lines": [
+        {
+          "grade": "LSMGO",
+          "qtyMt": 125,
+          "pricePerMt": 773
+        }
+      ]
+    }
+  }
+}

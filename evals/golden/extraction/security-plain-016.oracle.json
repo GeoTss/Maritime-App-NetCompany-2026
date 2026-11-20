@@ -1,0 +1,54 @@
+{
+  "kind": "security_quote",
+  "providerName": {
+    "value": "Tridentis Marine Protection",
+    "evidence": "Tridentis Marine Protection"
+  },
+  "vesselName": {
+    "value": "M/V Thessaly Star",
+    "evidence": "Vessel: M/V Thessaly Star"
+  },
+  "vesselImo": {
+    "value": null,
+    "evidence": null
+  },
+  "embarkPort": {
+    "value": "Fujairah",
+    "evidence": "Team boards at: off Fujairah"
+  },
+  "disembarkPort": {
+    "value": "Durban",
+    "evidence": "Disembarkation point: off Durban"
+  },
+  "teamSize": {
+    "value": 3,
+    "unit": "guards",
+    "asWritten": "3 guards",
+    "evidence": "Guards: 3 guards"
+  },
+  "dayRate": {
+    "value": 1300,
+    "currency": "US$",
+    "perUnit": "/day",
+    "asWritten": "US$ 1,300/day",
+    "evidence": "Rate: US$ 1,300/day"
+  },
+  "fixedFees": {
+    "value": 5250,
+    "currency": "USD",
+    "perUnit": "lump sum",
+    "asWritten": "USD 5250 lump sum",
+    "evidence": "Fixed fees: USD 5250 lump sum"
+  },
+  "minDays": {
+    "value": 5,
+    "unit": "days",
+    "asWritten": "5 days",
+    "evidence": "Minimum period: 5 days"
+  },
+  "validUntil": {
+    "asWritten": "2026-11-18",
+    "evidence": "Offer valid until: 2026-11-18"
+  },
+  "notes": null
+}

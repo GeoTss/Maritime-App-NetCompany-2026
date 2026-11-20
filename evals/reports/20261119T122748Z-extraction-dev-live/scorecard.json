@@ -1,0 +1,603 @@
+{
+  "meta": {
+    "suite": "extraction",
+    "split": "dev",
+    "label": "live",
+    "mode": "live",
+    "extractor": "llm",
+    "model": "claude-haiku-5-5",
+    "effort": "medium",
+    "fallbacks": false,
+    "promptVersion": "extract-quote/v4",
+    "seed": 20261114,
+    "anchor": "2026-11-14T08:00:00.000Z",
+    "startedAt": "2026-11-19T12:27:48.671Z",
+    "finishedAt": "2026-11-19T12:38:33.637Z",
+    "selected": 114,
+    "offset": 0,
+    "limit": null,
+    "repeatHard": 1,
+    "notRun": [],
+    "aborted": null,
+    "servedModels": [
+      "claude-haiku-5-5"
+    ],
+    "spend": {
+      "guardUsd": 0.09127373999999999,
+      "dbUsd": 0.09127373999999999,
+      "ledgerUsd": 0.09127373999999999,
+      "parseErrors": []
+    },
+    "runnerErrors": [],
+    "calls": {
+      "total": 114,
+      "fromRecordings": 0
+    },
+    "final": false
+  },
+  "scorecard": {
+    "cases": 114,
+    "graded": 114,
+    "errors": [],
+    "failures": [],
+    "kind": {
+      "quotePrecision": {
+        "k": 70,
+        "n": 70,
+        "rate": 1,
+        "ci95": {
+          "low": 0.947976937589733,
+          "high": 1
+        }
+      },
+      "quoteRecall": {
+        "k": 70,
+        "n": 71,
+        "rate": 0.9859154929577465,
+        "ci95": {
+          "low": 0.92443949479751,
+          "high": 0.9975093967294558
+        }
+      },
+      "notAQuotePrecision": {
+        "k": 13,
+        "n": 14,
+        "rate": 0.9285714285714286,
+        "ci95": {
+          "low": 0.6853129557584889,
+          "high": 0.9872777847521091
+        }
+      },
+      "notAQuoteRecall": {
+        "k": 13,
+        "n": 13,
+        "rate": 1,
+        "ci95": {
+          "low": 0.7719046276458015,
+          "high": 1
+        }
+      }
+    },
+    "fields": {
+      "vessel": {
+        "k": 69,
+        "n": 70,
+        "rate": 0.9857142857142858,
+        "ci95": {
+          "low": 0.9234181286879167,
+          "high": 0.9974737535421097
+        },
+        "wrong": 0,
+        "missing": 1,
+        "critical": true
+      },
+      "port": {
+        "k": 70,
+        "n": 70,
+        "rate": 1,
+        "ci95": {
+          "low": 0.947976937589733,
+          "high": 1
+        },
+        "wrong": 0,
+        "missing": 0,
+        "critical": true
+      },
+      "supplier": {
+        "k": 70,
+        "n": 70,
+        "rate": 1,
+        "ci95": {
+          "low": 0.947976937589733,
+          "high": 1
+        },
+        "wrong": 0,
+        "missing": 0,
+        "critical": false
+      },
+      "currency": {
+        "k": 70,
+        "n": 70,
+        "rate": 1,
+        "ci95": {
+          "low": 0.947976937589733,
+          "high": 1
+        },
+        "wrong": 0,
+        "missing": 0,
+        "critical": true
+      },
+      "validUntil": {
+        "k": 70,
+        "n": 70,
+        "rate": 1,
+        "ci95": {
+          "low": 0.947976937589733,
+          "high": 1
+        },
+        "wrong": 0,
+        "missing": 0,
+        "critical": true
+      },
+      "deliveryFrom": {
+        "k": 69,
+        "n": 70,
+        "rate": 0.9857142857142858,
+        "ci95": {
+          "low": 0.9234181286879167,
+          "high": 0.9974737535421097
+        },
+        "wrong": 0,
+        "missing": 1,
+        "critical": true
+      },
+      "deliveryTo": {
+        "k": 70,
+        "n": 70,
+        "rate": 1,
+        "ci95": {
+          "low": 0.947976937589733,
+          "high": 1
+        },
+        "wrong": 0,
+        "missing": 0,
+        "critical": true
+      },
+      "bargeFee": {
+        "k": 70,
+        "n": 70,
+        "rate": 1,
+        "ci95": {
+          "low": 0.947976937589733,
+          "high": 1
+        },
+        "wrong": 0,
+        "missing": 0,
+        "critical": false
+      },
+      "grade": {
+        "k": 77,
+        "n": 77,
+        "rate": 1,
+        "ci95": {
+          "low": 0.9524815747175658,
+          "high": 1
+        },
+        "wrong": 0,
+        "missing": 0,
+        "critical": true
+      },
+      "quantity": {
+        "k": 77,
+        "n": 77,
+        "rate": 1,
+        "ci95": {
+          "low": 0.9524815747175658,
+          "high": 1
+        },
+        "wrong": 0,
+        "missing": 0,
+        "critical": true
+      },
+      "price": {
+        "k": 77,
+        "n": 77,
+        "rate": 1,
+        "ci95": {
+          "low": 0.9524815747175658,
+          "high": 1
+        },
+        "wrong": 0,
+        "missing": 0,
+        "critical": true
+      }
+    },
+    "critical": {
+      "k": 649,
+      "n": 651,
+      "rate": 0.9969278033794163,
+      "ci95": {
+        "low": 0.9888683205416688,
+        "high": 0.9991570881812061
+      },
+      "wrong": 0,
+      "missing": 2,
+      "cases": 70
+    },
+    "fieldErrors": [
+      {
+        "field": "vessel",
+        "verdict": "missing",
+        "ids": [
+          "plain-003"
+        ]
+      },
+      {
+        "field": "deliveryFrom",
+        "verdict": "missing",
+        "ids": [
+          "html-024"
+        ]
+      }
+    ],
+    "unsafeAutoAccepts": {
+      "k": 0,
+      "n": 84,
+      "rate": 0,
+      "ci95": {
+        "low": 0,
+        "high": 0.04373172841465989
+      },
+      "ids": []
+    },
+    "reviewQueue": {
+      "k": 18,
+      "n": 84,
+      "rate": 0.21428571428571427,
+      "ci95": {
+        "low": 0.14006766544991558,
+        "high": 0.3134933222156043
+      }
+    },
+    "falseReview": {
+      "k": 2,
+      "n": 55,
+      "rate": 0.03636363636363636,
+      "ci95": {
+        "low": 0.010029541289333565,
+        "high": 0.12323463974651018
+      },
+      "ids": [
+        "html-024",
+        "plain-003"
+      ]
+    },
+    "needsReviewRecall": {
+      "k": 16,
+      "n": 16,
+      "rate": 1,
+      "ci95": {
+        "low": 0.8063923194655636,
+        "high": 1
+      },
+      "missedIds": []
+    },
+    "reviewCheckMatched": {
+      "k": 16,
+      "n": 16,
+      "rate": 1,
+      "ci95": {
+        "low": 0.8063923194655636,
+        "high": 1
+      },
+      "missedIds": []
+    },
+    "latency": {
+      "endToEnd": {
+        "n": 114,
+        "mean": 5646.255011298252,
+        "p90": 7472.016790999973
+      },
+      "model": {
+        "n": 114,
+        "mean": 5603.798013491229,
+        "p90": 7438.038291999983
+      },
+      "targetMs": 20000
+    },
+    "cost": {
+      "perEmail": {
+        "n": 114,
+        "mean": 0.000800646842105263,
+        "p90": 0.00102151
+      },
+      "totalUsd": 0.09127373999999999
+    },
+    "variance": null,
+    "security": {
+      "graded": 30,
+      "critical": {
+        "k": 234,
+        "n": 243,
+        "rate": 0.9629629629629629,
+        "ci95": {
+          "low": 0.9311217837049578,
+          "high": 0.9803944626944777
+        },
+        "wrong": 0,
+        "missing": 9,
+        "cases": 27
+      },
+      "fields": {
+        "provider": {
+          "k": 26,
+          "n": 27,
+          "rate": 0.9629629629629629,
+          "ci95": {
+            "low": 0.8171653406642415,
+            "high": 0.9934318540192149
+          },
+          "wrong": 0,
+          "missing": 1,
+          "critical": false
+        },
+        "vessel": {
+          "k": 26,
+          "n": 27,
+          "rate": 0.9629629629629629,
+          "ci95": {
+            "low": 0.8171653406642415,
+            "high": 0.9934318540192149
+          },
+          "wrong": 0,
+          "missing": 1,
+          "critical": true
+        },
+        "embarkPort": {
+          "k": 26,
+          "n": 27,
+          "rate": 0.9629629629629629,
+          "ci95": {
+            "low": 0.8171653406642415,
+            "high": 0.9934318540192149
+          },
+          "wrong": 0,
+          "missing": 1,
+          "critical": true
+        },
+        "disembarkPort": {
+          "k": 26,
+          "n": 27,
+          "rate": 0.9629629629629629,
+          "ci95": {
+            "low": 0.8171653406642415,
+            "high": 0.9934318540192149
+          },
+          "wrong": 0,
+          "missing": 1,
+          "critical": true
+        },
+        "teamSize": {
+          "k": 26,
+          "n": 27,
+          "rate": 0.9629629629629629,
+          "ci95": {
+            "low": 0.8171653406642415,
+            "high": 0.9934318540192149
+          },
+          "wrong": 0,
+          "missing": 1,
+          "critical": true
+        },
+        "dayRate": {
+          "k": 26,
+          "n": 27,
+          "rate": 0.9629629629629629,
+          "ci95": {
+            "low": 0.8171653406642415,
+            "high": 0.9934318540192149
+          },
+          "wrong": 0,
+          "missing": 1,
+          "critical": true
+        },
+        "currency": {
+          "k": 26,
+          "n": 27,
+          "rate": 0.9629629629629629,
+          "ci95": {
+            "low": 0.8171653406642415,
+            "high": 0.9934318540192149
+          },
+          "wrong": 0,
+          "missing": 1,
+          "critical": true
+        },
+        "fixedFees": {
+          "k": 26,
+          "n": 27,
+          "rate": 0.9629629629629629,
+          "ci95": {
+            "low": 0.8171653406642415,
+            "high": 0.9934318540192149
+          },
+          "wrong": 0,
+          "missing": 1,
+          "critical": true
+        },
+        "minDays": {
+          "k": 26,
+          "n": 27,
+          "rate": 0.9629629629629629,
+          "ci95": {
+            "low": 0.8171653406642415,
+            "high": 0.9934318540192149
+          },
+          "wrong": 0,
+          "missing": 1,
+          "critical": true
+        },
+        "validUntil": {
+          "k": 26,
+          "n": 27,
+          "rate": 0.9629629629629629,
+          "ci95": {
+            "low": 0.8171653406642415,
+            "high": 0.9934318540192149
+          },
+          "wrong": 0,
+          "missing": 1,
+          "critical": true
+        }
+      },
+      "fieldErrors": [
+        {
+          "field": "provider",
+          "verdict": "missing",
+          "ids": [
+            "security-hard-eur-day-rate-a"
+          ]
+        },
+        {
+          "field": "vessel",
+          "verdict": "missing",
+          "ids": [
+            "security-hard-eur-day-rate-a"
+          ]
+        },
+        {
+          "field": "embarkPort",
+          "verdict": "missing",
+          "ids": [
+            "security-hard-eur-day-rate-a"
+          ]
+        },
+        {
+          "field": "disembarkPort",
+          "verdict": "missing",
+          "ids": [
+            "security-hard-eur-day-rate-a"
+          ]
+        },
+        {
+          "field": "teamSize",
+          "verdict": "missing",
+          "ids": [
+            "security-hard-eur-day-rate-a"
+          ]
+        },
+        {
+          "field": "dayRate",
+          "verdict": "missing",
+          "ids": [
+            "security-hard-eur-day-rate-a"
+          ]
+        },
+        {
+          "field": "currency",
+          "verdict": "missing",
+          "ids": [
+            "security-hard-eur-day-rate-a"
+          ]
+        },
+        {
+          "field": "fixedFees",
+          "verdict": "missing",
+          "ids": [
+            "security-hard-eur-day-rate-a"
+          ]
+        },
+        {
+          "field": "minDays",
+          "verdict": "missing",
+          "ids": [
+            "security-hard-eur-day-rate-a"
+          ]
+        },
+        {
+          "field": "validUntil",
+          "verdict": "missing",
+          "ids": [
+            "security-hard-eur-day-rate-a"
+          ]
+        }
+      ],
+      "unsafeAutoAccepts": {
+        "k": 0,
+        "n": 30,
+        "rate": 0,
+        "ci95": {
+          "low": 0,
+          "high": 0.11351339317396876
+        },
+        "ids": []
+      },
+      "precision": {
+        "k": 30,
+        "n": 30,
+        "rate": 1,
+        "ci95": {
+          "low": 0.8864866068260312,
+          "high": 1
+        }
+      },
+      "recall": {
+        "k": 30,
+        "n": 30,
+        "rate": 1,
+        "ci95": {
+          "low": 0.8864866068260312,
+          "high": 1
+        }
+      },
+      "reviewQueue": {
+        "k": 4,
+        "n": 30,
+        "rate": 0.13333333333333333,
+        "ci95": {
+          "low": 0.05309655484054744,
+          "high": 0.29681326682036296
+        }
+      },
+      "falseReview": {
+        "k": 1,
+        "n": 27,
+        "rate": 0.037037037037037035,
+        "ci95": {
+          "low": 0.006568145980785116,
+          "high": 0.18283465933575843
+        },
+        "ids": [
+          "security-hard-eur-day-rate-a"
+        ]
+      },
+      "needsReviewRecall": {
+        "k": 3,
+        "n": 3,
+        "rate": 1,
+        "ci95": {
+          "low": 0.4385029682449545,
+          "high": 1
+        },
+        "missedIds": []
+      },
+      "reviewCheckMatched": {
+        "k": 3,
+        "n": 3,
+        "rate": 1,
+        "ci95": {
+          "low": 0.4385029682449545,
+          "high": 1
+        },
+        "missedIds": []
+      },
+      "cost": {
+        "perEmail": {
+          "n": 30,
+          "mean": 0.0008798600000000002,
+          "p90": 0.00102151
+        }
+      }
+    }
+  }
+}

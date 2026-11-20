@@ -1,0 +1,18 @@
+{
+  "id": "lookup-02",
+  "tags": ["lookup"],
+  "question": "How much VLSFO does Thessaly Star have on board right now?",
+  "expect": {
+    "kind": "answer",
+    "requiredFacts": [
+      {
+        "label": "VLSFO remaining on board (latest noon report)",
+        "value": 540,
+        "unit": "mt",
+        "tolerance": 0
+      }
+    ],
+    "proposedOptionId": null,
+    "mustNotPropose": true
+  }
+}

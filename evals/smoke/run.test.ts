@@ -1,0 +1,537 @@
+import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { DEFAULT_WORLD_SEED, pinnedNow, seedDatabase } from "@pharos/db";
+import { connectTestDb, testDbLabel } from "@pharos/db/testing";
+import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
+import { captureLlmCall } from "../../apps/api/src/ai/call-capture.js";
+import { createLlmExtractor } from "../../apps/api/src/ai/extract.js";
+import { createLlm } from "../../apps/api/src/ai/llm.js";
+import { createApp } from "../../apps/api/src/app.js";
+import { ASK_RECORDING_CONFIG } from "../../apps/api/src/ask/record-demo-ask.js";
+import { createClock } from "../../apps/api/src/clock.js";
+import { DEFAULT_RECORDINGS_DIR } from "../../apps/api/src/config.js";
+import { createErpClient } from "../../apps/api/src/executor/erp-client.js";
+import { DEMO_INBOX_DIR } from "../../apps/api/src/inbox/routes.js";
+import { DEMO_RECORDING_CONFIG } from "../../apps/api/src/ingest/record-demo-extractions.js";
+import { createDbSource } from "../../apps/api/src/read/db-source.js";
+import { FIXTURE_ANCHOR } from "../../apps/api/src/read/fixtures.js";
+import { createErpApp } from "../../services/erp-sim/src/app.js";
+import { BudgetError, ledgerTotal, readLedger } from "../lib/budget.js";
+import { RUN_CAP_USD, runSmoke, type SmokeResult } from "./run.js";
+
+/** A phase-4 budget file with a $3 cap in `dir`, so no test touches the real evals/budget.json. */
+const budgetFile = async (dir: string) => {
+  const path = join(dir, "budget.json");
+  await writeFile(path, JSON.stringify({ phase: 4, capUsd: 3 }));
+  return path;
+};
+
+const sql = await connectTestDb("smoke");
+
+if (!sql) {
+  describe("live smoke runner (in-process, replay)", () => {
+    it.skip(`skipped: Postgres unreachable for ${testDbLabel("smoke")}`, () => {});
+  });
+}
+
+describe.skipIf(!sql)("live smoke runner (in-process, replay)", () => {
+  if (!sql) return;
+  const db = sql;
+  const tmp: string[] = [];
+  /** The `processDocument` runs that deliveries start in the background (they never reject). */
+  const background: Promise<void>[] = [];
+
+  beforeEach(async () => {
+    await seedDatabase(db, { seed: DEFAULT_WORLD_SEED, anchor: FIXTURE_ANCHOR, mode: "reset" });
+  });
+  // A run that stops early (a rewritten status) leaves its delivery's extraction running. Let it
+  // finish inside its own test: the next reset truncates with RESTART IDENTITY, and a leftover
+  // run would then write by a reused id (FK violation on quotes, or the next test's row 1).
+  afterEach(async () => {
+    await Promise.all(background.splice(0));
+  });
+  afterAll(async () => {
+    await db.end();
+    await Promise.all(tmp.map((d) => rm(d, { recursive: true, force: true })));
+  });
+
+  async function build() {
+    const llm = createLlm({
+      // Re-record (paid; only misses reach the model): LLM_MODE=record, key from .env, e.g.
+      // LLM_MODE=record node --env-file=.env node_modules/vitest/vitest.mjs run evals/smoke/run.test.ts
+      ...(process.env.LLM_MODE === "record"
+        ? { mode: "record" as const, apiKey: process.env.ANTHROPIC_API_KEY }
+        : { mode: "replay" as const }),
+      recordingsDir: DEFAULT_RECORDINGS_DIR,
+      onCall: captureLlmCall,
+    });
+    const erp = createErpApp();
+    const app = createApp({
+      llmMode: "replay",
+      clock: createClock(FIXTURE_ANCHOR),
+      pingDb: async () => true,
+      models: {
+        extractModel: DEMO_RECORDING_CONFIG.extractModel,
+        agentModel: ASK_RECORDING_CONFIG.agentModel,
+      },
+      read: createDbSource(db, () => FIXTURE_ANCHOR),
+      inbox: {
+        sql: db,
+        extractor: createLlmExtractor(llm, DEMO_RECORDING_CONFIG),
+        inboxDir: DEMO_INBOX_DIR,
+        now: () => pinnedNow(FIXTURE_ANCHOR),
+        track: (processing) => background.push(processing),
+      },
+      ask: {
+        sql: db,
+        llm,
+        config: ASK_RECORDING_CONFIG,
+        now: () => pinnedNow(FIXTURE_ANCHOR),
+      },
+      approvals: {
+        sql: db,
+        now: () => pinnedNow(FIXTURE_ANCHOR),
+        erp: createErpClient("http://erp.test", (url, init) => erp.request(url, init)),
+      },
+      llmCalls: { sql: db },
+    });
+    const dir = await mkdtemp(join(tmpdir(), "pharos-smoke-"));
+    tmp.push(dir);
+    return {
+      dir,
+      options: {
+        baseUrl: "http://api.test",
+        fetch: ((url: string, init?: RequestInit) =>
+          app.request(url.replace("http://api.test", ""), init)) as typeof fetch,
+        expectedLlmMode: "replay" as const,
+        label: "dryrun",
+        reportsDir: join(dir, "reports"),
+        markersDir: join(dir, "markers"),
+        sleep: async () => {},
+        pollIntervalMs: 1,
+        log: () => {},
+      },
+    };
+  }
+
+  /** Wraps the in-process fetch: `rewrite` may replace a response's JSON body per path. */
+  const rewriting = (
+    realFetch: typeof fetch,
+    rewrite: (path: string, body: unknown) => unknown,
+    seen: string[] = [],
+  ) =>
+    (async (url: string, init?: RequestInit) => {
+      const path = new URL(url).pathname;
+      seen.push(path);
+      const res = await realFetch(url, init);
+      const body = rewrite(
+        path,
+        await res
+          .clone()
+          .json()
+          .catch(() => undefined),
+      );
+      return body === undefined ? res : new Response(JSON.stringify(body), { status: res.status });
+    }) as typeof fetch;
+
+  it("passes end to end, writes the report and the marker", async () => {
+    const { dir, options } = await build();
+    const seen: string[] = [];
+    const result: SmokeResult = await runSmoke({
+      ...options,
+      fetch: rewriting(options.fetch, () => undefined, seen),
+    });
+    expect(result.failures).toEqual([]);
+    expect(result.ok).toBe(true);
+    expect(result.exitCode).toBe(0);
+    // The ask goes through the stream, and the approved recommendation's drafts are read.
+    expect(seen).toContain("/api/ask/stream");
+    expect(seen).not.toContain("/api/ask");
+    expect(seen.some((p) => /^\/api\/recommendations\/\d+\/drafts$/.test(p))).toBe(true);
+    expect(result.report.askEvents?.progress).toBeGreaterThanOrEqual(1);
+    expect(result.report.askEvents?.answer).toBe(1);
+    expect(result.report.drafts).toEqual(["master_instruction", "supplier_confirmation"]);
+
+    const r = result.report;
+    expect(r.label).toBe("dryrun");
+    expect(r.steps.map((s) => s.name)).toEqual(["email-1", "email-2", "ask", "approve"]);
+    for (const s of r.steps) expect(s.latencyMs).toBeGreaterThanOrEqual(0);
+    expect(r.calls.filter((c) => c.purpose === "extract")).toHaveLength(2);
+    expect(r.calls.some((c) => c.purpose === "agent")).toBe(true);
+    expect(r.byPurpose.map((p) => p.purpose).sort()).toEqual(["agent", "extract"]);
+    const sum = r.calls.reduce((a, c) => a + c.costUsd, 0);
+    expect(r.totals.costUsd).toBeCloseTo(sum, 9);
+    expect(r.totals.calls).toBe(r.calls.length);
+
+    const files = await readFile(join(result.reportDir, "report.json"), "utf8");
+    expect(JSON.parse(files).label).toBe("dryrun");
+    expect(await readFile(join(result.reportDir, "report.md"), "utf8")).toContain("extract");
+    expect(result.reportDir.startsWith(join(dir, "reports"))).toBe(true);
+    expect(result.reportDir).toMatch(/\d{8}T\d{6}Z-smoke-dryrun$/);
+    await access(join(dir, "markers", "live-smoke"));
+  });
+
+  it("exits 2 when the API is not in the expected mode, without touching the inbox", async () => {
+    const { dir, options } = await build();
+    const result = await runSmoke({ ...options, expectedLlmMode: "live" });
+    expect(result.exitCode).toBe(2);
+    expect(result.failures.join("\n")).toContain("start the API with LLM_MODE=live");
+    await expect(access(join(dir, "markers", "live-smoke"))).rejects.toThrow();
+  });
+
+  it("tells the operator to restart the API when the inbox was already delivered", async () => {
+    const first = await build();
+    await runSmoke(first.options);
+    const second = await runSmoke({ ...first.options, markersDir: join(first.dir, "m2") });
+    expect(second.ok).toBe(false);
+    expect(second.exitCode).toBe(1);
+    expect(second.failures.join("\n")).toContain(
+      "inbox already delivered — restart the API and ERP (docker compose up -d --force-recreate api erp) to reset the demo world",
+    );
+    await expect(access(join(first.dir, "m2", "live-smoke"))).rejects.toThrow();
+  });
+
+  it("lists a failed assertion and writes no marker", async () => {
+    const { dir, options } = await build();
+    const realFetch = options.fetch;
+    // Tamper with the quotes the runner reads: a wrong price must fail the check.
+    const tampered = (async (url: string, init?: RequestInit) => {
+      const res = await realFetch(url, init);
+      if (new URL(url).pathname === "/api/quotes") {
+        const body = (await res.json()) as { items: { lines: { pricePerMt: number }[] }[] };
+        for (const q of body.items) for (const l of q.lines) l.pricePerMt += 1;
+        return new Response(JSON.stringify(body), { status: 200 });
+      }
+      return res;
+    }) as typeof fetch;
+    const result = await runSmoke({ ...options, fetch: tampered });
+    expect(result.ok).toBe(false);
+    expect(result.exitCode).toBe(1);
+    expect(result.failures.join("\n")).toMatch(/price/);
+    await expect(access(join(dir, "markers", "live-smoke"))).rejects.toThrow();
+  });
+
+  it.each([
+    ["a non-Haiku agent model", { agentModel: "claude-sonnet-5-5" }, /claude-sonnet-5-5/],
+    ["a non-Haiku extraction model", { extractModel: "claude-opus-5-5" }, /claude-opus-5-5/],
+    ["no reported models", { extractModel: null, agentModel: null }, /does not report/],
+  ])("stops before the first paid call when the API reports %s (M4)", async (_n, over, why) => {
+    const { dir, options } = await build();
+    const seen: string[] = [];
+    const health = rewriting(
+      options.fetch,
+      (path, body) => (path === "/api/health" ? { ...(body as object), ...over } : undefined),
+      seen,
+    );
+    const result = await runSmoke({ ...options, fetch: health });
+    expect(result.ok).toBe(false);
+    expect(result.exitCode).toBe(1);
+    expect(result.failures.join("\n")).toMatch(why);
+    expect(seen).toEqual(["/api/health"]);
+    expect(result.report.calls).toEqual([]);
+    await expect(access(join(dir, "markers", "live-smoke"))).rejects.toThrow();
+  });
+
+  it("fails a run whose cost passes the spend cap and writes no marker", async () => {
+    const { dir, options } = await build();
+    const inflated = rewriting(options.fetch, (path, body) => {
+      if (path !== "/api/llm-calls") return undefined;
+      const b = body as { items: { costUsd: number }[] };
+      for (const c of b.items) c.costUsd = 0.2;
+      return b;
+    });
+    const result = await runSmoke({ ...options, fetch: inflated });
+    expect(result.ok).toBe(false);
+    expect(result.exitCode).toBe(1);
+    expect(result.failures.join("\n")).toMatch(/run cost \$.* exceeds the \$0\.25 cap/);
+    expect(RUN_CAP_USD).toBe(0.25);
+    expect(await readFile(join(result.reportDir, "report.md"), "utf8")).toContain("(cap 0.25)");
+    await expect(access(join(dir, "markers", "live-smoke"))).rejects.toThrow();
+  });
+
+  it("reports why an extraction ended needs_review and stops before the paid ask", async () => {
+    const { dir, options } = await build();
+    const seen: string[] = [];
+    const reviewing = rewriting(
+      options.fetch,
+      (path, body) => {
+        if (!/^\/api\/inbox\/\d+$/.test(path)) return undefined;
+        return {
+          ...(body as object),
+          extractionStatus: "needs_review",
+          checkResults: [
+            { check: "quantity", passed: false, detail: "range written as 300/350 mt" },
+            { check: "currency", passed: true, detail: null },
+          ],
+        };
+      },
+      seen,
+    );
+    const result = await runSmoke({ ...options, fetch: reviewing });
+    expect(result.exitCode).toBe(1);
+    expect(result.failures).toHaveLength(1);
+    expect(result.failures[0]).toContain("extraction ended needs_review");
+    expect(result.failures[0]).toContain("quantity: range written as 300/350 mt");
+    expect(result.failures[0]).not.toContain("currency");
+    expect(seen).not.toContain("/api/ask/stream");
+    expect(result.report.steps.map((s) => s.name)).toEqual(["email-1"]);
+    expect(JSON.parse(await readFile(join(result.reportDir, "report.json"), "utf8")).ok).toBe(
+      false,
+    );
+    await expect(access(join(dir, "markers", "live-smoke"))).rejects.toThrow();
+  });
+
+  it("reports the extraction's error when it failed", async () => {
+    const { options } = await build();
+    const failed = rewriting(
+      options.fetch,
+      (path, body) =>
+        /^\/api\/inbox\/\d+$/.test(path)
+          ? {
+              ...(body as object),
+              extractionStatus: "failed",
+              checkResults: [],
+              error: "model refused (stop_reason refusal)",
+            }
+          : undefined,
+      [],
+    );
+    const result = await runSmoke({ ...options, fetch: failed });
+    expect(result.exitCode).toBe(1);
+    expect(result.failures[0]).toContain("extraction ended failed");
+    expect(result.failures[0]).toContain("model refused (stop_reason refusal)");
+  });
+
+  it("times out a stuck extraction, records the step, writes the report and skips the ask", async () => {
+    const { dir, options } = await build();
+    const seen: string[] = [];
+    const stuck = rewriting(
+      options.fetch,
+      (path, body) =>
+        /^\/api\/inbox\/\d+$/.test(path)
+          ? { ...(body as object), extractionStatus: "pending", checkResults: [] }
+          : undefined,
+      seen,
+    );
+    const result = await runSmoke({ ...options, fetch: stuck, extractionTimeoutMs: 20 });
+    expect(result.exitCode).toBe(1);
+    expect(result.failures).toHaveLength(1);
+    expect(result.failures[0]).toContain("extraction still pending");
+    expect(seen).not.toContain("/api/ask/stream");
+    expect(result.report.steps.map((s) => s.name)).toEqual(["email-1"]);
+    await access(join(result.reportDir, "report.json"));
+    await expect(access(join(dir, "markers", "live-smoke"))).rejects.toThrow();
+  });
+
+  /** Rewrites the ask stream's SSE text (the in-process stream is read whole). */
+  const rewritingStream = (realFetch: typeof fetch, rewrite: (text: string) => string) =>
+    (async (url: string, init?: RequestInit) => {
+      const res = await realFetch(url, init);
+      if (new URL(url).pathname !== "/api/ask/stream") return res;
+      return new Response(rewrite(await res.text()), {
+        status: res.status,
+        headers: { "content-type": "text/event-stream" },
+      });
+    }) as typeof fetch;
+  const blocks = (text: string) => text.split("\n\n").filter((b) => b.trim() !== "");
+
+  it("fails when the ask stream sends no progress event before its answer", async () => {
+    const { dir, options } = await build();
+    const noProgress = rewritingStream(options.fetch, (text) =>
+      blocks(text)
+        .filter((b) => !b.includes("event: progress"))
+        .map((b) => `${b}\n\n`)
+        .join(""),
+    );
+    const result = await runSmoke({ ...options, fetch: noProgress });
+    expect(result.ok).toBe(false);
+    expect(result.failures.join("\n")).toMatch(/no progress event before its answer/);
+    await expect(access(join(dir, "markers", "live-smoke"))).rejects.toThrow();
+  });
+
+  it("fails when the ask stream sends more than one answer event", async () => {
+    const { options } = await build();
+    const twice = rewritingStream(options.fetch, (text) => {
+      const answer = blocks(text).find((b) => b.includes("event: answer")) ?? "";
+      return `${text}${answer}\n\n`;
+    });
+    const result = await runSmoke({ ...options, fetch: twice });
+    expect(result.ok).toBe(false);
+    expect(result.failures.join("\n")).toMatch(/2 answer events, expected exactly 1/);
+  });
+
+  it("stops on an error event from the ask stream, before any approval", async () => {
+    const { options } = await build();
+    const seen: string[] = [];
+    const failing = rewritingStream(
+      rewriting(options.fetch, () => undefined, seen),
+      () => `event: error\ndata: ${JSON.stringify({ type: "error", message: "boom" })}\n\n`,
+    );
+    const result = await runSmoke({ ...options, fetch: failing });
+    expect(result.ok).toBe(false);
+    expect(result.failures.join("\n")).toMatch(/error event: boom/);
+    expect(seen.some((p) => p.endsWith("/approve"))).toBe(false);
+  });
+
+  it.each([
+    [
+      "one draft",
+      (items: { kind: string }[]) => items.slice(0, 1),
+      /1 drafted messages, expected 2/,
+    ],
+    [
+      "a sent draft",
+      (items: { status: string }[]) =>
+        items.map((d, i) => (i === 0 ? { ...d, status: "sent" } : d)),
+      /status sent, expected draft/,
+    ],
+    [
+      "two drafts of one kind",
+      (items: { kind: string }[]) => items.map((d) => ({ ...d, kind: "master_instruction" })),
+      /draft kinds master_instruction, master_instruction/,
+    ],
+  ])("fails when the approved recommendation has %s", async (_n, change, why) => {
+    const { dir, options } = await build();
+    const tampered = rewriting(options.fetch, (path, body) =>
+      /^\/api\/recommendations\/\d+\/drafts$/.test(path)
+        ? { items: change((body as { items: never[] }).items) }
+        : undefined,
+    );
+    const result = await runSmoke({ ...options, fetch: tampered });
+    expect(result.ok).toBe(false);
+    expect(result.failures.join("\n")).toMatch(why);
+    await expect(access(join(dir, "markers", "live-smoke"))).rejects.toThrow();
+  });
+
+  describe("budget ledger and Haiku-only guard", () => {
+    it("refuses to start when the ledger has no room, before any request", async () => {
+      const { dir, options } = await build();
+      const ledger = join(dir, "ledger.jsonl");
+      await writeFile(
+        ledger,
+        `${JSON.stringify({ at: "2026-11-14T10:00:00Z", run: "x", label: "x", costUsd: 2.995, phase: 4 })}\n`,
+      );
+      const seen: string[] = [];
+      const spy = rewriting(options.fetch, () => undefined, seen);
+      await expect(
+        runSmoke({
+          ...options,
+          fetch: spy,
+          ledger: { path: ledger, budgetPath: await budgetFile(dir) },
+        }),
+      ).rejects.toThrow(BudgetError);
+      expect(seen).toEqual([]);
+    });
+
+    it("appends the run's cost to the ledger", async () => {
+      const { dir, options } = await build();
+      const ledger = join(dir, "ledger.jsonl");
+      await writeFile(ledger, "");
+      const result = await runSmoke({
+        ...options,
+        ledger: { path: ledger, budgetPath: await budgetFile(dir) },
+      });
+      expect(result.failures).toEqual([]);
+      const rows = readLedger(ledger);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ run: "smoke", label: "dryrun" });
+      expect(rows[0]?.costUsd).toBeCloseTo(result.report.totals.costUsd, 9);
+    });
+
+    it("fails the run when a call was served by another model", async () => {
+      const { dir, options } = await build();
+      const ledger = join(dir, "ledger.jsonl");
+      await writeFile(ledger, "");
+      const other = rewriting(options.fetch, (path, body) => {
+        if (path !== "/api/llm-calls") return undefined;
+        const b = body as { items: { model: string }[] };
+        for (const c of b.items) c.model = "claude-sonnet-5-5";
+        return b;
+      });
+      const result = await runSmoke({
+        ...options,
+        fetch: other,
+        ledger: { path: ledger, budgetPath: await budgetFile(dir) },
+      });
+      expect(result.ok).toBe(false);
+      expect(result.failures.join("\n")).toMatch(
+        /only claude-haiku-5-5 is allowed.*claude-sonnet-5-5/,
+      );
+      await expect(access(join(dir, "markers", "live-smoke"))).rejects.toThrow();
+      expect(ledgerTotal(ledger)).toBeGreaterThan(0);
+    });
+
+    it("ledgers the calls made by a run that stopped early", async () => {
+      const { dir, options } = await build();
+      const ledger = join(dir, "ledger.jsonl");
+      await writeFile(ledger, "");
+      const reviewing = rewriting(options.fetch, (path, body) =>
+        /^\/api\/inbox\/\d+$/.test(path) &&
+        (body as { extractionStatus: string }).extractionStatus !== "pending"
+          ? { ...(body as object), extractionStatus: "needs_review", checkResults: [] }
+          : undefined,
+      );
+      const result = await runSmoke({
+        ...options,
+        fetch: reviewing,
+        ledger: { path: ledger, budgetPath: await budgetFile(dir) },
+      });
+      expect(result.exitCode).toBe(1);
+      expect(result.report.calls.length).toBeGreaterThan(0);
+      expect(readLedger(ledger)).toHaveLength(1);
+      expect(ledgerTotal(ledger)).toBeGreaterThan(0);
+    });
+
+    it("ledgers agent calls of an ask that failed after making paid calls", async () => {
+      const { dir, options } = await build();
+      const ledger = join(dir, "ledger.jsonl");
+      await writeFile(ledger, "");
+      const real = options.fetch;
+      // The ask really runs to its end (so its agent calls are recorded: the stream is read
+      // through) but the caller sees an HTTP 500.
+      const failing = (async (url: string, init?: RequestInit) => {
+        const res = await real(url, init);
+        if (new URL(url).pathname !== "/api/ask/stream") return res;
+        await res.text();
+        return new Response("boom", { status: 500 });
+      }) as typeof fetch;
+      const result = await runSmoke({
+        ...options,
+        fetch: failing,
+        ledger: { path: ledger, budgetPath: await budgetFile(dir) },
+      });
+      expect(result.exitCode).toBe(1);
+      expect(result.report.calls.some((c) => c.purpose === "agent")).toBe(true);
+      expect(result.report.calls.some((c) => c.purpose === "extract")).toBe(true);
+      expect(ledgerTotal(ledger)).toBeCloseTo(result.report.totals.costUsd, 9);
+    });
+
+    it("fails an early-stopped run whose loaded calls include a non-Haiku model", async () => {
+      const { dir, options } = await build();
+      const ledger = join(dir, "ledger.jsonl");
+      await writeFile(ledger, "");
+      const other = rewriting(options.fetch, (path, body) => {
+        if (path === "/api/llm-calls") {
+          const b = body as { items: { model: string }[] };
+          for (const c of b.items) c.model = "claude-sonnet-5-5";
+          return b;
+        }
+        return /^\/api\/inbox\/\d+$/.test(path) &&
+          (body as { extractionStatus: string }).extractionStatus !== "pending"
+          ? { ...(body as object), extractionStatus: "needs_review", checkResults: [] }
+          : undefined;
+      });
+      const result = await runSmoke({
+        ...options,
+        fetch: other,
+        ledger: { path: ledger, budgetPath: await budgetFile(dir) },
+      });
+      expect(result.report.calls.length).toBeGreaterThan(0);
+      expect(result.failures.join("\n")).toMatch(
+        /only claude-haiku-5-5 is allowed.*claude-sonnet-5-5/,
+      );
+      expect(ledgerTotal(ledger)).toBeGreaterThan(0);
+    });
+  });
+});

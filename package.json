@@ -1,0 +1,56 @@
+{
+  "name": "pharos",
+  "private": true,
+  "type": "module",
+  "description": "Smart Maritime Operations Assistant \u2014 Bunker-to-Berth",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*",
+    "services/*"
+  ],
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json && tsc -p apps/web/tsconfig.json",
+    "eval": "tsx --env-file-if-exists=.env evals/run.ts",
+    "eval:smoke": "tsx evals/smoke/run.ts",
+    "eval:ledger": "tsx evals/lib/ledger-cli.ts",
+    "eval:compare": "tsx --env-file=.env evals/compare/run.ts",
+    "eval:publish": "tsx evals/publish.ts",
+    "eval:merge": "tsx evals/merge.ts",
+    "eval:golden": "tsx evals/extraction/generate.ts",
+    "eval:split": "tsx evals/extraction/split.ts",
+    "eval:qa-golden": "tsx evals/qa/generate.ts",
+    "eval:qa-split": "tsx evals/qa/split.ts",
+    "lint": "biome check .",
+    "format": "biome check --write .",
+    "test": "vitest run",
+    "check:purity": "node scripts/check-domain-purity.mjs",
+    "verify": "npm run typecheck && npm run lint && npm run check:purity && npm run test",
+    "dev:api": "npm run dev -w @pharos/api",
+    "dev:erp": "npm run dev -w @pharos/erp-sim",
+    "smoke:pdf": "tsx scripts/pdf-smoke.ts",
+    "db:generate": "npm run db:generate -w @pharos/db",
+    "db:migrate": "npm run db:migrate -w @pharos/db",
+    "db:seed": "npm run db:seed -w @pharos/db",
+    "routes:network": "tsx packages/integrations/src/routes/build-network.ts",
+    "record:weather": "tsx packages/integrations/src/cli/record-weather.ts",
+    "smoke:weather": "tsx packages/integrations/src/cli/smoke-weather.ts",
+    "record:ais": "tsx --env-file=.env packages/integrations/src/cli/record-ais.ts",
+    "smoke:ais": "tsx --env-file=.env packages/integrations/src/cli/smoke-ais.ts",
+    "dev:web": "npm run dev -w @pharos/web",
+    "map:basemap": "tsx scripts/build-basemap.ts",
+    "demo:reset": "tsx scripts/demo-reset.ts",
+    "demo:live": "tsx scripts/demo-live.ts"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.6.7",
+    "@playwright/test": "^1.65.1",
+    "@types/node": "^22.10.0",
+    "pdf-lib": "1.17.1",
+    "tsx": "4.23.15",
+    "typescript": "6.0.3",
+    "vitest": "5.1.0"
+  }
+}

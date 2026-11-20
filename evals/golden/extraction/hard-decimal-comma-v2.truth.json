@@ -1,0 +1,27 @@
+{
+  "id": "hard-decimal-comma-v2",
+  "tags": ["hard", "decimal-comma", "variant:v2", "layout:pdf-letter", "eur"],
+  "source": "hard",
+  "expected": {
+    "kind": "quote",
+    "status": "needs_review",
+    "reviewChecks": ["amounts_parsed"],
+    "quote": {
+      "vesselImo": "9485069",
+      "portUnlocode": "PTSIE",
+      "supplierKey": "atlanticshelf",
+      "currency": "EUR",
+      "validUntil": "2026-11-14",
+      "deliveryFrom": "2026-11-14",
+      "deliveryTo": "2026-11-15",
+      "bargeFee": 1600,
+      "lines": [
+        {
+          "grade": "HSFO",
+          "qtyMt": 300,
+          "pricePerMt": null
+        }
+      ]
+    }
+  }
+}

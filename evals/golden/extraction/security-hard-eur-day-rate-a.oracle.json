@@ -1,0 +1,54 @@
+{
+  "kind": "security_quote",
+  "providerName": {
+    "value": "Aegis Watch Maritime",
+    "evidence": "For and on behalf of Aegis Watch Maritime"
+  },
+  "vesselName": {
+    "value": null,
+    "evidence": null
+  },
+  "vesselImo": {
+    "value": "9480019",
+    "evidence": "We can provide a team of 5 PCASP for IMO 9480019, embarking at Djibouti (DJJIB) and disembarking at Durban (ZADUR)."
+  },
+  "embarkPort": {
+    "value": "Djibouti",
+    "evidence": "We can provide a team of 5 PCASP for IMO 9480019, embarking at Djibouti (DJJIB) and disembarking at Durban (ZADUR)."
+  },
+  "disembarkPort": {
+    "value": "Durban",
+    "evidence": "We can provide a team of 5 PCASP for IMO 9480019, embarking at Djibouti (DJJIB) and disembarking at Durban (ZADUR)."
+  },
+  "teamSize": {
+    "value": 5,
+    "unit": "PCASP",
+    "asWritten": "5 PCASP",
+    "evidence": "We can provide a team of 5 PCASP for IMO 9480019, embarking at Djibouti (DJJIB) and disembarking at Durban (ZADUR)."
+  },
+  "dayRate": {
+    "value": 950,
+    "currency": "EUR",
+    "perUnit": "/day",
+    "asWritten": "950 EUR/day",
+    "evidence": "The day rate is 950 EUR/day, with a minimum of 4 days."
+  },
+  "fixedFees": {
+    "value": 3250,
+    "currency": "EUR",
+    "perUnit": "lump sum",
+    "asWritten": "EUR 3250 lump sum",
+    "evidence": "Fixed fees for embarkation, disembarkation and arms storage: EUR 3250 lump sum."
+  },
+  "minDays": {
+    "value": 4,
+    "unit": "days",
+    "asWritten": "4 days",
+    "evidence": "The day rate is 950 EUR/day, with a minimum of 4 days."
+  },
+  "validUntil": {
+    "asWritten": "17 November 1200 UTC",
+    "evidence": "This offer is valid until 17 November 1200 UTC."
+  },
+  "notes": null
+}

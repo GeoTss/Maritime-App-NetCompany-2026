@@ -1,0 +1,79 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "includes": [
+      "**",
+      "!**/node_modules",
+      "!**/dist",
+      "!evals/reports",
+      "!evals/published",
+      "!fixtures/**/*.eml",
+      "!fixtures/llm-recordings",
+      "!.npm-cache",
+      "!**/*.pdf",
+      "!fixtures/recorded",
+      "!**/*.generated.json",
+      "!**/*.md",
+      "!.claude/skills/impeccable",
+      "!docs/design",
+      "!.impeccable"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended",
+      "suspicious": {
+        "noConsole": "off"
+      },
+      "style": {
+        "noNonNullAssertion": "warn"
+      }
+    }
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "double",
+      "semicolons": "always",
+      "trailingCommas": "all"
+    }
+  },
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["apps/web/src/**"],
+      "linter": {
+        "rules": {
+          "security": {
+            "noDangerouslySetInnerHtml": "error"
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "apps/web/src/components/ui/**",
+        "apps/web/src/components/primitives/**",
+        "apps/web/src/components/atoms/**"
+      ],
+      "linter": {
+        "enabled": false
+      }
+    }
+  ]
+}

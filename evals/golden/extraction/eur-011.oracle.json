@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Strait Line Fuels",
+    "evidence": "Strait Line Fuels"
+  },
+  "vesselName": {
+    "value": "M/V Aegean Pioneer",
+    "evidence": "M/V Aegean Pioneer (IMO 9480019) / Gibraltar / LSMGO 0.1% 300 metric tons @ EUR 676 per metric tonne"
+  },
+  "vesselImo": {
+    "value": "9480019",
+    "evidence": "M/V Aegean Pioneer (IMO 9480019) / Gibraltar / LSMGO 0.1% 300 metric tons @ EUR 676 per metric tonne"
+  },
+  "port": {
+    "value": "Gibraltar",
+    "evidence": "M/V Aegean Pioneer (IMO 9480019) / Gibraltar / LSMGO 0.1% 300 metric tons @ EUR 676 per metric tonne"
+  },
+  "deliveryFrom": {
+    "asWritten": "24.11.2026 - 27.11.2026",
+    "evidence": "Delivery: 24.11.2026 - 27.11.2026"
+  },
+  "deliveryTo": {
+    "asWritten": "24.11.2026 - 27.11.2026",
+    "evidence": "Delivery: 24.11.2026 - 27.11.2026"
+  },
+  "validUntil": {
+    "asWritten": "16 Nov 2026 17:00 LT",
+    "evidence": "Valid until: 16 Nov 2026 17:00 LT"
+  },
+  "bargeFee": {
+    "value": 1300,
+    "currency": "€",
+    "perUnit": "lump sum",
+    "asWritten": "€1,300 lump sum",
+    "evidence": "Barge: €1,300 lump sum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "LSMGO 0.1%",
+        "evidence": "M/V Aegean Pioneer (IMO 9480019) / Gibraltar / LSMGO 0.1% 300 metric tons @ EUR 676 per metric tonne"
+      },
+      "quantity": {
+        "value": 300,
+        "unit": "metric tons",
+        "asWritten": "300 metric tons",
+        "evidence": "M/V Aegean Pioneer (IMO 9480019) / Gibraltar / LSMGO 0.1% 300 metric tons @ EUR 676 per metric tonne"
+      },
+      "price": {
+        "value": 676,
+        "currency": "EUR",
+        "perUnit": "per metric tonne",
+        "asWritten": "EUR 676 per metric tonne",
+        "evidence": "M/V Aegean Pioneer (IMO 9480019) / Gibraltar / LSMGO 0.1% 300 metric tons @ EUR 676 per metric tonne"
+      }
+    }
+  ],
+  "notes": null
+}

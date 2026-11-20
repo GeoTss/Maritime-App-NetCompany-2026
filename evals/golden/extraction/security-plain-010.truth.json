@@ -1,0 +1,30 @@
+{
+  "id": "security-plain-010",
+  "tags": [
+    "security-plain",
+    "layout:labels",
+    "vessel:name-imo",
+    "team:armed",
+    "fees:lump",
+    "route:AEFJR-DJJIB"
+  ],
+  "source": "generated",
+  "expected": {
+    "kind": "security_quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": null,
+    "security": {
+      "provider": "Harbourline Security Services",
+      "vesselImo": "9486075",
+      "embarkUnlocode": "AEFJR",
+      "disembarkUnlocode": "DJJIB",
+      "teamSize": 6,
+      "dayRate": 1425,
+      "currency": "USD",
+      "fixedFees": 3500,
+      "minDays": 7,
+      "validUntil": "2026-11-16"
+    }
+  }
+}

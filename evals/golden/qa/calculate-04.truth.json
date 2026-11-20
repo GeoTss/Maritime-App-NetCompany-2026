@@ -1,0 +1,18 @@
+{
+  "id": "calculate-04",
+  "tags": ["calculate"],
+  "question": "How many times larger is Strait Line's barge fee than Kestrel's?",
+  "expect": {
+    "kind": "answer",
+    "requiredFacts": [
+      {
+        "label": "divide of Strait Line Fuels quote at Gibraltar: barge fee and Kestrel Marine Fuels quote at Marsaxlokk: barge fee",
+        "value": 3.2142857142857144,
+        "unit": null,
+        "tolerance": 0.06
+      }
+    ],
+    "proposedOptionId": null,
+    "mustNotPropose": true
+  }
+}

@@ -1,0 +1,79 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Strait Line Fuels",
+    "evidence": "Strait Line Fuels"
+  },
+  "vesselName": {
+    "value": null,
+    "evidence": null
+  },
+  "vesselImo": {
+    "value": "9486075",
+    "evidence": "Ship: IMO 9486075"
+  },
+  "port": {
+    "value": "Gibraltar",
+    "evidence": "Port: Gibraltar anchorage"
+  },
+  "deliveryFrom": {
+    "asWritten": "20.11.2026 - 23.11.2026",
+    "evidence": "Delivery window: 20.11.2026 - 23.11.2026"
+  },
+  "deliveryTo": {
+    "asWritten": "20.11.2026 - 23.11.2026",
+    "evidence": "Delivery window: 20.11.2026 - 23.11.2026"
+  },
+  "validUntil": {
+    "asWritten": "14/11 at 16:00 LT",
+    "evidence": "Offer valid until: 14/11 at 16:00 LT"
+  },
+  "bargeFee": {
+    "value": 3450,
+    "currency": "USD",
+    "perUnit": "LS",
+    "asWritten": "USD 3,450 LS",
+    "evidence": "Delivery charge: USD 3,450 LS"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "LSMGO 0.1%",
+        "evidence": "LSMGO 0.1%    100 tonnes    USD 738.50/mt"
+      },
+      "quantity": {
+        "value": 100,
+        "unit": "tonnes",
+        "asWritten": "100 tonnes",
+        "evidence": "LSMGO 0.1%    100 tonnes    USD 738.50/mt"
+      },
+      "price": {
+        "value": 738.5,
+        "currency": "USD",
+        "perUnit": "/mt",
+        "asWritten": "USD 738.50/mt",
+        "evidence": "LSMGO 0.1%    100 tonnes    USD 738.50/mt"
+      }
+    },
+    {
+      "grade": {
+        "value": "VLSFO",
+        "evidence": "VLSFO         975 tonnes    USD 610.00/mt"
+      },
+      "quantity": {
+        "value": 975,
+        "unit": "tonnes",
+        "asWritten": "975 tonnes",
+        "evidence": "VLSFO         975 tonnes    USD 610.00/mt"
+      },
+      "price": {
+        "value": 610,
+        "currency": "USD",
+        "perUnit": "/mt",
+        "asWritten": "USD 610.00/mt",
+        "evidence": "VLSFO         975 tonnes    USD 610.00/mt"
+      }
+    }
+  ],
+  "notes": null
+}

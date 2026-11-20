@@ -1,0 +1,11 @@
+{
+  "id": "not-a-quote-004",
+  "tags": ["not_a_quote", "kind:rfq"],
+  "source": "generated",
+  "expected": {
+    "kind": "not_a_quote",
+    "status": "not_a_quote",
+    "reviewChecks": [],
+    "quote": null
+  }
+}

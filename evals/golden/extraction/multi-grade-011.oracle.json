@@ -1,0 +1,79 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Strait Line Fuels",
+    "evidence": "Strait Line Fuels"
+  },
+  "vesselName": {
+    "value": "Coral Horizon",
+    "evidence": "Ship            Coral Horizon"
+  },
+  "vesselImo": {
+    "value": null,
+    "evidence": null
+  },
+  "port": {
+    "value": "Gibraltar",
+    "evidence": "Port            Gibraltar anchorage"
+  },
+  "deliveryFrom": {
+    "asWritten": "2026-11-22",
+    "evidence": "Delivery from   2026-11-22"
+  },
+  "deliveryTo": {
+    "asWritten": "2026-11-24",
+    "evidence": "Delivery to     2026-11-24"
+  },
+  "validUntil": {
+    "asWritten": "16/11",
+    "evidence": "Valid till: 16/11"
+  },
+  "bargeFee": {
+    "value": 2250,
+    "currency": "USD",
+    "perUnit": "lump sum",
+    "asWritten": "USD 2250 lump sum",
+    "evidence": "Barging: USD 2250 lump sum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "VLSFO 0.5%",
+        "evidence": "VLSFO 0.5%   200 MT   USD 610.50 PMT"
+      },
+      "quantity": {
+        "value": 200,
+        "unit": "MT",
+        "asWritten": "200 MT",
+        "evidence": "VLSFO 0.5%   200 MT   USD 610.50 PMT"
+      },
+      "price": {
+        "value": 610.5,
+        "currency": "USD",
+        "perUnit": "PMT",
+        "asWritten": "USD 610.50 PMT",
+        "evidence": "VLSFO 0.5%   200 MT   USD 610.50 PMT"
+      }
+    },
+    {
+      "grade": {
+        "value": "LSMGO 0.1%",
+        "evidence": "LSMGO 0.1%   100 MT   USD 761.00 PMT"
+      },
+      "quantity": {
+        "value": 100,
+        "unit": "MT",
+        "asWritten": "100 MT",
+        "evidence": "LSMGO 0.1%   100 MT   USD 761.00 PMT"
+      },
+      "price": {
+        "value": 761,
+        "currency": "USD",
+        "perUnit": "PMT",
+        "asWritten": "USD 761.00 PMT",
+        "evidence": "LSMGO 0.1%   100 MT   USD 761.00 PMT"
+      }
+    }
+  ],
+  "notes": null
+}

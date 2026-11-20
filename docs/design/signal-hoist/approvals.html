@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1440">
+<title>Pharos: Signal hoist, Approvals (dark)</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700&amp;family=Atkinson+Hyperlegible+Mono:wght@400;500&amp;display=swap">
+<style>
+:root{color-scheme:dark;--ground:#0e1114;--page:#1d232a;--panel:#151a1f;--ink:#eef1f4;--ink2:#a9b2bd;--hint:#8a95a1;--line:#29313a;--line2:#3a4450;--blue:#6f9bff;--sblue:#1f4fb0;--yel:#ffc72c;--red:#ff5c6c;--sred:#c8102e;--black:#0b0b0b;--fo:rgba(238,241,244,.55);--sea:#121820;--land:#1c232b;--coast:#33404d;--ais:#5d6b79}
+*{box-sizing:border-box} h1,h2,h3,p,ul,dl,dd,figure{margin:0} button{cursor:pointer} button,input{font:inherit;color:inherit;margin:0} :focus-visible{outline:2px solid var(--blue);outline-offset:2px} a{color:var(--blue)}
+body{margin:0;background:var(--ground);color:var(--ink);font:400 13px/20px 'Atkinson Hyperlegible Next',system-ui,sans-serif;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
+.app{width:1440px;height:900px;overflow:hidden;display:flex;flex-direction:column;background:var(--ground)}
+.mono{font-family:'Atkinson Hyperlegible Mono',ui-monospace,monospace;font-variant-numeric:normal}
+.fact{white-space:nowrap;text-decoration:underline dotted var(--blue);text-decoration-thickness:1.5px;text-underline-offset:3px}
+.lbl{font-size:11px;line-height:16px;font-weight:500;color:var(--ink2)} .s{color:var(--ink2)}
+/* State flags, drawn from the International Code of Signals; always set beside their word */
+.f{display:inline-block;flex:none;width:16px;height:12px;border:1px solid var(--fo);vertical-align:-1px}
+.f.k{background:linear-gradient(90deg,var(--yel) 50%,var(--sblue) 0)}
+.f.v{background:linear-gradient(to top right,#0000 calc(50% - 1.2px),var(--sred) 0 calc(50% + 1.2px),#0000 0),linear-gradient(to bottom right,#0000 calc(50% - 1.2px),var(--sred) 0 calc(50% + 1.2px),#0000 0),#fff}
+.f.c{background:linear-gradient(var(--sblue) 20%,#fff 0 40%,var(--sred) 0 60%,#fff 0 80%,var(--sblue) 0)}
+.f.n{background:repeating-conic-gradient(#fff 0 25%,var(--sblue) 0 50%) 0 0/7px 5px}
+.kb{display:inline-flex;height:16px;border:1px solid var(--fo);font-size:11px;line-height:16px;font-weight:700;color:var(--black)} .kb b{background:var(--yel);padding:0 4px} .kb::after{content:"";width:6px;background:var(--sblue)}
+/* Top bar: wordmark, the four screens with flag count badges, sources */
+.bar{height:48px;flex:none;display:flex;padding-left:16px;background:var(--panel);border-bottom:1px solid var(--line)}
+.mark{align-self:center;margin-right:16px;font-size:15px;font-weight:700}
+.scr{display:flex} .scr a{display:flex;align-items:center;gap:6px;padding:0 8px;margin-bottom:-1px;color:var(--ink2);text-decoration:none;font-weight:500;border-bottom:2px solid #0000} .scr a[aria-current]{color:var(--ink);border-bottom-color:var(--blue)}
+.src{margin-left:auto;display:flex;align-items:center;gap:12px;padding:0 16px;font-size:12px;color:var(--ink2);white-space:nowrap} .src b{font-weight:500;color:var(--ink)}
+.dot{display:inline-block;width:8px;height:8px;margin-right:6px;border-radius:50%;border:1.5px solid var(--ink2)}
+.btn{height:32px;display:inline-flex;align-items:center;gap:8px;padding:0 12px;border:1px solid var(--line2);border-radius:2px;background:var(--panel);font-size:13px;font-weight:500;white-space:nowrap}
+.btn.pri{background:var(--sblue);border-color:var(--sblue);color:#fff} .btn.rej{color:var(--red);border-color:var(--red)} .btn.sm{height:28px;padding:0 8px;font-size:12px} .btn.lg{height:40px;padding:0 16px}
+kbd{font:500 11px/16px 'Atkinson Hyperlegible Mono',monospace;padding:0 4px;border:1px solid var(--line);border-radius:2px;color:var(--ink2)}
+.main{flex:1;min-height:0;display:flex}
+.tag{height:20px;display:inline-flex;align-items:center;padding:0 6px;border:1px solid var(--line);border-radius:2px;font-size:11px;font-weight:500;color:var(--ink2);white-space:nowrap}
+.sl{display:inline-flex;align-items:center;gap:8px;font-size:12px;line-height:16px;font-weight:700;color:var(--ink)}
+.rail{width:48px;flex:none;display:flex;flex-direction:column;align-items:center;gap:12px;padding-top:8px;background:var(--panel);border-left:1px solid var(--line)} .rail span{writing-mode:vertical-rl;font-size:12px;font-weight:500;color:var(--ink2)}
+.rail button{width:32px;height:32px;display:grid;place-items:center;border:1px solid var(--line2);border-radius:2px;background:var(--panel)}
+/* Approvals */
+.queue{width:320px;flex:none;display:flex;flex-direction:column;background:var(--panel);border-right:1px solid var(--line)}
+.qh{padding:16px;border-bottom:1px solid var(--line)} .qh h2{font-size:15px;line-height:20px;font-weight:700} .qh p{margin-top:4px;font-size:12px;line-height:16px}
+.sub{display:flex;align-items:center;gap:8px;padding:16px 16px 8px;font-size:12px;line-height:16px;font-weight:700}
+.qi{display:flex;flex-direction:column;gap:4px;padding:12px 16px;border-top:1px solid var(--line);color:inherit;text-decoration:none} .qi:last-of-type{border-bottom:1px solid var(--line)}
+.qi[aria-current]{background:var(--page);box-shadow:inset 3px 0 var(--blue)} .qi .r{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;color:var(--ink2)}
+.dec{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--panel)} .dbody{flex:1;min-height:0;overflow:hidden;padding:24px 32px}
+.dbody h2{margin-top:8px;font-size:20px;line-height:28px;font-weight:700} .stl{display:flex;align-items:center;gap:8px}
+.order{display:grid;grid-template-columns:repeat(4,1fr);margin-top:24px;border:1px solid var(--line);border-radius:2px} .order div{padding:12px 16px;border-left:1px solid var(--line)} .order div:first-child{border-left:0}
+.order dd{margin-top:4px;font-size:20px;line-height:28px;font-weight:700}
+h3{font-size:15px;line-height:20px;font-weight:700}
+.cmp{display:grid;grid-template-columns:248px 72px 1fr 104px 1fr;column-gap:16px;align-items:center;margin-top:12px}
+.cmp>.hd{padding-bottom:4px;border-bottom:1px solid var(--line2)} .cmp .v{text-align:right} .cmp .lab{padding:8px 0;line-height:18px}
+.tr{position:relative;height:48px;margin:0 8px;border-right:1px solid var(--line)}
+.tr.p{background:linear-gradient(90deg,var(--line) 1px,#0000 0) 0 0/50% 100%} .tr.t{background:linear-gradient(90deg,var(--line) 1px,#0000 0) 0 0/40% 100%}
+.tr::before{content:"";position:absolute;left:0;right:0;top:50%;border-top:1px solid var(--line2)}
+.tr i{position:absolute;top:50%;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;background:var(--panel);border:2px solid var(--ink2)} .tr i.b{background:var(--blue);border-color:var(--blue)}
+.ax{position:relative;height:16px;margin:0 8px;font-size:11px;color:var(--ink2)} .ax span{position:absolute;top:0;transform:translateX(-50%)}
+.rk{display:inline-grid;place-items:center;width:20px;height:20px;margin-right:8px;border:1px solid var(--ink2);font-size:11px;font-weight:700;vertical-align:top} .rk.b{background:var(--blue);border-color:var(--blue);color:var(--ground)}
+details{padding:10px 0;border-bottom:1px solid var(--line)} details:first-of-type{border-top:1px solid var(--line)} summary{font-weight:500} summary span{margin-left:12px;font-weight:400;font-size:12px;color:var(--ink2)}
+.abar{flex:none;display:flex;align-items:center;gap:24px;padding:16px 32px;border-top:1px solid var(--line2);background:var(--panel)} .abar p{max-width:520px;font-size:12px;line-height:16px;color:var(--ink2)} .abar p b{display:block;font-size:13px;line-height:20px;color:var(--ink)}
+</style>
+</head>
+<body>
+<div class="app">
+<header class="bar">
+  <span class="mark">Pharos</span>
+  <nav class="scr" aria-label="Screens"><a href="#">Map</a><a href="#">Inbox</a><a href="#" aria-current="page">Approvals <span class="kb" title="2 awaiting your decision"><b>2</b></span></a><a href="#">Evaluation</a></nav>
+  <div class="src"><span><i class="dot"></i>AIS <b>recorded</b></span><span><i class="dot"></i>Weather <b>recorded</b></span><span>Sim <b>14 Nov 08:05Z</b> · pinned</span><button class="btn sm">Go to <kbd>⌘K</kbd></button></div>
+</header>
+<div class="main">
+  <aside class="queue" aria-label="Approval queue">
+    <div class="qh"><h2>Approvals</h2><p class="s">The assistant proposes; nothing is ordered or sent until you approve.</p></div>
+    <h3 class="sub">Awaiting your decision <span class="kb"><b>2</b></span></h3>
+    <a class="qi" href="#" aria-current="true"><span class="r"><b style="color:var(--ink)">Purchase order</b><span class="sl"><i class="f k"></i>awaiting approval</span></span><span>Order LSMGO for the <span class="mono">AP-2611</span> stem from Kestrel Marine Fuels at Marsaxlokk.</span><span class="r"><span><span class="fact">300 mt</span> · <span class="fact">USD 233,942.91</span></span><span>bunker plan 1</span></span></a>
+    <a class="qi" href="#"><span class="r"><b style="color:var(--ink)">Voyage instruction</b><span class="sl"><i class="f k"></i>awaiting approval</span></span><span>Instruct MV Aegean Pioneer to Rotterdam: Shortest sea route (route B).</span><span class="r"><span>Route B · <span class="fact">11.0 kn</span> · ETA <span class="fact">26 Nov 15:01Z</span></span><span>route plan 5</span></span></a>
+    <h3 class="sub">Decided · 0</h3>
+    <p class="s" style="padding:0 16px;font-size:12px;line-height:20px"><i class="f c"></i> Approved and <i class="f n"></i> rejected proposals land here with their audit trail.</p>
+  </aside>
+  <main class="dec" aria-label="Decision">
+    <div class="dbody">
+      <div class="stl"><span class="lbl">Purchase order</span><span class="sl"><i class="f k"></i>awaiting your decision</span><span class="tag">release gate passed</span><span class="tag">simulated data</span></div>
+      <h2>Order LSMGO for the <span class="mono">AP-2611</span> stem from Kestrel Marine Fuels at Marsaxlokk.</h2>
+      <p class="s">For MV Aegean Pioneer · proposed by the assistant at 14 Nov 08:05Z from bunker plan 1 · <a href="#">Open the conversation</a></p>
+      <dl class="order" aria-label="The order">
+        <div><dt class="lbl">Grade and quantity</dt><dd>LSMGO · <span class="fact">300 mt</span></dd></div>
+        <div><dt class="lbl">Headline price</dt><dd><span class="fact">738 USD/mt</span></dd></div>
+        <div><dt class="lbl">Total delivered cost</dt><dd><span class="fact">USD 233,942.91</span></dd></div>
+        <div><dt class="lbl">Delay to the voyage</dt><dd><span class="fact">11.12 h</span></dd></div>
+      </dl>
+      <p class="s" style="margin-top:8px;font-size:12px">Total delivered cost counts the fuel, barge fee, deviation and delay, EU ETS (<span class="fact">USD 440.95</span>) and FuelEU exposure (<span class="fact">USD 72.25</span>).</p>
+      <section aria-labelledby="why" style="margin-top:32px">
+        <h3 id="why">Why Kestrel, not the cheapest price</h3>
+        <p style="margin-top:4px"><span class="fact">USD 5,310.37</span> less than the runner-up, and <span class="fact">USD 16,138.45</span> less than the cheapest headline price, once delay and carbon are counted.</p>
+        <figure class="cmp" role="img" aria-label="Headline price against total delivered cost for the three options. Strait Line Fuels has the lowest price, 712 USD/mt, but the highest total, USD 250,081.36. Kestrel Marine Fuels is second by price, 738 USD/mt, and lowest in total, USD 233,942.91.">
+          <span class="hd lbl">Ranked by total delivered cost</span><span class="hd lbl" style="grid-column:span 2">Headline price, USD/mt · one scale</span><span class="hd lbl" style="grid-column:span 2">Total delivered cost, USD · one scale</span>
+          <span class="lab"><span class="rk b">1</span><b>Kestrel Marine Fuels · Marsaxlokk</b><br><span class="s" style="margin-left:28px"><span class="fact">11.12 h</span> delay</span></span><b class="v"><span class="fact">738</span></b><span class="tr p"><i class="b" style="left:76%"></i></span><b class="v" style="color:var(--blue)"><span class="fact">233,942.91</span></b><span class="tr t"><i class="b" style="left:15.77%"></i></span>
+          <span class="lab"><span class="rk">2</span>Nordwind Bunker Services · Algeciras<br><span class="s" style="margin-left:28px"><span class="fact">14.96 h</span> delay</span></span><span class="v"><span class="fact">745.2</span></span><span class="tr p"><i style="left:90.4%"></i></span><span class="v"><span class="fact">239,253.28</span></span><span class="tr t"><i style="left:37.01%"></i></span>
+          <span class="lab"><span class="rk">3</span>Strait Line Fuels · Gibraltar<br><span class="s" style="margin-left:28px"><span class="fact">36.32 h</span> delay · cheapest price</span></span><span class="v"><span class="fact">712</span></span><span class="tr p"><i style="left:24%"></i></span><span class="v"><span class="fact">250,081.36</span></span><span class="tr t"><i style="left:80.33%"></i></span>
+          <span></span><span></span><span class="ax"><span style="left:0">700</span><span style="left:50%">725</span><span style="left:100%">750</span></span><span></span><span class="ax"><span style="left:0">230,000</span><span style="left:40%">240,000</span><span style="left:80%">250,000</span></span>
+        </figure>
+        <p class="s" style="margin-top:8px;font-size:12px">All three options from bunker plan 1, each feasible. Every figure opens its fact.</p>
+      </section>
+      <section style="margin-top:32px" aria-label="Details">
+        <details><summary>Facts behind it<span>grouped by option, short labels, each opens its source</span></summary></details>
+        <details><summary>Drafted order confirmation to Kestrel Marine Fuels<span>draft, not sent</span></summary></details>
+        <details><summary>Audit trail<span>proposed, gate passed</span></summary></details>
+      </section>
+    </div>
+    <div class="abar">
+      <button class="btn rej lg"><i class="f n"></i>Reject…</button>
+      <p style="margin-left:auto"><b>If you approve</b>A purchase order is created in the ERP simulator. The confirmation to Kestrel stays a draft; nothing goes to the supplier. You confirm in one more step.</p>
+      <button class="btn pri lg"><i class="f c"></i>Approve purchase order…</button>
+    </div>
+  </main>
+  <aside class="rail" aria-label="Assistant, collapsed"><button aria-label="Open the assistant"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button><span>Assistant</span></aside>
+</div>
+</div>
+</body>
+</html>

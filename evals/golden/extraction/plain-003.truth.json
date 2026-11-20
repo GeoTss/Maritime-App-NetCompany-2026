@@ -1,0 +1,27 @@
+{
+  "id": "plain-003",
+  "tags": ["plain", "layout:compact", "vessel:name", "window:mon-both", "barge:lump_sum"],
+  "source": "generated",
+  "expected": {
+    "kind": "quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": {
+      "vesselImo": "9487081",
+      "portUnlocode": "BEANR",
+      "supplierKey": "harbourlight",
+      "currency": "USD",
+      "validUntil": "2026-11-14",
+      "deliveryFrom": "2026-11-22",
+      "deliveryTo": "2026-11-24",
+      "bargeFee": 2050,
+      "lines": [
+        {
+          "grade": "LSMGO",
+          "qtyMt": 100,
+          "pricePerMt": 683
+        }
+      ]
+    }
+  }
+}

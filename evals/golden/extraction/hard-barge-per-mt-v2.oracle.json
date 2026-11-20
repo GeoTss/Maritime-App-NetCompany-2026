@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Kestrel Marine Fuels",
+    "evidence": "Kestrel Marine Fuels | Trading Desk"
+  },
+  "vesselName": {
+    "value": "M/V Aegean Pioneer",
+    "evidence": "Vessel: M/V Aegean Pioneer"
+  },
+  "vesselImo": {
+    "value": null,
+    "evidence": null
+  },
+  "port": {
+    "value": "Marsaxlokk",
+    "evidence": "Location: Marsaxlokk"
+  },
+  "deliveryFrom": {
+    "asWritten": "2026-11-16",
+    "evidence": "Delivery from: 2026-11-16"
+  },
+  "deliveryTo": {
+    "asWritten": "2026-11-17",
+    "evidence": "Delivery to: 2026-11-17"
+  },
+  "validUntil": {
+    "asWritten": "15 Nov",
+    "evidence": "Offer valid until: 15 Nov"
+  },
+  "bargeFee": {
+    "value": 3.75,
+    "currency": "USD",
+    "perUnit": "per mt",
+    "asWritten": "USD 3.75 per mt",
+    "evidence": "Barge: USD 3.75 per mt"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "LSMGO",
+        "evidence": "LSMGO 320 tonnes USD 768.00 PMT"
+      },
+      "quantity": {
+        "value": 320,
+        "unit": "tonnes",
+        "asWritten": "320 tonnes",
+        "evidence": "LSMGO 320 tonnes USD 768.00 PMT"
+      },
+      "price": {
+        "value": 768,
+        "currency": "USD",
+        "perUnit": "PMT",
+        "asWritten": "USD 768.00 PMT",
+        "evidence": "LSMGO 320 tonnes USD 768.00 PMT"
+      }
+    }
+  ],
+  "notes": null
+}

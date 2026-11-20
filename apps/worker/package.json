@@ -1,0 +1,15 @@
+{
+  "name": "@pharos/worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/main.ts"
+  },
+  "dependencies": {
+    "@pharos/db": "*",
+    "@pharos/integrations": "*",
+    "@pharos/shared": "*",
+    "zod": "4.6.7"
+  }
+}

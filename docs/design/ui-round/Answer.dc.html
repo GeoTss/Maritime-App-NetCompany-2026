@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Pharos: the bunker answer on the map</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&amp;family=B612+Mono:wght@400;700&amp;display=swap">
+<style>
+body{margin:0;background:#0c1218;color:#e4eaf0;font-family:'Archivo',system-ui,sans-serif;font-size:13px;line-height:18px;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
+::selection{background:rgba(92,200,242,.32);color:#e4eaf0}
+.mono{font-family:'B612 Mono',ui-monospace,monospace;font-variant-numeric:normal}
+.fact{text-decoration:underline dotted #5cc8f2;text-underline-offset:3px;text-decoration-thickness:1px}
+button,summary{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,a:focus-visible,summary:focus-visible{outline:2px solid rgba(92,200,242,.6);outline-offset:1px}
+a{color:#5cc8f2;text-decoration:none}a:hover{color:#8fdcf7;text-decoration:underline}
+input::placeholder{color:#7b8d9f}
+</style>
+</helmet>
+<div style="min-height: 900px; display: flex; flex-direction: column; background: #0c1218;">
+
+  <header style="min-height: 36px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; padding: 0 12px; background: #121a22; border-bottom: 1px solid #263442;">
+    <div style="display: flex; align-items: baseline; gap: 8px; margin-right: auto;">
+      <span style="font-size: 14px; font-weight: 600; font-stretch: 88%;">Pharos</span>
+      <span style="font-size: 12px; color: #9fb0c0;">bunker-to-berth desk</span>
+    </div>
+    <button type="button" style="height: 24px; display: flex; align-items: center; gap: 6px; padding: 0 8px; background: rgba(242,184,75,.10); border: 1px solid rgba(242,184,75,.45); border-radius: 2px; font-size: 12px; font-weight: 500; color: #f2b84b;"><span style="width: 6px; height: 6px; border-radius: 50%; background: #f2b84b;"></span>3 need you</button>
+    <div style="display: flex; align-items: center; gap: 14px; font-size: 11px; font-stretch: 80%; font-weight: 500;">
+      <span style="display: flex; align-items: center; gap: 5px;"><span style="width: 6px; height: 6px; border-radius: 50%; border: 1px solid #9fb0c0; box-sizing: border-box;"></span><span style="color: #9fb0c0;">AIS</span><span style="color: #e4eaf0;">recorded</span></span>
+      <span style="display: flex; align-items: center; gap: 5px;"><span style="width: 6px; height: 6px; border-radius: 50%; border: 1px solid #9fb0c0; box-sizing: border-box;"></span><span style="color: #9fb0c0;">Weather</span><span style="color: #e4eaf0;">recorded</span></span>
+      <span style="display: flex; align-items: center; gap: 6px;"><span style="color: #9fb0c0;">sim</span><span style="font-size: 11px; color: #e4eaf0;">14 Nov 08:05Z</span><span style="color: #7b8d9f;">pinned</span></span>
+    </div>
+    <button type="button" style="height: 24px; display: flex; align-items: center; gap: 6px; padding: 0 6px 0 8px; background: transparent; border: 1px solid #364757; border-radius: 2px; font-size: 12px; color: #9fb0c0;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>Go to<span class="mono" style="font-size: 11px; padding: 0 4px; border: 1px solid #364757; border-radius: 1px; color: #7b8d9f;">⌘K</span></button>
+  </header>
+
+  <div style="flex: 1 1 auto; display: flex; flex-wrap: wrap; min-height: 0;">
+
+    <nav aria-label="Screens" style="flex: 1 1 64px; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 2px; padding: 8px 6px; background: #121a22; border-right: 1px solid #263442;">
+      <a href="#" aria-current="page" style="position: relative; width: 52px; height: 48px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; border-radius: 2px; background: #1f2b37; color: #e4eaf0; text-decoration: none;"><span style="position: absolute; left: -6px; top: 10px; bottom: 10px; width: 1px; background: #5cc8f2;"></span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z"></path><path d="M15 5.764v15"></path><path d="M9 3.236v15"></path></svg><span style="font-size: 11px; line-height: 12px; font-stretch: 80%; font-weight: 500;">Map</span></a>
+      <a href="#" style="position: relative; width: 52px; height: 48px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; border-radius: 2px; color: #9fb0c0; text-decoration: none;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"></polyline><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path></svg><span style="font-size: 11px; line-height: 12px; font-stretch: 80%; font-weight: 500;">Inbox</span></a>
+      <a href="#" style="position: relative; width: 52px; height: 48px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; border-radius: 2px; color: #9fb0c0; text-decoration: none;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 17 2 2 4-4"></path><path d="m3 7 2 2 4-4"></path><path d="M13 6h8"></path><path d="M13 12h8"></path><path d="M13 18h8"></path></svg><span style="font-size: 11px; line-height: 12px; font-stretch: 80%; font-weight: 500;">Approvals</span><span style="position: absolute; top: 4px; right: 4px; min-width: 14px; height: 14px; padding: 0 3px; box-sizing: border-box; border-radius: 1px; background: #f2b84b; color: #0c1218; font-size: 11px; line-height: 14px; font-weight: 600; text-align: center;">1</span></a>
+      <a href="#" style="position: relative; width: 52px; height: 48px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; border-radius: 2px; color: #9fb0c0; text-decoration: none;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v16a2 2 0 0 0 2 2h16"></path><path d="M18 17V9"></path><path d="M13 17V5"></path><path d="M8 17v-3"></path></svg><span style="font-size: 11px; line-height: 12px; font-stretch: 80%; font-weight: 500;">Evaluation</span></a>
+    </nav>
+
+    <div style="flex: 999 1 560px; min-width: 0; display: flex; flex-wrap: wrap;">
+
+      <aside aria-label="Needs you, collapsed" style="flex: 0 0 44px; display: flex; flex-direction: column; align-items: center; gap: 10px; padding-top: 10px; background: #121a22; border-right: 1px solid #263442;">
+        <button type="button" aria-label="Open Needs you, 3 items" style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: transparent; border: 1px solid rgba(242,184,75,.45); border-radius: 2px; color: #f2b84b; font-size: 12px; font-weight: 600;">3</button>
+        <span style="writing-mode: vertical-rl; font-size: 11px; font-stretch: 80%; font-weight: 500; color: #9fb0c0;">Needs you</span>
+      </aside>
+
+      <main style="flex: 999 1 420px; min-width: 0; min-height: 600px; position: relative; overflow: hidden; background: #0e1822;">
+        <svg viewBox="100 300 820 330" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Bunker plan 1 on the map: Kestrel Marine Fuels at Marsaxlokk ranked first by total delivered cost, Nordwind at Algeciras second and Strait Line at Gibraltar third, with Aegean Pioneer's planned track" style="position: absolute; inset: 0; width: 100%; height: 100%; display: block; overflow: visible;">
+          <rect x="-400" y="-300" width="1800" height="1400" fill="#0e1822"></rect>
+          <rect x="-400" y="790" width="1800" height="400" fill="#1b2630"></rect>
+          <path fill="#1b2630" stroke="#2e3e4d" stroke-width="1" vector-effect="non-scaling-stroke" d="M732 477L738 474L737 479L740 479L741 484L749 481L765 486L770 484L771 493L781 486L779 497L751 500L749 494L744 491L726 487L726 477L727 476L728 478L729 473L732 477ZM723 343L725 349L737 355L740 372L747 376L745 382L739 376L736 366L728 364L727 359L719 349L712 347L720 340L723 343ZM948 475L938 486L940 498L933 499L927 507L920 510L919 514L916 510L912 511L907 508L904 494L906 495L909 491L916 491L917 483L931 484L947 473L950 472L948 475ZM309 310L314 310L316 313L309 328L308 329L302 326L299 319L296 322L293 317L304 305L310 303L309 310ZM441 265L445 281L442 290L443 300L440 335L430 332L428 343L426 345L420 343L417 330L419 307L417 304L418 289L412 274L413 264L420 266L433 249L441 259L441 265ZM438 184L440 212L432 244L425 236L426 231L423 229L423 221L421 221L422 217L420 203L423 195L431 188L435 189L436 175L438 184ZM563 372L553 402L557 416L553 432L541 428L536 418L529 416L514 402L505 398L501 394L499 388L505 374L508 380L513 374L516 374L526 382L541 379L547 374L553 375L563 369L563 372ZM-61 -141L1061 -141L1061 806L1061 664L1061 806L990 806L985 803L963 752L953 749L951 751L959 698L954 708L947 753L943 762L934 752L923 733L909 683L905 695L910 706L911 718L916 733L930 757L930 767L936 782L940 804L946 806L1061 806L-61 806L-40 806L-35 801L-19 756L0 749L12 740L19 728L31 716L46 684L49 669L43 656L45 631L54 606L56 588L71 563L104 536L115 506L124 467L135 462L137 463L138 474L150 489L157 491L170 487L176 489L184 482L187 492L206 494L218 484L226 472L236 465L244 466L251 453L271 439L298 436L306 429L317 428L322 424L342 424L353 434L369 426L377 417L379 420L386 424L393 422L392 417L397 418L406 426L425 420L430 414L443 407L446 408L446 415L447 411L453 412L455 429L457 431L468 418L470 418L472 425L459 449L461 463L469 473L472 488L463 510L450 527L450 533L455 545L458 548L463 547L464 554L467 553L469 549L475 561L474 564L486 569L496 578L505 580L516 575L534 583L541 591L555 595L561 622L568 633L574 636L587 638L609 648L631 672L639 672L645 667L655 647L652 616L656 601L666 588L675 581L682 580L686 575L698 575L716 587L717 597L720 602L731 604L737 609L753 610L760 627L773 623L791 629L801 632L807 638L813 639L816 642L827 644L838 652L846 648L856 638L862 636L865 629L876 625L869 631L878 629L879 624L888 629L896 626L901 634L896 628L893 635L898 638L900 643L904 639L903 635L910 643L921 640L922 643L932 641L942 635L953 613L972 526L979 514L978 484L975 476L979 459L976 447L983 434L983 428L981 424L967 437L953 427L932 452L914 458L906 452L898 439L882 427L870 425L866 449L862 447L851 453L841 447L836 431L833 433L823 428L817 435L818 430L807 433L806 430L817 427L821 419L801 421L802 415L807 414L807 411L800 405L797 395L801 392L801 382L781 370L784 366L784 356L788 359L789 368L790 364L793 366L799 363L794 362L791 353L796 346L792 343L793 337L789 330L794 319L778 322L779 301L791 285L802 282L806 288L811 288L813 286L811 281L814 280L816 281L816 286L837 285L832 279L836 275L854 271L844 268L838 262L840 251L856 254L864 252L874 257L883 256L887 247L904 230L926 218L954 220L959 216L962 217L963 227L971 234L978 231L981 232L983 242L988 249L996 245L1001 253L1028 263L1050 256L1061 263L1061 158L1035 121L1024 115L1017 103L1014 105L1010 103L1004 91L993 84L992 81L999 77L994 73L997 71L1004 78L1013 73L1012 64L1019 45L1021 43L1022 48L1024 41L1030 41L1022 28L1019 27L1016 16L1020 17L1025 14L1031 15L1029 9L1046 -2L1045 -12L1041 -12L1039 -8L1034 -6L1032 -7L1036 -12L1032 -11L1024 -4L1011 -3L1007 4L1001 5L996 13L991 11L985 15L976 17L960 41L965 33L964 25L956 37L960 59L969 76L976 72L980 73L986 69L991 72L988 87L977 90L973 85L969 85L961 98L953 98L948 102L940 115L937 116L932 115L928 109L931 94L930 85L926 81L922 81L917 74L910 75L908 72L932 47L930 41L927 43L922 37L908 42L894 33L893 31L898 29L898 26L892 24L889 20L905 24L910 17L905 20L899 16L893 -10L896 3L895 16L888 15L889 10L886 17L873 20L871 33L862 51L853 57L851 56L849 60L852 75L848 97L838 100L839 91L835 91L833 107L834 109L829 120L828 155L826 160L819 159L815 168L814 187L806 199L816 216L820 237L838 251L836 260L832 261L820 257L815 260L806 261L801 273L791 281L780 298L781 288L792 275L778 276L773 267L757 260L751 266L744 262L736 272L730 270L732 284L739 288L742 295L733 286L729 288L734 297L734 302L728 292L723 290L724 298L728 303L727 304L722 301L721 292L712 285L713 277L707 281L706 299L721 334L717 337L718 331L713 329L712 335L714 340L716 340L710 345L706 347L719 355L728 367L735 372L735 394L724 380L715 386L718 396L722 398L724 403L718 407L713 400L710 397L709 399L718 442L710 429L706 429L703 441L702 432L696 419L693 421L692 431L685 417L687 405L676 385L682 373L687 374L690 368L713 383L712 379L717 378L717 374L711 372L702 364L700 367L693 365L683 368L680 362L680 366L677 367L669 347L671 344L676 345L676 340L668 340L659 328L650 299L641 290L639 284L642 286L642 284L640 274L644 227L637 221L626 200L623 200L609 185L593 175L596 175L607 183L590 160L579 153L571 154L570 148L555 126L553 122L561 122L551 107L548 86L542 76L537 75L530 97L528 97L523 85L521 68L526 62L523 56L520 58L514 56L505 66L500 69L500 65L495 70L494 79L500 91L498 98L496 97L495 102L498 124L504 134L522 152L531 189L542 208L554 221L575 223L569 239L611 274L622 292L619 308L614 303L610 290L602 288L596 281L590 282L582 311L594 326L595 341L594 345L591 344L584 349L582 365L577 371L573 384L566 384L564 380L569 357L571 353L576 351L576 344L565 301L557 298L550 291L551 286L546 274L538 277L540 271L537 268L532 269L525 250L515 248L512 250L503 241L482 206L476 201L472 202L473 196L463 179L459 178L460 168L453 135L434 119L424 115L419 118L410 137L393 146L379 168L370 173L355 166L353 161L349 161L348 157L341 160L331 156L328 151L325 152L311 168L307 180L308 194L312 206L310 208L309 212L311 221L287 248L266 258L259 267L263 272L257 276L243 306L238 324L242 343L249 351L234 368L228 390L230 396L218 398L211 405L200 431L195 427L188 431L156 431L150 439L139 443L136 454L130 458L122 452L115 434L114 431L118 424L114 427L104 413L105 409L102 413L92 414L85 420L69 416L61 419L65 404L64 363L68 364L65 361L57 364L56 355L61 351L62 341L66 338L62 341L58 352L54 353L51 349L53 328L58 320L64 296L68 270L66 231L63 228L66 221L64 221L63 214L68 207L65 207L67 201L65 192L61 194L63 185L59 182L56 175L58 169L64 162L74 159L76 151L88 143L101 153L126 148L153 158L171 154L183 160L186 157L200 163L212 157L214 152L220 109L223 103L221 100L220 104L223 66L228 73L234 90L229 69L220 58L220 56L224 57L221 31L208 22L203 9L204 -2L200 -7L202 -12L209 -10L205 -14L194 -14L195 -22L193 -24L188 -23L188 -29L182 -28L180 -32L165 -39L157 -38L154 -45L149 -48L157 -54L151 -60L158 -60L155 -63L149 -63L148 -67L152 -75L162 -79L169 -79L179 -86L184 -83L190 -71L195 -77L202 -77L204 -73L206 -79L208 -76L217 -77L213 -84L213 -103L207 -126L217 -127L219 -126L222 -112L242 -107L254 -115L248 -117L249 -127L270 -141L1061 -141L-61 -141ZM585 176L594 178L596 180L594 180L587 180L585 176ZM596 171L585 171L579 167L596 171ZM588 165L581 164L581 160L589 161L588 165ZM813 462L810 461L810 453L814 446L820 443L821 445L818 456L813 462ZM799 479L797 474L799 467L799 479ZM796 422L794 423L794 417L795 418L796 422ZM795 431L801 424L803 425L795 431ZM766 422L764 423L762 418L766 413L766 422ZM761 418L758 420L758 416L761 415L761 418ZM792 389L797 393L792 395L787 392L792 389ZM776 400L777 395L782 394L776 400ZM773 429L770 429L772 426L776 423L777 424L773 429ZM746 430L746 433L741 434L742 431L746 430ZM755 391L754 393L749 385L750 382L754 385L755 391ZM760 397L760 400L755 394L760 397ZM777 372L776 375L773 370L775 367L772 359L776 357L779 360L777 372ZM784 328L787 342L779 340L778 338L781 335L779 334L777 337L774 336L774 330L776 330L779 326L784 328ZM749 349L746 350L744 346L745 342L749 349ZM764 302L762 309L760 305L758 308L756 301L761 303L764 300L764 302ZM750 276L748 277L745 274L747 269L749 269L750 276ZM475 507L472 510L475 504L475 507ZM469 546L464 545L464 540L468 539L470 543L469 546ZM457 182L458 189L456 186L452 187L452 184L457 182ZM542 465L538 464L538 460L542 465ZM666 366L669 378L664 377L662 372L660 374L661 368L664 368L664 362L666 366ZM671 389L673 393L670 395L666 388L667 384L671 389ZM667 357L664 358L665 351L667 348L668 349L667 357ZM655 324L655 326L651 323L646 312L650 308L651 310L650 314L655 324ZM715 452L712 451L713 445L716 449L715 452Z"></path>
+          <g fill="#5b7186" opacity="0.55">
+            <circle cx="821" cy="590" r="1.4"></circle><circle cx="686" cy="426" r="1.4"></circle><circle cx="885" cy="474" r="1.4"></circle><circle cx="703" cy="450" r="1.4"></circle><circle cx="500" cy="334" r="1.4"></circle><circle cx="516" cy="354" r="1.4"></circle><circle cx="522" cy="441" r="1.4"></circle><circle cx="550" cy="453" r="1.4"></circle><circle cx="718" cy="529" r="1.4"></circle><circle cx="636" cy="501" r="1.4"></circle><circle cx="697" cy="475" r="1.4"></circle><circle cx="807" cy="553" r="1.4"></circle><circle cx="862" cy="480" r="1.4"></circle><circle cx="691" cy="478" r="1.4"></circle><circle cx="778" cy="572" r="1.4"></circle><circle cx="816" cy="537" r="1.4"></circle><circle cx="528" cy="423" r="1.4"></circle><circle cx="728" cy="397" r="1.4"></circle><circle cx="772" cy="565" r="1.4"></circle><circle cx="332" cy="400" r="1.4"></circle><circle cx="711" cy="528" r="1.4"></circle><circle cx="497" cy="412" r="1.4"></circle><circle cx="839" cy="516" r="1.4"></circle><circle cx="374" cy="401" r="1.4"></circle><circle cx="512" cy="370" r="1.4"></circle><circle cx="870" cy="506" r="1.4"></circle><circle cx="542" cy="447" r="1.4"></circle><circle cx="709" cy="479" r="1.4"></circle><circle cx="825" cy="532" r="1.4"></circle><circle cx="800" cy="550" r="1.4"></circle><circle cx="724" cy="520" r="1.4"></circle><circle cx="760" cy="554" r="1.4"></circle><circle cx="702" cy="483" r="1.4"></circle><circle cx="547" cy="457" r="1.4"></circle><circle cx="530" cy="452" r="1.4"></circle><circle cx="444" cy="394" r="1.4"></circle><circle cx="723" cy="518" r="1.4"></circle><circle cx="491" cy="413" r="1.4"></circle><circle cx="458" cy="408" r="1.4"></circle><circle cx="336" cy="407" r="1.4"></circle><circle cx="650" cy="501" r="1.4"></circle><circle cx="530" cy="431" r="1.4"></circle><circle cx="725" cy="391" r="1.4"></circle>
+          </g>
+          <polyline points="796,567 724,539 602,490 494,424 457,403 412,397 327,407 224,436 135,459 82,448 49,397 41,260" fill="none" stroke="#8fa3b8" stroke-width="1.4" stroke-dasharray="5 4" vector-effect="non-scaling-stroke" opacity="0.8"></polyline>
+          <circle cx="389" cy="398" r="11" fill="rgba(232,107,214,0.10)" stroke="#e86bd6" stroke-width="1" stroke-dasharray="3 2.5" vector-effect="non-scaling-stroke"></circle>
+          <circle cx="389" cy="398" r="2" fill="#e86bd6"></circle>
+          <text x="389" y="380" font-family="Archivo, system-ui, sans-serif" font-size="9.4" fill="#e86bd6" text-anchor="middle">synthetic hazard</text>
+
+          <circle cx="541" cy="464" r="13" fill="rgba(61,220,151,0.12)" stroke="#3ddc97" stroke-width="1.6" vector-effect="non-scaling-stroke"></circle>
+          <circle cx="541" cy="464" r="3.4" fill="#3ddc97"></circle>
+          <circle cx="135" cy="456" r="13" fill="rgba(143,163,184,0.10)" stroke="#8fa3b8" stroke-width="1.3" vector-effect="non-scaling-stroke"></circle>
+          <circle cx="135" cy="456" r="3" fill="#8fa3b8"></circle>
+
+          <g font-family="Archivo, system-ui, sans-serif">
+            <rect x="400" y="478" width="134" height="40" fill="#121a22" stroke="#3ddc97" stroke-width="1" vector-effect="non-scaling-stroke"></rect>
+            <text x="407" y="491" font-size="9.7" fill="#3ddc97" font-weight="600">1 · Kestrel, Marsaxlokk</text>
+            <text x="407" y="505" font-size="10.6" fill="#e4eaf0">USD 233,942.91</text>
+            <text x="407" y="514" font-size="8.6" fill="#9fb0c0">738 USD/mt · 11.12 h delay</text>
+            <rect x="152" y="468" width="146" height="58" fill="#121a22" stroke="#364757" stroke-width="1" vector-effect="non-scaling-stroke"></rect>
+            <text x="159" y="481" font-size="9.7" fill="#e4eaf0" font-weight="500">2 · Nordwind, Algeciras</text>
+            <text x="159" y="493" font-size="9.2" fill="#9fb0c0">USD 239,253.28 · 14.96 h</text>
+            <line x1="159" y1="499" x2="291" y2="499" stroke="#263442" stroke-width="1" vector-effect="non-scaling-stroke"></line>
+            <text x="159" y="510" font-size="9.7" fill="#e4eaf0" font-weight="500">3 · Strait Line, Gibraltar</text>
+            <text x="159" y="521" font-size="9.2" fill="#9fb0c0">USD 250,081.36 · 36.32 h</text>
+          </g>
+          <g font-family="Archivo, system-ui, sans-serif">
+            <circle cx="796" cy="567" r="11" fill="none" stroke="#f2b84b" stroke-width="1" opacity="0.5" vector-effect="non-scaling-stroke"></circle>
+            <circle cx="796" cy="567" r="7" fill="none" stroke="#5cc8f2" stroke-width="1.5" vector-effect="non-scaling-stroke"></circle>
+            <circle cx="796" cy="567" r="3.8" fill="#f2b84b" stroke="#0e1822" stroke-width="1"></circle>
+            <text x="810" y="565" font-size="10" fill="#e4eaf0" font-weight="500">MV Aegean Pioneer</text>
+            <text x="810" y="576" font-size="8.6" fill="#9fb0c0">voyage AP-2611 to Rotterdam</text>
+          </g>
+        </svg>
+
+        <div style="position: absolute; top: 12px; left: 12px; right: 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px;">
+          <div style="height: 28px; display: flex; align-items: center; gap: 8px; padding: 0 4px 0 10px; background: #121a22; border: 1px solid #5cc8f2; border-radius: 2px; font-size: 12px;">
+            <span style="color: #9fb0c0;">Showing</span><span style="font-weight: 500;">bunker plan 1 · 3 options</span><span style="color: #7b8d9f;">from your question</span>
+            <button type="button" aria-label="Clear the plan from the map" style="width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; background: transparent; border: 0; color: #9fb0c0;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></button>
+          </div>
+          <button type="button" style="margin-left: auto; height: 28px; display: flex; align-items: center; gap: 6px; padding: 0 10px; background: #121a22; border: 1px solid #364757; border-radius: 2px; font-size: 12px; font-weight: 500;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"></path><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"></path><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"></path></svg>Layers<span style="color: #7b8d9f;">4 on</span></button>
+        </div>
+
+        <div style="position: absolute; left: 12px; bottom: 12px; padding: 10px 12px; max-width: 340px; background: rgba(18,26,34,.94); border: 1px solid #263442; border-radius: 2px;">
+          <div style="font-size: 11px; font-stretch: 80%; font-weight: 500; color: #9fb0c0;">Ranked by total delivered cost</div>
+          <div style="margin-top: 6px; display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px;">
+            <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid #3ddc97;"></span>recommended</span>
+            <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid #8fa3b8;"></span>other options</span>
+            <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 16px; height: 0; border-top: 1.5px dashed #8fa3b8;"></span>current plan</span>
+          </div>
+        </div>
+        <div style="position: absolute; right: 12px; bottom: 12px; font-size: 11px; color: #7b8d9f;">Land: Natural Earth, public domain</div>
+      </main>
+
+      <aside aria-label="Assistant" style="flex: 1 1 380px; min-width: 0; display: flex; flex-direction: column; background: #121a22; border-left: 1px solid #263442;">
+        <div style="min-height: 40px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 0 12px; border-bottom: 1px solid #263442;">
+          <span style="font-size: 13px; font-weight: 500; font-stretch: 88%;">Assistant</span>
+          <span style="height: 18px; padding: 0 5px; border: 1px solid #364757; border-radius: 1px; font-size: 11px; line-height: 16px; font-stretch: 80%; font-weight: 500; color: #9fb0c0;">simulated data</span>
+          <span style="height: 18px; padding: 0 5px; border: 1px solid #364757; border-radius: 1px; font-size: 11px; line-height: 16px; font-stretch: 80%; font-weight: 500; color: #9fb0c0;">model: recorded</span>
+          <button type="button" style="margin-left: auto; height: 24px; padding: 0 8px; background: transparent; border: 0; font-size: 12px; color: #9fb0c0;">New conversation</button>
+        </div>
+
+        <div style="flex: 1 1 auto; padding: 14px 14px 8px; display: flex; flex-direction: column; gap: 12px;">
+          <div style="align-self: flex-end; max-width: 88%; padding: 8px 10px; background: #1f2b37; border-radius: 2px; font-size: 13px;">Where should Aegean Pioneer bunker, and who should we buy from?</div>
+
+          <button type="button" aria-expanded="false" style="align-self: flex-start; height: 24px; display: flex; align-items: center; gap: 6px; padding: 0; background: transparent; border: 0; font-size: 12px; color: #9fb0c0;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>Ran the bunker planner, then drafted a purchase order<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button>
+
+          <div>
+            <p style="margin: 0; font-size: 15px; line-height: 21px; font-weight: 500;">Buy the <span class="fact">300 mt</span> of LSMGO for voyage <span class="fact">AP-2611</span> from Kestrel Marine Fuels at Marsaxlokk.</p>
+            <p style="margin: 6px 0 0; font-size: 13px; line-height: 19px;">It has the lowest total delivered cost, <span class="fact">$233,942.91</span>, and the option is feasible.</p>
+            <ul style="margin: 8px 0 0; padding-left: 16px; font-size: 13px; line-height: 19px;">
+              <li>Kestrel's headline price is <span class="fact">$738</span> per mt, with an <span class="fact">11.12 h</span> delay.</li>
+              <li>Strait Line Fuels at Gibraltar has the cheapest headline price, <span class="fact">$712</span> per mt, but its total is <span class="fact">$250,081.36</span> because of a <span class="fact">36.32 h</span> delay.</li>
+              <li>Kestrel saves <span class="fact">$16,138.45</span> against the cheapest headline option.</li>
+              <li>Nordwind Bunker Services at Algeciras ranks second, at <span class="fact">$239,253.28</span>.</li>
+            </ul>
+          </div>
+
+          <div style="border: 1px solid #263442; border-radius: 2px;">
+            <div style="padding: 6px 10px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #364757; font-size: 11px; font-stretch: 80%; font-weight: 500; color: #9fb0c0;">Options compared<span style="margin-left: auto; font-stretch: 100%; font-weight: 400; color: #7b8d9f;">bunker plan 1</span></div>
+            <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+              <thead><tr style="height: 24px; font-size: 11px; font-stretch: 80%; font-weight: 500; color: #9fb0c0;"><th scope="col" style="text-align: left; padding: 0 10px; font-weight: 500;">Supplier · port</th><th scope="col" style="text-align: right; padding: 0 6px; font-weight: 500;">USD/mt</th><th scope="col" style="text-align: right; padding: 0 6px; font-weight: 500;">Delay</th><th scope="col" style="text-align: right; padding: 0 10px; font-weight: 500;">Total USD</th></tr></thead>
+              <tbody>
+                <tr style="height: 28px; background: #18222c;"><td style="padding: 0 10px; border-top: 1px solid #263442;"><span style="color: #3ddc97;">1</span> Kestrel · Marsaxlokk</td><td style="text-align: right; padding: 0 6px; border-top: 1px solid #263442;"><span class="fact">738</span></td><td style="text-align: right; padding: 0 6px; border-top: 1px solid #263442;"><span class="fact">11.12 h</span></td><td style="text-align: right; padding: 0 10px; border-top: 1px solid #263442; color: #3ddc97;"><span class="fact">233,942.91</span></td></tr>
+                <tr style="height: 28px;"><td style="padding: 0 10px; border-top: 1px solid #263442;"><span style="color: #9fb0c0;">2</span> Nordwind · Algeciras</td><td style="text-align: right; padding: 0 6px; border-top: 1px solid #263442;"><span class="fact">745.2</span></td><td style="text-align: right; padding: 0 6px; border-top: 1px solid #263442;"><span class="fact">14.96 h</span></td><td style="text-align: right; padding: 0 10px; border-top: 1px solid #263442;"><span class="fact">239,253.28</span></td></tr>
+                <tr style="height: 28px;"><td style="padding: 0 10px; border-top: 1px solid #263442;"><span style="color: #9fb0c0;">3</span> Strait Line · Gibraltar</td><td style="text-align: right; padding: 0 6px; border-top: 1px solid #263442;"><span class="fact">712</span></td><td style="text-align: right; padding: 0 6px; border-top: 1px solid #263442;"><span class="fact">36.32 h</span></td><td style="text-align: right; padding: 0 10px; border-top: 1px solid #263442;"><span class="fact">250,081.36</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #9fb0c0;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"></path><path d="m9 12 2 2 4-4"></path></svg>Every number above is a tool fact. Hover one for its source.</div>
+
+          <div style="padding: 10px 12px; border: 1px solid rgba(242,184,75,.5); border-radius: 2px;">
+            <div style="font-size: 11px; font-stretch: 80%; font-weight: 500;"><span style="color: #9fb0c0;">Purchase order</span> <span style="color: #f2b84b;">awaiting your decision</span></div>
+            <div style="margin-top: 3px; font-size: 13px; font-weight: 500;">Order LSMGO for the AP-2611 stem from Kestrel Marine Fuels at Marsaxlokk.</div>
+            <div style="margin-top: 8px; display: flex; align-items: center; gap: 8px;"><span style="font-size: 12px; color: #9fb0c0;">Nothing is ordered until you approve.</span><a href="#" style="margin-left: auto; height: 26px; display: inline-flex; align-items: center; padding: 0 10px; background: #1f2b37; border: 1px solid #364757; border-radius: 2px; font-size: 12px; font-weight: 500; color: #e4eaf0; text-decoration: none;">Review and decide</a></div>
+          </div>
+        </div>
+
+        <form style="padding: 10px 12px; display: flex; gap: 6px; border-top: 1px solid #263442;">
+          <label for="ask" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);">Ask the assistant</label>
+          <input id="ask" type="text" placeholder="Ask about a vessel, a quote, a route…" style="flex: 1; min-width: 0; height: 30px; padding: 0 8px; background: #0c1218; border: 1px solid #364757; border-radius: 2px; font: inherit; font-size: 13px; color: #e4eaf0;">
+          <button type="submit" style="height: 30px; padding: 0 12px; background: #1f2b37; border: 1px solid #364757; border-radius: 2px; font-size: 12px; font-weight: 500;">Ask</button>
+        </form>
+      </aside>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

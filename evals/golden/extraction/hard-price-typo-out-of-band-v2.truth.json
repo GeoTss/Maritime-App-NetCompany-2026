@@ -1,0 +1,27 @@
+{
+  "id": "hard-price-typo-out-of-band-v2",
+  "tags": ["hard", "price-typo-out-of-band", "variant:v2", "layout:prose"],
+  "source": "hard",
+  "expected": {
+    "kind": "quote",
+    "status": "needs_review",
+    "reviewChecks": ["price_within_band"],
+    "quote": {
+      "vesselImo": "9482031",
+      "portUnlocode": "DEHAM",
+      "supplierKey": "harbourlight",
+      "currency": "USD",
+      "validUntil": "2026-11-14",
+      "deliveryFrom": "2026-11-15",
+      "deliveryTo": "2026-11-16",
+      "bargeFee": 1250,
+      "lines": [
+        {
+          "grade": "VLSFO",
+          "qtyMt": 225,
+          "pricePerMt": 57.5
+        }
+      ]
+    }
+  }
+}

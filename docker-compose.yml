@@ -1,0 +1,120 @@
+name: pharos
+
+x-node: &node
+  build: .
+  image: pharos-node:dev
+  restart: unless-stopped
+
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: pharos
+      POSTGRES_PASSWORD: pharos
+      POSTGRES_DB: pharos
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pharos -d pharos"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  erp:
+    <<: *node
+    command: ["npm", "run", "start", "-w", "@pharos/erp-sim"]
+    environment:
+      ERP_PORT: "4100"
+    ports:
+      - "4100:4100"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4100/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    <<: *node
+    command: ["npm", "run", "start", "-w", "@pharos/api"]
+    depends_on:
+      db:
+        condition: service_healthy
+      erp:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://pharos:pharos@db:5432/pharos
+      ERP_BASE_URL: http://erp:4100
+      API_PORT: "4000"
+      # The API migrates, then reseeds the synthetic world anchored to boot time (reset|if-empty|off).
+      SEED_ON_BOOT: ${SEED_ON_BOOT:-reset}
+      WORLD_SEED: ${WORLD_SEED:-20261114}
+      # Recorded by default: the demo world is pinned to this instant and the request clock frozen at
+      # anchor + 5 min, so recorded model replies replay. An explicitly empty DEMO_ANCHOR (npm run demo:live) = wall clock.
+      DEMO_ANCHOR: ${DEMO_ANCHOR-2026-11-14T08:00:00Z}
+      # The Scenario panel's edits (on|off; npm run demo:reset turns them on) and whether its reset
+      # lays the synthetic storm, as the worker does (keep it equal to the worker's DEMO_STORM).
+      DEMO_CONTROLS: ${DEMO_CONTROLS:-off}
+      DEMO_STORM: ${DEMO_STORM:-on}
+      # Model per prompt (default Claude Haiku 5.5), effort, refusal fallbacks (on|off). Blank = app default.
+      EXTRACT_MODEL: ${EXTRACT_MODEL:-}
+      AGENT_MODEL: ${AGENT_MODEL:-}
+      EXTRACT_EFFORT: ${EXTRACT_EFFORT:-}
+      AGENT_EFFORT: ${AGENT_EFFORT:-}
+      LLM_FALLBACKS: ${LLM_FALLBACKS:-}
+      # Recorded model replies by default (no key needed). npm run demo:live switches to live; the API
+      # refuses to start without ANTHROPIC_API_KEY in live/record mode. npm run demo:reset switches back.
+      LLM_MODE: ${LLM_MODE:-replay}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    ports:
+      - "4000:4000"
+    volumes:
+      # Model replays are read from (and, with LLM_MODE=record, written to) the repo's folder.
+      - ./fixtures/llm-recordings:/app/fixtures/llm-recordings
+      # The published evaluation summary is read from the repo, so a new publish needs no image rebuild.
+      - ./evals/published:/app/evals/published:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4000/api/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  worker:
+    <<: *node
+    command: ["npm", "run", "start", "-w", "@pharos/worker"]
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://pharos:pharos@db:5432/pharos
+      AIS_MODE: ${AIS_MODE:-replay}
+      WEATHER_MODE: ${WEATHER_MODE:-recorded}
+      # The labelled synthetic demo hazard: always loaded in replay mode; with live AIS only when on (default on).
+      DEMO_HAZARDS: ${DEMO_HAZARDS:-on}
+      DEMO_STORM: ${DEMO_STORM:-on}
+      # Pinned by default (recorded demo): the worker loads the recorded sources once at that instant and ignores
+      # AIS_MODE / WEATHER_MODE. An explicitly empty DEMO_ANCHOR (npm run demo:live) = wall clock and the modes above.
+      DEMO_ANCHOR: ${DEMO_ANCHOR-2026-11-14T08:00:00Z}
+      AISSTREAM_API_KEY: ${AISSTREAM_API_KEY:-}
+
+  web:
+    <<: *node
+    command:
+      ["npm", "run", "preview", "-w", "@pharos/web", "--", "--host", "0.0.0.0", "--port", "5173"]
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      # The console's only backend: /api is proxied here, so the browser stays on one origin.
+      API_PROXY_TARGET: http://api:4000
+    ports:
+      - "5173:5173"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:5173/"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  pgdata:

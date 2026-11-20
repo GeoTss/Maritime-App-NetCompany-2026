@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "purchase_orders_idempotency_key_uq" ON "purchase_orders" USING btree ("idempotency_key");

@@ -1,0 +1,293 @@
+{
+  "meta": {
+    "suite": "extraction",
+    "split": "dev",
+    "label": "oracle-final",
+    "mode": "oracle",
+    "extractor": "oracle",
+    "model": null,
+    "effort": null,
+    "fallbacks": null,
+    "promptVersion": "oracle",
+    "seed": 20261114,
+    "anchor": "2026-11-14T08:00:00.000Z",
+    "startedAt": "2026-11-15T03:31:32.474Z",
+    "finishedAt": "2026-11-15T03:31:33.552Z",
+    "selected": 84,
+    "offset": 0,
+    "limit": null,
+    "repeatHard": 1,
+    "notRun": [],
+    "aborted": null,
+    "servedModels": [],
+    "spend": {
+      "guardUsd": null,
+      "dbUsd": 0,
+      "ledgerUsd": null,
+      "parseErrors": []
+    },
+    "runnerErrors": []
+  },
+  "scorecard": {
+    "cases": 84,
+    "graded": 84,
+    "errors": [],
+    "failures": [],
+    "kind": {
+      "quotePrecision": {
+        "k": 71,
+        "n": 71,
+        "rate": 1,
+        "ci95": {
+          "low": 0.9486720478031097,
+          "high": 1
+        }
+      },
+      "quoteRecall": {
+        "k": 71,
+        "n": 71,
+        "rate": 1,
+        "ci95": {
+          "low": 0.9486720478031097,
+          "high": 1
+        }
+      },
+      "notAQuotePrecision": {
+        "k": 13,
+        "n": 13,
+        "rate": 1,
+        "ci95": {
+          "low": 0.7719046276458015,
+          "high": 1
+        }
+      },
+      "notAQuoteRecall": {
+        "k": 13,
+        "n": 13,
+        "rate": 1,
+        "ci95": {
+          "low": 0.7719046276458015,
+          "high": 1
+        }
+      }
+    },
+    "fields": {
+      "vessel": {
+        "k": 70,
+        "n": 70,
+        "rate": 1,
+        "ci95": {
+          "low": 0.947976937589733,
+          "high": 1
+        },
+        "wrong": 0,
+        "missing": 0,
+        "critical": true
+      },
+      "port": {
+        "k": 70,
+        "n": 70,
+        "rate": 1,
+        "ci95": {
+          "low": 0.947976937589733,
+          "high": 1
+        },
+        "wrong": 0,
+        "missing": 0,
+        "critical": true
+      },
+      "supplier": {
+        "k": 70,
+        "n": 70,
+        "rate": 1,
+        "ci95": {
+          "low": 0.947976937589733,
+          "high": 1
+        },
+        "wrong": 0,
+        "missing": 0,
+        "critical": false
+      },
+      "currency": {
+        "k": 70,
+        "n": 70,
+        "rate": 1,
+        "ci95": {
+          "low": 0.947976937589733,
+          "high": 1
+        },
+        "wrong": 0,
+        "missing": 0,
+        "critical": true
+      },
+      "validUntil": {
+        "k": 70,
+        "n": 70,
+        "rate": 1,
+        "ci95": {
+          "low": 0.947976937589733,
+          "high": 1
+        },
+        "wrong": 0,
+        "missing": 0,
+        "critical": true
+      },
+      "deliveryFrom": {
+        "k": 70,
+        "n": 70,
+        "rate": 1,
+        "ci95": {
+          "low": 0.947976937589733,
+          "high": 1
+        },
+        "wrong": 0,
+        "missing": 0,
+        "critical": true
+      },
+      "deliveryTo": {
+        "k": 70,
+        "n": 70,
+        "rate": 1,
+        "ci95": {
+          "low": 0.947976937589733,
+          "high": 1
+        },
+        "wrong": 0,
+        "missing": 0,
+        "critical": true
+      },
+      "bargeFee": {
+        "k": 70,
+        "n": 70,
+        "rate": 1,
+        "ci95": {
+          "low": 0.947976937589733,
+          "high": 1
+        },
+        "wrong": 0,
+        "missing": 0,
+        "critical": false
+      },
+      "grade": {
+        "k": 77,
+        "n": 77,
+        "rate": 1,
+        "ci95": {
+          "low": 0.9524815747175658,
+          "high": 1
+        },
+        "wrong": 0,
+        "missing": 0,
+        "critical": true
+      },
+      "quantity": {
+        "k": 77,
+        "n": 77,
+        "rate": 1,
+        "ci95": {
+          "low": 0.9524815747175658,
+          "high": 1
+        },
+        "wrong": 0,
+        "missing": 0,
+        "critical": true
+      },
+      "price": {
+        "k": 77,
+        "n": 77,
+        "rate": 1,
+        "ci95": {
+          "low": 0.9524815747175658,
+          "high": 1
+        },
+        "wrong": 0,
+        "missing": 0,
+        "critical": true
+      }
+    },
+    "critical": {
+      "k": 651,
+      "n": 651,
+      "rate": 1,
+      "ci95": {
+        "low": 0.9941337574630471,
+        "high": 1
+      },
+      "wrong": 0,
+      "missing": 0,
+      "cases": 70
+    },
+    "fieldErrors": [],
+    "unsafeAutoAccepts": {
+      "k": 0,
+      "n": 84,
+      "rate": 0,
+      "ci95": {
+        "low": 0,
+        "high": 0.04373172841465989
+      },
+      "ids": []
+    },
+    "reviewQueue": {
+      "k": 16,
+      "n": 84,
+      "rate": 0.19047619047619047,
+      "ci95": {
+        "low": 0.12078697736721433,
+        "high": 0.28723742593709883
+      }
+    },
+    "falseReview": {
+      "k": 0,
+      "n": 55,
+      "rate": 0,
+      "ci95": {
+        "low": 0,
+        "high": 0.06528490111708637
+      },
+      "ids": []
+    },
+    "needsReviewRecall": {
+      "k": 16,
+      "n": 16,
+      "rate": 1,
+      "ci95": {
+        "low": 0.8063923194655636,
+        "high": 1
+      },
+      "missedIds": []
+    },
+    "reviewCheckMatched": {
+      "k": 16,
+      "n": 16,
+      "rate": 1,
+      "ci95": {
+        "low": 0.8063923194655636,
+        "high": 1
+      },
+      "missedIds": []
+    },
+    "latency": {
+      "endToEnd": {
+        "n": 84,
+        "mean": 8.80066814285714,
+        "p90": 10.043290999999954
+      },
+      "model": {
+        "n": 84,
+        "mean": 0,
+        "p90": 0
+      },
+      "targetMs": 20000
+    },
+    "cost": {
+      "perEmail": {
+        "n": 84,
+        "mean": 0,
+        "p90": 0
+      },
+      "totalUsd": 0
+    },
+    "variance": null
+  }
+}

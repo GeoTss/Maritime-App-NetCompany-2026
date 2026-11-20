@@ -1,0 +1,23 @@
+{
+  "id": "security-hard-missing-disembark-a",
+  "tags": ["security-hard", "missing-disembark", "render:a", "layout:plain-labels"],
+  "source": "hard",
+  "expected": {
+    "kind": "security_quote",
+    "status": "needs_review",
+    "reviewChecks": ["disembark_port_resolved"],
+    "quote": null,
+    "security": {
+      "provider": "Tridentis Marine Protection",
+      "vesselImo": "9485069",
+      "embarkUnlocode": "DJJIB",
+      "disembarkUnlocode": null,
+      "teamSize": 4,
+      "dayRate": 1450,
+      "currency": "USD",
+      "fixedFees": 6500,
+      "minDays": 7,
+      "validUntil": "2026-11-17"
+    }
+  }
+}

@@ -1,0 +1,79 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Atlantic Shelf Fuels",
+    "evidence": "For and on behalf of Atlantic Shelf Fuels"
+  },
+  "vesselName": {
+    "value": "MV Aegean Pioneer",
+    "evidence": "Vessel name: MV Aegean Pioneer / IMO 9480019"
+  },
+  "vesselImo": {
+    "value": "9480019",
+    "evidence": "Vessel name: MV Aegean Pioneer / IMO 9480019"
+  },
+  "port": {
+    "value": "Brest",
+    "evidence": "Port: Brest (FRBES)"
+  },
+  "deliveryFrom": {
+    "asWritten": "16 Nov - 18 Nov 2026",
+    "evidence": "Dates: 16 Nov - 18 Nov 2026"
+  },
+  "deliveryTo": {
+    "asWritten": "16 Nov - 18 Nov 2026",
+    "evidence": "Dates: 16 Nov - 18 Nov 2026"
+  },
+  "validUntil": {
+    "asWritten": "15 November 18:00 UTC",
+    "evidence": "Validity: 15 November 18:00 UTC"
+  },
+  "bargeFee": {
+    "value": 1850,
+    "currency": "USD",
+    "perUnit": "lump sum",
+    "asWritten": "USD 1850 lump sum",
+    "evidence": "Barge: USD 1850 lump sum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "0.5% VLSFO",
+        "evidence": "0.5% VLSFO    700 metric tonnes    USD 628/mt"
+      },
+      "quantity": {
+        "value": 700,
+        "unit": "metric tonnes",
+        "asWritten": "700 metric tonnes",
+        "evidence": "0.5% VLSFO    700 metric tonnes    USD 628/mt"
+      },
+      "price": {
+        "value": 628,
+        "currency": "USD",
+        "perUnit": "/mt",
+        "asWritten": "USD 628/mt",
+        "evidence": "0.5% VLSFO    700 metric tonnes    USD 628/mt"
+      }
+    },
+    {
+      "grade": {
+        "value": "MGO",
+        "evidence": "MGO           100 metric tonnes    USD 771/mt"
+      },
+      "quantity": {
+        "value": 100,
+        "unit": "metric tonnes",
+        "asWritten": "100 metric tonnes",
+        "evidence": "MGO           100 metric tonnes    USD 771/mt"
+      },
+      "price": {
+        "value": 771,
+        "currency": "USD",
+        "perUnit": "/mt",
+        "asWritten": "USD 771/mt",
+        "evidence": "MGO           100 metric tonnes    USD 771/mt"
+      }
+    }
+  ],
+  "notes": null
+}

@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Atlantic Shelf Fuels",
+    "evidence": "For and on behalf of Atlantic Shelf Fuels"
+  },
+  "vesselName": {
+    "value": "M/T Atlantic Meridian",
+    "evidence": "Ship: M/T Atlantic Meridian"
+  },
+  "vesselImo": {
+    "value": null,
+    "evidence": null
+  },
+  "port": {
+    "value": "Sines",
+    "evidence": "Place of delivery: Sines (PTSIE)"
+  },
+  "deliveryFrom": {
+    "asWritten": "21 Nov",
+    "evidence": "Delivery from: 21 Nov"
+  },
+  "deliveryTo": {
+    "asWritten": "23 Nov",
+    "evidence": "Delivery to: 23 Nov"
+  },
+  "validUntil": {
+    "asWritten": "Nov 16",
+    "evidence": "Valid till: Nov 16"
+  },
+  "bargeFee": {
+    "value": 1650,
+    "currency": "EUR",
+    "perUnit": "lump sum",
+    "asWritten": "EUR 1650 lump sum",
+    "evidence": "Barging: EUR 1650 lump sum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "HSFO",
+        "evidence": "Grade: HSFO"
+      },
+      "quantity": {
+        "value": 300,
+        "unit": "metric tons",
+        "asWritten": "300 metric tons",
+        "evidence": "Quantity: 300 metric tons"
+      },
+      "price": {
+        "value": 428,
+        "currency": "€",
+        "perUnit": "/mt",
+        "asWritten": "€428/mt",
+        "evidence": "Price: €428/mt"
+      }
+    }
+  ],
+  "notes": null
+}

@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Kestrel Marine Fuels",
+    "evidence": "Kestrel Marine Fuels"
+  },
+  "vesselName": {
+    "value": "Levant Carrier",
+    "evidence": "Ship: Levant Carrier (IMO 9484053)"
+  },
+  "vesselImo": {
+    "value": "9484053",
+    "evidence": "Ship: Levant Carrier (IMO 9484053)"
+  },
+  "port": {
+    "value": "Piraeus",
+    "evidence": "Location: Piraeus (GRPIR)"
+  },
+  "deliveryFrom": {
+    "asWritten": "19/11-20/11",
+    "evidence": "Delivery window: 19/11-20/11"
+  },
+  "deliveryTo": {
+    "asWritten": "19/11-20/11",
+    "evidence": "Delivery window: 19/11-20/11"
+  },
+  "validUntil": {
+    "asWritten": "15 Nov 2026 1700 LT",
+    "evidence": "Firm until: 15 Nov 2026 1700 LT"
+  },
+  "bargeFee": {
+    "value": 2200,
+    "currency": "USD",
+    "perUnit": "lump sum",
+    "asWritten": "USD 2,200 lump sum",
+    "evidence": "Barge: USD 2,200 lump sum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "IFO 380 3.5%S",
+        "evidence": "Product: IFO 380 3.5%S"
+      },
+      "quantity": {
+        "value": 325,
+        "unit": "MTS",
+        "asWritten": "325 MTS",
+        "evidence": "Qty: 325 MTS"
+      },
+      "price": {
+        "value": 431,
+        "currency": "$",
+        "perUnit": "/mt",
+        "asWritten": "$431/mt",
+        "evidence": "Price: $431/mt"
+      }
+    }
+  ],
+  "notes": null
+}

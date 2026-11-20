@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Atlantic Shelf Fuels",
+    "evidence": "Atlantic Shelf Fuels | Trading Desk"
+  },
+  "vesselName": {
+    "value": "ATLANTIC MERIDIAN",
+    "evidence": "We are pleased to offer RMG 380 for ATLANTIC MERIDIAN / IMO 9485069 at Brest (FRBES)."
+  },
+  "vesselImo": {
+    "value": "9485069",
+    "evidence": "We are pleased to offer RMG 380 for ATLANTIC MERIDIAN / IMO 9485069 at Brest (FRBES)."
+  },
+  "port": {
+    "value": "Brest",
+    "evidence": "We are pleased to offer RMG 380 for ATLANTIC MERIDIAN / IMO 9485069 at Brest (FRBES)."
+  },
+  "deliveryFrom": {
+    "asWritten": "21.11.2026 - 23.11.2026",
+    "evidence": "Delivery 21.11.2026 - 23.11.2026."
+  },
+  "deliveryTo": {
+    "asWritten": "21.11.2026 - 23.11.2026",
+    "evidence": "Delivery 21.11.2026 - 23.11.2026."
+  },
+  "validUntil": {
+    "asWritten": "Nov 14, 2026 1700 LT",
+    "evidence": "This offer is valid until Nov 14, 2026 1700 LT."
+  },
+  "bargeFee": {
+    "value": 3250,
+    "currency": "USD",
+    "perUnit": "lump sum",
+    "asWritten": "USD 3250 lump sum",
+    "evidence": "Barging USD 3250 lump sum."
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "RMG 380",
+        "evidence": "We are pleased to offer RMG 380 for ATLANTIC MERIDIAN / IMO 9485069 at Brest (FRBES)."
+      },
+      "quantity": {
+        "value": 300,
+        "unit": "tonnes",
+        "asWritten": "300 tonnes",
+        "evidence": "Quantity 300 tonnes, price US$ 477.00 pmt."
+      },
+      "price": {
+        "value": 477,
+        "currency": "US$",
+        "perUnit": "pmt",
+        "asWritten": "US$ 477.00 pmt",
+        "evidence": "Quantity 300 tonnes, price US$ 477.00 pmt."
+      }
+    }
+  ],
+  "notes": null
+}

@@ -1,0 +1,30 @@
+{
+  "id": "security-html-001",
+  "tags": [
+    "security-html",
+    "layout:kv-table",
+    "vessel:name-imo",
+    "team:man-team",
+    "fees:plain",
+    "route:AEFJR-EGSUZ"
+  ],
+  "source": "generated",
+  "expected": {
+    "kind": "security_quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": null,
+    "security": {
+      "provider": "Aegis Watch Maritime",
+      "vesselImo": "9480019",
+      "embarkUnlocode": "AEFJR",
+      "disembarkUnlocode": "EGSUZ",
+      "teamSize": 5,
+      "dayRate": 1375,
+      "currency": "USD",
+      "fixedFees": 5750,
+      "minDays": 6,
+      "validUntil": "2026-11-20"
+    }
+  }
+}

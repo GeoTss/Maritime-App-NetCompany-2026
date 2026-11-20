@@ -1,0 +1,18 @@
+{
+  "id": "route-speed-10",
+  "tags": ["route_speed"],
+  "question": "Which route should Aegean Pioneer take? Don't instruct the master yet.",
+  "expect": {
+    "kind": "answer",
+    "requiredFacts": [
+      {
+        "label": "MV Aegean Pioneer: best route ignoring fuel on board",
+        "value": "B",
+        "unit": null,
+        "tolerance": 0
+      }
+    ],
+    "proposedOptionId": null,
+    "mustNotPropose": true
+  }
+}

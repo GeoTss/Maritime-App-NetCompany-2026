@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Harbourlight Energy",
+    "evidence": "For and on behalf of Harbourlight Energy"
+  },
+  "vesselName": {
+    "value": "Scheldt Express",
+    "evidence": "Scheldt Express / Antwerp outer anchorage / LSMGO 0.10%S 100 mts @ USD 683 per mt"
+  },
+  "vesselImo": {
+    "value": null,
+    "evidence": null
+  },
+  "port": {
+    "value": "Antwerp",
+    "evidence": "Scheldt Express / Antwerp outer anchorage / LSMGO 0.10%S 100 mts @ USD 683 per mt"
+  },
+  "deliveryFrom": {
+    "asWritten": "22 Nov - 24 Nov 2026",
+    "evidence": "Delivery: 22 Nov - 24 Nov 2026"
+  },
+  "deliveryTo": {
+    "asWritten": "22 Nov - 24 Nov 2026",
+    "evidence": "Delivery: 22 Nov - 24 Nov 2026"
+  },
+  "validUntil": {
+    "asWritten": "14/11 17:00 LT",
+    "evidence": "Valid until: 14/11 17:00 LT"
+  },
+  "bargeFee": {
+    "value": 2050,
+    "currency": "US$",
+    "perUnit": "lumpsum",
+    "asWritten": "US$ 2,050 lumpsum",
+    "evidence": "Barge: US$ 2,050 lumpsum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "LSMGO 0.10%S",
+        "evidence": "Scheldt Express / Antwerp outer anchorage / LSMGO 0.10%S 100 mts @ USD 683 per mt"
+      },
+      "quantity": {
+        "value": 100,
+        "unit": "mts",
+        "asWritten": "100 mts",
+        "evidence": "Scheldt Express / Antwerp outer anchorage / LSMGO 0.10%S 100 mts @ USD 683 per mt"
+      },
+      "price": {
+        "value": 683,
+        "currency": "USD",
+        "perUnit": "per mt",
+        "asWritten": "USD 683 per mt",
+        "evidence": "Scheldt Express / Antwerp outer anchorage / LSMGO 0.10%S 100 mts @ USD 683 per mt"
+      }
+    }
+  ],
+  "notes": null
+}

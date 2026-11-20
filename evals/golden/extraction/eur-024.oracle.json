@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Atlantic Shelf Fuels",
+    "evidence": "For and on behalf of Atlantic Shelf Fuels"
+  },
+  "vesselName": {
+    "value": "Atlantic Meridian",
+    "evidence": "Vessel: Atlantic Meridian / IMO 9485069"
+  },
+  "vesselImo": {
+    "value": "9485069",
+    "evidence": "Vessel: Atlantic Meridian / IMO 9485069"
+  },
+  "port": {
+    "value": "Brest",
+    "evidence": "Port: Brest, France"
+  },
+  "deliveryFrom": {
+    "asWritten": "21 Nov +/- 1 day",
+    "evidence": "Delivery period: 21 Nov +/- 1 day"
+  },
+  "deliveryTo": {
+    "asWritten": "21 Nov +/- 1 day",
+    "evidence": "Delivery period: 21 Nov +/- 1 day"
+  },
+  "validUntil": {
+    "asWritten": "14 November 2026 at 16:00 LT",
+    "evidence": "Validity: 14 November 2026 at 16:00 LT"
+  },
+  "bargeFee": {
+    "value": 3300,
+    "currency": "€",
+    "perUnit": "lump sum",
+    "asWritten": "€3300 lump sum",
+    "evidence": "Barging: €3300 lump sum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "IFO 380 3.5%S",
+        "evidence": "Grade: IFO 380 3.5%S"
+      },
+      "quantity": {
+        "value": 350,
+        "unit": "tonnes",
+        "asWritten": "350 tonnes",
+        "evidence": "Qty: 350 tonnes"
+      },
+      "price": {
+        "value": 446,
+        "currency": "€",
+        "perUnit": "/mt",
+        "asWritten": "€446.00/mt",
+        "evidence": "Offer price: €446.00/mt"
+      }
+    }
+  ],
+  "notes": null
+}

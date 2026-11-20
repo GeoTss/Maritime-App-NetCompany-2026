@@ -1,0 +1,39 @@
+{
+  "id": "multi-grade-017",
+  "tags": [
+    "multi_grade",
+    "layout:html-grid",
+    "grades:LSMGO+VLSFO",
+    "vessel:name-imo",
+    "window:mon-both",
+    "barge:lump_sum"
+  ],
+  "source": "generated",
+  "expected": {
+    "kind": "quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": {
+      "vesselImo": "9482031",
+      "portUnlocode": "DEHAM",
+      "supplierKey": "harbourlight",
+      "currency": "USD",
+      "validUntil": "2026-11-15",
+      "deliveryFrom": "2026-11-23",
+      "deliveryTo": "2026-11-26",
+      "bargeFee": 1600,
+      "lines": [
+        {
+          "grade": "LSMGO",
+          "qtyMt": 100,
+          "pricePerMt": 699.5
+        },
+        {
+          "grade": "VLSFO",
+          "qtyMt": 225,
+          "pricePerMt": 554
+        }
+      ]
+    }
+  }
+}

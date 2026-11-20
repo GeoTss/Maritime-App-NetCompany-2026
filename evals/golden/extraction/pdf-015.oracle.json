@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Harbourlight Energy",
+    "evidence": "Harbourlight Energy"
+  },
+  "vesselName": {
+    "value": "MV Aegean Pioneer",
+    "evidence": "Vessel: MV Aegean Pioneer - IMO: 9480019"
+  },
+  "vesselImo": {
+    "value": "9480019",
+    "evidence": "Vessel: MV Aegean Pioneer - IMO: 9480019"
+  },
+  "port": {
+    "value": "Rotterdam",
+    "evidence": "Place of delivery: Rotterdam (NLRTM)"
+  },
+  "deliveryFrom": {
+    "asWritten": "19 Nov - 22 Nov 2026",
+    "evidence": "Delivery: 19 Nov - 22 Nov 2026"
+  },
+  "deliveryTo": {
+    "asWritten": "19 Nov - 22 Nov 2026",
+    "evidence": "Delivery: 19 Nov - 22 Nov 2026"
+  },
+  "validUntil": {
+    "asWritten": "14.11.26 12:00 LT",
+    "evidence": "Firm until: 14.11.26 12:00 LT"
+  },
+  "bargeFee": {
+    "value": 2150,
+    "currency": "USD",
+    "perUnit": "LS",
+    "asWritten": "USD 2,150 LS",
+    "evidence": "Delivery charge: USD 2,150 LS"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "LSMGO",
+        "evidence": "LSMGO 300 metric tonnes 691.00 USD/MT"
+      },
+      "quantity": {
+        "value": 300,
+        "unit": "metric tonnes",
+        "asWritten": "300 metric tonnes",
+        "evidence": "LSMGO 300 metric tonnes 691.00 USD/MT"
+      },
+      "price": {
+        "value": 691,
+        "currency": "USD",
+        "perUnit": "/MT",
+        "asWritten": "691.00 USD/MT",
+        "evidence": "LSMGO 300 metric tonnes 691.00 USD/MT"
+      }
+    }
+  ],
+  "notes": null
+}

@@ -1,0 +1,54 @@
+{
+  "kind": "security_quote",
+  "providerName": {
+    "value": "Tridentis Marine Protection",
+    "evidence": "For and on behalf of Tridentis Marine Protection"
+  },
+  "vesselName": {
+    "value": "MV Coral Horizon",
+    "evidence": "We can provide a team of 5 guards for MV Coral Horizon, embarking at off Fujairah and disembarking at Suez, Egypt."
+  },
+  "vesselImo": {
+    "value": null,
+    "evidence": null
+  },
+  "embarkPort": {
+    "value": "Fujairah",
+    "evidence": "We can provide a team of 5 guards for MV Coral Horizon, embarking at off Fujairah and disembarking at Suez, Egypt."
+  },
+  "disembarkPort": {
+    "value": "Suez",
+    "evidence": "We can provide a team of 5 guards for MV Coral Horizon, embarking at off Fujairah and disembarking at Suez, Egypt."
+  },
+  "teamSize": {
+    "value": 5,
+    "unit": "guards",
+    "asWritten": "5 guards",
+    "evidence": "We can provide a team of 5 guards for MV Coral Horizon, embarking at off Fujairah and disembarking at Suez, Egypt."
+  },
+  "dayRate": {
+    "value": 1275,
+    "currency": "$",
+    "perUnit": "per day",
+    "asWritten": "$1,275.00 per day",
+    "evidence": "The day rate is $1,275.00 per day, with a minimum of 6 days."
+  },
+  "fixedFees": {
+    "value": 4500,
+    "currency": "$",
+    "perUnit": "lump sum",
+    "asWritten": "$4,500 lump sum",
+    "evidence": "Fixed fees for embarkation, disembarkation and arms storage: $4,500 lump sum."
+  },
+  "minDays": {
+    "value": 6,
+    "unit": "days",
+    "asWritten": "6 days",
+    "evidence": "The day rate is $1,275.00 per day, with a minimum of 6 days."
+  },
+  "validUntil": {
+    "asWritten": "19 November",
+    "evidence": "This offer is valid until 19 November."
+  },
+  "notes": null
+}

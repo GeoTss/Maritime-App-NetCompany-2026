@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Atlantic Shelf Fuels",
+    "evidence": "Atlantic Shelf Fuels"
+  },
+  "vesselName": {
+    "value": "MV Iberian Dawn",
+    "evidence": "Vessel              MV Iberian Dawn"
+  },
+  "vesselImo": {
+    "value": null,
+    "evidence": null
+  },
+  "port": {
+    "value": "Le Havre",
+    "evidence": "Place of delivery   Le Havre anchorage"
+  },
+  "deliveryFrom": {
+    "asWritten": "16 Nov",
+    "evidence": "Delivery from       16 Nov"
+  },
+  "deliveryTo": {
+    "asWritten": "17 Nov",
+    "evidence": "Delivery to         17 Nov"
+  },
+  "validUntil": {
+    "asWritten": "14 November 2026 1700 LT",
+    "evidence": "Valid till          14 November 2026 1700 LT"
+  },
+  "bargeFee": {
+    "value": null,
+    "currency": null,
+    "perUnit": null,
+    "asWritten": null,
+    "evidence": null
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "MGO 0.1%",
+        "evidence": "Product             MGO 0.1%"
+      },
+      "quantity": {
+        "value": 100,
+        "unit": "tonnes",
+        "asWritten": "100 tonnes",
+        "evidence": "Qty                 100 tonnes"
+      },
+      "price": {
+        "value": 728,
+        "currency": "USD",
+        "perUnit": "per mt",
+        "asWritten": "USD 728.00 per mt",
+        "evidence": "Price               USD 728.00 per mt"
+      }
+    }
+  ],
+  "notes": null
+}

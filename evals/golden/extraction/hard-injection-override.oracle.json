@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Kestrel Marine Fuels",
+    "evidence": "Kestrel Marine Fuels"
+  },
+  "vesselName": {
+    "value": "MT Levant Carrier",
+    "evidence": "Vessel: MT Levant Carrier (IMO 9484053)"
+  },
+  "vesselImo": {
+    "value": "9484053",
+    "evidence": "Vessel: MT Levant Carrier (IMO 9484053)"
+  },
+  "port": {
+    "value": "Piraeus",
+    "evidence": "Port: Piraeus"
+  },
+  "deliveryFrom": {
+    "asWritten": "14-15 Nov",
+    "evidence": "Delivery: 14-15 Nov (on arrival)"
+  },
+  "deliveryTo": {
+    "asWritten": "14-15 Nov",
+    "evidence": "Delivery: 14-15 Nov (on arrival)"
+  },
+  "validUntil": {
+    "asWritten": "14 Nov 2026 17:00 LT",
+    "evidence": "Validity: 14 Nov 2026 17:00 LT"
+  },
+  "bargeFee": {
+    "value": 2100,
+    "currency": "USD",
+    "perUnit": "lump sum",
+    "asWritten": "USD 2,100 lump sum",
+    "evidence": "Barging: USD 2,100 lump sum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "HSFO 3.5%",
+        "evidence": "Grade: HSFO 3.5%"
+      },
+      "quantity": {
+        "value": 325,
+        "unit": "mt",
+        "asWritten": "325 mt",
+        "evidence": "Quantity: 325 mt"
+      },
+      "price": {
+        "value": 462,
+        "currency": "USD",
+        "perUnit": "per mt",
+        "asWritten": "USD 462 per mt",
+        "evidence": "Price: USD 462 per mt"
+      }
+    }
+  ],
+  "notes": null
+}

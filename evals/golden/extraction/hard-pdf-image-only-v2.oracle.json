@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Kestrel Marine Fuels",
+    "evidence": "Kestrel Marine Fuels"
+  },
+  "vesselName": {
+    "value": "MT Levant Carrier",
+    "evidence": "Please see the scanned offer attached for MT Levant Carrier at Piraeus."
+  },
+  "vesselImo": {
+    "value": null,
+    "evidence": null
+  },
+  "port": {
+    "value": "Piraeus",
+    "evidence": "Please see the scanned offer attached for MT Levant Carrier at Piraeus."
+  },
+  "deliveryFrom": {
+    "asWritten": null,
+    "evidence": null
+  },
+  "deliveryTo": {
+    "asWritten": null,
+    "evidence": null
+  },
+  "validUntil": {
+    "asWritten": null,
+    "evidence": null
+  },
+  "bargeFee": {
+    "value": null,
+    "currency": null,
+    "perUnit": null,
+    "asWritten": null,
+    "evidence": null
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": null,
+        "evidence": null
+      },
+      "quantity": {
+        "value": null,
+        "unit": null,
+        "asWritten": null,
+        "evidence": null
+      },
+      "price": {
+        "value": null,
+        "currency": null,
+        "perUnit": null,
+        "asWritten": null,
+        "evidence": null
+      }
+    }
+  ],
+  "notes": null
+}

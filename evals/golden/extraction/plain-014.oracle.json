@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Atlantic Shelf Fuels",
+    "evidence": "Atlantic Shelf Fuels | Trading Desk"
+  },
+  "vesselName": {
+    "value": null,
+    "evidence": null
+  },
+  "vesselImo": {
+    "value": "9486075",
+    "evidence": "Ship: IMO 9486075"
+  },
+  "port": {
+    "value": "Sines",
+    "evidence": "Port: Sines (PTSIE)"
+  },
+  "deliveryFrom": {
+    "asWritten": "17/11-18/11",
+    "evidence": "Dates: 17/11-18/11"
+  },
+  "deliveryTo": {
+    "asWritten": "17/11-18/11",
+    "evidence": "Dates: 17/11-18/11"
+  },
+  "validUntil": {
+    "asWritten": "Sun 15 Nov",
+    "evidence": "Firm until: Sun 15 Nov"
+  },
+  "bargeFee": {
+    "value": 3000,
+    "currency": "USD",
+    "perUnit": "lump sum",
+    "asWritten": "USD 3,000 lump sum",
+    "evidence": "Barge: USD 3,000 lump sum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "DMA 0.1%",
+        "evidence": "Product: DMA 0.1%"
+      },
+      "quantity": {
+        "value": 125,
+        "unit": "mt",
+        "asWritten": "125 mt",
+        "evidence": "Quantity: 125 mt"
+      },
+      "price": {
+        "value": 718,
+        "currency": "US$",
+        "perUnit": "pmt",
+        "asWritten": "US$ 718 pmt",
+        "evidence": "Offer price: US$ 718 pmt"
+      }
+    }
+  ],
+  "notes": null
+}

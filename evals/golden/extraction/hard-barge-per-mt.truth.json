@@ -1,0 +1,27 @@
+{
+  "id": "hard-barge-per-mt",
+  "tags": ["hard", "barge-per-mt", "plain", "layout:labels"],
+  "source": "hard",
+  "expected": {
+    "kind": "quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": {
+      "vesselImo": "9483047",
+      "portUnlocode": "BEANR",
+      "supplierKey": "nordwind",
+      "currency": "USD",
+      "validUntil": "2026-11-14",
+      "deliveryFrom": "2026-11-15",
+      "deliveryTo": "2026-11-16",
+      "bargeFee": 450,
+      "lines": [
+        {
+          "grade": "LSMGO",
+          "qtyMt": 100,
+          "pricePerMt": 731
+        }
+      ]
+    }
+  }
+}

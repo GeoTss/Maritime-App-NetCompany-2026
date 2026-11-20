@@ -1,0 +1,79 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Atlantic Shelf Fuels",
+    "evidence": "For and on behalf of Atlantic Shelf Fuels"
+  },
+  "vesselName": {
+    "value": "Atlantic Meridian",
+    "evidence": "Vessel name     Atlantic Meridian"
+  },
+  "vesselImo": {
+    "value": null,
+    "evidence": null
+  },
+  "port": {
+    "value": "Brest",
+    "evidence": "Location        Brest, France"
+  },
+  "deliveryFrom": {
+    "asWritten": "21-23 November 2026",
+    "evidence": "Delivery date   21-23 November 2026"
+  },
+  "deliveryTo": {
+    "asWritten": "21-23 November 2026",
+    "evidence": "Delivery date   21-23 November 2026"
+  },
+  "validUntil": {
+    "asWritten": "15/11/2026 1200 UTC",
+    "evidence": "Validity: 15/11/2026 1200 UTC"
+  },
+  "bargeFee": {
+    "value": 2050,
+    "currency": "US$",
+    "perUnit": "lumpsum",
+    "asWritten": "US$ 2050 lumpsum",
+    "evidence": "Delivery charge: US$ 2050 lumpsum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "0.5% VLSFO",
+        "evidence": "0.5% VLSFO   125 mt     USD 622.00 PMT"
+      },
+      "quantity": {
+        "value": 125,
+        "unit": "mt",
+        "asWritten": "125 mt",
+        "evidence": "0.5% VLSFO   125 mt     USD 622.00 PMT"
+      },
+      "price": {
+        "value": 622,
+        "currency": "USD",
+        "perUnit": "PMT",
+        "asWritten": "USD 622.00 PMT",
+        "evidence": "0.5% VLSFO   125 mt     USD 622.00 PMT"
+      }
+    },
+    {
+      "grade": {
+        "value": "HSFO",
+        "evidence": "HSFO         300 mt     USD 487.50 PMT"
+      },
+      "quantity": {
+        "value": 300,
+        "unit": "mt",
+        "asWritten": "300 mt",
+        "evidence": "HSFO         300 mt     USD 487.50 PMT"
+      },
+      "price": {
+        "value": 487.5,
+        "currency": "USD",
+        "perUnit": "PMT",
+        "asWritten": "USD 487.50 PMT",
+        "evidence": "HSFO         300 mt     USD 487.50 PMT"
+      }
+    }
+  ],
+  "notes": null
+}

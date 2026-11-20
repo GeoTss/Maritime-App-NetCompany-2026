@@ -1,0 +1,39 @@
+{
+  "id": "multi-grade-005",
+  "tags": [
+    "multi_grade",
+    "layout:text-grid",
+    "grades:VLSFO+LSMGO",
+    "vessel:name-imo",
+    "window:two",
+    "barge:lump_sum"
+  ],
+  "source": "generated",
+  "expected": {
+    "kind": "quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": {
+      "vesselImo": "9480019",
+      "portUnlocode": "NLRTM",
+      "supplierKey": "harbourlight",
+      "currency": "USD",
+      "validUntil": "2026-11-14",
+      "deliveryFrom": "2026-11-15",
+      "deliveryTo": "2026-11-16",
+      "bargeFee": 3600,
+      "lines": [
+        {
+          "grade": "VLSFO",
+          "qtyMt": 425,
+          "pricePerMt": 584
+        },
+        {
+          "grade": "LSMGO",
+          "qtyMt": 200,
+          "pricePerMt": 761
+        }
+      ]
+    }
+  }
+}

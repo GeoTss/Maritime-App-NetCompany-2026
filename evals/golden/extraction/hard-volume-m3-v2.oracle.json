@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Nordwind Bunker Services",
+    "evidence": "Nordwind Bunker Services | Trading Desk"
+  },
+  "vesselName": {
+    "value": null,
+    "evidence": null
+  },
+  "vesselImo": {
+    "value": "9481025",
+    "evidence": "Vessel: IMO 9481025"
+  },
+  "port": {
+    "value": "Algeciras",
+    "evidence": "Port: Algeciras, Spain"
+  },
+  "deliveryFrom": {
+    "asWritten": "18/11-19/11",
+    "evidence": "Delivery period: 18/11-19/11"
+  },
+  "deliveryTo": {
+    "asWritten": "18/11-19/11",
+    "evidence": "Delivery period: 18/11-19/11"
+  },
+  "validUntil": {
+    "asWritten": "15.11.26 12:00 LT",
+    "evidence": "Valid till: 15.11.26 12:00 LT"
+  },
+  "bargeFee": {
+    "value": 1800,
+    "currency": "$",
+    "perUnit": "lump sum",
+    "asWritten": "$1,800 lump sum",
+    "evidence": "Barge: $1,800 lump sum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "MGO 0.1%",
+        "evidence": "MGO 0.1% 150 cbm USD 721.00 per metric ton"
+      },
+      "quantity": {
+        "value": 150,
+        "unit": "cbm",
+        "asWritten": "150 cbm",
+        "evidence": "MGO 0.1% 150 cbm USD 721.00 per metric ton"
+      },
+      "price": {
+        "value": 721,
+        "currency": "USD",
+        "perUnit": "per metric ton",
+        "asWritten": "USD 721.00 per metric ton",
+        "evidence": "MGO 0.1% 150 cbm USD 721.00 per metric ton"
+      }
+    }
+  ],
+  "notes": null
+}

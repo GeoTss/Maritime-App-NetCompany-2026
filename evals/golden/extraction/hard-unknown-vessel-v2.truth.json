@@ -1,0 +1,27 @@
+{
+  "id": "hard-unknown-vessel-v2",
+  "tags": ["hard", "unknown-vessel", "variant:v2", "layout:pdf-letter"],
+  "source": "hard",
+  "expected": {
+    "kind": "quote",
+    "status": "needs_review",
+    "reviewChecks": ["vessel_resolved"],
+    "quote": {
+      "vesselImo": null,
+      "portUnlocode": "PTSIE",
+      "supplierKey": "atlanticshelf",
+      "currency": "USD",
+      "validUntil": "2026-11-14",
+      "deliveryFrom": "2026-11-16",
+      "deliveryTo": "2026-11-17",
+      "bargeFee": 1500,
+      "lines": [
+        {
+          "grade": "LSMGO",
+          "qtyMt": 100,
+          "pricePerMt": 738
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "id": "html-019",
+  "tags": ["html", "layout:paragraphs", "vessel:name-imo", "window:two", "barge:lump_sum"],
+  "source": "generated",
+  "expected": {
+    "kind": "quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": {
+      "vesselImo": "9483047",
+      "portUnlocode": "DEHAM",
+      "supplierKey": "harbourlight",
+      "currency": "USD",
+      "validUntil": "2026-11-15",
+      "deliveryFrom": "2026-11-23",
+      "deliveryTo": "2026-11-25",
+      "bargeFee": 1300,
+      "lines": [
+        {
+          "grade": "LSMGO",
+          "qtyMt": 100,
+          "pricePerMt": 709.75
+        }
+      ]
+    }
+  }
+}

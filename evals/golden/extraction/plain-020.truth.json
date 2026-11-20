@@ -1,0 +1,27 @@
+{
+  "id": "plain-020",
+  "tags": ["plain", "layout:labels", "vessel:name-imo", "window:dash-long", "barge:lump_sum"],
+  "source": "generated",
+  "expected": {
+    "kind": "quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": {
+      "vesselImo": "9480019",
+      "portUnlocode": "NLRTM",
+      "supplierKey": "harbourlight",
+      "currency": "USD",
+      "validUntil": "2026-11-14",
+      "deliveryFrom": "2026-11-21",
+      "deliveryTo": "2026-11-23",
+      "bargeFee": 2650,
+      "lines": [
+        {
+          "grade": "LSMGO",
+          "qtyMt": 250,
+          "pricePerMt": 691
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Meridian Bunkering",
+    "evidence": "For and on behalf of Meridian Bunkering"
+  },
+  "vesselName": {
+    "value": "MV Thessaly Star",
+    "evidence": "Vessel name     MV Thessaly Star (IMO 9481025)"
+  },
+  "vesselImo": {
+    "value": "9481025",
+    "evidence": "Vessel name     MV Thessaly Star (IMO 9481025)"
+  },
+  "port": {
+    "value": "Genoa",
+    "evidence": "Port            Genoa"
+  },
+  "deliveryFrom": {
+    "asWritten": "17 Nov",
+    "evidence": "Delivery from   17 Nov"
+  },
+  "deliveryTo": {
+    "asWritten": "19 Nov",
+    "evidence": "Delivery to     19 Nov"
+  },
+  "validUntil": {
+    "asWritten": "2026-11-16 1200 UTC",
+    "evidence": "Firm until: 2026-11-16 1200 UTC"
+  },
+  "bargeFee": {
+    "value": 2200,
+    "currency": "US$",
+    "perUnit": "lumpsum",
+    "asWritten": "US$ 2,200 lumpsum",
+    "evidence": "Delivery charge: US$ 2,200 lumpsum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "MGO 0.1%",
+        "evidence": "MGO 0.1%   175 MTS   USD 730.25 PMT"
+      },
+      "quantity": {
+        "value": 175,
+        "unit": "MTS",
+        "asWritten": "175 MTS",
+        "evidence": "MGO 0.1%   175 MTS   USD 730.25 PMT"
+      },
+      "price": {
+        "value": 730.25,
+        "currency": "USD",
+        "perUnit": "PMT",
+        "asWritten": "USD 730.25 PMT",
+        "evidence": "MGO 0.1%   175 MTS   USD 730.25 PMT"
+      }
+    }
+  ],
+  "notes": null
+}

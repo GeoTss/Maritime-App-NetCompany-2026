@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Meridian Bunkering",
+    "evidence": "For and on behalf of Meridian Bunkering"
+  },
+  "vesselName": {
+    "value": "THESSALY STAR",
+    "evidence": "Vessel: THESSALY STAR"
+  },
+  "vesselImo": {
+    "value": null,
+    "evidence": null
+  },
+  "port": {
+    "value": "Genoa",
+    "evidence": "Delivery port: Genoa (ITGOA)"
+  },
+  "deliveryFrom": {
+    "asWritten": "19.11.2026 - 22.11.2026",
+    "evidence": "Delivery date: 19.11.2026 - 22.11.2026"
+  },
+  "deliveryTo": {
+    "asWritten": "19.11.2026 - 22.11.2026",
+    "evidence": "Delivery date: 19.11.2026 - 22.11.2026"
+  },
+  "validUntil": {
+    "asWritten": "14th November noon LT",
+    "evidence": "Valid till: 14th November noon LT"
+  },
+  "bargeFee": {
+    "value": 2200,
+    "currency": "USD",
+    "perUnit": "lump sum",
+    "asWritten": "USD 2,200 lump sum",
+    "evidence": "Barge: USD 2,200 lump sum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "MGO",
+        "evidence": "Product: MGO"
+      },
+      "quantity": {
+        "value": 150,
+        "unit": "MT",
+        "asWritten": "150 MT",
+        "evidence": "Qty: 150 MT"
+      },
+      "price": {
+        "value": 698,
+        "currency": "$",
+        "perUnit": "/mt",
+        "asWritten": "$698/mt",
+        "evidence": "Unit price: $698/mt"
+      }
+    }
+  ],
+  "notes": null
+}

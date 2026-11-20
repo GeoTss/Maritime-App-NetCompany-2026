@@ -1,0 +1,30 @@
+{
+  "id": "security-html-003",
+  "tags": [
+    "security-html",
+    "layout:grid",
+    "vessel:name-imo",
+    "team:man-team",
+    "fees:lump",
+    "route:AEFJR-ZADUR"
+  ],
+  "source": "generated",
+  "expected": {
+    "kind": "security_quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": null,
+    "security": {
+      "provider": "Aegis Watch Maritime",
+      "vesselImo": "9483047",
+      "embarkUnlocode": "AEFJR",
+      "disembarkUnlocode": "ZADUR",
+      "teamSize": 3,
+      "dayRate": 1600,
+      "currency": "USD",
+      "fixedFees": 3500,
+      "minDays": 6,
+      "validUntil": "2026-11-18"
+    }
+  }
+}

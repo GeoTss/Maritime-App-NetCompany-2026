@@ -1,0 +1,27 @@
+{
+  "id": "hard-volume-m3",
+  "tags": ["hard", "volume-m3", "plain", "layout:labels"],
+  "source": "hard",
+  "expected": {
+    "kind": "quote",
+    "status": "needs_review",
+    "reviewChecks": ["unit_known"],
+    "quote": {
+      "vesselImo": "9483047",
+      "portUnlocode": "DEHAM",
+      "supplierKey": "harbourlight",
+      "currency": "USD",
+      "validUntil": "2026-11-13",
+      "deliveryFrom": "2026-11-13",
+      "deliveryTo": "2026-11-14",
+      "bargeFee": 1500,
+      "lines": [
+        {
+          "grade": "LSMGO",
+          "qtyMt": null,
+          "pricePerMt": 728
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "id": "security-plain-009",
+  "tags": [
+    "security-plain",
+    "layout:labels",
+    "vessel:name-imo",
+    "team:guards",
+    "fees:one-off",
+    "route:DJJIB-ZACPT"
+  ],
+  "source": "generated",
+  "expected": {
+    "kind": "security_quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": null,
+    "security": {
+      "provider": "Aegis Watch Maritime",
+      "vesselImo": "9486075",
+      "embarkUnlocode": "DJJIB",
+      "disembarkUnlocode": "ZACPT",
+      "teamSize": 6,
+      "dayRate": 1025,
+      "currency": "USD",
+      "fixedFees": 6500,
+      "minDays": 6,
+      "validUntil": "2026-11-20"
+    }
+  }
+}

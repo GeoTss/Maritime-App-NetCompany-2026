@@ -1,0 +1,24 @@
+{
+  "id": "decision-08",
+  "tags": ["bunker_decision", "advice-only"],
+  "question": "Which bunkering option has the lowest total cost for Aegean Pioneer? I only want the answer.",
+  "expect": {
+    "kind": "answer",
+    "requiredFacts": [
+      {
+        "label": "Best option (lowest total cost, feasible)",
+        "value": "MTMLA-kestrel",
+        "unit": null,
+        "tolerance": 0
+      },
+      {
+        "label": "MTMLA-kestrel (Kestrel Marine Fuels, Marsaxlokk): total delivered cost",
+        "value": 233942.91134964247,
+        "unit": "USD",
+        "tolerance": 0.5
+      }
+    ],
+    "proposedOptionId": null,
+    "mustNotPropose": true
+  }
+}

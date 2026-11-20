@@ -1,0 +1,27 @@
+{
+  "id": "hard-qty-over-tank-capacity-v2",
+  "tags": ["hard", "qty-over-tank-capacity", "variant:v2", "layout:labels"],
+  "source": "hard",
+  "expected": {
+    "kind": "quote",
+    "status": "needs_review",
+    "reviewChecks": ["quantity_within_tank_capacity"],
+    "quote": {
+      "vesselImo": "9481025",
+      "portUnlocode": "ITGOA",
+      "supplierKey": "meridian",
+      "currency": "USD",
+      "validUntil": "2026-11-15",
+      "deliveryFrom": "2026-11-15",
+      "deliveryTo": "2026-11-16",
+      "bargeFee": 2000,
+      "lines": [
+        {
+          "grade": "LSMGO",
+          "qtyMt": 550,
+          "pricePerMt": 727.5
+        }
+      ]
+    }
+  }
+}

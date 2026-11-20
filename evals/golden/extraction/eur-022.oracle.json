@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Strait Line Fuels",
+    "evidence": "Strait Line Fuels"
+  },
+  "vesselName": {
+    "value": "Thessaly Star",
+    "evidence": "We are pleased to offer LSMGO for Thessaly Star, IMO No. 9481025 at Algeciras outer anchorage."
+  },
+  "vesselImo": {
+    "value": "9481025",
+    "evidence": "We are pleased to offer LSMGO for Thessaly Star, IMO No. 9481025 at Algeciras outer anchorage."
+  },
+  "port": {
+    "value": "Algeciras",
+    "evidence": "We are pleased to offer LSMGO for Thessaly Star, IMO No. 9481025 at Algeciras outer anchorage."
+  },
+  "deliveryFrom": {
+    "asWritten": "20/11/2026",
+    "evidence": "Delivery from 20/11/2026, delivery to 23/11/2026."
+  },
+  "deliveryTo": {
+    "asWritten": "23/11/2026",
+    "evidence": "Delivery from 20/11/2026, delivery to 23/11/2026."
+  },
+  "validUntil": {
+    "asWritten": "15/11",
+    "evidence": "This offer is valid until 15/11."
+  },
+  "bargeFee": {
+    "value": 1700,
+    "currency": "€",
+    "perUnit": "lump sum",
+    "asWritten": "€1,700 lump sum",
+    "evidence": "Barging €1,700 lump sum."
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "LSMGO",
+        "evidence": "We are pleased to offer LSMGO for Thessaly Star, IMO No. 9481025 at Algeciras outer anchorage."
+      },
+      "quantity": {
+        "value": 125,
+        "unit": "MTS",
+        "asWritten": "125 MTS",
+        "evidence": "Quantity 125 MTS, price EUR 713 per mt."
+      },
+      "price": {
+        "value": 713,
+        "currency": "EUR",
+        "perUnit": "per mt",
+        "asWritten": "EUR 713 per mt",
+        "evidence": "Quantity 125 MTS, price EUR 713 per mt."
+      }
+    }
+  ],
+  "notes": null
+}

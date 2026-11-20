@@ -1,0 +1,27 @@
+{
+  "id": "forwarded-002",
+  "tags": ["forwarded", "style:outlook", "vessel:imo", "window:dash", "barge:lump_sum"],
+  "source": "generated",
+  "expected": {
+    "kind": "quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": {
+      "vesselImo": "9480019",
+      "portUnlocode": "NLRTM",
+      "supplierKey": "harbourlight",
+      "currency": "USD",
+      "validUntil": "2026-11-16",
+      "deliveryFrom": "2026-11-23",
+      "deliveryTo": "2026-11-25",
+      "bargeFee": 3350,
+      "lines": [
+        {
+          "grade": "LSMGO",
+          "qtyMt": 300,
+          "pricePerMt": 747.5
+        }
+      ]
+    }
+  }
+}

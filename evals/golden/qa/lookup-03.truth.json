@@ -1,0 +1,18 @@
+{
+  "id": "lookup-03",
+  "tags": ["lookup"],
+  "question": "What's Levant Carrier's HSFO remaining on board?",
+  "expect": {
+    "kind": "answer",
+    "requiredFacts": [
+      {
+        "label": "HSFO remaining on board (latest noon report)",
+        "value": 300,
+        "unit": "mt",
+        "tolerance": 0
+      }
+    ],
+    "proposedOptionId": null,
+    "mustNotPropose": true
+  }
+}

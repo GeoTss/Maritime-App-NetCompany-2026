@@ -1,0 +1,79 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Kestrel Marine Fuels",
+    "evidence": "For and on behalf of Kestrel Marine Fuels"
+  },
+  "vesselName": {
+    "value": "M/T Levant Carrier",
+    "evidence": "Vessel: M/T Levant Carrier"
+  },
+  "vesselImo": {
+    "value": null,
+    "evidence": null
+  },
+  "port": {
+    "value": "Piraeus",
+    "evidence": "Port: Piraeus"
+  },
+  "deliveryFrom": {
+    "asWritten": "17-18 Nov",
+    "evidence": "Delivery date: 17-18 Nov"
+  },
+  "deliveryTo": {
+    "asWritten": "17-18 Nov",
+    "evidence": "Delivery date: 17-18 Nov"
+  },
+  "validUntil": {
+    "asWritten": "15 Nov 12:00 LT",
+    "evidence": "Validity: 15 Nov 12:00 LT"
+  },
+  "bargeFee": {
+    "value": 1450,
+    "currency": "$",
+    "perUnit": "lump sum",
+    "asWritten": "$1450 lump sum",
+    "evidence": "Barge: $1450 lump sum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "IFO 380 3.5%S",
+        "evidence": "Grade 1: IFO 380 3.5%S"
+      },
+      "quantity": {
+        "value": 325,
+        "unit": "mt",
+        "asWritten": "325 mt",
+        "evidence": "Quantity: 325 mt"
+      },
+      "price": {
+        "value": 477.5,
+        "currency": "USD",
+        "perUnit": "per metric ton",
+        "asWritten": "USD 477.50 per metric ton",
+        "evidence": "Price: USD 477.50 per metric ton"
+      }
+    },
+    {
+      "grade": {
+        "value": "0.5% VLSFO",
+        "evidence": "Grade 2: 0.5% VLSFO"
+      },
+      "quantity": {
+        "value": 750,
+        "unit": "mt",
+        "asWritten": "750 mt",
+        "evidence": "Quantity: 750 mt"
+      },
+      "price": {
+        "value": 585.5,
+        "currency": "USD",
+        "perUnit": "per metric ton",
+        "asWritten": "USD 585.50 per metric ton",
+        "evidence": "Price: USD 585.50 per metric ton"
+      }
+    }
+  ],
+  "notes": null
+}

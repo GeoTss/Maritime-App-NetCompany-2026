@@ -1,0 +1,27 @@
+{
+  "id": "html-003",
+  "tags": ["html", "layout:kv-table", "vessel:name-imo", "window:tolerance", "barge:lump_sum"],
+  "source": "generated",
+  "expected": {
+    "kind": "quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": {
+      "vesselImo": "9485069",
+      "portUnlocode": "PTSIE",
+      "supplierKey": "atlanticshelf",
+      "currency": "USD",
+      "validUntil": "2026-11-15",
+      "deliveryFrom": "2026-11-17",
+      "deliveryTo": "2026-11-19",
+      "bargeFee": 2100,
+      "lines": [
+        {
+          "grade": "HSFO",
+          "qtyMt": 300,
+          "pricePerMt": 497
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "id": "pdf-003",
+  "tags": ["pdf", "layout:grid", "vessel:name", "window:slash", "barge:lump_sum"],
+  "source": "generated",
+  "expected": {
+    "kind": "quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": {
+      "vesselImo": "9484053",
+      "portUnlocode": "GRPIR",
+      "supplierKey": "kestrel",
+      "currency": "USD",
+      "validUntil": "2026-11-15",
+      "deliveryFrom": "2026-11-17",
+      "deliveryTo": "2026-11-19",
+      "bargeFee": 2900,
+      "lines": [
+        {
+          "grade": "HSFO",
+          "qtyMt": 150,
+          "pricePerMt": 438
+        }
+      ]
+    }
+  }
+}

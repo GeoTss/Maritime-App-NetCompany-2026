@@ -1,0 +1,113 @@
+{
+  "gate": "Phase 7 — final measurement & demo hardening",
+  "at": "2026-11-16T16:02:05.213Z",
+  "candidate": "19e217b",
+  "frozenCode": "27a38c2",
+  "preRegistration": "fbbf596",
+  "verify": {
+    "workingCopy": {
+      "exit": 0,
+      "files": 143,
+      "passed": 3031,
+      "skipped": 1,
+      "todo": 5,
+      "lintErrors": 0,
+      "lintWarnings": 18,
+      "purity": "OK"
+    }
+  },
+  "freshClone": {
+    "source": "git clone --branch build/prototype <local repo> (full clone, not shallow)",
+    "envFile": false,
+    "composeProject": "pharos-fresh",
+    "composeUpBuild": {
+      "exit": 0,
+      "health": {
+        "llmMode": "replay",
+        "extractModel": "claude-haiku-5-5",
+        "agentModel": "claude-haiku-5-5"
+      },
+      "sources": {
+        "ais": "recorded",
+        "weather": "recorded"
+      },
+      "clockPinned": true,
+      "evalSummaryEntries": [
+        "extraction/heldout",
+        "extraction/dev",
+        "qa/heldout",
+        "qa/dev"
+      ]
+    },
+    "npmCi": {
+      "exit": 0
+    },
+    "storyOnPlainComposeUp": {
+      "result": "PASS",
+      "seconds": 17.3,
+      "replayMisses": 0
+    },
+    "storyAfterDemoReset": {
+      "result": "PASS",
+      "seconds": 17.4,
+      "replayMisses": 0
+    },
+    "verify": {
+      "exit": 0,
+      "files": 143,
+      "passed": 3031,
+      "skipped": 1,
+      "todo": 5
+    },
+    "teardown": "docker compose down -v (pharos-fresh only)"
+  },
+  "liveStory": {
+    "evidence": "evals/reports/20261116T150714Z-story-live-p7/summary.json",
+    "result": "PASS on the second paid run (first failed at step 4 on a live-only map click bug, fixed in 27a38c2)",
+    "costUsd": {
+      "failed": 0.006576,
+      "passed": 0.009373
+    }
+  },
+  "finalImagesLiveRehearsal": {
+    "command": "LLM_MODE=replay npm run demo:live && STORY_MODE=live STORY_STOP_AFTER=map npx playwright test",
+    "result": "PASS"
+  },
+  "heldout": {
+    "extraction": "evals/reports/20261116T152129Z-extraction-heldout-p7-heldout",
+    "qa": "evals/reports/20261116T154031Z-qa-heldout-p7-heldout",
+    "passesFileRows": 216,
+    "published": "evals/published/summary.json"
+  },
+  "ledgerPhase7": {
+    "rows": [
+      {
+        "run": "live-console",
+        "label": "p7-unattributed-live-question",
+        "costUsd": 0.0047
+      },
+      {
+        "run": "demo-story-live",
+        "label": "p7-live-story-1-failed-step4",
+        "costUsd": 0.006576
+      },
+      {
+        "run": "demo-story-live",
+        "label": "p7-live-story-2-pass",
+        "costUsd": 0.009373
+      },
+      {
+        "run": "eval-extraction",
+        "label": "p7-heldout",
+        "costUsd": 0.13125011999999997
+      },
+      {
+        "run": "eval-qa",
+        "label": "p7-heldout",
+        "costUsd": 0.03153544
+      }
+    ],
+    "totalUsd": 0.183435,
+    "capUsd": 1
+  }
+}

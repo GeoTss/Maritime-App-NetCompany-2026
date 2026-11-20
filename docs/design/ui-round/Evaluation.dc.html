@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Pharos evaluation scorecard</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&amp;family=B612+Mono:wght@400;700&amp;display=swap">
+<style>
+body{margin:0;background:#0c1218;color:#e4eaf0;font-family:'Archivo',system-ui,sans-serif;font-size:13px;line-height:18px;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
+::selection{background:rgba(92,200,242,.32);color:#e4eaf0}
+.mono{font-family:'B612 Mono',ui-monospace,monospace;font-variant-numeric:normal}
+button,summary{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,a:focus-visible,summary:focus-visible{outline:2px solid rgba(92,200,242,.6);outline-offset:1px}
+a{color:#5cc8f2;text-decoration:none}a:hover{color:#8fdcf7;text-decoration:underline}
+</style>
+</helmet>
+<div style="min-height: 1000px; display: flex; flex-direction: column; background: #0c1218;">
+
+  <header style="min-height: 36px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; padding: 0 12px; background: #121a22; border-bottom: 1px solid #263442;">
+    <div style="display: flex; align-items: baseline; gap: 8px; margin-right: auto;">
+      <span style="font-size: 14px; font-weight: 600; font-stretch: 88%;">Pharos</span>
+      <span style="font-size: 12px; color: #9fb0c0;">bunker-to-berth desk</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 14px; font-size: 11px; font-stretch: 80%; font-weight: 500;">
+      <span style="display: flex; align-items: center; gap: 5px;"><span style="width: 6px; height: 6px; border-radius: 50%; border: 1px solid #9fb0c0; box-sizing: border-box;"></span><span style="color: #9fb0c0;">AIS</span><span style="color: #e4eaf0;">recorded</span></span>
+      <span style="display: flex; align-items: center; gap: 5px;"><span style="width: 6px; height: 6px; border-radius: 50%; border: 1px solid #9fb0c0; box-sizing: border-box;"></span><span style="color: #9fb0c0;">Weather</span><span style="color: #e4eaf0;">recorded</span></span>
+      <span style="display: flex; align-items: center; gap: 6px;"><span style="color: #9fb0c0;">sim</span><span style="font-size: 11px; color: #e4eaf0;">14 Nov 08:05Z</span><span style="color: #7b8d9f;">pinned</span></span>
+    </div>
+  </header>
+
+  <div style="flex: 1 1 auto; display: flex; flex-wrap: wrap; min-height: 0;">
+    <nav aria-label="Screens" style="flex: 1 1 64px; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 2px; padding: 8px 6px; background: #121a22; border-right: 1px solid #263442;">
+      <a href="#" style="width: 52px; height: 48px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; border-radius: 2px; color: #9fb0c0; text-decoration: none;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z"></path><path d="M15 5.764v15"></path><path d="M9 3.236v15"></path></svg><span style="font-size: 11px; line-height: 12px; font-stretch: 80%; font-weight: 500;">Map</span></a>
+      <a href="#" style="width: 52px; height: 48px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; border-radius: 2px; color: #9fb0c0; text-decoration: none;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"></polyline><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path></svg><span style="font-size: 11px; line-height: 12px; font-stretch: 80%; font-weight: 500;">Inbox</span></a>
+      <a href="#" style="width: 52px; height: 48px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; border-radius: 2px; color: #9fb0c0; text-decoration: none;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 17 2 2 4-4"></path><path d="m3 7 2 2 4-4"></path><path d="M13 6h8"></path><path d="M13 12h8"></path><path d="M13 18h8"></path></svg><span style="font-size: 11px; line-height: 12px; font-stretch: 80%; font-weight: 500;">Approvals</span></a>
+      <a href="#" aria-current="page" style="position: relative; width: 52px; height: 48px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; border-radius: 2px; background: #1f2b37; color: #e4eaf0; text-decoration: none;"><span style="position: absolute; left: -6px; top: 10px; bottom: 10px; width: 1px; background: #5cc8f2;"></span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v16a2 2 0 0 0 2 2h16"></path><path d="M18 17V9"></path><path d="M13 17V5"></path><path d="M8 17v-3"></path></svg><span style="font-size: 11px; line-height: 12px; font-stretch: 80%; font-weight: 500;">Evaluation</span></a>
+    </nav>
+
+    <main style="flex: 999 1 560px; min-width: 0; padding: 20px 28px 32px; box-sizing: border-box;">
+      <div style="max-width: 1180px;">
+        <h1 style="margin: 0; font-size: 24px; line-height: 28px; font-weight: 500; font-stretch: 88%;">Evaluation</h1>
+        <p style="margin: 6px 0 0; max-width: 70ch; font-size: 13px; line-height: 19px; color: #9fb0c0;">Measured with live model calls. The held-out sets ran once, after the prompts were frozen and the run was pre-registered; the dev sets are the ones we tuned against.</p>
+
+        <section aria-label="Headline results, held-out" style="margin-top: 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); border: 1px solid #263442; border-radius: 2px; background: #121a22;">
+          <div style="padding: 14px 16px; border-right: 1px solid #263442;">
+            <div style="display: flex; align-items: baseline; gap: 6px; font-stretch: 75%;"><span style="font-size: 32px; line-height: 36px;">32</span><span style="font-size: 13px; color: #9fb0c0; font-stretch: 100%;">of</span><span style="font-size: 32px; line-height: 36px;">32</span></div>
+            <div style="margin-top: 4px; font-size: 13px; font-weight: 500;">answers where every number is a tool fact</div>
+            <div style="margin-top: 2px; font-size: 12px; color: #9fb0c0;">95% interval 89.3% to 100%</div>
+          </div>
+          <div style="padding: 14px 16px; border-right: 1px solid #263442;">
+            <div style="display: flex; align-items: baseline; gap: 6px; font-stretch: 75%;"><span style="font-size: 32px; line-height: 36px;">23</span><span style="font-size: 13px; color: #9fb0c0; font-stretch: 100%;">of</span><span style="font-size: 32px; line-height: 36px;">24</span></div>
+            <div style="margin-top: 4px; font-size: 13px; font-weight: 500;">answers judged correct</div>
+            <div style="margin-top: 2px; font-size: 12px; color: #9fb0c0;">95% interval 79.8% to 99.3%</div>
+          </div>
+          <div style="padding: 14px 16px; border-right: 1px solid #263442;">
+            <div style="display: flex; align-items: baseline; gap: 6px; font-stretch: 75%;"><span style="font-size: 32px; line-height: 36px;">0</span><span style="font-size: 13px; color: #9fb0c0; font-stretch: 100%;">of</span><span style="font-size: 32px; line-height: 36px;">156</span></div>
+            <div style="margin-top: 4px; font-size: 13px; font-weight: 500;">emails auto-accepted with a wrong critical field</div>
+            <div style="margin-top: 2px; font-size: 12px; color: #9fb0c0;">none observed; at most 2.4% (95%)</div>
+          </div>
+          <div style="padding: 14px 16px;">
+            <div style="display: flex; align-items: baseline; gap: 6px; font-stretch: 75%;"><span style="font-size: 32px; line-height: 36px;">1,170</span><span style="font-size: 13px; color: #9fb0c0; font-stretch: 100%;">of</span><span style="font-size: 32px; line-height: 36px;">1,182</span></div>
+            <div style="margin-top: 4px; font-size: 13px; font-weight: 500;">critical quote fields read correctly</div>
+            <div style="margin-top: 2px; font-size: 12px; color: #9fb0c0;">95% interval 98.2% to 99.4%</div>
+          </div>
+          <div style="grid-column: 1 / -1; padding: 8px 16px; display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; border-top: 1px solid #263442; font-size: 12px; color: #9fb0c0;">
+            <span style="height: 18px; padding: 0 5px; border: 1px solid #364757; border-radius: 1px; font-size: 11px; line-height: 16px; font-stretch: 80%; font-weight: 500;">held-out, run once</span>
+            <span style="height: 18px; padding: 0 5px; border: 1px solid #364757; border-radius: 1px; font-size: 11px; line-height: 16px; font-stretch: 80%; font-weight: 500;">live run</span>
+            <span><span class="mono" style="font-size: 11px; color: #e4eaf0;">claude-haiku-5-5</span> · 16 Nov 15:40Z · published 17 Nov 00:36Z</span>
+          </div>
+        </section>
+
+        <div style="margin-top: 28px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; font-size: 12px; color: #9fb0c0;">
+          <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 22px; height: 6px; background: rgba(228,234,240,.35); position: relative;"><span style="position: absolute; left: 10px; top: -2px; width: 2px; height: 10px; background: #e4eaf0;"></span></span>held-out, with 95% interval</span>
+          <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 22px; height: 6px; box-sizing: border-box; border: 1px solid #7b8d9f; position: relative;"><span style="position: absolute; left: 9px; top: -3px; width: 2px; height: 10px; background: #7b8d9f;"></span></span>dev</span>
+          <span>Small sets give wide intervals; the bars show how wide.</span>
+        </div>
+
+        <section aria-labelledby="ext" style="margin-top: 14px;">
+          <div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; padding-bottom: 8px; border-bottom: 1px solid #364757;">
+            <h2 id="ext" style="margin: 0; font-size: 15px; line-height: 20px; font-weight: 500; font-stretch: 88%;">Quote extraction</h2>
+            <span style="font-size: 12px; color: #9fb0c0;">prompt <span class="mono" style="font-size: 11px; color: #e4eaf0;">extract-quote/v2</span> · 156 held-out emails, 84 dev · 6.0 s per email, mean</span>
+          </div>
+          <div style="display: grid; grid-template-columns: minmax(200px, 1.3fr) 150px 120px minmax(220px, 2fr); column-gap: 16px; align-items: center; height: 26px; font-size: 11px; font-stretch: 80%; font-weight: 500; color: #9fb0c0;">
+            <span>Accuracy</span><span style="text-align: right;">Held-out</span><span style="text-align: right;">Dev</span>
+            <span style="display: flex; justify-content: space-between;"><span>50%</span><span>75%</span><span>100%</span></span>
+          </div>
+          <sc-for list="{{ext}}" as="r" hint-placeholder-count="5">
+            <div style="display: grid; grid-template-columns: minmax(200px, 1.3fr) 150px 120px minmax(220px, 2fr); column-gap: 16px; align-items: center; min-height: 32px; border-top: 1px solid #263442; font-size: 13px;">
+              <span>{{r.label}}</span>
+              <span style="text-align: right;">{{r.ho}} <span style="color: #9fb0c0;">{{r.hoRate}}</span></span>
+              <span style="text-align: right; color: #9fb0c0;">{{r.dev}}</span>
+              <span style="position: relative; height: 20px; background: linear-gradient(#263442, #263442) center / 100% 1px no-repeat;">
+                <span style="position: absolute; top: 3px; height: 6px; background: rgba(228,234,240,.35); left: {{r.hoL}}; width: {{r.hoW}};"></span>
+                <span style="position: absolute; top: 0; height: 12px; width: 2px; margin-left: -1px; background: #e4eaf0; left: {{r.hoP}};"></span>
+                <span style="position: absolute; top: 12px; height: 6px; box-sizing: border-box; border: 1px solid #7b8d9f; left: {{r.dvL}}; width: {{r.dvW}};"></span>
+              </span>
+            </div>
+          </sc-for>
+          <div style="display: grid; grid-template-columns: minmax(200px, 1.3fr) 150px 120px minmax(220px, 2fr); column-gap: 16px; align-items: center; height: 26px; margin-top: 8px; font-size: 11px; font-stretch: 80%; font-weight: 500; color: #9fb0c0;">
+            <span>Should be zero</span><span></span><span></span>
+            <span style="display: flex; justify-content: space-between;"><span>0%</span><span>12.5%</span><span>25%</span></span>
+          </div>
+          <sc-for list="{{extZero}}" as="r" hint-placeholder-count="2">
+            <div style="display: grid; grid-template-columns: minmax(200px, 1.3fr) 150px 120px minmax(220px, 2fr); column-gap: 16px; align-items: center; min-height: 32px; border-top: 1px solid #263442; font-size: 13px;">
+              <span>{{r.label}}</span>
+              <span style="text-align: right;">{{r.ho}}</span>
+              <span style="text-align: right; color: #9fb0c0;">{{r.dev}}</span>
+              <span style="position: relative; height: 20px; background: linear-gradient(#263442, #263442) center / 100% 1px no-repeat;">
+                <span style="position: absolute; top: 3px; height: 6px; background: rgba(228,234,240,.35); left: 0; width: {{r.hoW}};"></span>
+                <span style="position: absolute; top: 0; height: 12px; width: 2px; background: #e4eaf0; left: 0;"></span>
+                <span style="position: absolute; top: 12px; height: 6px; box-sizing: border-box; border: 1px solid #7b8d9f; left: 0; width: {{r.dvW}};"></span>
+              </span>
+            </div>
+          </sc-for>
+          <div style="display: grid; grid-template-columns: minmax(200px, 1.3fr) 150px 120px minmax(220px, 2fr); column-gap: 16px; align-items: center; min-height: 32px; margin-top: 8px; border-top: 1px solid #263442; font-size: 13px;">
+            <span>Emails sent to a person <span style="color: #7b8d9f;">(workload)</span></span>
+            <span style="text-align: right;">21 of 156 <span style="color: #9fb0c0;">13.5%</span></span>
+            <span style="text-align: right; color: #9fb0c0;">21 of 84 · 25.0%</span>
+            <span style="position: relative; height: 20px; background: linear-gradient(#263442, #263442) center / 100% 1px no-repeat;">
+              <span style="position: absolute; top: 3px; height: 6px; left: 18%; width: 21.4%; background: rgba(228,234,240,.35);"></span>
+              <span style="position: absolute; top: 0; height: 12px; width: 2px; margin-left: -1px; left: 27%; background: #e4eaf0;"></span>
+              <span style="position: absolute; top: 12px; height: 6px; box-sizing: border-box; border: 1px solid #7b8d9f; left: 34%; width: 36.4%;"></span>
+              <span style="position: absolute; right: 0; top: -14px; font-size: 11px; color: #7b8d9f;">axis 0–50%</span>
+            </span>
+          </div>
+        </section>
+
+        <section aria-labelledby="qa" style="margin-top: 28px;">
+          <div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; padding-bottom: 8px; border-bottom: 1px solid #364757;">
+            <h2 id="qa" style="margin: 0; font-size: 15px; line-height: 20px; font-weight: 500; font-stretch: 88%;">Questions and answers</h2>
+            <span style="font-size: 12px; color: #9fb0c0;">prompt <span class="mono" style="font-size: 11px; color: #e4eaf0;">agent-system/v5</span> · 32 held-out questions, 33 dev · first progress 1.1 s, answer 3.8 s mean</span>
+          </div>
+          <div style="display: grid; grid-template-columns: minmax(200px, 1.3fr) 150px 120px minmax(220px, 2fr); column-gap: 16px; align-items: center; height: 26px; font-size: 11px; font-stretch: 80%; font-weight: 500; color: #9fb0c0;">
+            <span>Accuracy and safety</span><span style="text-align: right;">Held-out</span><span style="text-align: right;">Dev</span>
+            <span style="display: flex; justify-content: space-between;"><span>50%</span><span>75%</span><span>100%</span></span>
+          </div>
+          <sc-for list="{{qa}}" as="r" hint-placeholder-count="4">
+            <div style="display: grid; grid-template-columns: minmax(200px, 1.3fr) 150px 120px minmax(220px, 2fr); column-gap: 16px; align-items: center; min-height: 32px; border-top: 1px solid #263442; font-size: 13px;">
+              <span>{{r.label}}</span>
+              <span style="text-align: right;">{{r.ho}} <span style="color: #9fb0c0;">{{r.hoRate}}</span></span>
+              <span style="text-align: right; color: #9fb0c0;">{{r.dev}}</span>
+              <span style="position: relative; height: 20px; background: linear-gradient(#263442, #263442) center / 100% 1px no-repeat;">
+                <span style="position: absolute; top: 3px; height: 6px; background: rgba(228,234,240,.35); left: {{r.hoL}}; width: {{r.hoW}};"></span>
+                <span style="position: absolute; top: 0; height: 12px; width: 2px; margin-left: -1px; background: #e4eaf0; left: {{r.hoP}};"></span>
+                <span style="position: absolute; top: 12px; height: 6px; box-sizing: border-box; border: 1px solid #7b8d9f; left: {{r.dvL}}; width: {{r.dvW}};"></span>
+                <sc-if value="{{r.clipped}}" hint-placeholder-val="{{false}}"><span style="position: absolute; left: -12px; top: 2px; font-size: 11px; line-height: 14px; color: #9fb0c0;">‹</span></sc-if>
+              </span>
+            </div>
+          </sc-for>
+          <details style="border-top: 1px solid #263442;">
+            <summary style="height: 32px; display: flex; align-items: center; gap: 8px; list-style: none; font-size: 12px; color: #9fb0c0;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg>5 more: no action when none is needed, proposed option is the best one, unauthorised actions (0 of 32), answers repaired by the release gate, errors (0 of 32)</summary>
+          </details>
+          <p style="margin: 10px 0 0; font-size: 12px; color: #7b8d9f;">‹ marks an interval that starts below the axis: with 2 to 4 questions, a perfect score still has a wide interval.</p>
+        </section>
+      </div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const hi = (lo, hiV, p) => {
+      const pos = (v) => Math.max(0, Math.min(100, (v - 50) * 2));
+      return { hoL: pos(lo) + '%', hoW: (pos(hiV) - pos(lo)) + '%', hoP: pos(p) + '%' };
+    };
+    const dv = (lo, hiV) => {
+      const pos = (v) => Math.max(0, Math.min(100, (v - 50) * 2));
+      return { dvL: pos(lo) + '%', dvW: (pos(hiV) - pos(lo)) + '%' };
+    };
+    const row = (label, ho, hoRate, dev, h, d, clipped) => Object.assign({ label, ho, hoRate, dev, clipped: !!clipped }, h, d);
+    return {
+      ext: [
+        row('Critical-field accuracy', '1,170 of 1,182', '99.0%', '646 of 651 · 99.2%', hi(98.2, 99.4, 99.0), dv(98.2, 99.7)),
+        row('Quote precision', '126 of 126', '100%', '70 of 70 · 100%', hi(97.0, 100, 100), dv(94.8, 100)),
+        row('Quote recall', '126 of 127', '99.2%', '70 of 71 · 98.6%', hi(95.7, 99.9, 99.2), dv(92.4, 99.8)),
+        row('Not-a-quote precision', '29 of 30', '96.7%', '13 of 14 · 92.9%', hi(83.3, 99.4, 96.7), dv(68.5, 98.7)),
+        row('Not-a-quote recall', '29 of 29', '100%', '13 of 13 · 100%', hi(88.3, 100, 100), dv(77.2, 100))
+      ],
+      extZero: [
+        { label: 'Unsafe auto-accepts', ho: '0 of 156', dev: '0 of 84', hoW: '9.6%', dvW: '17.6%' },
+        { label: 'Errors, truncations and refusals', ho: '0 of 156', dev: '0 of 84', hoW: '9.6%', dvW: '17.6%' }
+      ],
+      qa: [
+        row('Grounded answers (every number a tool fact)', '32 of 32', '100%', '33 of 33 · 100%', hi(89.3, 100, 100), dv(89.6, 100)),
+        row('Answer accuracy', '23 of 24', '95.8%', '25 of 25 · 100%', hi(79.8, 99.3, 95.8), dv(86.7, 100)),
+        row('Abstains when it cannot know', '4 of 4', '100%', '4 of 4 · 100%', hi(51.0, 100, 100), dv(51.0, 100)),
+        row('Injection resisted', '2 of 2', '100%', '3 of 3 · 100%', hi(34.2, 100, 100), dv(43.9, 100), true)
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

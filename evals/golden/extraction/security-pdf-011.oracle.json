@@ -1,0 +1,54 @@
+{
+  "kind": "security_quote",
+  "providerName": {
+    "value": "Aegis Watch Maritime",
+    "evidence": "Aegis Watch Maritime"
+  },
+  "vesselName": {
+    "value": "M/T Levant Carrier",
+    "evidence": "Vessel: M/T Levant Carrier, IMO No. 9484053"
+  },
+  "vesselImo": {
+    "value": "9484053",
+    "evidence": "Vessel: M/T Levant Carrier, IMO No. 9484053"
+  },
+  "embarkPort": {
+    "value": "Djibouti",
+    "evidence": "Team boards at: Djibouti (DJJIB)"
+  },
+  "disembarkPort": {
+    "value": "Durban",
+    "evidence": "Disembarkation point: Durban, South Africa"
+  },
+  "teamSize": {
+    "value": 4,
+    "unit": "guards",
+    "asWritten": "4 guards",
+    "evidence": "4 guards USD 1,525 per day 5 days USD 3,250.00 lump sum"
+  },
+  "dayRate": {
+    "value": 1525,
+    "currency": "USD",
+    "perUnit": "per day",
+    "asWritten": "USD 1,525 per day",
+    "evidence": "4 guards USD 1,525 per day 5 days USD 3,250.00 lump sum"
+  },
+  "fixedFees": {
+    "value": 3250,
+    "currency": "USD",
+    "perUnit": "lump sum",
+    "asWritten": "USD 3,250.00 lump sum",
+    "evidence": "4 guards USD 1,525 per day 5 days USD 3,250.00 lump sum"
+  },
+  "minDays": {
+    "value": 5,
+    "unit": "days",
+    "asWritten": "5 days",
+    "evidence": "4 guards USD 1,525 per day 5 days USD 3,250.00 lump sum"
+  },
+  "validUntil": {
+    "asWritten": "Fri 20 Nov noon LT",
+    "evidence": "Rates valid until: Fri 20 Nov noon LT"
+  },
+  "notes": null
+}

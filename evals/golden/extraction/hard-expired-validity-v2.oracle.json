@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Meridian Bunkering",
+    "evidence": "Meridian Bunkering"
+  },
+  "vesselName": {
+    "value": "LEVANT CARRIER",
+    "evidence": "LEVANT CARRIER, Piraeus (GRPIR)"
+  },
+  "vesselImo": {
+    "value": null,
+    "evidence": null
+  },
+  "port": {
+    "value": "Piraeus",
+    "evidence": "LEVANT CARRIER, Piraeus (GRPIR)"
+  },
+  "deliveryFrom": {
+    "asWritten": "14.11.2026 - 15.11.2026",
+    "evidence": "Delivery 14.11.2026 - 15.11.2026"
+  },
+  "deliveryTo": {
+    "asWritten": "14.11.2026 - 15.11.2026",
+    "evidence": "Delivery 14.11.2026 - 15.11.2026"
+  },
+  "validUntil": {
+    "asWritten": "11 Nov at 16:00 LT",
+    "evidence": "Valid until 11 Nov at 16:00 LT"
+  },
+  "bargeFee": {
+    "value": null,
+    "currency": null,
+    "perUnit": null,
+    "asWritten": null,
+    "evidence": null
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "IFO 380",
+        "evidence": "IFO 380: 325 metric tonnes @ $458/mt"
+      },
+      "quantity": {
+        "value": 325,
+        "unit": "metric tonnes",
+        "asWritten": "325 metric tonnes",
+        "evidence": "IFO 380: 325 metric tonnes @ $458/mt"
+      },
+      "price": {
+        "value": 458,
+        "currency": "$",
+        "perUnit": "/mt",
+        "asWritten": "$458/mt",
+        "evidence": "IFO 380: 325 metric tonnes @ $458/mt"
+      }
+    }
+  ],
+  "notes": null
+}

@@ -1,0 +1,54 @@
+{
+  "kind": "security_quote",
+  "providerName": {
+    "value": "Tridentis Marine Protection",
+    "evidence": "For and on behalf of Tridentis Marine Protection"
+  },
+  "vesselName": {
+    "value": "M/V Coral Horizon",
+    "evidence": "Ship: M/V Coral Horizon / IMO 9486075"
+  },
+  "vesselImo": {
+    "value": "9486075",
+    "evidence": "Ship: M/V Coral Horizon / IMO 9486075"
+  },
+  "embarkPort": {
+    "value": "Fujairah",
+    "evidence": "Embarkation: Fujairah (AEFJR)"
+  },
+  "disembarkPort": {
+    "value": "Cape Town",
+    "evidence": "Disembarkation point: off Cape Town"
+  },
+  "teamSize": {
+    "value": 6,
+    "unit": "man team",
+    "asWritten": "6-man team",
+    "evidence": "Guards: 6-man team"
+  },
+  "dayRate": {
+    "value": 1100,
+    "currency": "USD",
+    "perUnit": "/day",
+    "asWritten": "1100 USD/day",
+    "evidence": "Daily rate: 1100 USD/day"
+  },
+  "fixedFees": {
+    "value": 6500,
+    "currency": "USD",
+    "perUnit": "lump sum",
+    "asWritten": "USD 6,500 lump sum",
+    "evidence": "Fixed fees: USD 6,500 lump sum"
+  },
+  "minDays": {
+    "value": 5,
+    "unit": "days",
+    "asWritten": "5 days",
+    "evidence": "Minimum charge: 5 days"
+  },
+  "validUntil": {
+    "asWritten": "20 Nov 2026 18:00 UTC",
+    "evidence": "Validity: 20 Nov 2026 18:00 UTC"
+  },
+  "notes": null
+}

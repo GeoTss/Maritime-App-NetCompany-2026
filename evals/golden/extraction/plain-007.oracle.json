@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Atlantic Shelf Fuels",
+    "evidence": "For and on behalf of Atlantic Shelf Fuels"
+  },
+  "vesselName": {
+    "value": null,
+    "evidence": null
+  },
+  "vesselImo": {
+    "value": "9486075",
+    "evidence": "IMO 9486075 / Sines (PTSIE) / LSMGO 0.1% 75 MT @ 712.00 USD/MT"
+  },
+  "port": {
+    "value": "Sines",
+    "evidence": "IMO 9486075 / Sines (PTSIE) / LSMGO 0.1% 75 MT @ 712.00 USD/MT"
+  },
+  "deliveryFrom": {
+    "asWritten": "16-18 November 2026",
+    "evidence": "Delivery: 16-18 November 2026"
+  },
+  "deliveryTo": {
+    "asWritten": "16-18 November 2026",
+    "evidence": "Delivery: 16-18 November 2026"
+  },
+  "validUntil": {
+    "asWritten": "15/11/2026 17:00 LT",
+    "evidence": "Valid until: 15/11/2026 17:00 LT"
+  },
+  "bargeFee": {
+    "value": 2950,
+    "currency": "US$",
+    "perUnit": "lumpsum",
+    "asWritten": "US$ 2,950 lumpsum",
+    "evidence": "Barge: US$ 2,950 lumpsum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "LSMGO 0.1%",
+        "evidence": "IMO 9486075 / Sines (PTSIE) / LSMGO 0.1% 75 MT @ 712.00 USD/MT"
+      },
+      "quantity": {
+        "value": 75,
+        "unit": "MT",
+        "asWritten": "75 MT",
+        "evidence": "IMO 9486075 / Sines (PTSIE) / LSMGO 0.1% 75 MT @ 712.00 USD/MT"
+      },
+      "price": {
+        "value": 712,
+        "currency": "USD",
+        "perUnit": "/MT",
+        "asWritten": "712.00 USD/MT",
+        "evidence": "IMO 9486075 / Sines (PTSIE) / LSMGO 0.1% 75 MT @ 712.00 USD/MT"
+      }
+    }
+  ],
+  "notes": null
+}

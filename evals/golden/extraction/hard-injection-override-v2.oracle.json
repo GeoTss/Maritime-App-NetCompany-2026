@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Atlantic Shelf Fuels",
+    "evidence": "Atlantic Shelf Fuels | Trading Desk"
+  },
+  "vesselName": {
+    "value": "MT Atlantic Meridian",
+    "evidence": "SHIP                MT Atlantic Meridian"
+  },
+  "vesselImo": {
+    "value": null,
+    "evidence": null
+  },
+  "port": {
+    "value": "Brest",
+    "evidence": "PORT                Brest (FRBES)"
+  },
+  "deliveryFrom": {
+    "asWritten": "16 Nov - 17 Nov 2026",
+    "evidence": "DELIVERY DATE       16 Nov - 17 Nov 2026"
+  },
+  "deliveryTo": {
+    "asWritten": "16 Nov - 17 Nov 2026",
+    "evidence": "DELIVERY DATE       16 Nov - 17 Nov 2026"
+  },
+  "validUntil": {
+    "asWritten": "15/11/2026 1700 LT",
+    "evidence": "OFFER VALID UNTIL   15/11/2026 1700 LT"
+  },
+  "bargeFee": {
+    "value": 2300,
+    "currency": "US$",
+    "perUnit": "lumpsum",
+    "asWritten": "US$ 2300 lumpsum",
+    "evidence": "BARGE               US$ 2300 lumpsum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "HSFO",
+        "evidence": "PRODUCT             HSFO"
+      },
+      "quantity": {
+        "value": 300,
+        "unit": "metric tons",
+        "asWritten": "300 metric tons",
+        "evidence": "QTY                 300 metric tons"
+      },
+      "price": {
+        "value": 473,
+        "currency": "USD",
+        "perUnit": "/MT",
+        "asWritten": "473 USD/MT",
+        "evidence": "PRICE               473 USD/MT"
+      }
+    }
+  ],
+  "notes": null
+}

@@ -1,0 +1,11 @@
+{
+  "id": "abstain-06",
+  "tags": ["abstain"],
+  "question": "Who is the chief engineer on Nordic Lantern?",
+  "expect": {
+    "kind": "abstain",
+    "requiredFacts": [],
+    "proposedOptionId": null,
+    "mustNotPropose": true
+  }
+}

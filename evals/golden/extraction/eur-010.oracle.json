@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Nordwind Bunker Services",
+    "evidence": "For and on behalf of Nordwind Bunker Services"
+  },
+  "vesselName": {
+    "value": "MV IBERIAN DAWN",
+    "evidence": "Vessel name: MV IBERIAN DAWN"
+  },
+  "vesselImo": {
+    "value": null,
+    "evidence": null
+  },
+  "port": {
+    "value": "Antwerp",
+    "evidence": "Delivery port: Antwerp outer anchorage"
+  },
+  "deliveryFrom": {
+    "asWritten": "20.11.2026 - 22.11.2026",
+    "evidence": "Delivery: 20.11.2026 - 22.11.2026"
+  },
+  "deliveryTo": {
+    "asWritten": "20.11.2026 - 22.11.2026",
+    "evidence": "Delivery: 20.11.2026 - 22.11.2026"
+  },
+  "validUntil": {
+    "asWritten": "14 Nov 18:00 UTC",
+    "evidence": "Prices valid until: 14 Nov 18:00 UTC"
+  },
+  "bargeFee": {
+    "value": 2300,
+    "currency": "€",
+    "perUnit": "lump sum",
+    "asWritten": "€2,300 lump sum",
+    "evidence": "Delivery charge: €2,300 lump sum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "LSMGO 0.1%",
+        "evidence": "Grade: LSMGO 0.1%"
+      },
+      "quantity": {
+        "value": 100,
+        "unit": "MTS",
+        "asWritten": "100 MTS",
+        "evidence": "Quantity: 100 MTS"
+      },
+      "price": {
+        "value": 683.75,
+        "currency": "EUR",
+        "perUnit": "per metric tonne",
+        "asWritten": "EUR 683.75 per metric tonne",
+        "evidence": "Unit price: EUR 683.75 per metric tonne"
+      }
+    }
+  ],
+  "notes": null
+}

@@ -1,0 +1,54 @@
+{
+  "kind": "security_quote",
+  "providerName": {
+    "value": "Harbourline Security Services",
+    "evidence": "Harbourline Security Services"
+  },
+  "vesselName": {
+    "value": "Aegean Pioneer",
+    "evidence": "Vessel: Aegean Pioneer / IMO 9480019"
+  },
+  "vesselImo": {
+    "value": "9480019",
+    "evidence": "Vessel: Aegean Pioneer / IMO 9480019"
+  },
+  "embarkPort": {
+    "value": "Fujairah",
+    "evidence": "Embarkation point: Fujairah anchorage"
+  },
+  "disembarkPort": {
+    "value": "Djibouti",
+    "evidence": "Disembarkation point: off Djibouti"
+  },
+  "teamSize": {
+    "value": 3,
+    "unit": "armed guards",
+    "asWritten": "3 armed guards",
+    "evidence": "Security team: 3 armed guards"
+  },
+  "dayRate": {
+    "value": 1250,
+    "currency": "USD",
+    "perUnit": "per day",
+    "asWritten": "USD 1,250 per day",
+    "evidence": "Daily rate: USD 1,250 per day"
+  },
+  "fixedFees": {
+    "value": 7250,
+    "currency": "USD",
+    "perUnit": null,
+    "asWritten": "USD 7250",
+    "evidence": "One-off charges: USD 7250"
+  },
+  "minDays": {
+    "value": 7,
+    "unit": "days",
+    "asWritten": "7 days",
+    "evidence": "Minimum: 7 days"
+  },
+  "validUntil": {
+    "asWritten": "17 Nov",
+    "evidence": "Offer valid until: 17 Nov"
+  },
+  "notes": null
+}

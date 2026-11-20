@@ -1,0 +1,389 @@
+{
+  "meta": {
+    "suite": "extraction",
+    "split": "dev",
+    "label": "dev-haiku-v2-gate",
+    "mode": "record",
+    "extractor": "llm",
+    "model": "claude-haiku-5-5",
+    "effort": "medium",
+    "fallbacks": false,
+    "promptVersion": "extract-quote/v2",
+    "seed": 20261114,
+    "anchor": "2026-11-14T08:00:00.000Z",
+    "startedAt": "2026-11-15T03:21:17.781Z",
+    "finishedAt": "2026-11-15T03:29:02.305Z",
+    "selected": 84,
+    "offset": 0,
+    "limit": null,
+    "repeatHard": 1,
+    "notRun": [],
+    "aborted": null,
+    "servedModels": [
+      "claude-haiku-5-5"
+    ],
+    "spend": {
+      "guardUsd": 0.062190619999999995,
+      "dbUsd": 0.062190619999999995,
+      "ledgerUsd": 0.062190619999999995,
+      "parseErrors": []
+    },
+    "runnerErrors": []
+  },
+  "scorecard": {
+    "cases": 84,
+    "graded": 84,
+    "errors": [],
+    "failures": [],
+    "kind": {
+      "quotePrecision": {
+        "k": 70,
+        "n": 70,
+        "rate": 1,
+        "ci95": {
+          "low": 0.947976937589733,
+          "high": 1
+        }
+      },
+      "quoteRecall": {
+        "k": 70,
+        "n": 71,
+        "rate": 0.9859154929577465,
+        "ci95": {
+          "low": 0.92443949479751,
+          "high": 0.9975093967294558
+        }
+      },
+      "notAQuotePrecision": {
+        "k": 13,
+        "n": 14,
+        "rate": 0.9285714285714286,
+        "ci95": {
+          "low": 0.6853129557584889,
+          "high": 0.9872777847521091
+        }
+      },
+      "notAQuoteRecall": {
+        "k": 13,
+        "n": 13,
+        "rate": 1,
+        "ci95": {
+          "low": 0.7719046276458015,
+          "high": 1
+        }
+      }
+    },
+    "fields": {
+      "vessel": {
+        "k": 69,
+        "n": 70,
+        "rate": 0.9857142857142858,
+        "ci95": {
+          "low": 0.9234181286879167,
+          "high": 0.9974737535421097
+        },
+        "wrong": 0,
+        "missing": 1,
+        "critical": true
+      },
+      "port": {
+        "k": 42,
+        "n": 70,
+        "rate": 0.6,
+        "ci95": {
+          "low": 0.48293796477356277,
+          "high": 0.7066574227443838
+        },
+        "wrong": 0,
+        "missing": 28,
+        "critical": true
+      },
+      "supplier": {
+        "k": 70,
+        "n": 70,
+        "rate": 1,
+        "ci95": {
+          "low": 0.947976937589733,
+          "high": 1
+        },
+        "wrong": 0,
+        "missing": 0,
+        "critical": false
+      },
+      "currency": {
+        "k": 70,
+        "n": 70,
+        "rate": 1,
+        "ci95": {
+          "low": 0.947976937589733,
+          "high": 1
+        },
+        "wrong": 0,
+        "missing": 0,
+        "critical": true
+      },
+      "validUntil": {
+        "k": 70,
+        "n": 70,
+        "rate": 1,
+        "ci95": {
+          "low": 0.947976937589733,
+          "high": 1
+        },
+        "wrong": 0,
+        "missing": 0,
+        "critical": true
+      },
+      "deliveryFrom": {
+        "k": 67,
+        "n": 70,
+        "rate": 0.9571428571428572,
+        "ci95": {
+          "low": 0.8814033125147246,
+          "high": 0.9853184589958885
+        },
+        "wrong": 0,
+        "missing": 3,
+        "critical": true
+      },
+      "deliveryTo": {
+        "k": 68,
+        "n": 70,
+        "rate": 0.9714285714285714,
+        "ci95": {
+          "low": 0.901677438815761,
+          "high": 0.9921293880545589
+        },
+        "wrong": 0,
+        "missing": 2,
+        "critical": true
+      },
+      "bargeFee": {
+        "k": 70,
+        "n": 70,
+        "rate": 1,
+        "ci95": {
+          "low": 0.947976937589733,
+          "high": 1
+        },
+        "wrong": 0,
+        "missing": 0,
+        "critical": false
+      },
+      "grade": {
+        "k": 77,
+        "n": 77,
+        "rate": 1,
+        "ci95": {
+          "low": 0.9524815747175658,
+          "high": 1
+        },
+        "wrong": 0,
+        "missing": 0,
+        "critical": true
+      },
+      "quantity": {
+        "k": 77,
+        "n": 77,
+        "rate": 1,
+        "ci95": {
+          "low": 0.9524815747175658,
+          "high": 1
+        },
+        "wrong": 0,
+        "missing": 0,
+        "critical": true
+      },
+      "price": {
+        "k": 76,
+        "n": 77,
+        "rate": 0.987012987012987,
+        "ci95": {
+          "low": 0.9300380108531947,
+          "high": 0.9977037827028759
+        },
+        "wrong": 0,
+        "missing": 1,
+        "critical": true
+      }
+    },
+    "critical": {
+      "k": 616,
+      "n": 651,
+      "rate": 0.946236559139785,
+      "ci95": {
+        "low": 0.9261464065455436,
+        "high": 0.961091247964488
+      },
+      "wrong": 0,
+      "missing": 35,
+      "cases": 70
+    },
+    "fieldErrors": [
+      {
+        "field": "port",
+        "verdict": "missing",
+        "ids": [
+          "eur-003",
+          "eur-018",
+          "eur-021",
+          "forwarded-002",
+          "forwarded-011",
+          "forwarded-014",
+          "hard-injection-override-v2",
+          "hard-qty-over-tank-capacity-v2",
+          "hard-spoofed-supplier-name-v2",
+          "hard-thread-stale-revision-v2",
+          "hard-unknown-vessel-v2",
+          "html-007",
+          "html-017",
+          "html-020",
+          "html-022",
+          "html-023",
+          "html-024",
+          "multi-grade-002",
+          "multi-grade-003",
+          "multi-grade-009",
+          "multi-grade-019",
+          "pdf-012",
+          "plain-003",
+          "plain-007",
+          "plain-013",
+          "plain-014",
+          "plain-021",
+          "plain-036"
+        ]
+      },
+      {
+        "field": "deliveryFrom",
+        "verdict": "missing",
+        "ids": [
+          "hard-injection-override",
+          "html-024",
+          "plain-027"
+        ]
+      },
+      {
+        "field": "deliveryTo",
+        "verdict": "missing",
+        "ids": [
+          "hard-injection-override",
+          "plain-027"
+        ]
+      },
+      {
+        "field": "vessel",
+        "verdict": "missing",
+        "ids": [
+          "plain-003"
+        ]
+      },
+      {
+        "field": "price",
+        "verdict": "missing",
+        "ids": [
+          "html-023"
+        ]
+      }
+    ],
+    "unsafeAutoAccepts": {
+      "k": 0,
+      "n": 84,
+      "rate": 0,
+      "ci95": {
+        "low": 0,
+        "high": 0.04373172841465989
+      },
+      "ids": []
+    },
+    "reviewQueue": {
+      "k": 43,
+      "n": 84,
+      "rate": 0.5119047619047619,
+      "ci95": {
+        "low": 0.4068518288999885,
+        "high": 0.6159164632806148
+      }
+    },
+    "falseReview": {
+      "k": 27,
+      "n": 55,
+      "rate": 0.4909090909090909,
+      "ci95": {
+        "low": 0.3637677784900328,
+        "high": 0.619237401530278
+      },
+      "ids": [
+        "eur-003",
+        "eur-018",
+        "eur-021",
+        "forwarded-002",
+        "forwarded-011",
+        "forwarded-014",
+        "hard-injection-override",
+        "hard-injection-override-v2",
+        "hard-thread-stale-revision-v2",
+        "html-007",
+        "html-017",
+        "html-020",
+        "html-022",
+        "html-023",
+        "html-024",
+        "multi-grade-002",
+        "multi-grade-003",
+        "multi-grade-009",
+        "multi-grade-019",
+        "pdf-012",
+        "plain-003",
+        "plain-007",
+        "plain-013",
+        "plain-014",
+        "plain-021",
+        "plain-027",
+        "plain-036"
+      ]
+    },
+    "needsReviewRecall": {
+      "k": 16,
+      "n": 16,
+      "rate": 1,
+      "ci95": {
+        "low": 0.8063923194655636,
+        "high": 1
+      },
+      "missedIds": []
+    },
+    "reviewCheckMatched": {
+      "k": 16,
+      "n": 16,
+      "rate": 1,
+      "ci95": {
+        "low": 0.8063923194655636,
+        "high": 1
+      },
+      "missedIds": []
+    },
+    "latency": {
+      "endToEnd": {
+        "n": 84,
+        "mean": 5519.962783238093,
+        "p90": 7397.266917000001
+      },
+      "model": {
+        "n": 84,
+        "mean": 5481.041331357146,
+        "p90": 7361.225333000009
+      },
+      "targetMs": 20000
+    },
+    "cost": {
+      "perEmail": {
+        "n": 84,
+        "mean": 0.0007403645238095237,
+        "p90": 0.00098204
+      },
+      "totalUsd": 0.062190619999999995
+    },
+    "variance": null
+  }
+}

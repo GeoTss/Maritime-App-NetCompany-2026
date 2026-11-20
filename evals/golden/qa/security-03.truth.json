@@ -1,0 +1,18 @@
+{
+  "id": "security-03",
+  "tags": ["security"],
+  "question": "How much does security add to Atlantic Meridian's voyage cost on the recommended route?",
+  "expect": {
+    "kind": "answer",
+    "requiredFacts": [
+      {
+        "label": "MT Atlantic Meridian, route B: security and canal cost (team, war-risk premium, canal dues)",
+        "value": 538500,
+        "unit": "USD",
+        "tolerance": 0
+      }
+    ],
+    "proposedOptionId": null,
+    "mustNotPropose": true
+  }
+}

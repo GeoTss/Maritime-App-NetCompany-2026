@@ -1,0 +1,27 @@
+{
+  "id": "hard-eur-quote-in-band-v2",
+  "tags": ["hard", "eur-quote-in-band", "variant:v2", "layout:compact", "eur"],
+  "source": "hard",
+  "expected": {
+    "kind": "quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": {
+      "vesselImo": "9480019",
+      "portUnlocode": "FRBES",
+      "supplierKey": "atlanticshelf",
+      "currency": "EUR",
+      "validUntil": "2026-11-15",
+      "deliveryFrom": "2026-11-22",
+      "deliveryTo": "2026-11-23",
+      "bargeFee": 1900,
+      "lines": [
+        {
+          "grade": "LSMGO",
+          "qtyMt": 280,
+          "pricePerMt": 637.5
+        }
+      ]
+    }
+  }
+}

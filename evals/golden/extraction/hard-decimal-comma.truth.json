@@ -1,0 +1,27 @@
+{
+  "id": "hard-decimal-comma",
+  "tags": ["hard", "decimal-comma", "html", "layout:kv-table"],
+  "source": "hard",
+  "expected": {
+    "kind": "quote",
+    "status": "needs_review",
+    "reviewChecks": ["amounts_parsed"],
+    "quote": {
+      "vesselImo": "9480019",
+      "portUnlocode": "MTMLA",
+      "supplierKey": "kestrel",
+      "currency": "USD",
+      "validUntil": "2026-11-15",
+      "deliveryFrom": "2026-11-16",
+      "deliveryTo": "2026-11-17",
+      "bargeFee": 2650,
+      "lines": [
+        {
+          "grade": "LSMGO",
+          "qtyMt": 310,
+          "pricePerMt": null
+        }
+      ]
+    }
+  }
+}

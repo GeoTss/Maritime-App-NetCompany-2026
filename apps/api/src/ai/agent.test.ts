@@ -1,0 +1,652 @@
+import { mkdtemp, readdir, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
+import { loadWorld, type Sql } from "@pharos/db";
+import { connectTestDb, testDbLabel } from "@pharos/db/testing";
+import { AskResult, type Fact } from "@pharos/shared";
+import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { z } from "zod";
+import { ASK_FIXTURE_NOW, DEMO_QUESTION, prepareAskFixture } from "../ask/demo-fixture.js";
+import { ASK_RECORDING_CONFIG } from "../ask/record-demo-ask.js";
+import { DEFAULT_RECORDINGS_DIR } from "../config.js";
+import {
+  type AgentConfig,
+  type AgentDeps,
+  AgentError,
+  agentRunnerParams,
+  ConversationNotFoundError,
+  repairMessage,
+  runAgent,
+  type ToolProgress,
+  withProgress,
+} from "./agent.js";
+import { captureLlmCall } from "./call-capture.js";
+import { type CallMetrics, createLlm, type LlmFetch } from "./llm.js";
+import { AGENT_SYSTEM, PROMPT_VERSION } from "./prompts/agent-system.js";
+import { citedFactIds, numericTokens } from "./release-gate.js";
+import {
+  lastToolResult,
+  type ScriptedRequest,
+  scriptedFetch,
+  scriptedMessage,
+  textReply,
+  toolCall,
+} from "./scripted-llm.js";
+import { createToolContext } from "./tools/common.js";
+import { AGENT_TOOL_DEFS, agentTools } from "./tools/registry.js";
+
+const throwingFetch: LlmFetch = async () => {
+  throw new Error("network must not be called");
+};
+
+const HAIKU: AgentConfig = {
+  agentModel: "claude-haiku-5-5",
+  agentEffort: "medium",
+  llmFallbacks: false,
+};
+
+/** Numbers not followed, within their sentence, by a citation of a known fact. */
+function uncitedNumbers(answer: string, facts: Fact[]): string[] {
+  const known = new Set(facts.map((f) => f.id));
+  const out: string[] = [];
+  for (const sentence of answer.split(/(?<=[.!?])\s+|\n+/)) {
+    for (const id of citedFactIds(sentence)) if (!known.has(id)) out.push(`[${id}]`);
+    const tail = sentence.split(/\[\s*f_[^\]]*\]/).at(-1) ?? "";
+    out.push(...numericTokens(tail).map((t) => t.text));
+  }
+  return out;
+}
+
+describe("agent request", () => {
+  it("uses the agent model and effort, auto tool choice, a cached system prompt, no thread", () => {
+    const params = agentRunnerParams(HAIKU, [], [{ role: "user", content: "hi" }]);
+    expect(params.model).toBe("claude-haiku-5-5");
+    expect(params.output_config).toEqual({ effort: "medium" });
+    expect(params.tool_choice).toEqual({ type: "auto" });
+    expect(params.thread).toBe(false);
+    expect(params.system).toEqual([
+      expect.objectContaining({ type: "text", cache_control: { type: "ephemeral" } }),
+    ]);
+    expect("thinking" in params).toBe(false);
+    expect("temperature" in params).toBe(false);
+    expect("betas" in params).toBe(false);
+    expect("fallbacks" in params).toBe(false);
+    expect(PROMPT_VERSION).toBe("agent-system/v6");
+  });
+
+  it("the prompt cites speeds and quantities like money and names a recommended route by its id", () => {
+    expect(AGENT_SYSTEM).toMatch(
+      /A speed in knots and a quantity in mt are cited like money: the fact id right after the unit, every time/,
+    );
+    expect(AGENT_SYSTEM).toMatch(
+      /<speed> kn \[<id of that speed>\] and <quantity> mt \[<id of that quantity>\]/,
+    );
+    expect(AGENT_SYSTEM).toMatch(
+      /^- plan_route_speed: .*Name a route by its id \("route B"\) in the sentence that recommends it/m,
+    );
+  });
+
+  it("the prompt proposes only when the operator asks for a decision (not unconditionally)", () => {
+    expect(AGENT_SYSTEM).not.toMatch(/after plan_bunkering, for each plan .*call propose_action/);
+    expect(AGENT_SYSTEM).toMatch(/Call propose_action only when the operator asks you to decide/);
+    expect(AGENT_SYSTEM).toMatch(/Do not call it when the operator only looks something up/);
+  });
+
+  it("the prompt proposes a voyage instruction only when asked to instruct, never for an AIS ship", () => {
+    expect(AGENT_SYSTEM).toMatch(
+      /type "voyage_instruction" only when the operator asks you to instruct the master, to prepare or issue the voyage instruction, or to put the route and speed into effect/,
+    );
+    expect(AGENT_SYSTEM).toMatch(
+      /only asks which route or speed is best, answer and propose nothing/,
+    );
+    expect(AGENT_SYSTEM).toMatch(/Never propose a voyage instruction for a ship seen on AIS/);
+    expect(AGENT_SYSTEM).toMatch(/Never write a recommendation id or a calculation id/);
+  });
+
+  it("the prompt lists every registered tool, the route tool avoiding reported hazards", () => {
+    for (const { name } of AGENT_TOOL_DEFS) {
+      expect(AGENT_SYSTEM).toMatch(new RegExp(`^- ${name}: `, "m"));
+    }
+    expect(AGENT_SYSTEM).toMatch(/^- plan_route_speed: .*avoids reported hazards/m);
+    expect(AGENT_SYSTEM).toMatch(/one calculate call with percent_change/);
+    expect(AGENT_SYSTEM).toMatch(/Cite a number every time you write it/);
+  });
+
+  it("the repair turn asks for one fact id immediately after each number", () => {
+    const text = repairMessage(["1,400"]);
+    expect(text).toContain('"1,400"');
+    expect(text).toMatch(/immediately after that number/);
+    expect(text).toMatch(/one id per number/);
+    expect(text).toMatch(/never gather the ids at the end of a sentence/i);
+  });
+
+  it("sends server-side fallbacks only when enabled with an Opus model", () => {
+    const opus = { ...HAIKU, agentModel: "claude-opus-5-5", llmFallbacks: true };
+    const params = agentRunnerParams(opus, [], [{ role: "user", content: "hi" }]);
+    expect(params.betas).toEqual(["server-side-fallback-2026-07-01"]);
+    expect(params.fallbacks).toBe("default");
+    const haikuOn = agentRunnerParams({ ...HAIKU, llmFallbacks: true }, [], []);
+    expect("fallbacks" in haikuOn).toBe(false);
+    const opusOff = agentRunnerParams({ ...opus, llmFallbacks: false }, [], []);
+    expect("fallbacks" in opusOff).toBe(false);
+  });
+});
+
+describe("toolRunner record -> replay round trip (injected transport, no network)", () => {
+  let dir: string;
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), "pharos-agent-"));
+    return () => rm(dir, { recursive: true, force: true });
+  });
+
+  it("replay serves every turn the record run made", async () => {
+    const echo = () =>
+      betaZodTool({
+        name: "echo",
+        description: "Echo a word in capitals.",
+        inputSchema: z.object({ word: z.string() }).strict(),
+        run: async ({ word }) => word.toUpperCase(),
+      });
+    const messages = [{ role: "user" as const, content: "Echo hi" }];
+    const { fetch, requests } = scriptedFetch([
+      toolCall(1, "echo", { word: "hi" }),
+      textReply(2, "It says HI."),
+    ]);
+
+    const recorded: CallMetrics[] = [];
+    const rec = createLlm({
+      mode: "record",
+      apiKey: "test-key",
+      recordingsDir: dir,
+      onCall: (m) => {
+        recorded.push(m);
+      },
+      fetch,
+    });
+    const first = await rec.client.beta.messages
+      .toolRunner(agentRunnerParams(HAIKU, [echo()], messages))
+      .runUntilDone();
+    expect(requests).toHaveLength(2);
+    expect(await readdir(dir)).toHaveLength(2);
+    // Without a thread, the second turn carries the whole history and no server-side state.
+    const second = requests[1] as ScriptedRequest;
+    expect(second.messages).toHaveLength(3);
+    expect(second.thread).toBeUndefined();
+    expect(second.previous_message_id).toBeUndefined();
+
+    const replayed: CallMetrics[] = [];
+    const rep = createLlm({
+      mode: "replay",
+      recordingsDir: dir,
+      onCall: (m) => {
+        replayed.push(m);
+      },
+      fetch: throwingFetch,
+    });
+    const again = await rep.client.beta.messages
+      .toolRunner(agentRunnerParams(HAIKU, [echo()], messages))
+      .runUntilDone();
+    expect(again.content).toEqual(first.content);
+    expect(replayed.map((m) => m.requestKey)).toEqual(recorded.map((m) => m.requestKey));
+    expect(replayed.every((m) => m.mode === "replay")).toBe(true);
+  });
+});
+
+const sql = await connectTestDb("ask_agent");
+
+if (!sql) {
+  describe("runAgent (Postgres)", () => {
+    it.skip(`skipped: Postgres unreachable for ${testDbLabel("ask_agent")}`, () => {});
+  });
+}
+
+describe.skipIf(!sql)("runAgent (Postgres)", () => {
+  if (!sql) return;
+  const db: Sql = sql;
+
+  beforeEach(async () => {
+    await prepareAskFixture(db);
+  });
+  afterAll(async () => {
+    await db.end();
+  });
+
+  const scriptedDeps = (script: Parameters<typeof scriptedFetch>[0]) => {
+    const scripted = scriptedFetch(script);
+    const llm = createLlm({
+      mode: "live",
+      apiKey: "test-key",
+      recordingsDir: "/nonexistent",
+      onCall: captureLlmCall,
+      fetch: scripted.fetch,
+    });
+    const deps: AgentDeps = { sql: db, llm, config: HAIKU, now: () => ASK_FIXTURE_NOW };
+    return { deps, requests: scripted.requests };
+  };
+
+  const messagesOf = (conversationId: number) =>
+    db<{ id: number; role: string; content: Record<string, unknown> }[]>`
+      select id, role, content from messages where conversation_id = ${conversationId} order by id`;
+
+  it("offers the model every agent tool, in a fixed order", async () => {
+    const { deps, requests } = scriptedDeps([textReply(1, "Hello, how can I help?")]);
+    await runAgent(deps, "Hi");
+    const tools = (requests[0]?.tools ?? []) as { name: string }[];
+    expect(tools.map((t) => t.name)).toEqual(AGENT_TOOL_DEFS.map((d) => d.name));
+  });
+
+  // Tool definitions are part of every request, and recorded replies are keyed on those bytes.
+  it("request tools are unchanged", async () => {
+    const { deps, requests } = scriptedDeps([textReply(1, "Hello, how can I help?")]);
+    await runAgent(deps, "Hi");
+    expect(JSON.stringify(requests[0]?.tools)).toMatchSnapshot();
+  });
+
+  it("withholds after a failed repair", async () => {
+    const { deps, requests } = scriptedDeps([
+      textReply(1, "Kestrel is $8,000 cheaper than Strait Line."),
+      textReply(2, "Kestrel is still 8,000 cheaper."),
+    ]);
+    const res = AskResult.parse(await runAgent(deps, "Who is cheaper?"));
+    expect(res.answer).toBeNull();
+    expect(res.gate).toEqual({
+      passed: false,
+      repaired: true,
+      ungroundedNumbers: ["8,000"],
+      attempts: [
+        { attempt: 1, passed: false, ungroundedNumbers: ["8,000"] },
+        { attempt: 2, passed: false, ungroundedNumbers: ["8,000"] },
+      ],
+    });
+    expect(requests).toHaveLength(2);
+
+    // The repair turn is one user message naming the ungrounded numbers; the gate never edits text.
+    const repair = requests[1]?.messages.at(-1);
+    expect(repair?.role).toBe("user");
+    expect(JSON.stringify(repair?.content)).toContain("8,000");
+    expect(requests[1]?.messages.at(-2)?.role).toBe("assistant");
+
+    // Calls are recorded and linked to the conversation; the withheld text is stored, not shown.
+    const calls = await db<{ id: number; conversation_id: number; purpose: string }[]>`
+      select id, conversation_id, purpose from llm_calls order by id`;
+    expect(calls.map((c) => c.id)).toEqual(res.llmCallIds);
+    expect(calls.every((c) => c.conversation_id === res.conversationId)).toBe(true);
+    expect(calls.every((c) => c.purpose === "agent")).toBe(true);
+    const stored = await messagesOf(res.conversationId);
+    expect(stored.map((m) => m.role)).toEqual(["user", "assistant"]);
+    expect(stored[1]?.id).toBe(res.messageId);
+    expect(stored[1]?.content).toMatchObject({ answer: null, gate: res.gate });
+  });
+
+  it("releases an answer that passes after the repair turn", async () => {
+    const { deps } = scriptedDeps([
+      textReply(1, "That saves about 8,000 dollars."),
+      textReply(2, "Bunker at Marsaxlokk with Kestrel Marine Fuels."),
+    ]);
+    const res = await runAgent(deps, "Where?");
+    expect(res.answer).toBe("Bunker at Marsaxlokk with Kestrel Marine Fuels.");
+    expect(res.gate).toMatchObject({ passed: true, repaired: true, ungroundedNumbers: [] });
+    expect(res.gate.attempts.map((a) => [a.attempt, a.passed])).toEqual([
+      [1, false],
+      [2, true],
+    ]);
+  });
+
+  it("collects tool facts, grounds cited numbers, proposes, and links the recommendation", async () => {
+    const { deps, requests } = scriptedDeps([
+      toolCall(1, "plan_bunkering", { vessel: "Aegean Pioneer" }),
+      (req: ScriptedRequest) => {
+        const plan = lastToolResult(req) as { facts: Fact[]; data: { calculationId: number } };
+        const best = plan.facts.find((f) => f.id.endsWith("_bestOptionId"));
+        return toolCall(2, "propose_action", {
+          type: "purchase_order",
+          calculationId: plan.data.calculationId,
+          optionId: best?.value,
+          factRefs: [best?.id],
+          rationale: "Lowest total delivered cost.",
+        });
+      },
+      (req: ScriptedRequest) => {
+        const plan = lastToolResultOf(req, "plan_bunkering");
+        const total = plan.facts.find((f) => f.id.endsWith("_options.0.totalCostUsd"));
+        const value = Math.round(total?.value as number).toLocaleString("en-US");
+        return textReply(3, `Buy from Kestrel at Marsaxlokk: total $${value} [${total?.id}].`);
+      },
+    ]);
+    const res = await runAgent(deps, DEMO_QUESTION);
+    expect(res.gate).toEqual({
+      passed: true,
+      repaired: false,
+      ungroundedNumbers: [],
+      attempts: [{ attempt: 1, passed: true, ungroundedNumbers: [] }],
+    });
+    expect(res.answer).toMatch(/^Buy from Kestrel/);
+    expect(requests).toHaveLength(3);
+    expect(res.facts.some((f) => f.id.endsWith("_options.0.totalCostUsd"))).toBe(true);
+    expect(res.recommendationIds).toHaveLength(1);
+
+    const [rec] = await db<{ id: number; status: string; option_id: string; message_id: number }[]>`
+      select id, status, option_id, message_id from recommendations`;
+    expect(rec).toMatchObject({ status: "pending", option_id: "MTMLA-kestrel" });
+    expect(rec?.id).toBe(res.recommendationIds[0]);
+    expect(rec?.message_id).toBe(res.messageId);
+
+    const stored = await messagesOf(res.conversationId);
+    expect(stored.map((m) => m.role)).toEqual(["user", "tool", "tool", "assistant"]);
+    expect(stored[1]?.content).toMatchObject({ tool: "plan_bunkering", isError: false });
+  });
+
+  it("an answer with no ship tool has no subjects", async () => {
+    const { deps } = scriptedDeps([
+      toolCall(1, "list_quotes", {}),
+      textReply(2, "There are quotes on file."),
+    ]);
+    const res = await runAgent(deps, "What quotes are on file?");
+    expect(res.subjects).toEqual([]);
+  });
+
+  it("subjects are the ships the tools resolved, in order, without duplicates", async () => {
+    const { deps } = scriptedDeps([
+      toolCall(1, "plan_bunkering", { vessel: "Aegean Pioneer" }),
+      toolCall(2, "get_emissions", { vessel: "Aegean Pioneer" }),
+      toolCall(3, "get_vessel_status", { vessel: "Coral Horizon" }),
+      textReply(4, "Done."),
+    ]);
+    const res = await runAgent(deps, "Compare the two vessels.");
+    const world = await loadWorld(db);
+    const id = (n: string) => world.vessels.find((v) => v.name.endsWith(n))?.id;
+    expect(res.subjects).toEqual([
+      { kind: "vessel", vesselId: id("Aegean Pioneer") },
+      { kind: "vessel", vesselId: id("Coral Horizon") },
+    ]);
+  });
+
+  it("a follow-up in the same conversation may cite facts from an earlier turn", async () => {
+    let total: Fact | undefined;
+    const first = scriptedDeps([
+      toolCall(1, "plan_bunkering", { vessel: "Aegean Pioneer" }),
+      (req: ScriptedRequest) => {
+        total = lastToolResultOf(req, "plan_bunkering").facts.find((f) =>
+          f.id.endsWith("_options.0.totalCostUsd"),
+        );
+        return textReply(2, "Kestrel at Marsaxlokk is best.");
+      },
+    ]);
+    const one = await runAgent(first.deps, DEMO_QUESTION);
+    const second = scriptedDeps([
+      (req: ScriptedRequest) => {
+        // The earlier question and answer are part of the history.
+        expect(JSON.stringify(req.messages)).toContain("Kestrel at Marsaxlokk is best.");
+        const value = Math.round(total?.value as number).toLocaleString("en-US");
+        return textReply(1, `The total is $${value} [${total?.id}].`);
+      },
+    ]);
+    const two = await runAgent(second.deps, "What does it cost?", one.conversationId);
+    expect(two.conversationId).toBe(one.conversationId);
+    expect(two.gate.passed).toBe(true);
+    expect(two.facts.map((f) => f.id)).toContain(total?.id);
+  });
+
+  const gateAttemptsOf = async (messageId: number) => {
+    const [row] = await db<{ gate_attempts: unknown }[]>`
+      select gate_attempts from messages where id = ${messageId}`;
+    return row?.gate_attempts;
+  };
+
+  it("stores each gate attempt on the assistant message and returns them", async () => {
+    const { deps } = scriptedDeps([
+      textReply(1, "That saves about 8,000 dollars."),
+      textReply(2, "Bunker at Marsaxlokk with Kestrel Marine Fuels."),
+    ]);
+    const res = await runAgent(deps, "Where?");
+    const attempts = [
+      { attempt: 1, passed: false, ungroundedNumbers: ["8,000"] },
+      { attempt: 2, passed: true, ungroundedNumbers: [] },
+    ];
+    expect(res.gate.attempts).toEqual(attempts);
+    expect(await gateAttemptsOf(res.messageId)).toEqual(attempts);
+    // Only the assistant message carries gate attempts.
+    const stored = await messagesOf(res.conversationId);
+    const user = stored.find((m) => m.role === "user");
+    expect(await gateAttemptsOf(user?.id ?? 0)).toEqual([]);
+  });
+
+  it("a repair turn that fails still stores the first gate attempt", async () => {
+    const { deps } = scriptedDeps([
+      textReply(1, "Kestrel is $8,000 cheaper than Strait Line."),
+      scriptedMessage(2, [], "refusal"),
+    ]);
+    await expect(runAgent(deps, "Who is cheaper?")).rejects.toBeInstanceOf(AgentError);
+    const [assistant] = await db<{ id: number }[]>`
+      select id from messages where role = 'assistant' order by id desc limit 1`;
+    expect(await gateAttemptsOf(assistant?.id ?? 0)).toEqual([
+      { attempt: 1, passed: false, ungroundedNumbers: ["8,000"] },
+    ]);
+  });
+
+  it("a number only in the question is not a fact", async () => {
+    const answer = "Yes, Kestrel quoted USD 738 per mt.";
+    const { deps } = scriptedDeps([textReply(1, answer), textReply(2, answer)]);
+    const res = await runAgent(deps, "Kestrel quoted USD 738 per mt for LSMGO, right?");
+    expect(res.facts).toEqual([]);
+    expect(res.answer).toBeNull();
+    const attempts = [
+      { attempt: 1, passed: false, ungroundedNumbers: ["738"] },
+      { attempt: 2, passed: false, ungroundedNumbers: ["738"] },
+    ];
+    expect(res.gate).toEqual({
+      passed: false,
+      repaired: true,
+      ungroundedNumbers: ["738"],
+      attempts,
+    });
+    expect(await gateAttemptsOf(res.messageId)).toEqual(attempts);
+  });
+
+  it("uncited arithmetic is withheld", async () => {
+    const headline = (req: ScriptedRequest, option: number) => {
+      const plan = lastToolResultOf(req, "plan_bunkering");
+      const fact = plan.facts.find((f) =>
+        f.id.endsWith(`_options.${option}.headlinePriceUsdPerMt`),
+      );
+      if (!fact) throw new Error(`no headline price for option ${option}`);
+      return fact;
+    };
+    const { deps } = scriptedDeps([
+      toolCall(1, "plan_bunkering", { vessel: "Aegean Pioneer" }),
+      (req: ScriptedRequest) => {
+        const kestrel = headline(req, 0);
+        const strait = headline(req, 1);
+        return textReply(
+          2,
+          `Kestrel quotes $${kestrel.value}/mt [${kestrel.id}] and Strait Line ` +
+            `$${strait.value}/mt [${strait.id}]; the difference is 26 USD/mt.`,
+        );
+      },
+      // The repair cites a fact, but the fact is not 26: no calculate call, no derived fact.
+      (req: ScriptedRequest) =>
+        textReply(3, `The difference is 26 USD/mt [${headline(req, 0).id}].`),
+    ]);
+    const res = await runAgent(deps, "How much cheaper is Strait Line's headline price?");
+    const prices = res.facts.filter((f) => f.id.endsWith(".headlinePriceUsdPerMt"));
+    expect(prices.map((f) => f.value)).toEqual([738, 712]);
+    expect(res.facts.some((f) => f.value === 26)).toBe(false);
+    expect(res.answer).toBeNull();
+    expect(res.gate).toMatchObject({ passed: false, repaired: true, ungroundedNumbers: ["26"] });
+    expect(res.gate.attempts).toEqual([
+      { attempt: 1, passed: false, ungroundedNumbers: ["26"] },
+      { attempt: 2, passed: false, ungroundedNumbers: ["26"] },
+    ]);
+    expect(await gateAttemptsOf(res.messageId)).toEqual(res.gate.attempts);
+  });
+
+  it("progress carries the tool_use id", async () => {
+    const { deps } = scriptedDeps([
+      toolCall(1, "get_vessel_status", { vessel: "Aegean Pioneer" }),
+      (_req: ScriptedRequest) =>
+        scriptedMessage(
+          2,
+          [{ type: "tool_use", id: "toolu_second", name: "list_fleet", input: {} }],
+          "tool_use",
+        ),
+      textReply(3, "Done."),
+    ]);
+    const events: ToolProgress[] = [];
+    await runAgent({ ...deps, onProgress: (e) => events.push(e) }, "Status and fleet?");
+    expect(events.map((e) => [e.callId, e.tool, e.phase])).toEqual([
+      ["toolu_scripted_1", "get_vessel_status", "started"],
+      ["toolu_scripted_1", "get_vessel_status", "finished"],
+      ["toolu_second", "list_fleet", "started"],
+      ["toolu_second", "list_fleet", "finished"],
+    ]);
+  });
+
+  it("failed tool reports failed", async () => {
+    const { deps } = scriptedDeps([
+      toolCall(1, "get_vessel_status", { vessel: "No Such Ship" }),
+      textReply(2, "I could not find that vessel."),
+    ]);
+    const events: ToolProgress[] = [];
+    await runAgent({ ...deps, onProgress: (e) => events.push(e) }, "Status?");
+    expect(events.map((e) => [e.callId, e.phase])).toEqual([
+      ["toolu_scripted_1", "started"],
+      ["toolu_scripted_1", "failed"],
+    ]);
+  });
+
+  it("a tool error propagates unwrapped, as a rejection, through withProgress", async () => {
+    const ctx = createToolContext({ sql: db, now: () => ASK_FIXTURE_NOW, priorFacts: [] });
+    const events: ToolProgress[] = [];
+    const tools = withProgress(agentTools(ctx), (e) => events.push(e)) as unknown as {
+      name: string;
+      run: (input: unknown, context?: unknown) => Promise<unknown>;
+    }[];
+    const tool = tools.find((t) => t.name === "get_vessel_status");
+    const ctxArg = { toolUse: { id: "toolu_x" } };
+    const err = await tool?.run({ vessel: "No Such Ship" }, ctxArg).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect(events.map((e) => e.phase)).toEqual(["started", "failed"]);
+    await expect(tool?.run({ vessel: "Aegean Pioneer" })).rejects.toThrow(
+      "tool run without a tool_use id",
+    );
+  });
+
+  it("a refusal fails the ask with AgentError, and the call is still recorded", async () => {
+    const { deps } = scriptedDeps([scriptedMessage(1, [], "refusal")]);
+    await expect(runAgent(deps, "Where?")).rejects.toBeInstanceOf(AgentError);
+    const calls = await db`select id from llm_calls`;
+    expect(calls).toHaveLength(1);
+  });
+
+  it("a recommendation made before the ask fails is linked to the ask's message", async () => {
+    const { deps } = scriptedDeps([
+      toolCall(1, "plan_bunkering", { vessel: "Aegean Pioneer" }),
+      (req: ScriptedRequest) => {
+        const plan = lastToolResult(req) as { facts: Fact[]; data: { calculationId: number } };
+        const best = plan.facts.find((f) => f.id.endsWith("_bestOptionId"));
+        return toolCall(2, "propose_action", {
+          type: "purchase_order",
+          calculationId: plan.data.calculationId,
+          optionId: best?.value,
+          factRefs: [best?.id],
+          rationale: "Lowest total delivered cost.",
+        });
+      },
+      scriptedMessage(3, [], "refusal"),
+    ]);
+    await expect(runAgent(deps, DEMO_QUESTION)).rejects.toBeInstanceOf(AgentError);
+    const [assistant] = await db<{ id: number; content: { error: string } }[]>`
+      select id, content from messages where role = 'assistant' order by id desc limit 1`;
+    expect(assistant?.content.error).toMatch(/refusal/);
+    const recs = await db<{ status: string; message_id: number | null }[]>`
+      select status, message_id from recommendations`;
+    expect(recs).toEqual([{ status: "pending", message_id: assistant?.id }]);
+  });
+
+  it("a recommendation made in a withheld ask is linked to the ask's message", async () => {
+    const { deps } = scriptedDeps([
+      toolCall(1, "plan_bunkering", { vessel: "Aegean Pioneer" }),
+      (req: ScriptedRequest) => {
+        const plan = lastToolResult(req) as { facts: Fact[]; data: { calculationId: number } };
+        const best = plan.facts.find((f) => f.id.endsWith("_bestOptionId"));
+        return toolCall(2, "propose_action", {
+          type: "purchase_order",
+          calculationId: plan.data.calculationId,
+          optionId: best?.value,
+          factRefs: [best?.id],
+          rationale: "Lowest total delivered cost.",
+        });
+      },
+      textReply(3, "Kestrel saves about 8,000 dollars."),
+      textReply(4, "Kestrel saves eight thousand dollars."),
+    ]);
+    const res = await runAgent(deps, DEMO_QUESTION);
+    expect(res.answer).toBeNull();
+    expect(res.gate.ungroundedNumbers).toEqual(["eight thousand"]);
+    const recs = await db<{ message_id: number | null }[]>`select message_id from recommendations`;
+    expect(recs).toEqual([{ message_id: res.messageId }]);
+  });
+
+  it("a truncated answer fails the ask with AgentError", async () => {
+    const { deps } = scriptedDeps([
+      scriptedMessage(1, [{ type: "text", text: "Bunk" }], "max_tokens"),
+    ]);
+    await expect(runAgent(deps, "Where?")).rejects.toThrow(/max_tokens/);
+  });
+
+  it("an unknown conversation id is rejected before any model call", async () => {
+    const { deps, requests } = scriptedDeps([]);
+    await expect(runAgent(deps, "Where?", 4242)).rejects.toBeInstanceOf(ConversationNotFoundError);
+    expect(requests).toHaveLength(0);
+  });
+
+  it("replays the recorded demo ask: gate passes, Kestrel is proposed, every number is cited", async () => {
+    const llm = createLlm({
+      mode: "replay",
+      recordingsDir: DEFAULT_RECORDINGS_DIR,
+      onCall: captureLlmCall,
+      fetch: throwingFetch,
+    });
+    const deps: AgentDeps = {
+      sql: db,
+      llm,
+      config: ASK_RECORDING_CONFIG,
+      now: () => ASK_FIXTURE_NOW,
+    };
+    const res = AskResult.parse(await runAgent(deps, DEMO_QUESTION));
+    expect(res.gate.passed).toBe(true);
+    expect(res.answer).not.toBeNull();
+    expect(uncitedNumbers(res.answer ?? "", res.facts)).toEqual([]);
+    expect(res.recommendationIds).toHaveLength(1);
+    const [rec] = await db<{ status: string; option_id: string; type: string }[]>`
+      select status, option_id, type from recommendations where id = ${res.recommendationIds[0] ?? 0}`;
+    expect(rec).toEqual({ status: "pending", option_id: "MTMLA-kestrel", type: "purchase_order" });
+    const modes = await db<{ mode: string }[]>`select mode from llm_calls`;
+    expect(modes.length).toBe(res.llmCallIds.length);
+    expect(modes.every((m) => m.mode === "replay")).toBe(true);
+  });
+});
+
+/** The parsed result of the last call to `tool` in a request's history. */
+function lastToolResultOf(req: ScriptedRequest, tool: string): { facts: Fact[]; data: unknown } {
+  const uses = new Map<string, string>();
+  for (const m of req.messages) {
+    if (!Array.isArray(m.content)) continue;
+    for (const b of m.content as { type: string; id?: string; name?: string }[]) {
+      if (b.type === "tool_use" && b.id && b.name) uses.set(b.id, b.name);
+    }
+  }
+  for (const m of [...req.messages].reverse()) {
+    if (!Array.isArray(m.content)) continue;
+    const blocks = m.content as { type: string; tool_use_id?: string; content?: unknown }[];
+    for (const b of [...blocks].reverse()) {
+      if (b.type !== "tool_result" || uses.get(b.tool_use_id ?? "") !== tool) continue;
+      return lastToolResult({ ...req, messages: [{ role: "user", content: [b] }] }) as {
+        facts: Fact[];
+        data: unknown;
+      };
+    }
+  }
+  throw new Error(`no ${tool} result in the request`);
+}

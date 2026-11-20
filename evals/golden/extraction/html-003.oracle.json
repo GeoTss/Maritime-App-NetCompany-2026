@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Atlantic Shelf Fuels",
+    "evidence": "For and on behalf of Atlantic Shelf Fuels"
+  },
+  "vesselName": {
+    "value": "ATLANTIC MERIDIAN",
+    "evidence": "Vessel name          ATLANTIC MERIDIAN (IMO 9485069)"
+  },
+  "vesselImo": {
+    "value": "9485069",
+    "evidence": "Vessel name          ATLANTIC MERIDIAN (IMO 9485069)"
+  },
+  "port": {
+    "value": "Sines",
+    "evidence": "Location             Sines (PTSIE)"
+  },
+  "deliveryFrom": {
+    "asWritten": "18 Nov +/- 1 day",
+    "evidence": "Delivery window      18 Nov +/- 1 day"
+  },
+  "deliveryTo": {
+    "asWritten": "18 Nov +/- 1 day",
+    "evidence": "Delivery window      18 Nov +/- 1 day"
+  },
+  "validUntil": {
+    "asWritten": "15/11",
+    "evidence": "Prices valid until   15/11"
+  },
+  "bargeFee": {
+    "value": 2100,
+    "currency": "US$",
+    "perUnit": "lumpsum",
+    "asWritten": "US$ 2,100 lumpsum",
+    "evidence": "Barge fee            US$ 2,100 lumpsum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "HSFO",
+        "evidence": "Grade                HSFO"
+      },
+      "quantity": {
+        "value": 300,
+        "unit": "metric tonnes",
+        "asWritten": "300 metric tonnes",
+        "evidence": "Quantity             300 metric tonnes"
+      },
+      "price": {
+        "value": 497,
+        "currency": "$",
+        "perUnit": "/mt",
+        "asWritten": "$497.00/mt",
+        "evidence": "Offer price          $497.00/mt"
+      }
+    }
+  ],
+  "notes": null
+}

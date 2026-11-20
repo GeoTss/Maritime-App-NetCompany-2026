@@ -1,0 +1,54 @@
+{
+  "kind": "security_quote",
+  "providerName": {
+    "value": "Aegis Watch Maritime",
+    "evidence": "For and on behalf of Aegis Watch Maritime"
+  },
+  "vesselName": {
+    "value": "MT Atlantic Meridian",
+    "evidence": "Vessel: MT Atlantic Meridian (IMO 9485069)"
+  },
+  "vesselImo": {
+    "value": "9485069",
+    "evidence": "Vessel: MT Atlantic Meridian (IMO 9485069)"
+  },
+  "embarkPort": {
+    "value": "Djibouti",
+    "evidence": "Team boards at: off Djibouti"
+  },
+  "disembarkPort": {
+    "value": "Durban",
+    "evidence": "Disembarkation point: Durban (ZADUR)"
+  },
+  "teamSize": {
+    "value": 4,
+    "unit": "armed guards",
+    "asWritten": "4 armed guards",
+    "evidence": "Team size: 4 armed guards"
+  },
+  "dayRate": {
+    "value": 1050,
+    "currency": "USD",
+    "perUnit": "per day",
+    "asWritten": "USD 1,050 per day",
+    "evidence": "Day rate: USD 1,050 per day"
+  },
+  "fixedFees": {
+    "value": 6500,
+    "currency": "US$",
+    "perUnit": "one-off",
+    "asWritten": "US$ 6,500 one-off",
+    "evidence": "Fixed charges: US$ 6,500 one-off"
+  },
+  "minDays": {
+    "value": 5,
+    "unit": "days",
+    "asWritten": "5 days",
+    "evidence": "Minimum: 5 days"
+  },
+  "validUntil": {
+    "asWritten": "Nov 20, 2026",
+    "evidence": "Offer valid until: Nov 20, 2026"
+  },
+  "notes": null
+}

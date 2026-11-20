@@ -1,0 +1,27 @@
+{
+  "id": "html-002",
+  "tags": ["html", "layout:grid", "vessel:name-imo", "window:two", "barge:lump_sum"],
+  "source": "generated",
+  "expected": {
+    "kind": "quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": {
+      "vesselImo": "9481025",
+      "portUnlocode": "ITGOA",
+      "supplierKey": "meridian",
+      "currency": "USD",
+      "validUntil": "2026-11-16",
+      "deliveryFrom": "2026-11-17",
+      "deliveryTo": "2026-11-19",
+      "bargeFee": 2200,
+      "lines": [
+        {
+          "grade": "LSMGO",
+          "qtyMt": 175,
+          "pricePerMt": 730.25
+        }
+      ]
+    }
+  }
+}

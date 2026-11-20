@@ -1,0 +1,731 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pharos walking skeleton</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --text: #1d2330; --muted: #5c6577; --line: #dde1e8;
+    --accent: #1f5fbf; --accent-text: #ffffff; --ok: #1d7a46; --ok-bg: #e3f4ea;
+    --warn: #8a5a00; --warn-bg: #fdf1d8; --bad: #a3262a; --bad-bg: #fbe6e6;
+    --chip: #eef2f9; --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151b; --panel: #1b1f27; --text: #e4e7ee; --muted: #9aa3b5; --line: #2e3440;
+      --accent: #5b93e6; --accent-text: #0d1117; --ok: #6fd39b; --ok-bg: #173325;
+      --warn: #f0c46b; --warn-bg: #3a2e14; --bad: #f08a8d; --bad-bg: #3d1c1e; --chip: #262c38;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  header { padding: 14px 16px; border-bottom: 1px solid var(--line); background: var(--panel); }
+  header h1 { margin: 0; font-size: 17px; }
+  header p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+  main {
+    display: grid; gap: 14px; padding: 14px 16px; max-width: 1280px; margin: 0 auto;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 560px), 1fr));
+  }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; min-width: 0; }
+  section.wide { grid-column: 1 / -1; }
+  h2 { margin: 0 0 8px; font-size: 15px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; white-space: nowrap; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  button {
+    font: inherit; border-radius: 6px; border: 1px solid var(--line); background: var(--panel);
+    color: var(--text); padding: 5px 11px; cursor: pointer;
+  }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+  button:disabled { opacity: 0.55; cursor: progress; }
+  textarea { width: 100%; font: inherit; padding: 7px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--text); resize: vertical; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 6px 0; }
+  .muted { color: var(--muted); }
+  .note { color: var(--muted); font-size: 13px; }
+  .error { color: var(--bad); font-size: 13px; }
+  .badge { display: inline-block; padding: 1px 7px; border-radius: 10px; font-size: 12px; background: var(--chip); color: var(--muted); white-space: nowrap; }
+  .badge.ok { background: var(--ok-bg); color: var(--ok); }
+  .badge.warn { background: var(--warn-bg); color: var(--warn); }
+  .badge.bad { background: var(--bad-bg); color: var(--bad); }
+  .answer { white-space: pre-wrap; margin: 8px 0; padding: 9px 11px; border-left: 3px solid var(--accent); background: var(--bg); border-radius: 4px; }
+  .withheld { margin: 8px 0; padding: 9px 11px; border-left: 3px solid var(--bad); background: var(--bad-bg); border-radius: 4px; }
+  .withheld ul { margin: 4px 0 0; padding-left: 18px; font-family: var(--mono); font-size: 12px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+  .chip { background: var(--chip); border: 1px solid transparent; border-radius: 14px; padding: 2px 10px; font-size: 12px; text-align: left; }
+  .chip[aria-expanded="true"] { border-color: var(--accent); }
+  .chip b { font-variant-numeric: tabular-nums; }
+  .provenance { font-size: 12px; padding: 7px 9px; border: 1px dashed var(--line); border-radius: 6px; margin: 4px 0 8px; }
+  .provenance code { font-family: var(--mono); }
+  .card { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin: 8px 0; }
+  .card p { margin: 4px 0; }
+  .po { font-family: var(--mono); font-weight: 600; }
+  .checks { margin: 4px 0; padding-left: 18px; }
+  .checks li { margin: 2px 0; }
+  details.evidence { margin: 4px 0; font-size: 12px; }
+  details.evidence ul { margin: 4px 0; padding-left: 18px; }
+  .fields { display: grid; gap: 6px 10px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin: 6px 0; }
+  .fields label { display: grid; gap: 2px; font-size: 12px; color: var(--muted); }
+  .fields.line { grid-template-columns: 1fr 1fr 1fr auto; align-items: end; }
+  input, select { font: inherit; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--text); min-width: 0; width: 100%; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Pharos · bunker-to-berth walking skeleton</h1>
+  <p id="health">Checking the API…</p>
+</header>
+<main>
+  <section>
+    <h2>Inbox</h2>
+    <div class="row">
+      <button id="deliver" class="primary" type="button">Deliver next email</button>
+      <span id="deliver-note" class="note"></span>
+    </div>
+    <div class="scroll"><table>
+      <thead><tr><th>#</th><th>Received</th><th>From</th><th>Subject</th><th>Status</th></tr></thead>
+      <tbody id="inbox"></tbody>
+    </table></div>
+    <p id="inbox-note" class="note"></p>
+  </section>
+
+  <section>
+    <h2>Quotes</h2>
+    <div class="scroll"><table>
+      <thead><tr>
+        <th>#</th><th>Supplier</th><th>Port</th><th>Grade</th><th class="num">Qty (mt)</th>
+        <th class="num">Price / mt</th><th class="num">Barge fee</th><th>Status</th><th>Email</th>
+      </tr></thead>
+      <tbody id="quotes"></tbody>
+    </table></div>
+    <p id="quotes-note" class="note"></p>
+  </section>
+
+  <section>
+    <h2>Ask</h2>
+    <textarea id="question" rows="2" aria-label="Question">Where should Aegean Pioneer bunker, and who should we buy from?</textarea>
+    <div class="row">
+      <button id="ask" class="primary" type="button">Ask</button>
+      <button id="new-conversation" type="button">New conversation</button>
+      <span id="ask-note" class="note"></span>
+    </div>
+    <div id="answer"></div>
+  </section>
+
+  <section>
+    <h2>Recommendations</h2>
+    <div id="recommendations"></div>
+    <p id="recommendations-note" class="note"></p>
+  </section>
+
+  <section class="wide">
+    <h2>Review queue</h2>
+    <div id="review"></div>
+    <p id="review-note" class="note"></p>
+  </section>
+
+  <section class="wide">
+    <h2>Model calls</h2>
+    <div class="scroll"><table>
+      <thead><tr>
+        <th>#</th><th>At</th><th>Purpose</th><th>Model</th><th>Mode</th><th class="num">Latency (s)</th>
+        <th class="num">Input tok</th><th class="num">Output tok</th><th class="num">Cache read</th>
+        <th class="num">Cache write</th><th class="num">Cost (USD)</th><th>Stop</th>
+      </tr></thead>
+      <tbody id="llm-calls"></tbody>
+    </table></div>
+    <p id="llm-calls-note" class="note"></p>
+  </section>
+</main>
+
+<script>
+"use strict";
+// Every string from the API (email senders and subjects, answer text, labels) is rendered as text
+// through el()/textContent, never parsed as markup.
+
+const $ = (id) => document.getElementById(id);
+const say = (id, text) => {
+  $(id).textContent = text;
+};
+
+function el(tag, props, ...children) {
+  const node = document.createElement(tag);
+  for (const [key, value] of Object.entries(props || {})) {
+    if (key === "class") node.className = value;
+    else if (key.startsWith("on")) node.addEventListener(key.slice(2), value);
+    else node.setAttribute(key, value);
+  }
+  for (const child of children.flat()) {
+    if (child === null || child === undefined || child === false) continue;
+    node.append(child instanceof Node ? child : String(child));
+  }
+  return node;
+}
+
+async function api(path, options) {
+  try {
+    const res = await fetch(path, options);
+    const body = await res.json().catch(() => null);
+    return { ok: res.ok, status: res.status, body, headers: res.headers };
+  } catch (err) {
+    return { ok: false, status: 0, body: { error: "network", message: String(err) }, headers: new Headers() };
+  }
+}
+
+const postJson = (path, body) =>
+  api(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+
+const errorText = (r) =>
+  (r.body && (r.body.message || r.body.error)) || (r.status ? `HTTP ${r.status}` : "network error");
+
+const fmtNumber = (n, digits = 2) => n.toLocaleString("en-US", { maximumFractionDigits: digits });
+const fmtValue = (v) => (typeof v === "number" ? fmtNumber(v) : typeof v === "boolean" ? (v ? "yes" : "no") : String(v));
+const fmtTime = (iso) => (iso ? new Date(iso).toLocaleString() : "—");
+
+const GOOD = new Set(["extracted", "accepted", "received", "ordered", "executed", "synced", "approved", "passed"]);
+const WAIT = new Set(["pending", "executing"]);
+const BAD = new Set(["needs_review", "failed", "rejected", "expired", "not_a_quote", "withheld"]);
+function badge(status) {
+  const tone = GOOD.has(status) ? "ok" : WAIT.has(status) ? "warn" : BAD.has(status) ? "bad" : "";
+  return el("span", { class: `badge ${tone}` }, String(status).replace(/_/g, " "));
+}
+
+// ---------- facts ----------
+
+function provenanceText(p) {
+  switch (p.source) {
+    case "calculation": return `calculation #${p.calculationId} (${p.calculator}), ${p.path}`;
+    case "db": return `database ${p.table} #${p.rowId}, ${p.field}`;
+    case "document": return `document #${p.documentId}, extraction #${p.extractionId}, ${p.field}: "${p.evidence}"`;
+    case "ais": return `AIS position of MMSI ${p.mmsi} at ${p.ts}`;
+    case "weather": return `weather snapshot #${p.snapshotId}, model run ${p.modelRun}`;
+    case "derived": return `derived: ${p.operation} of ${p.operands.join(", ")}`;
+    default: return JSON.stringify(p);
+  }
+}
+
+/** Clickable chips (label, value, unit); a click shows the fact's provenance below them. */
+function factChips(facts) {
+  const detail = el("div");
+  let open = null;
+  const chips = facts.map((f) => {
+    const chip = el(
+      "button",
+      { class: "chip", type: "button", "aria-expanded": "false" },
+      el("span", { class: "muted" }, `${f.label}: `),
+      el("b", {}, fmtValue(f.value)),
+      f.unit ? ` ${f.unit}` : "",
+    );
+    chip.addEventListener("click", () => {
+      if (open) open.setAttribute("aria-expanded", "false");
+      if (open === chip) {
+        open = null;
+        detail.replaceChildren();
+        return;
+      }
+      open = chip;
+      chip.setAttribute("aria-expanded", "true");
+      detail.replaceChildren(
+        el(
+          "div",
+          { class: "provenance" },
+          el("div", {}, el("b", {}, f.label), " = ", fmtValue(f.value), f.unit ? ` ${f.unit}` : ""),
+          el("div", {}, "Source: ", provenanceText(f.provenance)),
+          el("div", { class: "muted" }, "Fact id: ", el("code", {}, f.id)),
+        ),
+      );
+    });
+    return chip;
+  });
+  return el("div", {}, el("div", { class: "chips" }, chips), detail);
+}
+
+// ---------- state ----------
+
+const state = {
+  inbox: [],
+  conversationId: null,
+  /** recommendation id -> error of the last approve/reject from this page. */
+  decisionErrors: new Map(),
+};
+
+// ---------- inbox & quotes ----------
+
+async function loadInbox() {
+  const r = await api("/api/inbox");
+  if (!r.ok) return say("inbox-note", `Could not load the inbox: ${errorText(r)}`);
+  state.inbox = r.body.items;
+  $("inbox").replaceChildren(
+    ...r.body.items.map((i) =>
+      el("tr", {},
+        el("td", {}, i.documentId),
+        el("td", {}, fmtTime(i.receivedAt)),
+        el("td", {}, i.sender || "—"),
+        el("td", {}, i.subject || "(no subject)"),
+        el("td", {}, badge(i.extractionStatus)),
+      ),
+    ),
+  );
+  const pending = r.body.items.some((i) => i.extractionStatus === "pending");
+  $("inbox-note").textContent = [
+    r.body.items.length === 0 ? "No emails yet." : "",
+    pending ? "Extracting… refreshing every 2 s." : "",
+  ].filter(Boolean).join(" ");
+}
+
+async function loadQuotes() {
+  const r = await api("/api/quotes");
+  if (!r.ok) return say("quotes-note", `Could not load quotes: ${errorText(r)}`);
+  const rows = [];
+  for (const q of r.body.items) {
+    const lines = q.lines.length > 0 ? q.lines : [null];
+    for (const l of lines) {
+      rows.push(
+        el("tr", {},
+          el("td", {}, q.id),
+          el("td", {}, q.supplierName),
+          el("td", {}, q.portName),
+          el("td", {}, l ? l.grade : "—"),
+          el("td", { class: "num" }, l && l.qtyMt !== null ? fmtNumber(l.qtyMt) : "—"),
+          el("td", { class: "num" }, l ? `${q.currency} ${fmtNumber(l.pricePerMt)}` : "—"),
+          el("td", { class: "num" }, `${q.currency} ${fmtNumber(q.bargeFee)}`),
+          el("td", {}, badge(q.status)),
+          el("td", {}, q.documentId === null ? "—" : `#${q.documentId}`),
+        ),
+      );
+    }
+  }
+  $("quotes").replaceChildren(...rows);
+  $("quotes-note").textContent = r.body.items.length === 0 ? "No quotes yet." : "";
+}
+
+$("deliver").addEventListener("click", async () => {
+  const button = $("deliver");
+  button.disabled = true;
+  const r = await postJson("/api/inbox/deliver-next", {});
+  button.disabled = false;
+  if (r.ok) {
+    const left = r.body.remaining;
+    $("deliver-note").textContent =
+      `Delivered email #${r.body.documentId}${r.body.duplicate ? " (already stored)" : ""}; ${left} demo email${left === 1 ? "" : "s"} left.`;
+  } else if (r.status === 409) {
+    $("deliver-note").textContent = "No more demo emails to deliver.";
+  } else {
+    $("deliver-note").textContent = `Delivery failed: ${errorText(r)}`;
+  }
+  refresh();
+});
+
+// ---------- ask ----------
+
+function gateLine(gate) {
+  if (gate.passed) {
+    return el("p", { class: "note" }, badge("passed"), " Release gate: every number is a fact", gate.repaired ? " (after one repair turn)." : ".");
+  }
+  return el(
+    "div",
+    { class: "withheld" },
+    el("b", {}, "Answer withheld by the release gate."),
+    el("div", {}, `${gate.ungroundedCount} number${gate.ungroundedCount === 1 ? "" : "s"} had no fact.`),
+  );
+}
+
+/** Reads POST /api/ask/stream; calls onEvent for each parsed SSE event. Rejects on a non-200. */
+async function streamAsk(body, onEvent) {
+  const res = await fetch("/api/ask/stream", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    throw new Error((err && (err.message || err.error)) || `HTTP ${res.status}`);
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  const flush = (block) => {
+    const data = block.split("\n").filter((l) => l.startsWith("data:")).map((l) => l.slice(5).trim()).join("");
+    if (data) onEvent(JSON.parse(data));
+  };
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const blocks = buffer.split("\n\n");
+    buffer = blocks.pop();
+    blocks.forEach(flush);
+  }
+  if (buffer.trim()) flush(buffer);
+}
+
+function showAnswer(res) {
+  state.conversationId = res.conversationId;
+  $("ask-note").textContent = `Conversation #${res.conversationId}.`;
+  $("answer").replaceChildren(
+    res.answer === null ? el("div") : el("div", { class: "answer" }, res.answer),
+    gateLine(res.gate),
+    res.facts.length > 0 ? el("p", { class: "note" }, "Facts from the tools (click one for its source):") : "",
+    factChips(res.facts),
+    res.recommendationIds.length > 0
+      ? el("p", { class: "note" }, `Proposed recommendation #${res.recommendationIds.join(", #")} below; nothing is ordered until you approve.`)
+      : "",
+  );
+}
+
+$("ask").addEventListener("click", async () => {
+  const question = $("question").value.trim();
+  if (!question) return say("ask-note", "Type a question first.");
+  const button = $("ask");
+  button.disabled = true;
+  $("ask-note").textContent = "Asking the agent… this can take up to a minute.";
+  const lines = el("ul", { class: "note" });
+  $("answer").replaceChildren(lines);
+  let answered = false;
+  try {
+    await streamAsk({ question, conversationId: state.conversationId }, (event) => {
+      if (event.type === "progress") {
+        const text = event.phase === "started" ? `${event.tool}: running…` : `${event.tool}: done in ${event.ms} ms`;
+        lines.append(el("li", {}, text));
+      } else if (event.type === "answer") {
+        answered = true;
+        showAnswer(event.response);
+      } else if (event.type === "error") {
+        answered = true;
+        $("ask-note").textContent = "";
+        $("answer").replaceChildren(el("p", { class: "error" }, `Ask failed: ${event.message}`));
+      }
+    });
+    if (!answered) throw new Error("the stream ended without an answer");
+  } catch (err) {
+    $("ask-note").textContent = "";
+    $("answer").replaceChildren(el("p", { class: "error" }, `Ask failed: ${err.message}`));
+  }
+  button.disabled = false;
+  refresh();
+});
+
+$("new-conversation").addEventListener("click", () => {
+  state.conversationId = null;
+  $("answer").replaceChildren();
+  $("ask-note").textContent = "New conversation.";
+});
+
+// ---------- recommendations ----------
+
+// Gate origin and order state come from the recommendation itself, so they survive a reload.
+function gateOrigin(rec) {
+  if (rec.gatePassed === null) return el("p", { class: "note" }, "Not proposed through an ask.");
+  if (rec.gatePassed) return el("p", { class: "note" }, badge("passed"), " Proposed in an answer that passed the release gate.");
+  return el("p", { class: "error" }, badge("withheld"), " Proposed in an answer the release gate withheld. Check the facts before approving.");
+}
+
+function orderLine(rec) {
+  const order = rec.order;
+  if (!order) return null;
+  if (order.erpSyncStatus === "synced") {
+    return el("p", {}, "Purchase order ", el("span", { class: "po" }, order.erpPoNumber || "(no number)"), " confirmed by the ERP ", badge("synced"), ".");
+  }
+  if (order.erpSyncStatus === "failed") {
+    return el("p", { class: "error" }, `Approved and order #${order.orderId} written, but the ERP push failed. Retry pushes it again with the same key.`);
+  }
+  return el("p", { class: "note" }, `Approved and order #${order.orderId} written; the ERP has not confirmed it yet. Retry pushes it with the same key.`);
+}
+
+const DECISION_PATHS = { approve: "/approve", reject: "/reject" };
+
+async function decide(rec, action, button) {
+  button.disabled = true;
+  const r = await postJson(`/api/recommendations/${rec.id}${DECISION_PATHS[action]}`, {});
+  if (r.ok) state.decisionErrors.delete(rec.id);
+  else state.decisionErrors.set(rec.id, `${action === "approve" ? "Approve" : "Reject"} failed: ${errorText(r)}`);
+  refresh();
+}
+
+/** The drafted messages, read-only; filled in after the card renders. Pharos never sends them. */
+function draftsBox(rec) {
+  const box = el("div", {}, el("p", { class: "note" }, "Drafts for you to review and send yourself (Pharos sends nothing):"));
+  api(`/api/recommendations/${rec.id}/drafts`).then((r) => {
+    if (!r.ok) return box.append(el("p", { class: "error" }, `Could not load drafts: ${errorText(r)}`));
+    for (const d of r.body.items) {
+      box.append(
+        el("div", { class: "card" },
+          el("div", { class: "row" }, el("b", {}, d.kind.replace(/_/g, " ")), badge(d.status), el("span", { class: "muted" }, `to ${d.to}`)),
+          el("div", {}, el("b", {}, d.subject)),
+          el("pre", {}, d.body),
+        ),
+      );
+    }
+  });
+  return box;
+}
+
+function recommendationCard(rec) {
+  const actions = [];
+  if (rec.status === "pending" || rec.status === "failed") {
+    const label = rec.status === "failed" ? "Retry ERP push" : rec.gatePassed === false ? "Approve anyway" : "Approve";
+    const approve = el("button", { class: "primary", type: "button" }, label);
+    approve.addEventListener("click", () => decide(rec, "approve", approve));
+    actions.push(approve);
+  }
+  if (rec.status === "pending") {
+    const reject = el("button", { type: "button" }, "Reject");
+    reject.addEventListener("click", () => decide(rec, "reject", reject));
+    actions.push(reject);
+  }
+  return el(
+    "div",
+    { class: "card" },
+    el("div", { class: "row" }, el("b", {}, `#${rec.id}`), badge(rec.status), el("span", { class: "muted" }, rec.type.replace(/_/g, " "))),
+    el("p", {}, rec.summary),
+    gateOrigin(rec),
+    factChips(rec.facts),
+    orderLine(rec),
+    rec.status === "executed" ? draftsBox(rec) : null,
+    state.decisionErrors.has(rec.id) ? el("p", { class: "error" }, state.decisionErrors.get(rec.id)) : null,
+    actions.length > 0 ? el("div", { class: "row" }, actions) : null,
+  );
+}
+
+async function loadRecommendations() {
+  const r = await api("/api/recommendations");
+  if (!r.ok) return say("recommendations-note", `Could not load recommendations: ${errorText(r)}`);
+  $("recommendations").replaceChildren(...r.body.items.map(recommendationCard));
+  $("recommendations-note").textContent =
+    r.body.items.length === 0 ? "None yet. Ask where to bunker; the agent can propose an order for you to approve." : "";
+}
+
+// ---------- review queue ----------
+
+// Extractions a person has to decide: doubtful ones (needs review) and failed ones. The Accept form
+// starts from what the code read from the email; whatever the person submits is stored as is.
+let reviewReference = null;
+let reviewSignature = null;
+
+const isProcessingFailure = (item) => item.failedChecks.some((c) => c.check === "processing");
+
+// A failed decision shows its reason in the card and leaves the form as the person filled it.
+async function decideReview(item, action, body, button, message) {
+  button.disabled = true;
+  const r = await postJson(`/api/review/${item.extractionId}/${action}`, body);
+  if (!r.ok) {
+    button.disabled = false;
+    message.textContent = `${action} failed: ${errorText(r)}`;
+    return;
+  }
+  reviewSignature = null;
+  refresh();
+}
+
+function selectOf(name, label, options, selected) {
+  const select = el("select", { "data-field": name },
+    el("option", { value: "" }, "— choose —"),
+    ...options.map(([value, text]) => el("option", { value: String(value) }, text)),
+  );
+  select.value = selected === null || selected === undefined ? "" : String(selected);
+  return el("label", {}, label, select);
+}
+
+function inputOf(name, label, type, value) {
+  const input = el("input", { "data-field": name, type });
+  if (type === "number") input.setAttribute("step", "any");
+  input.value = value === null || value === undefined ? "" : String(value);
+  return el("label", {}, label, input);
+}
+
+function lineRow(grades, line, container) {
+  const row = el("div", { class: "fields line" },
+    selectOf("grade", "Grade", grades.map((g) => [g, g]), line.grade),
+    inputOf("qtyMt", "Quantity (mt)", "number", line.qtyMt),
+    inputOf("pricePerMt", "Price per mt", "number", line.pricePerMt),
+  );
+  const remove = el("button", { type: "button" }, "Remove");
+  remove.addEventListener("click", () => {
+    if (container.children.length > 1) row.remove();
+  });
+  row.append(remove);
+  return row;
+}
+
+const GRADES = ["LSMGO", "VLSFO", "HSFO"];
+
+/** The Accept form, prefilled from `item.normalised`. Null fields stay empty until filled. */
+function acceptForm(item, ref, message) {
+  const n = item.normalised;
+  const vessel = ref.vessels.find((v) => v.id === n.vesselId);
+  const port = ref.ports.find((p) => p.id === n.portId);
+  const root = el("div", { class: "accept" });
+  const lines = el("div");
+  for (const line of n.lines.length > 0 ? n.lines : [{ grade: null, qtyMt: null, pricePerMt: null }]) {
+    lines.append(lineRow(GRADES, line, lines));
+  }
+  const submit = el("button", { class: "primary", type: "button" }, "Accept with these values");
+  const addLine = el("button", { type: "button" }, "Add line");
+  addLine.addEventListener("click", () =>
+    lines.append(lineRow(GRADES, { grade: null, qtyMt: null, pricePerMt: null }, lines)),
+  );
+  submit.addEventListener("click", () => {
+    const got = (scope, name) => scope.querySelector(`[data-field="${name}"]`).value.trim();
+    const num = (text) => (text === "" ? NaN : Number(text));
+    const body = {
+      vesselImo: got(root, "vesselImo"),
+      portUnlocode: got(root, "portUnlocode"),
+      supplierId: num(got(root, "supplierId")),
+      currency: got(root, "currency"),
+      validUntil: got(root, "validUntil") || null,
+      deliveryFrom: got(root, "deliveryFrom") || null,
+      deliveryTo: got(root, "deliveryTo") || null,
+      bargeFee: num(got(root, "bargeFee")),
+      lines: [...lines.children].map((row) => ({
+        grade: got(row, "grade"),
+        qtyMt: num(got(row, "qtyMt")),
+        pricePerMt: num(got(row, "pricePerMt")),
+      })),
+    };
+    const missing = [];
+    if (!body.vesselImo) missing.push("vessel");
+    if (!body.portUnlocode) missing.push("port");
+    if (!Number.isFinite(body.supplierId)) missing.push("supplier");
+    if (!body.currency) missing.push("currency");
+    if (!Number.isFinite(body.bargeFee) || body.bargeFee < 0) missing.push("barge fee");
+    body.lines.forEach((l, i) => {
+      if (!l.grade || !(l.qtyMt > 0) || !(l.pricePerMt > 0)) missing.push(`line ${i + 1}`);
+    });
+    if (missing.length > 0) {
+      message.textContent = `Fill in before accepting: ${missing.join(", ")}.`;
+      return;
+    }
+    message.textContent = "";
+    decideReview(item, "accept", body, submit, message);
+  });
+  root.append(
+    el("div", { class: "fields" },
+      selectOf("vesselImo", "Vessel", ref.vessels.map((v) => [v.imo, `${v.name} (${v.imo})`]), vessel ? vessel.imo : null),
+      selectOf("portUnlocode", "Port", ref.ports.map((p) => [p.unlocode, `${p.name} (${p.unlocode})`]), port ? port.unlocode : null),
+      selectOf("supplierId", "Supplier", ref.suppliers.map((s) => [s.id, s.name]), n.supplierId),
+      selectOf("currency", "Currency", ["USD", "EUR"].map((c) => [c, c]), n.currency),
+      inputOf("bargeFee", "Barge fee", "number", n.bargeFee),
+      inputOf("validUntil", "Valid until", "date", n.validUntil),
+      inputOf("deliveryFrom", "Delivery from", "date", n.deliveryFrom),
+      inputOf("deliveryTo", "Delivery to", "date", n.deliveryTo),
+    ),
+    lines,
+    el("div", { class: "row" }, submit, addLine),
+  );
+  return root;
+}
+
+function reviewCard(item, ref) {
+  const message = el("p", { class: "error" });
+  const reject = el("button", { type: "button" }, "Reject");
+  reject.addEventListener("click", () => decideReview(item, "reject", {}, reject, message));
+  const buttons = [reject];
+  if (isProcessingFailure(item)) {
+    const retry = el("button", { type: "button" }, "Retry extraction");
+    retry.addEventListener("click", () => decideReview(item, "retry", {}, retry, message));
+    buttons.push(retry);
+  }
+  const evidence = Object.entries(item.evidence);
+  return el(
+    "div",
+    { class: "card" },
+    el("div", { class: "row" }, el("b", {}, item.subject || "(no subject)"), badge(isProcessingFailure(item) ? "failed" : "needs_review")),
+    el("p", { class: "muted" }, `From ${item.sender || "—"} · received ${fmtTime(item.receivedAt)} · email #${item.documentId}`),
+    el("ul", { class: "checks" },
+      item.failedChecks.map((c) => el("li", {}, el("b", {}, c.check), c.detail ? `: ${c.detail}` : ""))),
+    evidence.length > 0
+      ? el("details", { class: "evidence" },
+          el("summary", {}, `Evidence (${evidence.length})`),
+          el("ul", {}, evidence.map(([field, text]) => el("li", {}, el("code", {}, field), `: ${text === null ? "—" : `"${text}"`}`))))
+      : null,
+    acceptForm(item, ref, message),
+    message,
+    el("div", { class: "row" }, buttons),
+  );
+}
+
+async function loadReview() {
+  const r = await api("/api/review");
+  if (!r.ok) return say("review-note", `Could not load the review queue: ${errorText(r)}`);
+  // Leave the cards alone while nothing changed, so a half-filled form survives the polling refresh.
+  const signature = JSON.stringify(r.body.items);
+  if (signature !== reviewSignature) {
+    if (reviewReference === null && r.body.items.length > 0) {
+      const ref = await api("/api/review/reference");
+      if (ref.ok) reviewReference = ref.body;
+    }
+    if (reviewReference !== null) {
+      $("review").replaceChildren(...r.body.items.map((i) => reviewCard(i, reviewReference)));
+      reviewSignature = signature;
+    }
+  }
+  $("review-note").textContent = r.body.items.length === 0 ? "Nothing is waiting for review." : "";
+}
+
+// ---------- model calls ----------
+
+async function loadLlmCalls() {
+  const r = await api("/api/llm-calls");
+  if (!r.ok) return say("llm-calls-note", `Could not load model calls: ${errorText(r)}`);
+  $("llm-calls").replaceChildren(
+    ...r.body.items.map((c) =>
+      el("tr", {},
+        el("td", {}, c.id),
+        el("td", {}, fmtTime(c.createdAt)),
+        el("td", {}, c.purpose),
+        el("td", {}, c.model),
+        el("td", {}, c.mode),
+        el("td", { class: "num" }, fmtNumber(c.latencyMs / 1000, 1)),
+        el("td", { class: "num" }, fmtNumber(c.inputTokens, 0)),
+        el("td", { class: "num" }, fmtNumber(c.outputTokens, 0)),
+        el("td", { class: "num" }, fmtNumber(c.cacheReadTokens, 0)),
+        el("td", { class: "num" }, fmtNumber(c.cacheWriteTokens, 0)),
+        el("td", { class: "num" }, fmtNumber(c.costUsd, 5)),
+        el("td", {}, c.stopReason || "—"),
+      ),
+    ),
+  );
+  $("llm-calls-note").textContent = r.body.items.length === 0 ? "No model calls recorded yet." : "";
+}
+
+// ---------- refresh & polling ----------
+
+async function loadHealth() {
+  const r = await api("/api/health");
+  $("health").textContent = r.ok
+    ? `API ${r.body.status} · LLM mode ${r.body.llmMode} · database ${r.body.db}`
+    : `API unreachable: ${errorText(r)}`;
+}
+
+let running = false;
+let queued = false;
+let timer = null;
+async function refresh() {
+  if (running) {
+    queued = true;
+    return;
+  }
+  running = true;
+  clearTimeout(timer);
+  try {
+    do {
+      queued = false;
+      await Promise.all([loadInbox(), loadQuotes(), loadReview(), loadRecommendations(), loadLlmCalls()]);
+    } while (queued);
+  } finally {
+    running = false;
+  }
+  // Poll while an extraction is still running.
+  if (state.inbox.some((i) => i.extractionStatus === "pending")) timer = setTimeout(refresh, 2000);
+}
+
+loadHealth();
+refresh();
+</script>
+</body>
+</html>

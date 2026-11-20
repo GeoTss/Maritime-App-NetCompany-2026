@@ -1,0 +1,27 @@
+{
+  "id": "forwarded-008",
+  "tags": ["forwarded", "style:gmail-forward", "vessel:name-imo", "window:dash", "barge:lump_sum"],
+  "source": "generated",
+  "expected": {
+    "kind": "quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": {
+      "vesselImo": "9485069",
+      "portUnlocode": "FRBES",
+      "supplierKey": "atlanticshelf",
+      "currency": "USD",
+      "validUntil": "2026-11-17",
+      "deliveryFrom": "2026-11-21",
+      "deliveryTo": "2026-11-24",
+      "bargeFee": 1850,
+      "lines": [
+        {
+          "grade": "HSFO",
+          "qtyMt": 300,
+          "pricePerMt": 491
+        }
+      ]
+    }
+  }
+}

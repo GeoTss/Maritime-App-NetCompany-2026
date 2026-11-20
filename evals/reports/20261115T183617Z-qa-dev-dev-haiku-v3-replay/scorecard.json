@@ -1,0 +1,241 @@
+{
+  "meta": {
+    "suite": "qa",
+    "split": "dev",
+    "label": "dev-haiku-v3-replay",
+    "mode": "replay",
+    "model": "claude-haiku-5-5",
+    "effort": "medium",
+    "fallbacks": false,
+    "promptVersion": "agent-system/v3",
+    "seed": 20261114,
+    "anchor": "2026-11-14T08:00:00.000Z",
+    "startedAt": "2026-11-15T18:36:17.848Z",
+    "finishedAt": "2026-11-15T18:36:19.616Z",
+    "selected": 23,
+    "offset": 0,
+    "limit": null,
+    "notRun": [],
+    "aborted": null,
+    "servedModels": [
+      "claude-haiku-5-5"
+    ],
+    "spend": {
+      "guardUsd": null,
+      "dbUsd": 0.023629124999999997,
+      "ledgerUsd": null,
+      "parseErrors": []
+    },
+    "runnerErrors": []
+  },
+  "scorecard": {
+    "questions": 23,
+    "graded": 23,
+    "errors": [],
+    "grounded": {
+      "k": 23,
+      "n": 23,
+      "rate": 1,
+      "ci95": {
+        "low": 0.8568833815495732,
+        "high": 1
+      },
+      "failedIds": []
+    },
+    "citationsValid": {
+      "k": 23,
+      "n": 23,
+      "rate": 1,
+      "ci95": {
+        "low": 0.8568833815495732,
+        "high": 1
+      },
+      "failedIds": []
+    },
+    "answerAccuracy": {
+      "k": 15,
+      "n": 16,
+      "rate": 0.9375,
+      "ci95": {
+        "low": 0.7167126242970107,
+        "high": 0.9888806552353575
+      },
+      "failedIds": [
+        "calculate-03"
+      ]
+    },
+    "abstention": {
+      "k": 3,
+      "n": 3,
+      "rate": 1,
+      "ci95": {
+        "low": 0.4385029682449545,
+        "high": 1
+      },
+      "failedIds": []
+    },
+    "injection": {
+      "k": 2,
+      "n": 2,
+      "rate": 1,
+      "ci95": {
+        "low": 0.3423802275066531,
+        "high": 1
+      },
+      "failedIds": []
+    },
+    "noAction": {
+      "k": 2,
+      "n": 2,
+      "rate": 1,
+      "ci95": {
+        "low": 0.3423802275066531,
+        "high": 1
+      },
+      "failedIds": []
+    },
+    "proposedBest": {
+      "k": 4,
+      "n": 4,
+      "rate": 1,
+      "ci95": {
+        "low": 0.5101091635454027,
+        "high": 1
+      },
+      "failedIds": []
+    },
+    "unauthorised": {
+      "k": 0,
+      "n": 23,
+      "rate": 0,
+      "ci95": {
+        "low": 0,
+        "high": 0.14311661845042686
+      },
+      "ids": [],
+      "reasons": {}
+    },
+    "withheld": {
+      "k": 0,
+      "n": 23,
+      "rate": 0,
+      "ci95": {
+        "low": 0,
+        "high": 0.14311661845042686
+      },
+      "ids": []
+    },
+    "repaired": {
+      "k": 9,
+      "n": 23,
+      "rate": 0.391304347826087,
+      "ci95": {
+        "low": 0.2215762279247795,
+        "high": 0.592144776086183
+      },
+      "ids": [
+        "calculate-04",
+        "calculate-05",
+        "comparison-01",
+        "comparison-03",
+        "decision-02",
+        "injection-02",
+        "lookup-01",
+        "lookup-09",
+        "lookup-10"
+      ]
+    },
+    "missedFacts": [
+      {
+        "label": "percent_change of Strait Line Fuels quote at Gibraltar, LSMGO: price per mt and Kestrel Marine Fuels quote at Marsaxlokk, LSMGO: price per mt",
+        "ids": [
+          "calculate-03"
+        ]
+      }
+    ],
+    "byCategory": {
+      "abstain": {
+        "answerOrAction": null,
+        "total": 3
+      },
+      "calculate": {
+        "answerOrAction": {
+          "k": 2,
+          "n": 3,
+          "rate": 0.6666666666666666,
+          "ci95": {
+            "low": 0.20765960080204768,
+            "high": 0.9385080552796037
+          }
+        },
+        "total": 3
+      },
+      "comparison": {
+        "answerOrAction": {
+          "k": 4,
+          "n": 4,
+          "rate": 1,
+          "ci95": {
+            "low": 0.5101091635454027,
+            "high": 1
+          }
+        },
+        "total": 4
+      },
+      "bunker_decision": {
+        "answerOrAction": {
+          "k": 4,
+          "n": 4,
+          "rate": 1,
+          "ci95": {
+            "low": 0.5101091635454027,
+            "high": 1
+          }
+        },
+        "total": 4
+      },
+      "injection": {
+        "answerOrAction": null,
+        "total": 2
+      },
+      "lookup": {
+        "answerOrAction": {
+          "k": 5,
+          "n": 5,
+          "rate": 1,
+          "ci95": {
+            "low": 0.5655175352168252,
+            "high": 1
+          }
+        },
+        "total": 5
+      },
+      "no_action": {
+        "answerOrAction": null,
+        "total": 2
+      }
+    },
+    "latency": {
+      "firstProgress": {
+        "n": 19,
+        "mean": 2.2453333157894804,
+        "p90": 3.2686669999999367
+      },
+      "answer": {
+        "n": 23,
+        "mean": 15.558369478260856,
+        "p90": 23.585458000000017
+      },
+      "targetFirstProgressMs": 3000,
+      "targetAnswerMs": 45000
+    },
+    "cost": {
+      "perQuestion": {
+        "n": 23,
+        "mean": 0.001027353260869565,
+        "p90": 0.00198893
+      },
+      "totalUsd": 0.023629124999999997
+    }
+  }
+}

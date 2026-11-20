@@ -1,0 +1,152 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "design-system-font",
+        "value": "*",
+        "files": [
+          "docs/design/ui-round/*.dc.html"
+        ],
+        "createdAt": "2026-11-17T02:59:14.343Z",
+        "reason": "Spec boards load Archivo from Google Fonts because the canvas cannot bundle fonts; the verbatim email stack is ruling U9's planned token"
+      },
+      {
+        "rule": "tiny-text",
+        "value": "*",
+        "files": [
+          "docs/design/ui-round/*.dc.html"
+        ],
+        "createdAt": "2026-11-17T02:59:14.356Z",
+        "reason": "11px is DESIGN.md's label and identifier step; boards are spec references"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "docs/design/ui-round/*.dc.html"
+        ],
+        "createdAt": "2026-11-17T02:59:14.370Z",
+        "reason": "Hairline-separated 28-32px rows per DESIGN.md's Hairline Rule; boards are spec references"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "*",
+        "files": [
+          "docs/design/ui-round/*.dc.html"
+        ],
+        "createdAt": "2026-11-17T02:59:14.384Z",
+        "reason": "Mock link hover, popover shadow and the planned --wave ramp (UI round Task 9); boards are spec references"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "*",
+        "files": [
+          "docs/design/ui-round/*.dc.html"
+        ],
+        "createdAt": "2026-11-17T02:59:14.397Z",
+        "reason": "14px wordmark and 18px dialog title sit in DESIGN.md's title range; boards are spec references"
+      },
+      {
+        "rule": "flat-type-hierarchy",
+        "value": "*",
+        "files": [
+          "docs/design/ui-round/Decision.dc.html"
+        ],
+        "createdAt": "2026-11-17T02:59:14.411Z",
+        "reason": "Dense queue headings in the mock; the app's panel-title hierarchy is UI round Task 12"
+      },
+      {
+        "rule": "design-system-font",
+        "value": "*",
+        "files": [
+          ".impeccable/mocks/decision/*.html"
+        ],
+        "createdAt": "2026-11-17T03:19:48.057Z",
+        "reason": "Visual-direction sketches deliberately explore fonts outside the current DESIGN.md"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "*",
+        "files": [
+          ".impeccable/mocks/decision/*.html"
+        ],
+        "createdAt": "2026-11-17T03:19:48.071Z",
+        "reason": "Visual-direction sketches deliberately explore palettes outside the current DESIGN.md"
+      },
+      {
+        "rule": "design-system-font",
+        "value": "*",
+        "files": [
+          "docs/design/signal-hoist/*.html"
+        ],
+        "createdAt": "2026-11-17T14:05:15.903Z",
+        "reason": "Spec sketches of the chosen Signal hoist world; DESIGN.md is rewritten from the build at finish"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "*",
+        "files": [
+          "docs/design/signal-hoist/*.html"
+        ],
+        "createdAt": "2026-11-17T14:05:15.919Z",
+        "reason": "Spec sketches of the chosen Signal hoist world; DESIGN.md is rewritten from the build at finish"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "docs/design/signal-hoist/*.html"
+        ],
+        "createdAt": "2026-11-17T14:08:19.600Z",
+        "reason": "Hairline-separated 28px rows and segmented choices with centred text; spec sketches"
+      },
+      {
+        "rule": "repeating-stripes-gradient",
+        "value": "*",
+        "files": [
+          "docs/design/signal-hoist/*.html"
+        ],
+        "createdAt": "2026-11-17T14:08:19.618Z",
+        "reason": "The ICS flag glyphs (N chequer, U quarters) are drawn with gradients; functional state marks, not decoration"
+      },
+      {
+        "rule": "shape-assembled-illustration",
+        "value": "*",
+        "files": [
+          "docs/design/signal-hoist/*.html"
+        ],
+        "createdAt": "2026-11-17T14:08:19.632Z",
+        "reason": "The sketch's map is a hand-placed SVG stand-in for the MapLibre map"
+      },
+      {
+        "rule": "tiny-text",
+        "value": "*",
+        "files": [
+          "docs/design/signal-hoist/*.html"
+        ],
+        "createdAt": "2026-11-17T14:08:19.649Z",
+        "reason": "11px is the label and identifier step of the Signal hoist scale"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "*",
+        "files": [
+          "docs/design/signal-hoist/*.html"
+        ],
+        "createdAt": "2026-11-17T14:08:19.664Z",
+        "reason": "20px is the new world's display step; DESIGN.md frontmatter moves to the new scale in UI round Task 9"
+      },
+      {
+        "rule": "flat-type-hierarchy",
+        "value": "*",
+        "files": [
+          "docs/design/signal-hoist/*.html"
+        ],
+        "createdAt": "2026-11-17T14:08:19.680Z",
+        "reason": "Dense operate sketches separate headings by weight; the build's panel-title hierarchy is UI round Task 12"
+      }
+    ]
+  }
+}

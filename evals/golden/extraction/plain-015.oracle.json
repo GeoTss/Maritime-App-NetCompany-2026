@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Harbourlight Energy",
+    "evidence": "Harbourlight Energy | Trading Desk"
+  },
+  "vesselName": {
+    "value": "NORDIC LANTERN",
+    "evidence": "NORDIC LANTERN / Hamburg anchorage / VLSFO 0.50% 225 mt @ $601.50/mt"
+  },
+  "vesselImo": {
+    "value": null,
+    "evidence": null
+  },
+  "port": {
+    "value": "Hamburg",
+    "evidence": "NORDIC LANTERN / Hamburg anchorage / VLSFO 0.50% 225 mt @ $601.50/mt"
+  },
+  "deliveryFrom": {
+    "asWritten": "19 Nov - 20 Nov 2026",
+    "evidence": "Delivery: 19 Nov - 20 Nov 2026"
+  },
+  "deliveryTo": {
+    "asWritten": "19 Nov - 20 Nov 2026",
+    "evidence": "Delivery: 19 Nov - 20 Nov 2026"
+  },
+  "validUntil": {
+    "asWritten": "15 November 2026",
+    "evidence": "Valid until: 15 November 2026"
+  },
+  "bargeFee": {
+    "value": null,
+    "currency": null,
+    "perUnit": null,
+    "asWritten": null,
+    "evidence": null
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "VLSFO 0.50%",
+        "evidence": "NORDIC LANTERN / Hamburg anchorage / VLSFO 0.50% 225 mt @ $601.50/mt"
+      },
+      "quantity": {
+        "value": 225,
+        "unit": "mt",
+        "asWritten": "225 mt",
+        "evidence": "NORDIC LANTERN / Hamburg anchorage / VLSFO 0.50% 225 mt @ $601.50/mt"
+      },
+      "price": {
+        "value": 601.5,
+        "currency": "$",
+        "perUnit": "/mt",
+        "asWritten": "$601.50/mt",
+        "evidence": "NORDIC LANTERN / Hamburg anchorage / VLSFO 0.50% 225 mt @ $601.50/mt"
+      }
+    }
+  ],
+  "notes": null
+}

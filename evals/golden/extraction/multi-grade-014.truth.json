@@ -1,0 +1,39 @@
+{
+  "id": "multi-grade-014",
+  "tags": [
+    "multi_grade",
+    "layout:text-grid",
+    "grades:LSMGO+VLSFO",
+    "vessel:name-imo",
+    "window:tolerance",
+    "barge:absent"
+  ],
+  "source": "generated",
+  "expected": {
+    "kind": "quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": {
+      "vesselImo": "9480019",
+      "portUnlocode": "NLRTM",
+      "supplierKey": "nordwind",
+      "currency": "USD",
+      "validUntil": "2026-11-16",
+      "deliveryFrom": "2026-11-23",
+      "deliveryTo": "2026-11-25",
+      "bargeFee": 0,
+      "lines": [
+        {
+          "grade": "LSMGO",
+          "qtyMt": 300,
+          "pricePerMt": 682
+        },
+        {
+          "grade": "VLSFO",
+          "qtyMt": 625,
+          "pricePerMt": 638.5
+        }
+      ]
+    }
+  }
+}

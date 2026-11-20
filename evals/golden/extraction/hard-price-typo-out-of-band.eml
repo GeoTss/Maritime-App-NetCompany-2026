@@ -1,0 +1,28 @@
+From: Pedro Ruiz - Strait Line Fuels <pedro.ruiz@straitline-fuels.example>
+To: Bunker Desk <bunker-desk@pharos-demo.example>
+Subject: Offer LSMGO MV Aegean Pioneer Gibraltar
+Date: Fri, 13 Nov 2026 16:45:00 +0000
+Message-ID: <a21920064898a61c77b7@straitline-fuels.example>
+MIME-Version: 1.0
+Content-Type: text/html; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"></head>
+<body style="font-family:Arial,sans-serif;font-size:13px">
+<p>Dear Bunker Desk,</p>
+<p>Thank you for your enquiry. We are pleased to offer as follows:</p>
+<table cellpadding="3">
+<tr><td><b>Vessel</b></td><td>MV Aegean Pioneer (IMO 9480019)</td></tr>
+<tr><td><b>Port</b></td><td>Gibraltar</td></tr>
+<tr><td><b>Delivery</b></td><td>19-20 Nov</td></tr>
+</table>
+<br>
+<table border="1" cellpadding="4" cellspacing="0">
+<tr><th>Grade</th><th>Quantity</th><th>Price</th></tr>
+<tr><td>LSMGO 0.1%</td><td>320 mt</td><td>USD 7380 per mt</td></tr>
+</table>
+<p><b>Barging:</b> USD 2,400 lump sum</p>
+<p><b>Validity:</b> 15/11/2026 1200 UTC</p>
+<p>Best regards,<br>Pedro Ruiz<br>Strait Line Fuels</p>
+</body></html>

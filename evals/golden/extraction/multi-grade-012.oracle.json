@@ -1,0 +1,79 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Strait Line Fuels",
+    "evidence": "Strait Line Fuels | Trading Desk"
+  },
+  "vesselName": {
+    "value": "M/V Coral Horizon",
+    "evidence": "Vessel name: M/V Coral Horizon"
+  },
+  "vesselImo": {
+    "value": null,
+    "evidence": null
+  },
+  "port": {
+    "value": "Gibraltar",
+    "evidence": "Port: Gibraltar anchorage"
+  },
+  "deliveryFrom": {
+    "asWritten": "19 Nov +/- 1 day",
+    "evidence": "Delivery: 19 Nov +/- 1 day"
+  },
+  "deliveryTo": {
+    "asWritten": "19 Nov +/- 1 day",
+    "evidence": "Delivery: 19 Nov +/- 1 day"
+  },
+  "validUntil": {
+    "asWritten": "Monday, 16 November 2026",
+    "evidence": "Validity: Monday, 16 November 2026"
+  },
+  "bargeFee": {
+    "value": null,
+    "currency": null,
+    "perUnit": null,
+    "asWritten": null,
+    "evidence": null
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "LSMGO",
+        "evidence": "Product 1: LSMGO"
+      },
+      "quantity": {
+        "value": 100,
+        "unit": "mt",
+        "asWritten": "100 mt",
+        "evidence": "Quantity: 100 mt"
+      },
+      "price": {
+        "value": 818.5,
+        "currency": "USD",
+        "perUnit": "PMT",
+        "asWritten": "USD 818.50 PMT",
+        "evidence": "Price: USD 818.50 PMT"
+      }
+    },
+    {
+      "grade": {
+        "value": "VLSFO",
+        "evidence": "Product 2: VLSFO"
+      },
+      "quantity": {
+        "value": 150,
+        "unit": "mt",
+        "asWritten": "150 mt",
+        "evidence": "Quantity: 150 mt"
+      },
+      "price": {
+        "value": 595,
+        "currency": "USD",
+        "perUnit": "PMT",
+        "asWritten": "USD 595.00 PMT",
+        "evidence": "Price: USD 595.00 PMT"
+      }
+    }
+  ],
+  "notes": null
+}

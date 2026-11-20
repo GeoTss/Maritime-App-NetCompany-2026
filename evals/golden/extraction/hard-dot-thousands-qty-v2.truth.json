@@ -1,0 +1,27 @@
+{
+  "id": "hard-dot-thousands-qty-v2",
+  "tags": ["hard", "dot-thousands-qty", "variant:v2", "layout:compact"],
+  "source": "hard",
+  "expected": {
+    "kind": "quote",
+    "status": "needs_review",
+    "reviewChecks": ["quantity_unambiguous"],
+    "quote": {
+      "vesselImo": "9485069",
+      "portUnlocode": "FRBES",
+      "supplierKey": "atlanticshelf",
+      "currency": "USD",
+      "validUntil": "2026-11-15",
+      "deliveryFrom": "2026-11-16",
+      "deliveryTo": "2026-11-17",
+      "bargeFee": 0,
+      "lines": [
+        {
+          "grade": "HSFO",
+          "qtyMt": null,
+          "pricePerMt": 472
+        }
+      ]
+    }
+  }
+}

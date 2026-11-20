@@ -1,0 +1,27 @@
+{
+  "id": "forwarded-011",
+  "tags": ["forwarded", "style:outlook", "vessel:imo", "window:dotted", "barge:lump_sum"],
+  "source": "generated",
+  "expected": {
+    "kind": "quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": {
+      "vesselImo": "9482031",
+      "portUnlocode": "DEHAM",
+      "supplierKey": "harbourlight",
+      "currency": "USD",
+      "validUntil": "2026-11-16",
+      "deliveryFrom": "2026-11-18",
+      "deliveryTo": "2026-11-19",
+      "bargeFee": 2800,
+      "lines": [
+        {
+          "grade": "VLSFO",
+          "qtyMt": 225,
+          "pricePerMt": 599
+        }
+      ]
+    }
+  }
+}

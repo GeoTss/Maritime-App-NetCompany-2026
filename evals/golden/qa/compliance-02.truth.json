@@ -1,0 +1,18 @@
+{
+  "id": "compliance-02",
+  "tags": ["compliance"],
+  "question": "How much larger is the EU ETS cost than the FuelEU exposure on Aegean Pioneer's recommended route?",
+  "expect": {
+    "kind": "answer",
+    "requiredFacts": [
+      {
+        "label": "subtract of MV Aegean Pioneer, route B: EU ETS cost and MV Aegean Pioneer, route B: FuelEU exposure",
+        "value": 25450.80076692713,
+        "unit": "USD",
+        "tolerance": 0.5
+      }
+    ],
+    "proposedOptionId": null,
+    "mustNotPropose": true
+  }
+}

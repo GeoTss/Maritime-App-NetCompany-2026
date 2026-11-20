@@ -1,0 +1,54 @@
+{
+  "kind": "security_quote",
+  "providerName": {
+    "value": "Tridentis Marine Protection",
+    "evidence": "For and on behalf of Tridentis Marine Protection"
+  },
+  "vesselName": {
+    "value": "Scheldt Express",
+    "evidence": "Scheldt Express / Fujairah anchorage - Djibouti / 5 guards @ $1,450 per day"
+  },
+  "vesselImo": {
+    "value": null,
+    "evidence": null
+  },
+  "embarkPort": {
+    "value": "Fujairah",
+    "evidence": "Scheldt Express / Fujairah anchorage - Djibouti / 5 guards @ $1,450 per day"
+  },
+  "disembarkPort": {
+    "value": "Djibouti",
+    "evidence": "Scheldt Express / Fujairah anchorage - Djibouti / 5 guards @ $1,450 per day"
+  },
+  "teamSize": {
+    "value": 5,
+    "unit": "guards",
+    "asWritten": "5 guards",
+    "evidence": "Scheldt Express / Fujairah anchorage - Djibouti / 5 guards @ $1,450 per day"
+  },
+  "dayRate": {
+    "value": 1450,
+    "currency": "$",
+    "perUnit": "per day",
+    "asWritten": "$1,450 per day",
+    "evidence": "Scheldt Express / Fujairah anchorage - Djibouti / 5 guards @ $1,450 per day"
+  },
+  "fixedFees": {
+    "value": 6250,
+    "currency": "US$",
+    "perUnit": "one-off",
+    "asWritten": "US$ 6,250 one-off",
+    "evidence": "Fees: US$ 6,250 one-off"
+  },
+  "minDays": {
+    "value": 5,
+    "unit": "days",
+    "asWritten": "5 days",
+    "evidence": "Minimum: 5 days"
+  },
+  "validUntil": {
+    "asWritten": "20th November 17:00 LT",
+    "evidence": "Valid until: 20th November 17:00 LT"
+  },
+  "notes": null
+}

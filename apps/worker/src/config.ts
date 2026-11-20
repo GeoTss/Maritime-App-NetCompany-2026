@@ -1,0 +1,65 @@
+import { z } from "zod";
+
+const Env = z.object({
+  DATABASE_URL: z.string().min(1),
+  AIS_MODE: z.enum(["live", "replay", "off"]).default("replay"),
+  WEATHER_MODE: z.enum(["live", "recorded"]).default("recorded"),
+  // Trimmed: a whitespace-only key is not set (and a pasted newline is not part of it).
+  AISSTREAM_API_KEY: z
+    .string()
+    .optional()
+    .transform((v) => v?.trim() || undefined),
+  DEMO_HAZARDS: z.enum(["on", "off"]).default("off"),
+  // The labelled synthetic demo storm over the recorded weather (pinned demo only).
+  DEMO_STORM: z.enum(["on", "off"]).default("off"),
+  // Pinned demo clock: an ISO instant with an offset ("2026-11-16T08:00:00Z").
+  DEMO_ANCHOR: z
+    .string()
+    .datetime({ offset: true })
+    .optional()
+    .transform((v) => (v ? new Date(v) : undefined)),
+});
+
+export interface WorkerConfig {
+  databaseUrl: string;
+  aisMode: "live" | "replay" | "off";
+  weatherMode: "live" | "recorded";
+  aisApiKey: string | undefined;
+  /** Load the labelled synthetic demo hazard at start: always in replay mode, in live mode only when DEMO_HAZARDS=on. */
+  loadSyntheticHazards: boolean;
+  /** Lay the labelled synthetic demo storm over the recorded weather: DEMO_STORM=on with recorded weather. */
+  loadSyntheticStorm: boolean;
+  /** Set: the demo is pinned; the worker loads the recorded sources at this anchor and stamps rows with anchor + 5 min. */
+  demoAnchor: Date | undefined;
+}
+
+/** Validate the worker's environment. Errors name the variable, never its value. */
+export function loadWorkerConfig(
+  env: Record<string, string | undefined>,
+  log: (line: string) => void = (l) => console.warn(l),
+): WorkerConfig {
+  // Empty strings (docker-compose passes `VAR: ${VAR:-}`) count as unset.
+  const cleaned = Object.fromEntries(
+    Object.entries(env).filter(([, v]) => v !== undefined && v !== ""),
+  );
+  const parsed = Env.safeParse(cleaned);
+  if (!parsed.success) {
+    const names = [...new Set(parsed.error.issues.map((i) => i.path.join(".")))].join(", ");
+    throw new Error(`worker: invalid environment: ${names}`);
+  }
+  const e = parsed.data;
+  let aisMode = e.AIS_MODE;
+  if (aisMode === "live" && !e.AISSTREAM_API_KEY) {
+    log("worker: AIS_MODE=live but AISSTREAM_API_KEY is not set; using the recorded replay");
+    aisMode = "replay";
+  }
+  return {
+    databaseUrl: e.DATABASE_URL,
+    aisMode,
+    weatherMode: e.WEATHER_MODE,
+    aisApiKey: e.AISSTREAM_API_KEY,
+    demoAnchor: e.DEMO_ANCHOR,
+    loadSyntheticHazards: aisMode === "replay" || e.DEMO_HAZARDS === "on",
+    loadSyntheticStorm: e.DEMO_STORM === "on" && e.WEATHER_MODE === "recorded",
+  };
+}

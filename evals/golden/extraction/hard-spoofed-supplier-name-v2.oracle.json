@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Harbourlight Energy",
+    "evidence": "Harbourlight Energy"
+  },
+  "vesselName": {
+    "value": "M/V Iberian Dawn",
+    "evidence": "Vessel: M/V Iberian Dawn (IMO 9483047)"
+  },
+  "vesselImo": {
+    "value": "9483047",
+    "evidence": "Vessel: M/V Iberian Dawn (IMO 9483047)"
+  },
+  "port": {
+    "value": "Antwerp",
+    "evidence": "Place of delivery: Antwerp anchorage"
+  },
+  "deliveryFrom": {
+    "asWritten": "15-16 Nov",
+    "evidence": "Delivery window: 15-16 Nov"
+  },
+  "deliveryTo": {
+    "asWritten": "15-16 Nov",
+    "evidence": "Delivery window: 15-16 Nov"
+  },
+  "validUntil": {
+    "asWritten": "Nov 14, 2026 12:00 LT",
+    "evidence": "Valid till: Nov 14, 2026 12:00 LT"
+  },
+  "bargeFee": {
+    "value": 1350,
+    "currency": "$",
+    "perUnit": "lump sum",
+    "asWritten": "$1,350 lump sum",
+    "evidence": "Barge fee: $1,350 lump sum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "LSMGO 0.10%S",
+        "evidence": "Grade: LSMGO 0.10%S"
+      },
+      "quantity": {
+        "value": 100,
+        "unit": "MTS",
+        "asWritten": "100 MTS",
+        "evidence": "Qty: 100 MTS"
+      },
+      "price": {
+        "value": 736,
+        "currency": "USD",
+        "perUnit": "per mt",
+        "asWritten": "USD 736 per mt",
+        "evidence": "Price: USD 736 per mt"
+      }
+    }
+  ],
+  "notes": null
+}

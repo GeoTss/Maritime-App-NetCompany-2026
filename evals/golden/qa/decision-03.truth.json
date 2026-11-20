@@ -1,0 +1,30 @@
+{
+  "id": "decision-03",
+  "tags": ["bunker_decision"],
+  "question": "Recommend a bunker purchase for voyage AP-2611.",
+  "expect": {
+    "kind": "action",
+    "requiredFacts": [
+      {
+        "label": "Best option (lowest total cost, feasible)",
+        "value": "MTMLA-kestrel",
+        "unit": null,
+        "tolerance": 0
+      },
+      {
+        "label": "MTMLA-kestrel (Kestrel Marine Fuels, Marsaxlokk): total delivered cost",
+        "value": 233942.91134964247,
+        "unit": "USD",
+        "tolerance": 0.5
+      },
+      {
+        "label": "Saving of the best option against the cheapest headline price, in total cost",
+        "value": 16138.452312674606,
+        "unit": "USD",
+        "tolerance": 0.5
+      }
+    ],
+    "proposedOptionId": "MTMLA-kestrel",
+    "mustNotPropose": false
+  }
+}

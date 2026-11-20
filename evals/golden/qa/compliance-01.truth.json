@@ -1,0 +1,18 @@
+{
+  "id": "compliance-01",
+  "tags": ["compliance"],
+  "question": "How much FuelEU Maritime penalty exposure does Aegean Pioneer's recommended route carry?",
+  "expect": {
+    "kind": "answer",
+    "requiredFacts": [
+      {
+        "label": "MV Aegean Pioneer, route B: FuelEU exposure",
+        "value": 6141.03807398662,
+        "unit": "USD",
+        "tolerance": 0.5
+      }
+    ],
+    "proposedOptionId": null,
+    "mustNotPropose": true
+  }
+}

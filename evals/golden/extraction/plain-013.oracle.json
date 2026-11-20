@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Atlantic Shelf Fuels",
+    "evidence": "Atlantic Shelf Fuels | Trading Desk"
+  },
+  "vesselName": {
+    "value": "SCHELDT EXPRESS",
+    "evidence": "SCHELDT EXPRESS / Brest (FRBES) / LSMGO 0.1% 100 MTS @ USD 712.00 per metric ton"
+  },
+  "vesselImo": {
+    "value": null,
+    "evidence": null
+  },
+  "port": {
+    "value": "Brest",
+    "evidence": "SCHELDT EXPRESS / Brest (FRBES) / LSMGO 0.1% 100 MTS @ USD 712.00 per metric ton"
+  },
+  "deliveryFrom": {
+    "asWritten": "21 Nov +/- 1 day",
+    "evidence": "Delivery: 21 Nov +/- 1 day"
+  },
+  "deliveryTo": {
+    "asWritten": "21 Nov +/- 1 day",
+    "evidence": "Delivery: 21 Nov +/- 1 day"
+  },
+  "validUntil": {
+    "asWritten": "Nov 15, 2026 noon LT",
+    "evidence": "Valid until: Nov 15, 2026 noon LT"
+  },
+  "bargeFee": {
+    "value": 3350,
+    "currency": "USD",
+    "perUnit": "lump sum",
+    "asWritten": "USD 3,350 lump sum",
+    "evidence": "Barge: USD 3,350 lump sum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "LSMGO 0.1%",
+        "evidence": "SCHELDT EXPRESS / Brest (FRBES) / LSMGO 0.1% 100 MTS @ USD 712.00 per metric ton"
+      },
+      "quantity": {
+        "value": 100,
+        "unit": "MTS",
+        "asWritten": "100 MTS",
+        "evidence": "SCHELDT EXPRESS / Brest (FRBES) / LSMGO 0.1% 100 MTS @ USD 712.00 per metric ton"
+      },
+      "price": {
+        "value": 712,
+        "currency": "USD",
+        "perUnit": "per metric ton",
+        "asWritten": "USD 712.00 per metric ton",
+        "evidence": "SCHELDT EXPRESS / Brest (FRBES) / LSMGO 0.1% 100 MTS @ USD 712.00 per metric ton"
+      }
+    }
+  ],
+  "notes": null
+}

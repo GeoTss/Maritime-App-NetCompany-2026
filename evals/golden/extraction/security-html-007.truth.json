@@ -1,0 +1,30 @@
+{
+  "id": "security-html-007",
+  "tags": [
+    "security-html",
+    "layout:grid",
+    "vessel:name-imo",
+    "team:armed",
+    "fees:plain",
+    "route:AEFJR-ZADUR"
+  ],
+  "source": "generated",
+  "expected": {
+    "kind": "security_quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": null,
+    "security": {
+      "provider": "Harbourline Security Services",
+      "vesselImo": "9486075",
+      "embarkUnlocode": "AEFJR",
+      "disembarkUnlocode": "ZADUR",
+      "teamSize": 5,
+      "dayRate": 1350,
+      "currency": "USD",
+      "fixedFees": 6250,
+      "minDays": 3,
+      "validUntil": "2026-11-20"
+    }
+  }
+}

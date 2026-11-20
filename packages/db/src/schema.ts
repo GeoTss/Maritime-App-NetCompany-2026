@@ -1,0 +1,592 @@
+/**
+ * Drizzle schema. Mirrors `packages/shared/src/entities.ts` column for column (camelCase keys; the
+ * Drizzle instance and drizzle.config use `casing: "snake_case"`). Checked by `schema.test.ts`.
+ */
+import type {
+  Box,
+  CheckResult,
+  ConsumptionCurve,
+  DraftedMessage,
+  EtsCoverageFactor,
+  FactId,
+  FuelGrade,
+  GateAttempt,
+  GradeAmounts,
+  Id,
+  LatLon,
+  NavHazardKind,
+  PortCallTerms,
+  RecommendationStatus,
+  SecurityArea,
+  SecurityQuote,
+  VesselStores,
+} from "@pharos/shared";
+import {
+  type AnyPgColumn,
+  boolean,
+  doublePrecision,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+} from "drizzle-orm/pg-core";
+
+const id = () => integer().primaryKey().generatedByDefaultAsIdentity();
+const ts = () => timestamp({ withTimezone: true, mode: "date" });
+export const ports = pgTable(
+  "ports",
+  {
+    id: id(),
+    unlocode: text().notNull(),
+    name: text().notNull(),
+    country: text().notNull(),
+    lat: doublePrecision().notNull(),
+    lon: doublePrecision().notNull(),
+    isEu: boolean().notNull(),
+    inEca: boolean().notNull(),
+    approachNm: doublePrecision().notNull(),
+    /** What the port offers and charges a calling vessel (synthetic); null = unknown. */
+    callTerms: jsonb().$type<PortCallTerms>(),
+  },
+  (t) => [uniqueIndex("ports_unlocode_uq").on(t.unlocode)],
+);
+
+export const routeLegs = pgTable("route_legs", {
+  id: id(),
+  fromPortId: integer()
+    .notNull()
+    .references(() => ports.id, { onDelete: "restrict" }),
+  toPortId: integer()
+    .notNull()
+    .references(() => ports.id, { onDelete: "restrict" }),
+  distanceNm: doublePrecision().notNull(),
+  requiredGrade: text().$type<FuelGrade>().notNull(),
+  etsCoverage: doublePrecision().$type<EtsCoverageFactor>().notNull(),
+  waypoints: jsonb().$type<LatLon[]>().notNull(),
+});
+
+export const suppliers = pgTable("suppliers", {
+  id: id(),
+  name: text().notNull(),
+  emailDomain: text().notNull(),
+  erpCode: text().notNull(),
+  portIds: jsonb().$type<Id[]>().notNull(),
+});
+
+export const vessels = pgTable(
+  "vessels",
+  {
+    id: id(),
+    imo: text().notNull(),
+    mmsi: text().notNull(),
+    name: text().notNull(),
+    shipType: text().$type<"bulk_carrier" | "tanker" | "container">().notNull(),
+    dwt: doublePrecision().notNull(),
+    /** No default: a missing load must fail loudly, not read as lightship. */
+    lightshipMt: doublePrecision().notNull(),
+    trackingSource: text().$type<"simulator" | "ais">().notNull(),
+    tankCapacityMt: jsonb().$type<GradeAmounts>().notNull(),
+    consumptionCurve: jsonb().$type<ConsumptionCurve>().notNull(),
+    dailyCostUsd: doublePrecision().notNull(),
+    /** Crew, provisions, waste and charts on board (synthetic); null = unknown. */
+    stores: jsonb().$type<VesselStores>(),
+    /** Hull value (USD) for the war-risk premium (illustrative); null = unknown. */
+    hullValueUsd: doublePrecision(),
+  },
+  (t) => [uniqueIndex("vessels_imo_uq").on(t.imo)],
+);
+
+export const vesselPositions = pgTable("vessel_positions", {
+  id: id(),
+  vesselId: integer()
+    .notNull()
+    .references(() => vessels.id, { onDelete: "restrict" }),
+  ts: ts().notNull(),
+  lat: doublePrecision().notNull(),
+  lon: doublePrecision().notNull(),
+  sogKn: doublePrecision().notNull(),
+  cog: doublePrecision().notNull(),
+  navStatus: text().notNull(),
+  source: text().$type<"simulator" | "ais">().notNull(),
+});
+
+/** Latest state of public AIS traffic; keyed by MMSI. */
+export const aisTraffic = pgTable("ais_traffic", {
+  mmsi: text().primaryKey(),
+  name: text(),
+  shipType: text(),
+  lat: doublePrecision().notNull(),
+  lon: doublePrecision().notNull(),
+  sogKn: doublePrecision(),
+  navStatus: text(),
+  destination: text(),
+  draughtM: doublePrecision(),
+  cogDeg: doublePrecision(),
+  updatedAt: ts().notNull(),
+});
+
+/** Navigational hazards from AIS safety traffic plus the labelled synthetic demo hazard. */
+export const navHazards = pgTable("nav_hazards", {
+  id: text().primaryKey(),
+  kind: text().$type<NavHazardKind>().notNull(),
+  source: text().$type<"ais" | "synthetic">().notNull(),
+  mmsi: text(),
+  lat: doublePrecision().notNull(),
+  lon: doublePrecision().notNull(),
+  label: text().notNull(),
+  radiusNm: doublePrecision(),
+  observedAt: ts().notNull(),
+});
+
+/** Whether each external data source (AIS, weather) is running live or from a recording. */
+export const sourceStatus = pgTable("source_status", {
+  source: text().$type<"ais" | "weather">().primaryKey(),
+  mode: text().$type<"live" | "recorded">().notNull(),
+  detail: text(),
+  updatedAt: ts().notNull(),
+});
+
+export const voyages = pgTable("voyages", {
+  id: id(),
+  vesselId: integer()
+    .notNull()
+    .references(() => vessels.id, { onDelete: "restrict" }),
+  voyageNo: text().notNull(),
+  originPortId: integer()
+    .notNull()
+    .references(() => ports.id, { onDelete: "restrict" }),
+  destinationPortId: integer()
+    .notNull()
+    .references(() => ports.id, { onDelete: "restrict" }),
+  plannedSpeedKn: doublePrecision().notNull(),
+  plannedRoute: jsonb().$type<Id[]>().notNull(),
+  status: text().$type<"planned" | "underway" | "completed">().notNull(),
+  departedAt: ts(),
+  /** No defaults: a missing load must fail loudly, not read as lightship. */
+  cargoMt: doublePrecision().notNull(),
+  ballastMt: doublePrecision().notNull(),
+});
+
+export const portCalls = pgTable("port_calls", {
+  id: id(),
+  voyageId: integer()
+    .notNull()
+    .references(() => voyages.id, { onDelete: "restrict" }),
+  portId: integer()
+    .notNull()
+    .references(() => ports.id, { onDelete: "restrict" }),
+  sequence: integer().notNull(),
+  purpose: text().$type<"load" | "discharge" | "bunker" | "passage">().notNull(),
+  eta: ts().notNull(),
+  berthWindowStart: ts(),
+  berthWindowEnd: ts(),
+});
+
+export const noonReports = pgTable("noon_reports", {
+  id: id(),
+  vesselId: integer()
+    .notNull()
+    .references(() => vessels.id, { onDelete: "restrict" }),
+  voyageId: integer().references(() => voyages.id, { onDelete: "restrict" }),
+  ts: ts().notNull(),
+  lat: doublePrecision().notNull(),
+  lon: doublePrecision().notNull(),
+  speedKn: doublePrecision().notNull(),
+  distanceSinceLastNm: doublePrecision().notNull(),
+  robMt: jsonb().$type<GradeAmounts>().notNull(),
+  consumedMt: jsonb().$type<GradeAmounts>().notNull(),
+});
+
+export const portFuelPrices = pgTable("port_fuel_prices", {
+  id: id(),
+  portId: integer()
+    .notNull()
+    .references(() => ports.id, { onDelete: "restrict" }),
+  grade: text().$type<FuelGrade>().notNull(),
+  priceUsdPerMt: doublePrecision().notNull(),
+  asOf: ts().notNull(),
+  source: text().notNull(),
+});
+
+export const portCongestion = pgTable("port_congestion", {
+  id: id(),
+  portId: integer()
+    .notNull()
+    .references(() => ports.id, { onDelete: "restrict" }),
+  observedAt: ts().notNull(),
+  anchoredCount: integer().notNull(),
+  waitingHours: doublePrecision().notNull(),
+  source: text().$type<"seed" | "ais">().notNull(),
+});
+
+export const bunkerRequirements = pgTable("bunker_requirements", {
+  id: id(),
+  voyageId: integer()
+    .notNull()
+    .references(() => voyages.id, { onDelete: "restrict" }),
+  grade: text().$type<FuelGrade>().notNull(),
+  qtyMt: doublePrecision().notNull(),
+  status: text().$type<"open" | "ordered" | "cancelled">().notNull(),
+  createdAt: ts().notNull(),
+});
+
+export const documents = pgTable(
+  "documents",
+  {
+    id: id(),
+    parentId: integer().references((): AnyPgColumn => documents.id, { onDelete: "restrict" }),
+    kind: text().$type<"email" | "pdf">().notNull(),
+    source: text().$type<"upload" | "demo_inbox" | "mailbox" | "seed">().notNull(),
+    sha256: text().notNull(),
+    sender: text(),
+    subject: text(),
+    filename: text(),
+    bodyText: text().notNull(),
+    receivedAt: ts().notNull(),
+    hasUnreadableAttachment: boolean().notNull().default(false),
+  },
+  (t) => [uniqueIndex("documents_sha256_uq").on(t.sha256)],
+);
+
+export const extractions = pgTable("extractions", {
+  id: id(),
+  documentId: integer()
+    .notNull()
+    .references(() => documents.id, { onDelete: "restrict" }),
+  kind: text().$type<"quote" | "not_a_quote">(),
+  rawOutput: jsonb().$type<unknown>(),
+  fieldEvidence: jsonb().$type<Record<string, string | null>>().notNull(),
+  checkResults: jsonb().$type<CheckResult[]>().notNull(),
+  status: text()
+    .$type<
+      "pending" | "extracted" | "needs_review" | "accepted" | "not_a_quote" | "failed" | "rejected"
+    >()
+    .notNull(),
+  model: text().notNull(),
+  promptVersion: text().notNull(),
+  createdAt: ts().notNull(),
+  error: text(),
+  claimedAt: ts(),
+});
+
+export const quotes = pgTable("quotes", {
+  id: id(),
+  supplierId: integer()
+    .notNull()
+    .references(() => suppliers.id, { onDelete: "restrict" }),
+  portId: integer()
+    .notNull()
+    .references(() => ports.id, { onDelete: "restrict" }),
+  requirementId: integer().references(() => bunkerRequirements.id, { onDelete: "restrict" }),
+  deliveryFrom: ts(),
+  deliveryTo: ts(),
+  validUntil: ts(),
+  currency: text().$type<"USD" | "EUR">().notNull(),
+  bargeFee: doublePrecision().notNull(),
+  status: text()
+    .$type<"received" | "needs_review" | "accepted" | "expired" | "ordered" | "rejected">()
+    .notNull(),
+  extractionId: integer().references(() => extractions.id, { onDelete: "restrict" }),
+  receivedAt: ts().notNull(),
+});
+
+export const quoteLines = pgTable("quote_lines", {
+  id: id(),
+  quoteId: integer()
+    .notNull()
+    .references(() => quotes.id, { onDelete: "restrict" }),
+  grade: text().$type<FuelGrade>().notNull(),
+  qtyMt: doublePrecision().notNull(),
+  pricePerMt: doublePrecision().notNull(),
+});
+
+export const weatherSnapshots = pgTable("weather_snapshots", {
+  id: id(),
+  source: text().notNull(),
+  modelRun: ts().notNull(),
+  fetchedAt: ts().notNull(),
+  grid: jsonb().$type<unknown>(),
+});
+
+export const calculations = pgTable("calculations", {
+  id: id(),
+  kind: text()
+    .$type<"fob_projection" | "bunker_plan" | "emissions" | "route_speed" | "calculate">()
+    .notNull(),
+  inputs: jsonb().$type<unknown>(),
+  outputs: jsonb().$type<unknown>(),
+  codeVersion: text().notNull(),
+  voyageId: integer().references(() => voyages.id, { onDelete: "restrict" }),
+  weatherSnapshotId: integer().references(() => weatherSnapshots.id, { onDelete: "restrict" }),
+  /** Lineage for kind `calculate`: the fact IDs used as operands. */
+  operandFactIds: jsonb().$type<FactId[]>(),
+  createdAt: ts().notNull(),
+});
+
+export const conversations = pgTable("conversations", {
+  id: id(),
+  title: text(),
+  createdAt: ts().notNull(),
+});
+
+export const messages = pgTable("messages", {
+  id: id(),
+  conversationId: integer()
+    .notNull()
+    .references(() => conversations.id, { onDelete: "restrict" }),
+  role: text().$type<"user" | "assistant" | "tool">().notNull(),
+  content: jsonb().$type<unknown>(),
+  gateAttempts: jsonb().$type<GateAttempt[]>().notNull().default([]),
+  createdAt: ts().notNull(),
+});
+
+export const recommendations = pgTable("recommendations", {
+  id: id(),
+  type: text().$type<"purchase_order" | "voyage_instruction" | "security_order">().notNull(),
+  calculationId: integer()
+    .notNull()
+    .references(() => calculations.id, { onDelete: "restrict" }),
+  optionId: text().notNull(),
+  messageId: integer().references(() => messages.id, { onDelete: "restrict" }),
+  factRefs: jsonb().$type<FactId[]>().notNull(),
+  expectedSavingUsd: doublePrecision(),
+  status: text().$type<RecommendationStatus>().notNull(),
+  decidedBy: text(),
+  decidedAt: ts(),
+  createdAt: ts().notNull(),
+});
+
+/** Messages the executor drafted for a human to send; Pharos never sends them. One per kind. */
+export const draftedMessages = pgTable(
+  "drafted_messages",
+  {
+    id: id(),
+    recommendationId: integer()
+      .notNull()
+      .references(() => recommendations.id, { onDelete: "restrict" }),
+    kind: text().$type<DraftedMessage["kind"]>().notNull(),
+    // `to` is a reserved word in SQL, so the column is named explicitly.
+    to: text("to_address").notNull(),
+    subject: text().notNull(),
+    body: text().notNull(),
+    status: text().$type<"draft">().notNull().default("draft"),
+    createdAt: ts().notNull(),
+  },
+  (t) => [uniqueIndex("drafted_messages_recommendation_kind_uq").on(t.recommendationId, t.kind)],
+);
+
+/**
+ * Route and speed instructions the executor recorded on approval, one per recommendation. Values
+ * come from the stored route calculation; the voyage's planned speed and route are not changed.
+ */
+export const voyageInstructions = pgTable(
+  "voyage_instructions",
+  {
+    id: id(),
+    recommendationId: integer()
+      .notNull()
+      .references(() => recommendations.id, { onDelete: "restrict" }),
+    voyageId: integer()
+      .notNull()
+      .references(() => voyages.id, { onDelete: "restrict" }),
+    calculationId: integer()
+      .notNull()
+      .references(() => calculations.id, { onDelete: "restrict" }),
+    candidateId: text().notNull(),
+    speedKn: doublePrecision().notNull(),
+    eta: ts().notNull(),
+    points: jsonb().$type<LatLon[]>().notNull(),
+    // The bunker stop the approved plan calls at; all null for a route with no stop.
+    stopPortId: integer().references(() => ports.id, { onDelete: "restrict" }),
+    stopQuoteId: integer().references(() => quotes.id, { onDelete: "restrict" }),
+    stopArriveAt: ts(),
+    stopDepartAt: ts(),
+    stopQtyMt: doublePrecision(),
+    createdAt: ts().notNull(),
+  },
+  (t) => [uniqueIndex("voyage_instructions_recommendation_id_uq").on(t.recommendationId)],
+);
+
+export const purchaseOrders = pgTable(
+  "purchase_orders",
+  {
+    id: id(),
+    quoteId: integer()
+      .notNull()
+      .references(() => quotes.id, { onDelete: "restrict" }),
+    recommendationId: integer().references(() => recommendations.id, { onDelete: "restrict" }),
+    status: text()
+      .$type<"draft" | "approved" | "submitted" | "confirmed" | "cancelled">()
+      .notNull(),
+    erpPoNumber: text(),
+    erpSyncStatus: text().$type<"pending" | "synced" | "failed">().notNull(),
+    idempotencyKey: text().notNull(),
+    createdAt: ts().notNull(),
+  },
+  (t) => [
+    uniqueIndex("purchase_orders_quote_id_uq").on(t.quoteId),
+    uniqueIndex("purchase_orders_idempotency_key_uq").on(t.idempotencyKey),
+  ],
+);
+
+/** An approved armed security team, pushed to the ERP like a fuel order (Track 3). */
+export const securityOrders = pgTable(
+  "security_orders",
+  {
+    id: id(),
+    securityQuoteId: integer()
+      .notNull()
+      .references(() => securityQuotes.id, { onDelete: "restrict" }),
+    recommendationId: integer().references(() => recommendations.id, { onDelete: "restrict" }),
+    teamDays: integer().notNull(),
+    dayRate: doublePrecision().notNull(),
+    fixedFees: doublePrecision().notNull(),
+    currency: text().$type<"USD" | "EUR">().notNull(),
+    status: text().$type<"approved" | "confirmed" | "cancelled">().notNull(),
+    erpPoNumber: text(),
+    erpSyncStatus: text().$type<"pending" | "synced" | "failed">().notNull(),
+    idempotencyKey: text().notNull(),
+    createdAt: ts().notNull(),
+  },
+  (t) => [
+    uniqueIndex("security_orders_quote_id_uq").on(t.securityQuoteId),
+    uniqueIndex("security_orders_idempotency_key_uq").on(t.idempotencyKey),
+  ],
+);
+
+export const orderLines = pgTable("order_lines", {
+  id: id(),
+  orderId: integer()
+    .notNull()
+    .references(() => purchaseOrders.id, { onDelete: "restrict" }),
+  grade: text().$type<FuelGrade>().notNull(),
+  qtyMt: doublePrecision().notNull(),
+  pricePerMt: doublePrecision().notNull(),
+});
+
+export const auditEvents = pgTable("audit_events", {
+  id: id(),
+  recommendationId: integer().references(() => recommendations.id, { onDelete: "restrict" }),
+  kind: text().notNull(),
+  actor: text().notNull(),
+  detail: jsonb().$type<unknown>(),
+  at: ts().notNull(),
+});
+
+/** Danger areas with their JMIC level and planning policy (seeded from cited sources). */
+export const securityAreas = pgTable("security_areas", {
+  id: text().primaryKey(),
+  name: text().notNull(),
+  level: text().$type<SecurityArea["level"]>().notNull(),
+  policy: text().$type<SecurityArea["policy"]>().notNull(),
+  boxes: jsonb().$type<Box[]>().notNull(),
+  asOf: text().notNull(),
+  source: text().notNull(),
+  note: text().notNull(),
+});
+
+/** Companies that supply armed security teams. */
+export const securityProviders = pgTable("security_providers", {
+  id: id(),
+  name: text().notNull(),
+  emailDomain: text().notNull(),
+  erpCode: text().notNull(),
+});
+
+/** Security teams quoted by providers, as extracted from their emails. */
+export const securityQuotes = pgTable("security_quotes", {
+  id: id(),
+  providerId: integer()
+    .notNull()
+    .references(() => securityProviders.id),
+  vesselImo: text(),
+  embarkPortId: integer()
+    .notNull()
+    .references(() => ports.id),
+  disembarkPortId: integer()
+    .notNull()
+    .references(() => ports.id),
+  teamSize: integer().notNull(),
+  dayRate: doublePrecision().notNull(),
+  fixedFees: doublePrecision().notNull(),
+  minDays: integer().notNull(),
+  currency: text().$type<"USD" | "EUR">().notNull(),
+  validUntil: ts(),
+  status: text().$type<SecurityQuote["status"]>().notNull(),
+  extractionId: integer(),
+  receivedAt: ts().notNull(),
+});
+
+/** Charts and publications at their current editions (seeded from the supplier checklist). */
+export const nauticalItems = pgTable("nautical_items", {
+  itemId: text().primaryKey(),
+  kind: text().$type<"chart" | "publication">().notNull(),
+  title: text().notNull(),
+  edition: text().notNull(),
+  editionDate: text().notNull(),
+  priceUsd: doublePrecision().notNull(),
+  coverage: jsonb().$type<Box[]>().notNull(),
+  source: text().notNull(),
+});
+
+export const referenceRates = pgTable("reference_rates", {
+  id: id(),
+  kind: text().$type<"fx" | "eua">().notNull(),
+  key: text().notNull(),
+  value: doublePrecision().notNull(),
+  asOf: ts().notNull(),
+  source: text().notNull(),
+});
+
+/** One model call, for latency and cost measurement. Mirrors the shared `LlmCall`. */
+export const llmCalls = pgTable("llm_calls", {
+  id: id(),
+  purpose: text().$type<"extract" | "agent">().notNull(),
+  model: text().notNull(),
+  mode: text().$type<"live" | "record" | "replay">().notNull(),
+  inputTokens: integer().notNull(),
+  outputTokens: integer().notNull(),
+  cacheReadTokens: integer().notNull(),
+  cacheWriteTokens: integer().notNull(),
+  latencyMs: doublePrecision().notNull(),
+  costUsd: doublePrecision().notNull(),
+  stopReason: text(),
+  /** sha256 of the canonical request; the key of its recording. */
+  requestKey: text().notNull(),
+  documentId: integer().references(() => documents.id, { onDelete: "restrict" }),
+  conversationId: integer().references(() => conversations.id, { onDelete: "restrict" }),
+  createdAt: ts().notNull(),
+});
+
+/** Single-row bookkeeping for the seeded synthetic world (id is always 1). */
+export const worldMeta = pgTable("world_meta", {
+  id: integer().primaryKey(),
+  seed: integer().notNull(),
+  anchor: ts().notNull(),
+  seedVersion: text().notNull(),
+  seededAt: ts().notNull(),
+  /** The last demo-scenario edit (the request clock); null since the last seed or reset. */
+  scenarioEditedAt: ts(),
+});
+
+/**
+ * Demo scenario weather (the Scenario panel): waves and wind inside a circle from a start to an end,
+ * laid over the latest snapshot when it is read. Directions are where they come from.
+ */
+export const scenarioWeatherAreas = pgTable("scenario_weather_areas", {
+  id: id(),
+  label: text().notNull(),
+  lat: doublePrecision().notNull(),
+  lon: doublePrecision().notNull(),
+  radiusNm: doublePrecision().notNull(),
+  waveHeightM: doublePrecision().notNull(),
+  waveDirDeg: integer().notNull(),
+  windSpeedKn: doublePrecision().notNull(),
+  windDirDeg: integer().notNull(),
+  /** When it starts and ends (null: open on that side, as for an area made before windows). */
+  activeFrom: ts(),
+  activeUntil: ts(),
+  createdAt: ts().notNull(),
+});

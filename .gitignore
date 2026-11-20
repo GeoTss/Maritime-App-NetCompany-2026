@@ -1,0 +1,19 @@
+node_modules/
+dist/
+coverage/
+.npm-cache/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+playwright-report/
+test-results/
+evals/reports/*
+!evals/reports/.gitkeep
+.claude/settings.local.json
+.claude/state/*.local.json
+.claude/state/markers/
+
+# Impeccable engine binary (re-downloaded by its launcher; 19 MB)
+.claude/skills/impeccable/scripts/bin/

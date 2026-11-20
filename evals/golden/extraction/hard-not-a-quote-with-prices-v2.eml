@@ -1,0 +1,23 @@
+From: Meridian Bunkering Pricing <pricing@meridian-bunkering.example>
+To: Bunker Desk <bunker-desk@pharos-demo.example>
+Subject: Meridian daily price indication - East Med - 13 Nov
+Date: Fri, 13 Nov 2026 06:45:00 +0000
+Message-ID: <a7d58ba3278c62cc87ba@meridian-bunkering.example>
+MIME-Version: 1.0
+Content-Type: text/html; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"></head>
+<body style="font-family:Arial,sans-serif;font-size:13px">
+<p><b>Meridian Bunkering - daily price indication, East Mediterranean</b></p>
+<table border="1" cellpadding="4" cellspacing="0">
+<tr><th>Port</th><th>LSMGO</th><th>VLSFO</th><th>HSFO</th></tr>
+<tr><td>Port Said</td><td>731</td><td>585</td><td>490</td></tr>
+<tr><td>Piraeus</td><td>736</td><td>577</td><td>463</td></tr>
+<tr><td>Genoa</td><td>733</td><td>562</td><td>457</td></tr>
+</table>
+<p>All prices are indicative, in USD per mt delivered, subject to availability and to confirmation at the time of enquiry.</p>
+<p>To fix a stem, send us your vessel, port, grade and quantity.</p>
+<p>Meridian Bunkering<br>Pricing desk</p>
+</body></html>

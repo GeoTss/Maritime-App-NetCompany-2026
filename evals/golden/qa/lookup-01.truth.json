@@ -1,0 +1,18 @@
+{
+  "id": "lookup-01",
+  "tags": ["lookup"],
+  "question": "What is Aegean Pioneer's LSMGO on board?",
+  "expect": {
+    "kind": "answer",
+    "requiredFacts": [
+      {
+        "label": "LSMGO remaining on board (latest noon report)",
+        "value": 203,
+        "unit": "mt",
+        "tolerance": 0
+      }
+    ],
+    "proposedOptionId": null,
+    "mustNotPropose": true
+  }
+}

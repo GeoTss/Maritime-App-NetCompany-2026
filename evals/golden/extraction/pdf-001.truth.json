@@ -1,0 +1,27 @@
+{
+  "id": "pdf-001",
+  "tags": ["pdf", "layout:letter", "vessel:name", "window:dotted", "barge:lump_sum"],
+  "source": "generated",
+  "expected": {
+    "kind": "quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": {
+      "vesselImo": "9482031",
+      "portUnlocode": "DEHAM",
+      "supplierKey": "harbourlight",
+      "currency": "USD",
+      "validUntil": "2026-11-15",
+      "deliveryFrom": "2026-11-21",
+      "deliveryTo": "2026-11-23",
+      "bargeFee": 1350,
+      "lines": [
+        {
+          "grade": "VLSFO",
+          "qtyMt": 225,
+          "pricePerMt": 600
+        }
+      ]
+    }
+  }
+}

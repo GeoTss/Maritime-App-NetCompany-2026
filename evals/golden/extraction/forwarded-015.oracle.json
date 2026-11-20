@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Nordwind Bunker Services",
+    "evidence": "Nordwind Bunker Services"
+  },
+  "vesselName": {
+    "value": "Thessaly Star",
+    "evidence": "Ship: Thessaly Star / IMO 9481025"
+  },
+  "vesselImo": {
+    "value": "9481025",
+    "evidence": "Ship: Thessaly Star / IMO 9481025"
+  },
+  "port": {
+    "value": "Algeciras",
+    "evidence": "Place of delivery: Algeciras outer anchorage"
+  },
+  "deliveryFrom": {
+    "asWritten": "23 Nov - 26 Nov 2026",
+    "evidence": "Delivery period: 23 Nov - 26 Nov 2026"
+  },
+  "deliveryTo": {
+    "asWritten": "23 Nov - 26 Nov 2026",
+    "evidence": "Delivery period: 23 Nov - 26 Nov 2026"
+  },
+  "validUntil": {
+    "asWritten": "16 Nov 2026 1200 UTC",
+    "evidence": "Validity: 16 Nov 2026 1200 UTC"
+  },
+  "bargeFee": {
+    "value": null,
+    "currency": null,
+    "perUnit": null,
+    "asWritten": null,
+    "evidence": null
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "DMA 0.1%",
+        "evidence": "Product: DMA 0.1%"
+      },
+      "quantity": {
+        "value": 125,
+        "unit": "metric tons",
+        "asWritten": "125 metric tons",
+        "evidence": "Quantity: 125 metric tons"
+      },
+      "price": {
+        "value": 678,
+        "currency": "$",
+        "perUnit": "/mt",
+        "asWritten": "$678.00/mt",
+        "evidence": "Price: $678.00/mt"
+      }
+    }
+  ],
+  "notes": null
+}

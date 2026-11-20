@@ -1,0 +1,11 @@
+{
+  "id": "compliance-04",
+  "tags": ["compliance"],
+  "question": "What is our fleet's FuelEU pooling balance for 2026?",
+  "expect": {
+    "kind": "abstain",
+    "requiredFacts": [],
+    "proposedOptionId": null,
+    "mustNotPropose": true
+  }
+}

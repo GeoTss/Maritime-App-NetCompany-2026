@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Nordwind Bunker Services",
+    "evidence": "Nordwind Bunker Services"
+  },
+  "vesselName": {
+    "value": "THESSALY STAR",
+    "evidence": "Vessel            THESSALY STAR - IMO: 9481025"
+  },
+  "vesselImo": {
+    "value": "9481025",
+    "evidence": "Vessel            THESSALY STAR - IMO: 9481025"
+  },
+  "port": {
+    "value": "Algeciras",
+    "evidence": "Port              Algeciras outer anchorage"
+  },
+  "deliveryFrom": {
+    "asWritten": "15 Nov - 16 Nov 2026",
+    "evidence": "Delivery period   15 Nov - 16 Nov 2026"
+  },
+  "deliveryTo": {
+    "asWritten": "15 Nov - 16 Nov 2026",
+    "evidence": "Delivery period   15 Nov - 16 Nov 2026"
+  },
+  "validUntil": {
+    "asWritten": "Saturday, 14 November 2026 1200 UTC",
+    "evidence": "Valid till: Saturday, 14 November 2026 1200 UTC"
+  },
+  "bargeFee": {
+    "value": 1600,
+    "currency": "US$",
+    "perUnit": "lumpsum",
+    "asWritten": "US$ 1600 lumpsum",
+    "evidence": "Barging: US$ 1600 lumpsum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "LSMGO 0.1%",
+        "evidence": "LSMGO 0.1%   125 mt     711 USD/MT"
+      },
+      "quantity": {
+        "value": 125,
+        "unit": "mt",
+        "asWritten": "125 mt",
+        "evidence": "LSMGO 0.1%   125 mt     711 USD/MT"
+      },
+      "price": {
+        "value": 711,
+        "currency": "USD",
+        "perUnit": "/MT",
+        "asWritten": "711 USD/MT",
+        "evidence": "LSMGO 0.1%   125 mt     711 USD/MT"
+      }
+    }
+  ],
+  "notes": null
+}

@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Atlantic Shelf Fuels",
+    "evidence": "Atlantic Shelf Fuels"
+  },
+  "vesselName": {
+    "value": null,
+    "evidence": null
+  },
+  "vesselImo": {
+    "value": "9487081",
+    "evidence": "IMO 9487081 / Le Havre / LSMGO 0.1% 100 metric tonnes @ $787/mt"
+  },
+  "port": {
+    "value": "Le Havre",
+    "evidence": "IMO 9487081 / Le Havre / LSMGO 0.1% 100 metric tonnes @ $787/mt"
+  },
+  "deliveryFrom": {
+    "asWritten": "20.11.2026 - 23.11.2026",
+    "evidence": "Delivery: 20.11.2026 - 23.11.2026"
+  },
+  "deliveryTo": {
+    "asWritten": "20.11.2026 - 23.11.2026",
+    "evidence": "Delivery: 20.11.2026 - 23.11.2026"
+  },
+  "validUntil": {
+    "asWritten": "15 Nov 2026",
+    "evidence": "Valid until: 15 Nov 2026"
+  },
+  "bargeFee": {
+    "value": 3050,
+    "currency": "$",
+    "perUnit": "lump sum",
+    "asWritten": "$3050 lump sum",
+    "evidence": "Barge: $3050 lump sum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "LSMGO 0.1%",
+        "evidence": "IMO 9487081 / Le Havre / LSMGO 0.1% 100 metric tonnes @ $787/mt"
+      },
+      "quantity": {
+        "value": 100,
+        "unit": "metric tonnes",
+        "asWritten": "100 metric tonnes",
+        "evidence": "IMO 9487081 / Le Havre / LSMGO 0.1% 100 metric tonnes @ $787/mt"
+      },
+      "price": {
+        "value": 787,
+        "currency": "$",
+        "perUnit": "/mt",
+        "asWritten": "$787/mt",
+        "evidence": "IMO 9487081 / Le Havre / LSMGO 0.1% 100 metric tonnes @ $787/mt"
+      }
+    }
+  ],
+  "notes": null
+}

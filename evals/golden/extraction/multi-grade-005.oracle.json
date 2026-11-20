@@ -1,0 +1,79 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Harbourlight Energy",
+    "evidence": "For and on behalf of Harbourlight Energy"
+  },
+  "vesselName": {
+    "value": "Aegean Pioneer",
+    "evidence": "Vessel name: Aegean Pioneer - IMO: 9480019"
+  },
+  "vesselImo": {
+    "value": "9480019",
+    "evidence": "Vessel name: Aegean Pioneer - IMO: 9480019"
+  },
+  "port": {
+    "value": "Rotterdam",
+    "evidence": "Delivery port: Rotterdam"
+  },
+  "deliveryFrom": {
+    "asWritten": "15 Nov",
+    "evidence": "Delivery from: 15 Nov"
+  },
+  "deliveryTo": {
+    "asWritten": "16 Nov",
+    "evidence": "Delivery to: 16 Nov"
+  },
+  "validUntil": {
+    "asWritten": "Nov 14, 2026 18:00 UTC",
+    "evidence": "Prices valid until: Nov 14, 2026 18:00 UTC"
+  },
+  "bargeFee": {
+    "value": 3600,
+    "currency": "USD",
+    "perUnit": "LS",
+    "asWritten": "USD 3600 LS",
+    "evidence": "Barging: USD 3600 LS"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "VLSFO 0.5%",
+        "evidence": "VLSFO 0.5%      425 mts     USD 584 per mt"
+      },
+      "quantity": {
+        "value": 425,
+        "unit": "mts",
+        "asWritten": "425 mts",
+        "evidence": "VLSFO 0.5%      425 mts     USD 584 per mt"
+      },
+      "price": {
+        "value": 584,
+        "currency": "USD",
+        "perUnit": "per mt",
+        "asWritten": "USD 584 per mt",
+        "evidence": "VLSFO 0.5%      425 mts     USD 584 per mt"
+      }
+    },
+    {
+      "grade": {
+        "value": "LSMGO 0.10%S",
+        "evidence": "LSMGO 0.10%S    200 mts     USD 761 per mt"
+      },
+      "quantity": {
+        "value": 200,
+        "unit": "mts",
+        "asWritten": "200 mts",
+        "evidence": "LSMGO 0.10%S    200 mts     USD 761 per mt"
+      },
+      "price": {
+        "value": 761,
+        "currency": "USD",
+        "perUnit": "per mt",
+        "asWritten": "USD 761 per mt",
+        "evidence": "LSMGO 0.10%S    200 mts     USD 761 per mt"
+      }
+    }
+  ],
+  "notes": null
+}

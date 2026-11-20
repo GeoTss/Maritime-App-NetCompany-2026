@@ -1,0 +1,54 @@
+{
+  "kind": "security_quote",
+  "providerName": {
+    "value": "Tridentis Marine Protection",
+    "evidence": "Tridentis Marine Protection"
+  },
+  "vesselName": {
+    "value": "MT Levant Carrier",
+    "evidence": "Vessel: MT Levant Carrier, IMO No. 9484053"
+  },
+  "vesselImo": {
+    "value": "9484053",
+    "evidence": "Vessel: MT Levant Carrier, IMO No. 9484053"
+  },
+  "embarkPort": {
+    "value": "Djibouti",
+    "evidence": "Embarkation point: off Djibouti"
+  },
+  "disembarkPort": {
+    "value": "Cape Town",
+    "evidence": "Disembarkation: off Cape Town"
+  },
+  "teamSize": {
+    "value": null,
+    "unit": "guards",
+    "asWritten": "4/6 guards",
+    "evidence": "Security team: 4/6 guards"
+  },
+  "dayRate": {
+    "value": 1400,
+    "currency": "USD",
+    "perUnit": "per team per day",
+    "asWritten": "USD 1,400 per team per day",
+    "evidence": "Rate: USD 1,400 per team per day"
+  },
+  "fixedFees": {
+    "value": 5500,
+    "currency": "$",
+    "perUnit": "lump sum",
+    "asWritten": "$5,500.00 lump sum",
+    "evidence": "Fixed charges: $5,500.00 lump sum"
+  },
+  "minDays": {
+    "value": 7,
+    "unit": "days",
+    "asWritten": "7 days",
+    "evidence": "Minimum charge: 7 days"
+  },
+  "validUntil": {
+    "asWritten": "17 November 2026 18:00 UTC",
+    "evidence": "Valid till: 17 November 2026 18:00 UTC"
+  },
+  "notes": null
+}

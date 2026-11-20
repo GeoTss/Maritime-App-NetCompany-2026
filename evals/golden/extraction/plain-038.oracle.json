@@ -1,0 +1,60 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Atlantic Shelf Fuels",
+    "evidence": "Atlantic Shelf Fuels | Trading Desk"
+  },
+  "vesselName": {
+    "value": null,
+    "evidence": null
+  },
+  "vesselImo": {
+    "value": "9485069",
+    "evidence": "Vessel name: IMO 9485069"
+  },
+  "port": {
+    "value": "Brest",
+    "evidence": "Location: Brest (FRBES)"
+  },
+  "deliveryFrom": {
+    "asWritten": "17/11-18/11",
+    "evidence": "Delivery window: 17/11-18/11"
+  },
+  "deliveryTo": {
+    "asWritten": "17/11-18/11",
+    "evidence": "Delivery window: 17/11-18/11"
+  },
+  "validUntil": {
+    "asWritten": "16.11.26 1200 UTC",
+    "evidence": "Prices valid until: 16.11.26 1200 UTC"
+  },
+  "bargeFee": {
+    "value": 1750,
+    "currency": "$",
+    "perUnit": "lump sum",
+    "asWritten": "$1,750 lump sum",
+    "evidence": "Delivery charge: $1,750 lump sum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "RMG 380",
+        "evidence": "Grade: RMG 380"
+      },
+      "quantity": {
+        "value": 50,
+        "unit": "metric tons",
+        "asWritten": "50 metric tons",
+        "evidence": "Qty: 50 metric tons"
+      },
+      "price": {
+        "value": 496,
+        "currency": "USD",
+        "perUnit": "/mt",
+        "asWritten": "USD 496.00/mt",
+        "evidence": "Price: USD 496.00/mt"
+      }
+    }
+  ],
+  "notes": null
+}

@@ -1,0 +1,79 @@
+{
+  "kind": "quote",
+  "supplierName": {
+    "value": "Meridian Bunkering",
+    "evidence": "Meridian Bunkering | Trading Desk"
+  },
+  "vesselName": {
+    "value": "MT LEVANT CARRIER",
+    "evidence": "Vessel     MT LEVANT CARRIER"
+  },
+  "vesselImo": {
+    "value": null,
+    "evidence": null
+  },
+  "port": {
+    "value": "Genoa",
+    "evidence": "Location   Genoa"
+  },
+  "deliveryFrom": {
+    "asWritten": "18.11.2026 - 19.11.2026",
+    "evidence": "Dates      18.11.2026 - 19.11.2026"
+  },
+  "deliveryTo": {
+    "asWritten": "18.11.2026 - 19.11.2026",
+    "evidence": "Dates      18.11.2026 - 19.11.2026"
+  },
+  "validUntil": {
+    "asWritten": "15 November 2026 1200 UTC",
+    "evidence": "Valid till: 15 November 2026 1200 UTC"
+  },
+  "bargeFee": {
+    "value": 2200,
+    "currency": "USD",
+    "perUnit": "lump sum",
+    "asWritten": "USD 2,200 lump sum",
+    "evidence": "Barge fee: USD 2,200 lump sum"
+  },
+  "lines": [
+    {
+      "grade": {
+        "value": "0.5% VLSFO",
+        "evidence": "0.5% VLSFO      400 mt     USD 557.50 per mt"
+      },
+      "quantity": {
+        "value": 400,
+        "unit": "mt",
+        "asWritten": "400 mt",
+        "evidence": "0.5% VLSFO      400 mt     USD 557.50 per mt"
+      },
+      "price": {
+        "value": 557.5,
+        "currency": "USD",
+        "perUnit": "per mt",
+        "asWritten": "USD 557.50 per mt",
+        "evidence": "0.5% VLSFO      400 mt     USD 557.50 per mt"
+      }
+    },
+    {
+      "grade": {
+        "value": "IFO 380 3.5%S",
+        "evidence": "IFO 380 3.5%S   325 mt     USD 451.00 per mt"
+      },
+      "quantity": {
+        "value": 325,
+        "unit": "mt",
+        "asWritten": "325 mt",
+        "evidence": "IFO 380 3.5%S   325 mt     USD 451.00 per mt"
+      },
+      "price": {
+        "value": 451,
+        "currency": "USD",
+        "perUnit": "per mt",
+        "asWritten": "USD 451.00 per mt",
+        "evidence": "IFO 380 3.5%S   325 mt     USD 451.00 per mt"
+      }
+    }
+  ],
+  "notes": null
+}

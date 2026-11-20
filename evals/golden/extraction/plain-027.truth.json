@@ -1,0 +1,27 @@
+{
+  "id": "plain-027",
+  "tags": ["plain", "layout:prose", "vessel:name-imo", "window:mon-first", "barge:lump_sum"],
+  "source": "generated",
+  "expected": {
+    "kind": "quote",
+    "status": "extracted",
+    "reviewChecks": [],
+    "quote": {
+      "vesselImo": "9481025",
+      "portUnlocode": "ESALG",
+      "supplierKey": "nordwind",
+      "currency": "USD",
+      "validUntil": "2026-11-14",
+      "deliveryFrom": "2026-11-15",
+      "deliveryTo": "2026-11-17",
+      "bargeFee": 2250,
+      "lines": [
+        {
+          "grade": "LSMGO",
+          "qtyMt": 125,
+          "pricePerMt": 753
+        }
+      ]
+    }
+  }
+}
