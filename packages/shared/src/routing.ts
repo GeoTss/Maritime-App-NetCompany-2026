@@ -317,6 +317,7 @@ export const RouteOptionResult = z
         "heavy_weather",
         "security_unavailable",
         "avoid_area",
+        "insufficient_provisions",
       ]),
     ),
     /** The option's security plan; absent or null when the input has no security data. */

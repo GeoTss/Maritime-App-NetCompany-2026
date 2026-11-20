@@ -43,6 +43,16 @@ export const VoyageEvent = z.discriminatedUnion("kind", [
     .strict(),
   z
     .object({
+      kind: z.literal("provisions_restock"),
+      ...base,
+      stopIndex: z.number().int().nonnegative(),
+      unlocode: z.string().min(1),
+      /** The provisions job in the stop plan's port call: its quantity and cost are its facts. */
+      jobIndex: z.number().int().nonnegative(),
+    })
+    .strict(),
+  z
+    .object({
       kind: z.literal("port_departure"),
       ...base,
       stopIndex: z.number().int().nonnegative(),
@@ -124,6 +134,7 @@ export type VoyageEventKind = VoyageEvent["kind"];
 export const TIMELINE_GROUP: Record<VoyageEventKind, TimelineGroup> = {
   departure: "port",
   port_arrival: "port",
+  provisions_restock: "port",
   port_departure: "port",
   arrival: "port",
   eca_entry: "eca",

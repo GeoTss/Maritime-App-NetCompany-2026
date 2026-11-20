@@ -80,4 +80,25 @@ describe("VoyageTimelineSection", () => {
     rerender(inTray(1));
     expect(rows("eca_entry")[0]?.getAttribute("aria-current")).toBe("true");
   });
+
+  it("a restock at the call is stated, with its quantity and the days it leaves", () => {
+    const p = plan();
+    const timeline = p.timeline;
+    if (!timeline) throw new Error("no timeline");
+    const arrival = timeline.events.find((e) => e.kind === "port_arrival");
+    if (!arrival || arrival.kind !== "port_arrival") throw new Error("no call");
+    const restock = {
+      kind: "provisions_restock" as const,
+      at: arrival.at,
+      position: arrival.position,
+      alongNm: arrival.alongNm,
+      stopIndex: 0,
+      unlocode: "MTMLA",
+      jobIndex: 0,
+    };
+    renderSection({ ...p, timeline: { ...timeline, events: [...timeline.events, restock] } });
+    const [row] = rows("provisions_restock");
+    expect(row?.textContent).toMatch(/Restocks provisions: 1,115\.75 person-days/);
+    expect(row?.textContent).toMatch(/51\.6 days left at the destination/);
+  });
 });

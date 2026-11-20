@@ -3,7 +3,7 @@
  * Rules (enforced by scripts/check-domain-purity.mjs): no network, no LLM SDK,
  * no process.env, no hidden clock (pass `now` in), no randomness.
  */
-export const DOMAIN_CODE_VERSION = "0.9.2";
+export const DOMAIN_CODE_VERSION = "0.9.3";
 export * from "./areas.js";
 export * from "./bunker-planner.js";
 export * from "./bunker-stop.js";

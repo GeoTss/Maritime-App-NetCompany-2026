@@ -309,3 +309,65 @@ describe("the stop plan does the whole port call", () => {
     expect(p.feasible).toBe(false);
   });
 });
+
+describe("provisions must last the voyage", () => {
+  const crewOf22 = (days: number) => ({
+    crew: 22,
+    provisionsPersonDays: 22 * days,
+    sludgeM3: 2,
+    sludgeCapacityM3: 14,
+    sewageM3: 2,
+    sewageCapacityM3: 15,
+    onBoard: [],
+  });
+  const plenty = { LSMGO: 600, VLSFO: 1500, HSFO: 0 };
+  const fed = (days: number) =>
+    input({
+      fuel: { robMt: plenty, safetyMarginDays: 2, tankCapacityMt: plenty },
+      stores: crewOf22(days),
+      nautical: [],
+    });
+
+  it("a route that arrives under the provisions reserve is infeasible; the ranking without them is not", () => {
+    const short = optimiseRouteSpeed(fed(3));
+    for (const o of short.options) expect(o.reasons).toContain("insufficient_provisions");
+    expect(short.baseline.reasons).toContain("insufficient_provisions");
+    const stocked = optimiseRouteSpeed(fed(60));
+    for (const o of stocked.options) expect(o.reasons).not.toContain("insufficient_provisions");
+    expect(short.bestCandidateId).toBe(stocked.bestCandidateId);
+  });
+
+  it("a stop that restocks them is the plan", () => {
+    const terms = {
+      portDuesUsd: 3200,
+      clearanceHours: 2,
+      stores: true,
+      provisionsUsdPerPersonDay: 12,
+      storesHours: 8,
+      wasteReception: true,
+      sludgeUsdPerM3: 180,
+      sewageUsdPerM3: 60,
+      wasteHours: 3,
+      euWasteFeeUsd: 950,
+    };
+    // Room in the tank for the stop's 300 mt, and far enough out for its 24-hour notices.
+    const r = optimiseRouteSpeed({
+      ...fed(3),
+      fuel: {
+        robMt: { LSMGO: 200, VLSFO: 1500, HSFO: 0 },
+        safetyMarginDays: 2,
+        tankCapacityMt: plenty,
+      },
+      stops: [
+        stop({
+          terms,
+          position: ll(35.5, 24),
+          points: [ll(35, 15), ll(35.5, 24), ll(35, 25)],
+        }),
+      ],
+    });
+    expect(r.plan?.kind).toBe("stop");
+    const call = r.stopPlans[0]?.portCall;
+    expect(call?.jobs.find((j) => j.kind === "provisions")?.done).toBe(true);
+  });
+});

@@ -13,10 +13,11 @@ import {
   RouteSpeedInput,
   type RouteSpeedResult,
 } from "@pharos/shared";
-import { HEAVY_WEATHER_MAX_WAVE_M } from "./constants.js";
+import { HEAVY_WEATHER_MAX_WAVE_M, PROVISIONS_RESERVE_DAYS } from "./constants.js";
 import { dailyConsumptionMt } from "./consumption.js";
 import { co2Tonnes, etsCost } from "./emissions.js";
 import { fuelEuCost } from "./fueleu.js";
+import { provisionsDaysLeft } from "./port-call.js";
 import { securityPlan } from "./security.js";
 import { bestStopPlan, recommendPlan } from "./stop-plan.js";
 import { hazardIdsOfSteps, type SubStep, subSteps, type WalkedStep, walkSteps } from "./track.js";
@@ -273,12 +274,20 @@ export function optimiseRouteSpeed(rawInput: RouteSpeedInput): RouteSpeedResult 
       : [...o.reasons, "insufficient_fuel"];
     return { ...o, fuel, reasons, feasible: reasons.length === 0 };
   };
-  const finalOptions = options.map((r) => fueled(r.option));
-  const finalBest = finalOptions.find((o) => o.candidateId === best.candidateId) ?? fueled(best);
+  // Provisions, as fuel: checked after the ranking (not ranked on). A route that arrives with less
+  // than the company reserve cannot be sailed as it is; a stop that restocks them can.
+  const onBoard = (o: RouteOptionResult): RouteOptionResult => {
+    const f = fueled(o);
+    if (!input.stores) return f;
+    if (provisionsDaysLeft(input.stores, f.hours) >= PROVISIONS_RESERVE_DAYS) return f;
+    return { ...f, reasons: [...f.reasons, "insufficient_provisions"], feasible: false };
+  };
+  const finalOptions = options.map((r) => onBoard(r.option));
+  const finalBest = finalOptions.find((o) => o.candidateId === best.candidateId) ?? onBoard(best);
   const stopPlans = input.fuel ? input.stops.map((s) => bestStopPlan(input, s, grid)) : [];
   return {
     options: finalOptions,
-    baseline: fueled(base),
+    baseline: onBoard(base),
     bestCandidateId: best.candidateId,
     savingVsBaselineUsd: base.totalCostUsd - best.totalCostUsd,
     fuelSavingVsBaselineMt: base.totalFuelMt - best.totalFuelMt,

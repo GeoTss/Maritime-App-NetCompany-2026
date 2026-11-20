@@ -174,9 +174,10 @@ describe("fleetRoutePlan", () => {
     // The shortest sea route (B) goes round it by the southern branch.
     const b = plan.input.candidates.find((c) => c.id === "B");
     expect(routeHazardIds(b?.points ?? [], plan.input.stepNm, [onLane])).toEqual([]);
+    // (Its provisions are another matter: Aegean Pioneer's run short without a restock.)
     expect(
-      optimiseRouteSpeed(plan.input).options.find((o) => o.candidateId === "B")?.feasible,
-    ).toBe(true);
+      optimiseRouteSpeed(plan.input).options.find((o) => o.candidateId === "B")?.reasons,
+    ).not.toContain("crosses_hazard");
   });
 
   it("passes the weather grid through", () => {

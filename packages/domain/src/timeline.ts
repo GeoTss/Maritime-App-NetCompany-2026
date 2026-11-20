@@ -279,6 +279,11 @@ export function voyageTimeline(a: {
         unlocode: stopPlan.unlocode,
       };
       events.push({ kind: "port_arrival", at: timeline.arriveAt, ...where, actions });
+      // Provisions bought here get their own entry: the voyage would run short without them.
+      const jobIndex = call?.jobs.findIndex((j) => j.kind === "provisions" && j.done) ?? -1;
+      if (jobIndex >= 0) {
+        events.push({ kind: "provisions_restock", at: timeline.arriveAt, ...where, jobIndex });
+      }
       events.push({ kind: "port_departure", at: timeline.departAt, ...where });
     }
     for (const notice of call?.notices ?? []) {

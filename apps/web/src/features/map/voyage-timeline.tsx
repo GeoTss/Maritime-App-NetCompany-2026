@@ -102,6 +102,19 @@ function EventBody({ event: e, ctx }: { event: VoyageEvent; ctx: RowContext }): 
           <span className="block text-text-2">{actionsText(e.actions)}</span>
         </>
       );
+    case "provisions_restock": {
+      const call = `stopPlans[${e.stopIndex}].portCall`;
+      return (
+        <>
+          Restocks provisions:{" "}
+          <FactCell fact={factAtPath(plan.facts, `${call}.jobs[${e.jobIndex}].qty`)} /> person-days
+          <span className="block text-text-2">
+            <FactCell fact={factAtPath(plan.facts, `${call}.provisionsDaysAtEta`)} /> left at the
+            destination; without it the voyage runs short of the company reserve
+          </span>
+        </>
+      );
+    }
     case "port_departure":
       return `Leaves ${port(e.stopIndex, e.unlocode)}`;
     case "arrival":
@@ -112,7 +125,10 @@ function EventBody({ event: e, ctx }: { event: VoyageEvent; ctx: RowContext }): 
             <span className="block text-text-2">
               Provisions left: <FactCell fact={fact("provisionsDaysLeft")} />
               {e.restockNeeded ? (
-                <span className="text-caution"> (under the reserve: restock here)</span>
+                <span className="text-alarm">
+                  {" "}
+                  (short of the company reserve: this route needs a provisions restock on the way)
+                </span>
               ) : null}
             </span>
           ) : null}

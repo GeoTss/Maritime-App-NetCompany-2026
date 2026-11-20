@@ -99,6 +99,7 @@ const REASON: Record<InfeasibleReason, string> = {
   heavy_weather: "Blocked: meets waves over the heavy-weather limit",
   security_unavailable: "Blocked: needs an armed security team no valid quote covers",
   avoid_area: "Blocked: crosses an area to avoid",
+  insufficient_provisions: "Blocked: provisions fall below the company reserve before arrival",
 };
 
 export function reasonText(reason: InfeasibleReason): string {

@@ -39,6 +39,8 @@ function eventText(e: VoyageEvent): string {
       return "departure";
     case "port_arrival":
       return `arrival at ${e.unlocode}`;
+    case "provisions_restock":
+      return `restocks provisions at ${e.unlocode}`;
     case "port_departure":
       return `departure from ${e.unlocode}`;
     case "arrival":

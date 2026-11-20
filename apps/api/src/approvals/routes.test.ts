@@ -207,7 +207,9 @@ describe.skipIf(!sql)("approval routes (Postgres)", () => {
       expect(res.status).toBe(409);
       const body = (await res.json()) as { error: string; message: string };
       expect(body.error).toBe("not_proposable");
-      expect(body.message).toMatch(/Route B is not feasible \(insufficient_fuel\)/);
+      expect(body.message).toMatch(
+        /Route B is not feasible \(insufficient_fuel, insufficient_provisions\)/,
+      );
     });
 
     it("rejects a malformed body (400) and a non-JSON request (415)", async () => {
