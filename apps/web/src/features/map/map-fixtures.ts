@@ -881,6 +881,9 @@ export const TIMELINE_EVENTS: VoyageTimeline["events"] = [
     clearanceNm: 42.5,
     maxWaveHeightM: 8.5,
     synthetic: true,
+    activeFrom: "2026-11-14T08:00:00.000Z",
+    activeUntil: "2026-11-24T05:00:00.000Z",
+    timing: "during",
   },
   {
     kind: "port_arrival",
@@ -932,6 +935,8 @@ export const TIMELINE: VoyageTimeline = {
     timelineFact(2, "windowHours", 30.5, "h"),
     timelineFact(5, "clearanceNm", 42.5, "nm"),
     timelineFact(5, "maxWaveHeightM", 8.5, "m"),
+    timelineFact(5, "activeFrom", "2026-11-14T08:00:00.000Z", null),
+    timelineFact(5, "activeUntil", "2026-11-24T05:00:00.000Z", null),
     timelineFact(9, "provisionsDaysLeft", 40.2, "days"),
   ],
 };

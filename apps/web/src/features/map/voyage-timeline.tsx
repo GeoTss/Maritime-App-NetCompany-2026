@@ -159,6 +159,28 @@ function EventBody({ event: e, ctx }: { event: VoyageEvent; ctx: RowContext }): 
     case "guards_disembark":
       return "Armed team disembarks";
     case "storm_passed":
+      // A route can cross where a storm is only before it starts or after it ends: say which.
+      if (e.timing !== "during") {
+        return (
+          <>
+            {e.timing === "after" ? (
+              <>
+                Passes where a storm was: it ended{" "}
+                <FactCell fact={fact("activeUntil")} kind="time" />, before the ship gets here
+              </>
+            ) : (
+              <>
+                Passes before a storm starts here, at{" "}
+                <FactCell fact={fact("activeFrom")} kind="time" />
+              </>
+            )}
+            <span className="block text-text-2">
+              Its waves reach <FactCell fact={fact("maxWaveHeightM")} />{" "}
+              {e.synthetic ? <DataTag kind="synthetic" className="ml-1" /> : null}
+            </span>
+          </>
+        );
+      }
       return (
         <>
           {e.clearanceNm >= 0 ? (
@@ -169,7 +191,12 @@ function EventBody({ event: e, ctx }: { event: VoyageEvent; ctx: RowContext }): 
             <span className="text-alarm">Goes through heavy weather</span>
           )}
           <span className="block text-text-2">
-            Waves up to <FactCell fact={fact("maxWaveHeightM")} />{" "}
+            Waves up to <FactCell fact={fact("maxWaveHeightM")} />
+            {e.activeUntil !== null ? (
+              <>
+                , on until <FactCell fact={fact("activeUntil")} kind="time" />
+              </>
+            ) : null}{" "}
             {e.synthetic ? <DataTag kind="synthetic" className="ml-1" /> : null}
           </span>
         </>
@@ -278,15 +305,25 @@ export function VoyageTimelineSection({
               const group = TIMELINE_GROUP[event.kind];
               if (!groups.includes(group)) return null;
               return (
+                // biome-ignore lint/a11y/useKeyWithClickEvents: the row's icon button is the keyboard path.
                 <li
                   // biome-ignore lint/suspicious/noArrayIndexKey: events are positional (their facts are by index)
                   key={index}
                   data-index={index}
                   data-kind={event.kind}
                   data-testid={`timeline-event-${index}`}
+                  aria-current={selected === index ? "true" : undefined}
+                  // A click anywhere on the row picks it (its icon is the keyboard's way); a click
+                  // on something of its own inside (a fact chip, the port call) stays that one's.
+                  onClick={(e) => {
+                    // Only what lies inside the row counts (the tray around it is a dialog too).
+                    const own = (e.target as HTMLElement).closest("button, a, [role='dialog']");
+                    if (own && e.currentTarget.contains(own)) return;
+                    onSelect?.(index);
+                  }}
                   className={cn(
-                    "flex break-inside-avoid gap-2 border-b border-line px-1 py-1.5 text-xs",
-                    selected === index && "bg-ink-800",
+                    "flex cursor-pointer break-inside-avoid gap-2 border-b border-l-2 border-b-line border-l-transparent px-1 py-1.5 text-xs hover:bg-ink-800/60",
+                    selected === index && "border-l-beacon bg-ink-800",
                   )}
                 >
                   <button

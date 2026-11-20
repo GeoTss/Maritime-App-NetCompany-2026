@@ -63,10 +63,21 @@ export const WeatherPoint = z
     /** Set on a labelled synthetic demo point (the demo storm); absent on real forecasts. */
     synthetic: z.literal(true).optional(),
     /**
-     * Set on a demo scenario weather area's point: its weather holds for the whole voyage, past
-     * the forecast's last step too (a forecast point has no weather after it).
+     * A demo scenario weather area over this point: its waves and wind hold from `from` to `until`
+     * (null: open on that side), past the forecast's last step too. Directions are where they come
+     * from. Outside the window the forecast applies (and after it, nothing).
      */
-    stationary: z.literal(true).optional(),
+    scenario: z
+      .object({
+        from: IsoDateTime.nullable(),
+        until: IsoDateTime.nullable(),
+        waveHeightM: z.number(),
+        waveDirDeg: z.number(),
+        windSpeedKn: z.number(),
+        windDirDeg: z.number(),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 export type WeatherPoint = z.infer<typeof WeatherPoint>;

@@ -167,8 +167,8 @@ export const StormCell = z
     box: Box.optional(),
     /** A labelled synthetic demo cell (the demo storm), not a real forecast. */
     synthetic: z.literal(true).optional(),
-    /** A demo scenario weather area: it holds for the whole voyage, so routes go round it wherever they meet it. */
-    stationary: z.literal(true).optional(),
+    /** A demo scenario weather area's cell: `from`/`to` are its window as the route meets it. */
+    scenario: z.literal(true).optional(),
   })
   .strict();
 export type StormCell = z.infer<typeof StormCell>;

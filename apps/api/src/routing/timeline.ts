@@ -12,7 +12,6 @@ import type {
   Id,
   RouteSpeedInput,
   RouteSpeedResult,
-  StormCell,
   VoyageEvent,
   VoyageTimeline,
 } from "@pharos/shared";
@@ -70,7 +69,6 @@ function eventText(e: VoyageEvent): string {
 export function planTimeline(a: {
   input: RouteSpeedInput;
   result: RouteSpeedResult;
-  stormCells: StormCell[];
   calculationId: Id;
   /** The plan's subject, as the route facts label it. */
   subject: string;
@@ -78,7 +76,6 @@ export function planTimeline(a: {
   const events = voyageTimeline({
     input: a.input,
     result: a.result,
-    stormCells: a.stormCells,
     coast: coastIndex(),
   });
   const calc = { id: a.calculationId, calculator: CALCULATOR };
@@ -113,6 +110,16 @@ export function planTimeline(a: {
     if (e.kind === "storm_passed") {
       fact(i, "clearanceNm", `distance from the edge of storm ${e.stormId}`, e.clearanceNm, "nm");
       fact(i, "maxWaveHeightM", `wave height in storm ${e.stormId}`, e.maxWaveHeightM, "m");
+      fact(i, "activeFrom", `storm ${e.stormId} over the limit from (UTC)`, e.activeFrom, null);
+      if (e.activeUntil !== null) {
+        fact(
+          i,
+          "activeUntil",
+          `storm ${e.stormId} over the limit until (UTC)`,
+          e.activeUntil,
+          null,
+        );
+      }
     }
     if (e.kind === "arrival" && e.provisionsDaysLeft !== null) {
       fact(

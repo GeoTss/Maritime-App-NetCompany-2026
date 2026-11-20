@@ -1,12 +1,12 @@
 /**
- * Demo scenario weather: stationary waves and wind laid over a forecast grid inside circles, the
- * way the labelled synthetic storm is (`withSyntheticStorm`). A grid point within an area's radius
- * takes its four values at every step and is marked synthetic and stationary (it holds for the whole
- * voyage, past the forecast too); a later area wins where two overlap.
+ * Demo scenario weather: waves and wind laid over a forecast grid inside circles, from a start to
+ * an end the presenter sets. A grid point within an area's radius takes its four values at the
+ * steps inside the window, is marked synthetic, and carries the window, so it holds past the
+ * forecast's last step too; a later area wins where two overlap.
  */
 
 import type { Sql } from "@pharos/db";
-import { greatCircleNm } from "@pharos/domain";
+import { greatCircleNm, scenarioOn } from "@pharos/domain";
 import type { ScenarioWeatherArea, WeatherGrid } from "@pharos/shared";
 
 const inside = (p: { lat: number; lon: number }, a: ScenarioWeatherArea) =>
@@ -22,20 +22,32 @@ export function withWeatherAreas(
   areas: readonly ScenarioWeatherArea[],
 ): WeatherGrid {
   if (areas.length === 0) return grid;
+  const stepMs = grid.stepHours * 3_600_000;
+  const start = Date.parse(grid.startAt);
+  const on = (a: ScenarioWeatherArea, k: number) =>
+    scenarioOn({ from: a.from, until: a.until }, new Date(start + k * stepMs));
   return {
     ...grid,
     points: grid.points.map((p) => {
       const area = areas.findLast((a) => inside(p, a));
       if (!area) return p;
+      const at = <T>(series: T[], value: T) => series.map((v, k) => (on(area, k) ? value : v));
       return {
         ...p,
-        waveHeightM: p.waveHeightM.map(() => area.waveHeightM),
-        waveDirDeg: p.waveDirDeg.map(() => area.waveDirDeg),
-        windSpeedKn: p.windSpeedKn.map(() => area.windSpeedKn),
-        windDirDeg: p.windDirDeg.map(() => area.windDirDeg),
+        waveHeightM: at(p.waveHeightM, area.waveHeightM),
+        waveDirDeg: at(p.waveDirDeg, area.waveDirDeg),
+        windSpeedKn: at(p.windSpeedKn, area.windSpeedKn),
+        windDirDeg: at(p.windDirDeg, area.windDirDeg),
         synthetic: true as const,
-        // It holds for the whole voyage: past the forecast's last step too.
-        stationary: true as const,
+        // The window rides along: sampling holds it past the forecast's last step too.
+        scenario: {
+          from: area.from,
+          until: area.until,
+          waveHeightM: area.waveHeightM,
+          waveDirDeg: area.waveDirDeg,
+          windSpeedKn: area.windSpeedKn,
+          windDirDeg: area.windDirDeg,
+        },
       };
     }),
   };
@@ -54,9 +66,13 @@ export async function loadWeatherAreas(sql: Sql): Promise<ScenarioWeatherArea[]>
       wave_dir_deg: number;
       wind_speed_kn: number;
       wind_dir_deg: number;
+      active_from: Date | string | null;
+      active_until: Date | string | null;
     }[]
-  >`select id, label, lat, lon, radius_nm, wave_height_m, wave_dir_deg, wind_speed_kn, wind_dir_deg
+  >`select id, label, lat, lon, radius_nm, wave_height_m, wave_dir_deg, wind_speed_kn, wind_dir_deg,
+      active_from, active_until
     from scenario_weather_areas order by id`;
+  const iso = (v: Date | string | null) => (v === null ? null : new Date(v).toISOString());
   return rows.map((r) => ({
     id: r.id,
     label: r.label,
@@ -66,5 +82,7 @@ export async function loadWeatherAreas(sql: Sql): Promise<ScenarioWeatherArea[]>
     waveDirDeg: r.wave_dir_deg,
     windSpeedKn: r.wind_speed_kn,
     windDirDeg: r.wind_dir_deg,
+    from: iso(r.active_from),
+    until: iso(r.active_until),
   }));
 }

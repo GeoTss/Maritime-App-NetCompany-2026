@@ -37,6 +37,15 @@ export const forecastStepAt = (grid: { startAt: string; stepHours: number }, ste
  * Null when no step lies within half a step of `at`, or the nearest point is over WEATHER_MAX_NM away.
  * A null field reads as 0.
  */
+/** Whether a scenario area's window holds `at` (a null end is open on that side). */
+export function scenarioOn(sc: { from: string | null; until: string | null }, at: Date): boolean {
+  const t = at.getTime();
+  return (
+    (sc.from === null || t >= Date.parse(sc.from)) &&
+    (sc.until === null || t <= Date.parse(sc.until))
+  );
+}
+
 export function sampleWeather(grid: WeatherGrid, p: LatLon, at: Date): WeatherSample | null {
   let best: WeatherGrid["points"][number] | null = null;
   let bestNm = Number.POSITIVE_INFINITY;
@@ -50,12 +59,22 @@ export function sampleWeather(grid: WeatherGrid, p: LatLon, at: Date): WeatherSa
   if (!best || bestNm > WEATHER_MAX_NM) return null;
   const stepMs = grid.stepHours * HOUR_MS;
   const offset = at.getTime() - new Date(grid.startAt).getTime();
-  const last = best.waveHeightM.length - 1;
-  let k = Math.round(offset / stepMs);
-  if (!Number.isFinite(k) || k < 0) return null;
-  // A stationary point (a demo scenario weather area) holds its last step for the whole voyage.
-  if (best.stationary && k > last) k = last;
-  else if (k > last || Math.abs(offset - k * stepMs) > stepMs / 2) return null;
+  const k = Math.round(offset / stepMs);
+  // A demo scenario area holds its weather through its window, past the forecast too.
+  const sc = best.scenario;
+  if (sc && scenarioOn(sc, at)) {
+    const inForecast = Number.isFinite(k) && k >= 0 && k < best.waveHeightM.length;
+    return {
+      waveHeightM: sc.waveHeightM,
+      waveDirDeg: sc.waveDirDeg,
+      windSpeedKn: sc.windSpeedKn,
+      windDirDeg: sc.windDirDeg,
+      currentSpeedKn: inForecast ? (best.currentSpeedKn[k] ?? 0) : 0,
+      currentDirDeg: inForecast ? (best.currentDirDeg[k] ?? 0) : 0,
+    };
+  }
+  if (!Number.isFinite(k) || k < 0 || k >= best.waveHeightM.length) return null;
+  if (Math.abs(offset - k * stepMs) > stepMs / 2) return null;
   const at0 = (s: (number | null)[]): number => s[k] ?? 0;
   return {
     waveHeightM: at0(best.waveHeightM),

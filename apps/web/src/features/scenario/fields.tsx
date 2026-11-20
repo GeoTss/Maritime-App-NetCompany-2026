@@ -38,6 +38,38 @@ export function NumberField({
   );
 }
 
+/** A UTC date and time, typed as "2026-11-14T08:00" (the browser's own picker). */
+export function DateTimeField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const id = useId();
+  return (
+    <div className="flex min-w-0 flex-col gap-1">
+      <label htmlFor={id} className="text-2xs text-text-2 font-label">
+        {label}
+      </label>
+      <Input
+        id={id}
+        type="datetime-local"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="h-7 tabular-nums"
+      />
+    </div>
+  );
+}
+
+/** "2026-11-14T08:00" for an instant, in UTC; and back to an ISO instant (undefined if not one). */
+export const utcInput = (iso: string) => iso.slice(0, 16);
+export const fromUtcInput = (v: string): string | undefined =>
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(v) ? `${v}:00.000Z` : undefined;
+
 export function TextField({
   label,
   value,

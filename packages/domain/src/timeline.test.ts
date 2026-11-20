@@ -3,8 +3,8 @@ import type {
   LatLon,
   RouteSpeedInput,
   StopCandidate,
-  StormCell,
   VoyageEvent,
+  WeatherGrid,
 } from "@pharos/shared";
 import { describe, expect, it } from "vitest";
 import { buildCoastIndex } from "./coast.js";
@@ -95,14 +95,27 @@ const MED = [ll(35, 15), ll(35, 25)];
 
 const timelineOf = (
   input: RouteSpeedInput,
-  extra: { coast?: ReturnType<typeof buildCoastIndex> | null; stormCells?: StormCell[] } = {},
-) =>
-  voyageTimeline({
-    input,
-    result: optimiseRouteSpeed(input),
-    stormCells: extra.stormCells ?? [],
-    coast: extra.coast ?? null,
-  });
+  extra: { coast?: ReturnType<typeof buildCoastIndex> | null } = {},
+) => voyageTimeline({ input, result: optimiseRouteSpeed(input), coast: extra.coast ?? null });
+
+/** Calm 1 m seas except at `storms`, 8.5 m at the steps given (all 80 when none given). */
+function stormGrid(storms: { lat: number; lon: number; steps?: [number, number] }[]): WeatherGrid {
+  const series = (v: (k: number) => number) => Array.from({ length: 80 }, (_, k) => v(k));
+  return {
+    startAt: START,
+    stepHours: 3,
+    points: storms.map(({ lat, lon, steps }) => ({
+      lat,
+      lon,
+      waveHeightM: series((k) => (!steps || (k >= steps[0] && k <= steps[1]) ? 8.5 : 1)),
+      waveDirDeg: series(() => 270),
+      windSpeedKn: series(() => 20),
+      windDirDeg: series(() => 270),
+      currentSpeedKn: series(() => 0),
+      currentDirDeg: series(() => 0),
+    })),
+  };
+}
 
 const ofKind = <K extends VoyageEvent["kind"]>(events: VoyageEvent[], kind: K) =>
   events.filter((e): e is Extract<VoyageEvent, { kind: K }> => e.kind === kind);
@@ -114,7 +127,7 @@ describe("voyageTimeline", () => {
     const result = optimiseRouteSpeed(input);
     expect(result.plan?.kind).toBe("route");
     const option = result.options.find((o) => o.candidateId === result.plan?.optionId);
-    const events = voyageTimeline({ input, result, stormCells: [], coast: null });
+    const events = voyageTimeline({ input, result, coast: null });
     const last = events[events.length - 1];
     expect(last?.kind).toBe("arrival");
     expect(last?.at).toBe(option?.eta);
@@ -136,7 +149,7 @@ describe("voyageTimeline", () => {
     const r2 = optimiseRouteSpeed(low);
     expect(r2.plan?.kind).toBe("stop");
     const plan = r2.stopPlans.find((s) => s.optionId === r2.plan?.optionId);
-    const e2 = voyageTimeline({ input: low, result: r2, stormCells: [], coast: null });
+    const e2 = voyageTimeline({ input: low, result: r2, coast: null });
     expect(ofKind(e2, "port_arrival")[0]?.at).toBe(plan?.stop?.arriveAt);
     expect(ofKind(e2, "port_departure")[0]?.at).toBe(plan?.stop?.departAt);
     expect(e2.at(-1)?.at).toBe(plan?.eta);
@@ -223,39 +236,31 @@ describe("voyageTimeline", () => {
   });
 
   it("storm passed", () => {
-    const cell: StormCell = {
-      id: "storm:35.5,20",
-      center: ll(35.5, 20),
-      radiusNm: 10,
-      maxWaveHeightM: 8.5,
-      from: START,
-      to: "2026-11-15T08:00:00.000Z",
-      synthetic: true,
-    };
-    const [passed] = ofKind(timelineOf(routeInput(MED), { stormCells: [cell] }), "storm_passed");
-    expect(passed?.stormId).toBe("storm:35.5,20");
-    expect(passed?.clearanceNm).toBeCloseTo(30 - 10, 0);
-    expect(passed?.synthetic).toBe(true);
+    // 90 nm north of the track, on for the whole forecast: passed 10 nm off its edge, while on.
+    const weather = stormGrid([{ lat: 36.5, lon: 20 }]);
+    const [passed] = ofKind(timelineOf(routeInput(MED, { weather })), "storm_passed");
+    expect(passed?.stormId).toBe("storm:36.5,20");
+    expect(passed?.clearanceNm).toBeCloseTo(10, 0);
+    expect(passed?.timing).toBe("during");
+    expect(passed?.activeFrom).toBe(START);
     expect(passed?.position.lon).toBeCloseTo(20, 1);
   });
 
   it("one event per storm it passes near; far storms left off", () => {
-    const cell = (id: string, lat: number, lon: number): StormCell => ({
-      id,
-      center: ll(lat, lon),
-      radiusNm: 80,
-      maxWaveHeightM: 9,
-      from: START,
-      to: "2026-11-15T08:00:00.000Z",
-      stationary: true,
-    });
-    // Two neighbouring cells of one gale 40 and 70 nm off the track, and one 1,500 nm away.
-    const cells = [
-      cell("storm:35.67,20", 35 + 40 / 60, 20),
-      cell("storm:36.17,21", 35 + 70 / 60, 21),
-      cell("storm:10,20", 10, 20),
-    ];
-    const passed = ofKind(timelineOf(routeInput(MED), { stormCells: cells }), "storm_passed");
-    expect(passed.map((e) => e.stormId)).toEqual(["storm:35.67,20"]);
+    const weather = stormGrid([
+      { lat: 35.5, lon: 20 },
+      { lat: 36, lon: 21 },
+      { lat: 10, lon: 20 },
+    ]);
+    const passed = ofKind(timelineOf(routeInput(MED, { weather })), "storm_passed");
+    expect(passed.map((e) => e.stormId)).toEqual(["storm:35.5,20"]);
+  });
+
+  it("passing where a storm was, after it blew out, says so", () => {
+    // On for the first 6 hours only; the ship gets to 24° E more than a day later.
+    const weather = stormGrid([{ lat: 35.5, lon: 24, steps: [0, 2] }]);
+    const [passed] = ofKind(timelineOf(routeInput(MED, { weather })), "storm_passed");
+    expect(passed?.timing).toBe("after");
+    expect(passed?.activeUntil).toBe("2026-11-14T14:00:00.000Z");
   });
 });

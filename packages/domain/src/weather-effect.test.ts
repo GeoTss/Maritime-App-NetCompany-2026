@@ -117,15 +117,24 @@ describe("sampleWeather", () => {
   it("returns null when the nearest point is over 120 nm away", () => {
     expect(sampleWeather(grid, { lat: 36, lon: 0 }, new Date(grid.startAt))).toBeNull();
   });
-  it("a stationary point holds its last step past the forecast; a forecast point does not", () => {
+  it("a scenario point holds its window's weather, past the forecast too; outside it the forecast, then nothing", () => {
+    const scenario = {
+      from: "2026-11-15T03:00:00.000Z",
+      until: "2026-12-12T00:00:00.000Z",
+      waveHeightM: 11,
+      waveDirDeg: 0,
+      windSpeedKn: 40,
+      windDirDeg: 0,
+    };
     const held = {
       ...grid,
-      points: grid.points.map((pt, i) => (i === 1 ? { ...pt, stationary: true as const } : pt)),
+      points: grid.points.map((pt, i) => (i === 1 ? { ...pt, scenario } : pt)),
     };
-    const weeksLater = new Date("2026-12-10T00:00:00.000Z");
-    expect(sampleWeather(held, { lat: 40.1, lon: 5.1 }, weeksLater)?.waveHeightM).toBe(9);
-    expect(sampleWeather(held, p, weeksLater)).toBeNull();
-    expect(sampleWeather(grid, { lat: 40.1, lon: 5.1 }, weeksLater)).toBeNull();
+    const q = { lat: 40.1, lon: 5.1 };
+    expect(sampleWeather(held, q, new Date("2026-12-10T00:00:00.000Z"))?.waveHeightM).toBe(11);
+    expect(sampleWeather(held, q, new Date("2026-11-15T00:00:00.000Z"))?.waveHeightM).toBe(9);
+    expect(sampleWeather(held, q, new Date("2026-12-20T00:00:00.000Z"))).toBeNull();
+    expect(sampleWeather(held, p, new Date("2026-12-10T00:00:00.000Z"))).toBeNull();
   });
 });
 

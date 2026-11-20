@@ -10,7 +10,6 @@ import {
   type PortAction,
   RouteSpeedInput,
   type RouteSpeedResult,
-  type StormCell,
   TIMELINE_KIND_ORDER,
   type VoyageEvent,
 } from "@pharos/shared";
@@ -29,6 +28,7 @@ import { greatCircleNm, nearestAlongNm } from "./geo.js";
 import { provisionsDaysLeft } from "./port-call.js";
 import { walkRouteOption } from "./route-optimiser.js";
 import { walkStopPlan } from "./stop-plan.js";
+import { type StormArea, stormAreas } from "./storms.js";
 import { lerp, type WalkedStep } from "./track.js";
 
 const HOUR_MS = 3_600_000;
@@ -166,16 +166,18 @@ function sewageEvents(legs: Leg[], coast: CoastIndex | null): VoyageEvent[] {
 /**
  * The storms the route passes near: one event per storm (neighbouring grid cells of one storm
  * merged, as their circles touch), at its closest approach, and only when that is within
- * `STORM_PASS_NEAR_NM` of its edge. Waves are the storm's highest.
+ * `STORM_PASS_NEAR_NM` of its edge. Each says whether the route passes while the storm is on,
+ * after it has blown out, or before it starts (a route crossing where a storm was is explained).
+ * Waves are the storm's highest; its window spans its cells'.
  */
 function stormEvents(
   points: LatLon[],
-  cells: StormCell[],
+  areas: StormArea[],
   at: ReturnType<typeof along>,
 ): VoyageEvent[] {
-  const near = cells
-    .map((cell) => ({ cell, pass: nearestAlongNm(points, cell.center) }))
-    .map((c) => ({ ...c, clearanceNm: c.pass.offNm - c.cell.radiusNm }))
+  const near = areas
+    .map((area) => ({ area, pass: nearestAlongNm(points, area.center) }))
+    .map((c) => ({ ...c, clearanceNm: c.pass.offNm - c.area.radiusNm }))
     .filter((c) => c.clearanceNm <= STORM_PASS_NEAR_NM);
   // Cells of one storm: circles that touch (a quarter of slack takes in diagonal neighbours).
   const group = near.map((_, i) => i);
@@ -183,8 +185,8 @@ function stormEvents(
   for (const [i, a] of near.entries()) {
     for (const [j, b] of near.entries()) {
       if (j <= i) continue;
-      const touch = (a.cell.radiusNm + b.cell.radiusNm) * 1.25;
-      if (greatCircleNm(a.cell.center, b.cell.center) <= touch) group[root(j)] = root(i);
+      const touch = (a.area.radiusNm + b.area.radiusNm) * 1.25;
+      if (greatCircleNm(a.area.center, b.area.center) <= touch) group[root(j)] = root(i);
     }
   }
   const storms = new Map<number, typeof near>();
@@ -192,15 +194,22 @@ function stormEvents(
   return [...storms.values()].map((storm) => {
     const closest = storm.reduce((m, c) => (c.clearanceNm < m.clearanceNm ? c : m));
     const p = at.atNm(closest.pass.nm);
+    const from = Math.min(...storm.map((c) => Date.parse(c.area.from)));
+    const open = storm.some((c) => c.area.until === null);
+    const until = open ? null : Math.max(...storm.map((c) => Date.parse(c.area.until as string)));
+    const timing = p.ms < from ? "before" : until !== null && p.ms > until ? "after" : "during";
     return {
       kind: "storm_passed" as const,
       at: iso(p.ms),
       position: p.position,
       alongNm: p.nm,
-      stormId: closest.cell.id,
+      stormId: closest.area.id,
       clearanceNm: closest.clearanceNm,
-      maxWaveHeightM: Math.max(...storm.map((c) => c.cell.maxWaveHeightM)),
-      synthetic: storm.some((c) => c.cell.synthetic === true),
+      maxWaveHeightM: Math.max(...storm.map((c) => c.area.maxWaveHeightM)),
+      synthetic: storm.some((c) => c.area.synthetic),
+      activeFrom: iso(from),
+      activeUntil: until === null ? null : iso(until),
+      timing,
     };
   });
 }
@@ -223,7 +232,6 @@ const sortEvents = (events: VoyageEvent[]): VoyageEvent[] =>
 export function voyageTimeline(a: {
   input: RouteSpeedInput;
   result: RouteSpeedResult;
-  stormCells: StormCell[];
   coast: CoastIndex | null;
 }): VoyageEvent[] {
   const input = RouteSpeedInput.parse(a.input);
@@ -249,7 +257,7 @@ export function voyageTimeline(a: {
     { kind: "departure", at: input.startAt, position: start, alongNm: 0 },
     ...ecaEvents(legs, startMs),
     ...sewageEvents(legs, a.coast),
-    ...stormEvents(walk.points, a.stormCells, at),
+    ...stormEvents(walk.points, stormAreas(input.weather), at),
   ];
 
   if (stopPlan && stopWalk) {

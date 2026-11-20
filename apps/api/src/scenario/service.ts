@@ -273,9 +273,11 @@ export async function addWeatherArea(
   }
   await deps.sql`
     insert into scenario_weather_areas
-      (label, lat, lon, radius_nm, wave_height_m, wave_dir_deg, wind_speed_kn, wind_dir_deg, created_at)
+      (label, lat, lon, radius_nm, wave_height_m, wave_dir_deg, wind_speed_kn, wind_dir_deg,
+       active_from, active_until, created_at)
     values (${input.label}, ${input.center.lat}, ${input.center.lon}, ${input.radiusNm},
             ${input.waveHeightM}, ${input.waveDirDeg}, ${input.windSpeedKn}, ${input.windDirDeg},
+            ${input.from}::timestamptz, ${input.until}::timestamptz,
             ${deps.clock.now().toISOString()}::timestamptz)`;
   await markEdited(deps);
   return readScenario(deps);

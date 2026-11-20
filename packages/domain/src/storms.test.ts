@@ -1,7 +1,7 @@
 import type { RouteCandidate, RouteSpeedInput, WeatherGrid } from "@pharos/shared";
 import { describe, expect, it } from "vitest";
 import { evaluateRoute, optimiseRouteSpeed } from "./route-optimiser.js";
-import { stationaryStormCells, stormCells } from "./storms.js";
+import { stormAreas, stormCells } from "./storms.js";
 import { subSteps, walkSteps } from "./track.js";
 
 const START = "2026-11-14T00:00:00.000Z";
@@ -105,9 +105,9 @@ describe("synthetic storm cells", () => {
   });
 });
 
-describe("stationary storm cells (a demo scenario weather area)", () => {
-  /** The passing storm's grid with one stationary 8 m point at 5° E (it holds for the whole voyage). */
-  const held = (): WeatherGrid => {
+describe("scenario storms have a window", () => {
+  /** The passing storm's grid with a scenario 8 m storm at 5° E, from `from` until `until`. */
+  const held = (from: string | null, until: string | null): WeatherGrid => {
     const g = passingStorm();
     return {
       ...g,
@@ -115,30 +115,51 @@ describe("stationary storm cells (a demo scenario weather area)", () => {
         pt.lon === 5
           ? {
               ...pt,
-              waveHeightM: pt.waveHeightM.map(() => 8),
               synthetic: true as const,
-              stationary: true as const,
+              scenario: {
+                from,
+                until,
+                waveHeightM: 8,
+                waveDirDeg: 90,
+                windSpeedKn: 40,
+                windDirDeg: 90,
+              },
             }
           : pt,
       ),
     };
   };
+  const late = (weather: WeatherGrid) => ({
+    ...input(weather),
+    startAt: "2026-12-14T00:00:00.000Z",
+  });
+  const walk = (i: ReturnType<typeof late>) =>
+    walkSteps(subSteps(A.points, 20).steps, new Date(i.startAt), 12, i.weather);
 
-  it("lists every stationary point over the limit, wherever a route goes", () => {
-    const cells = stationaryStormCells(held());
+  it("a route that meets it inside its window, after the forecast, meets a storm", () => {
+    const i = late(held("2026-12-10T00:00:00.000Z", "2026-12-20T00:00:00.000Z"));
+    const cells = stormCells(i.weather, walk(i));
     expect(cells.map((c) => c.id)).toEqual(["storm:0,5"]);
-    expect(cells[0]?.stationary).toBe(true);
-    expect(cells[0]?.maxWaveHeightM).toBe(8);
-    expect(stationaryStormCells(passingStorm())).toEqual([]);
-    expect(stationaryStormCells(null)).toEqual([]);
+    expect(cells[0]?.scenario).toBe(true);
+    expect(cells[0]?.from).toBe("2026-12-10T00:00:00.000Z");
+    expect(evaluateRoute(i, A, 12).reasons).toContain("heavy_weather");
   });
 
-  it("a route that reaches it after the forecast still meets it", () => {
-    // Starting 30 days late: every step of the forecast is long past when the route gets there.
-    const late = { ...input(held()), startAt: "2026-12-14T00:00:00.000Z" };
-    expect(evaluateRoute(late, A, 12).reasons).toContain("heavy_weather");
-    expect(evaluateRoute({ ...late, weather: passingStorm() }, A, 12).reasons).not.toContain(
-      "heavy_weather",
-    );
+  it("after its window it is gone", () => {
+    const i = late(held("2026-11-20T00:00:00.000Z", "2026-11-25T00:00:00.000Z"));
+    expect(stormCells(i.weather, walk(i))).toEqual([]);
+    expect(evaluateRoute(i, A, 12).reasons).not.toContain("heavy_weather");
+  });
+
+  it("every storm area, with when it is on", () => {
+    const areas = stormAreas(held("2026-12-10T00:00:00.000Z", null));
+    const scenario = areas.find((a) => a.id === "storm:0,5");
+    expect(scenario?.from).toBe("2026-12-10T00:00:00.000Z");
+    expect(scenario?.until).toBeNull();
+    // The forecast's own 8 m storm (4.5 and 5.5° E, steps 9-11) is on from 27 h to 33 h.
+    const forecast = areas.find((a) => a.id === "storm:0,4.5");
+    expect(forecast?.from).toBe("2026-11-15T03:00:00.000Z");
+    expect(forecast?.until).toBe("2026-11-15T09:00:00.000Z");
+    expect(stormAreas(null)).toEqual([]);
   });
 });

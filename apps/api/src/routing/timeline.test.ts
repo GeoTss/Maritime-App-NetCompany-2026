@@ -24,7 +24,6 @@ describe("planTimeline", () => {
   const timeline = planTimeline({
     input: plan.input,
     result,
-    stormCells: plan.stormCells ?? [],
     calculationId: 7,
     subject: plan.subject,
   });

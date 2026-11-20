@@ -17,7 +17,6 @@ import {
   routeHazardIds,
   SHIP_EU_COVERAGE,
   sailedNmAt,
-  stationaryStormCells,
   stormCells,
   subSteps,
   walkSteps,
@@ -138,29 +137,27 @@ function roundTheCape(
 const SPEED_STEP_KN = 0.5;
 const STEP_NM = 20;
 
-/**
- * The storm cells to steer round: those the walk meets inside the forecast, and every stationary
- * one (a demo scenario weather area holds for the whole voyage, so routes go round it wherever
- * they meet it, past the forecast too). One per grid point, sorted by id.
- */
-function cellsToAvoid(weather: WeatherGrid, walked: Parameters<typeof stormCells>[1]): StormCell[] {
+/** One cell per grid point, sorted by id (the first copy of a point wins). */
+function mergeCells(...lists: StormCell[][]): StormCell[] {
   const byId = new Map<string, StormCell>();
-  for (const c of stormCells(weather, walked)) byId.set(c.id, c);
-  for (const c of stationaryStormCells(weather)) byId.set(c.id, c);
+  for (const list of lists) for (const c of list) if (!byId.has(c.id)) byId.set(c.id, c);
   return [...byId.values()].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 }
 
+const zoneOf = (c: StormCell): HazardZone => ({ id: c.id, center: c.center, radiusNm: c.radiusNm });
+
 /**
- * The storm cells the baseline meets (walked at its speed from `startAt`) and the stationary ones
- * (`cellsToAvoid`), and, when there are
- * any, one more candidate "S" ("Around the storm") routed round them and the hazards, unless the
- * graph can't or it repeats a candidate already there.
+ * The storm cells the baseline meets (walked at its speed from `startAt`; a demo scenario storm
+ * while it is on), with any `known` ones the other routes meet, and, when there are any, one more
+ * candidate "S" ("Around the storm") routed round them and the hazards, unless the graph can't or
+ * it repeats a candidate already there.
  */
 export function withStormDetour(
   graph: RouteGraph,
   start: LatLon,
   end: LatLon,
   input: Pick<RouteSpeedInput, "candidates" | "baseline" | "startAt" | "weather" | "hazards">,
+  known: StormCell[] = [],
 ): { candidates: RouteCandidate[]; stormCells: StormCell[] } {
   const base = input.candidates.find((c) => c.id === input.baseline.candidateId);
   if (!base || !input.weather) return { candidates: input.candidates, stormCells: [] };
@@ -170,12 +167,9 @@ export function withStormDetour(
     input.baseline.speedKn,
     input.weather,
   );
-  const cells = cellsToAvoid(input.weather, walked);
+  const cells = mergeCells(stormCells(input.weather, walked), known);
   if (cells.length === 0) return { candidates: input.candidates, stormCells: [] };
-  const avoid: HazardZone[] = [
-    ...input.hazards,
-    ...cells.map((c) => ({ id: c.id, center: c.center, radiusNm: c.radiusNm })),
-  ];
+  const avoid: HazardZone[] = [...input.hazards, ...cells.map(zoneOf)];
   let detour: RouteCandidate | undefined;
   try {
     [detour] = candidateRoutes(graph, start, end, { max: 1, avoid });
@@ -348,44 +342,64 @@ export function fleetRoutePlan(
   const position = planned[0] as LatLon;
   const destination = path.destination;
   const baselineKn = clampSpeed(path.curve, voyage.plannedSpeedKn, SPEED_STEP_KN);
-  // The storm cells the planned route meets at its planned speed, and every stationary demo
-  // scenario cell: the sea routes and the routes through a bunker port steer round them as round
-  // the hazards (the planned route stays as it is).
-  const cells = weather
-    ? cellsToAvoid(
-        weather,
-        walkSteps(subSteps(planned, STEP_NM).steps, report.ts, baselineKn, weather),
-      )
-    : [];
-  const avoid: HazardZone[] = [
-    ...hazards,
-    ...cells.map((c) => ({ id: c.id, center: c.center, radiusNm: c.radiusNm })),
-  ];
-
-  let sea: RouteCandidate[] = [];
-  try {
-    sea = candidateRoutes(graph, position, latLon(destination), { max: 2, avoid });
-  } catch (e) {
-    if (!(e instanceof RouteError)) throw e;
-  }
-  const seaIds = ["B", "C"] as const;
-  const seaLabels = ["Shortest sea route", "Alternative sea route"] as const;
-  const candidates: RouteCandidate[] = [
-    { id: "A", label: "Planned route", points: planned },
-    ...sea.map((c, i) => ({
-      id: seaIds[i] as string,
-      label: seaLabels[i] as string,
-      points: c.points,
-    })),
-  ];
-
-  // A voyage through danger areas also weighs going round the Cape (the graph search alone would
-  // never offer a route that much longer).
+  // The storm cells the planned route meets at its planned speed: the sea routes, the route round
+  // the Cape and the routes through a bunker port steer round them as round the hazards (the
+  // planned route stays as it is).
+  const walkAt = (points: LatLon[], w: WeatherGrid) =>
+    walkSteps(subSteps(points, STEP_NM).steps, report.ts, baselineKn, w);
   const security = securityFor(world, vessel.imo, vessel.hullValueUsd ?? 0, planned, report.ts);
-  if (security) {
-    const cape = roundTheCape(graph, position, latLon(destination), avoid);
-    if (cape) candidates.push({ id: "K", label: "Round the Cape", points: cape });
+  const build = (cells: StormCell[]) => {
+    const avoid: HazardZone[] = [...hazards, ...cells.map(zoneOf)];
+    let sea: RouteCandidate[] = [];
+    try {
+      sea = candidateRoutes(graph, position, latLon(destination), { max: 2, avoid });
+    } catch (e) {
+      if (!(e instanceof RouteError)) throw e;
+    }
+    const seaIds = ["B", "C"] as const;
+    const seaLabels = ["Shortest sea route", "Alternative sea route"] as const;
+    const candidates: RouteCandidate[] = [
+      { id: "A", label: "Planned route", points: planned },
+      ...sea.map((c, i) => ({
+        id: seaIds[i] as string,
+        label: seaLabels[i] as string,
+        points: c.points,
+      })),
+    ];
+    // A voyage through danger areas also weighs going round the Cape (the graph search alone would
+    // never offer a route that much longer).
+    if (security) {
+      const cape = roundTheCape(graph, position, latLon(destination), avoid);
+      if (cape) candidates.push({ id: "K", label: "Round the Cape", points: cape });
+    }
+    const stops = stopCandidates(
+      world,
+      voyage.id,
+      graph,
+      position,
+      latLon(destination),
+      avoid,
+      opts,
+    );
+    return { candidates, stops };
+  };
+  let cells = weather ? stormCells(weather, walkAt(planned, weather)) : [];
+  let built = build(cells);
+  // A demo scenario storm the other routes would meet while it is on (the planned route may not go
+  // near it): steer them round it too, once. Forecast storms keep to the planned route's.
+  if (weather) {
+    const met = mergeCells(
+      cells,
+      ...[...built.candidates.slice(1), ...built.stops.filter((st) => st.routeError === null)].map(
+        (r) => stormCells(weather, walkAt(r.points, weather)).filter((c) => c.scenario),
+      ),
+    );
+    if (met.length > cells.length) {
+      cells = met;
+      built = build(cells);
+    }
   }
+  const { candidates, stops } = built;
 
   const discharge = world.portCalls.find(
     (c) => c.voyageId === voyage.id && c.purpose === "discharge",
@@ -411,7 +425,7 @@ export function fleetRoutePlan(
         safetyMarginDays: DEMO_SCENARIO.safetyMarginDays,
         tankCapacityMt: vessel.tankCapacityMt,
       },
-      stops: stopCandidates(world, voyage.id, graph, position, latLon(destination), avoid, opts),
+      stops,
       stores: vessel.stores ?? null,
       nautical: world.nauticalItems,
       ...(security ? { security } : {}),
@@ -423,7 +437,7 @@ export function fleetRoutePlan(
     stormCells: [],
     loadCondition: null,
   };
-  const storm = withStormDetour(graph, position, latLon(destination), out.input);
+  const storm = withStormDetour(graph, position, latLon(destination), out.input, cells);
   return {
     ...out,
     input: { ...out.input, candidates: storm.candidates },

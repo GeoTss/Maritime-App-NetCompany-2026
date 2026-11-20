@@ -6,7 +6,7 @@
  */
 import { z } from "zod";
 import { NavHazardView } from "./api.js";
-import { Id, LatLon } from "./primitives.js";
+import { Id, IsoDateTime, LatLon } from "./primitives.js";
 
 const grades = (max: number) =>
   z
@@ -114,20 +114,35 @@ export type ScenarioHazardInput = z.infer<typeof ScenarioHazardInput>;
 const direction = z.number().int().min(0).max(359);
 
 /** Stationary weather laid over every forecast step inside a circle (the direction it comes from). */
+const areaFields = {
+  label: z.string().trim().min(1).max(80),
+  center: LatLon,
+  radiusNm: z.number().min(30).max(600),
+  waveHeightM: z.number().min(0).max(15),
+  waveDirDeg: direction,
+  windSpeedKn: z.number().min(0).max(100),
+  windDirDeg: direction,
+};
+
+/** Weather laid over a circle from `from` until `until` (UTC); it may run past the forecast. */
 export const ScenarioWeatherAreaInput = z
-  .object({
-    label: z.string().trim().min(1).max(80),
-    center: LatLon,
-    radiusNm: z.number().min(30).max(600),
-    waveHeightM: z.number().min(0).max(15),
-    waveDirDeg: direction,
-    windSpeedKn: z.number().min(0).max(100),
-    windDirDeg: direction,
-  })
-  .strict();
+  .object({ ...areaFields, from: IsoDateTime, until: IsoDateTime })
+  .strict()
+  .refine((a) => Date.parse(a.until) > Date.parse(a.from), {
+    message: "the weather must end after it starts",
+    path: ["until"],
+  });
 export type ScenarioWeatherAreaInput = z.infer<typeof ScenarioWeatherAreaInput>;
 
-export const ScenarioWeatherArea = ScenarioWeatherAreaInput.extend({ id: Id }).strict();
+/** A stored area; an area made before windows existed has none (null: open on that side). */
+export const ScenarioWeatherArea = z
+  .object({
+    ...areaFields,
+    id: Id,
+    from: IsoDateTime.nullable(),
+    until: IsoDateTime.nullable(),
+  })
+  .strict();
 export type ScenarioWeatherArea = z.infer<typeof ScenarioWeatherArea>;
 
 export const ScenarioView = z

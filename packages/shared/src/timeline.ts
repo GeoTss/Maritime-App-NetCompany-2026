@@ -101,6 +101,11 @@ export const VoyageEvent = z.discriminatedUnion("kind", [
       clearanceNm: z.number(),
       maxWaveHeightM: NonNeg,
       synthetic: z.boolean(),
+      /** When the storm is over the limit there: from, and until (null: no end set). */
+      activeFrom: IsoDateTime,
+      activeUntil: IsoDateTime.nullable(),
+      /** Whether the route passes while the storm is on, after it has blown out, or before it starts. */
+      timing: z.enum(["during", "after", "before"]),
     })
     .strict(),
   z

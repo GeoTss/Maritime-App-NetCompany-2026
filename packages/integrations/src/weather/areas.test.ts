@@ -20,6 +20,8 @@ const grid: WeatherGrid = {
 };
 const area = (over: Partial<ScenarioWeatherArea> = {}): ScenarioWeatherArea => ({
   id: 1,
+  from: null,
+  until: null,
   label: "Gale",
   center: { lat: 34, lon: 21 },
   radiusNm: 60,
@@ -39,8 +41,13 @@ describe("withWeatherAreas", () => {
       expect(p?.windDirDeg).toEqual([280, 280, 280]);
       expect(p?.currentSpeedKn).toEqual([0.2, 0.2, 0.2]);
       expect(p?.synthetic).toBe(true);
-      // It holds for the whole voyage, past the forecast too.
-      expect(p?.stationary).toBe(true);
+      // It holds through its window, past the forecast too.
+      expect(p?.scenario).toMatchObject({
+        waveHeightM: 8,
+        windSpeedKn: 45,
+        from: null,
+        until: null,
+      });
     }
     expect(c).toEqual(grid.points[2]);
   });
@@ -58,5 +65,14 @@ describe("withWeatherAreas", () => {
   it("counts the points an area holds", () => {
     expect(pointsInArea(grid, area())).toBe(2);
     expect(pointsInArea(grid, area({ center: { lat: 30, lon: 10 }, radiusNm: 30 }))).toBe(0);
+  });
+
+  it("only the steps inside its window change; the window rides along for later", () => {
+    // Steps at 06:00, 09:00, 12:00: a window from 08:00 to 10:00 holds the 09:00 step only.
+    const out = withWeatherAreas(grid, [
+      area({ from: "2026-11-14T08:00:00Z", until: "2026-11-14T10:00:00Z" }),
+    ]);
+    expect(out.points[0]?.waveHeightM).toEqual([1, 8, 1]);
+    expect(out.points[0]?.scenario?.until).toBe("2026-11-14T10:00:00Z");
   });
 });

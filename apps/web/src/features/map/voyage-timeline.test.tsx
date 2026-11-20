@@ -52,4 +52,32 @@ describe("VoyageTimelineSection", () => {
     renderSection(makeFuelPlan({ portCall: true }));
     expect(screen.getByText("No timeline for this plan.")).toBeTruthy();
   });
+
+  it("a route crossing where a storm was, after it ended, is told so", () => {
+    const p = plan();
+    const timeline = p.timeline;
+    if (!timeline) throw new Error("no timeline");
+    const events = timeline.events.map((e) =>
+      e.kind === "storm_passed" ? { ...e, timing: "after" as const } : e,
+    );
+    renderSection({ ...p, timeline: { ...timeline, events } });
+    const [storm] = rows("storm_passed");
+    expect(storm?.textContent).toMatch(/Passes where a storm was: it ended 24 Nov 05:00Z/);
+  });
+
+  it("a click anywhere on a row picks it and marks it", () => {
+    const picked: number[] = [];
+    // Inside a dialog, as the route tray is.
+    const inTray = (selected: number | null) => (
+      <div role="dialog">
+        <VoyageTimelineSection plan={plan()} onSelect={(i) => picked.push(i)} selected={selected} />
+      </div>
+    );
+    const { rerender } = render(inTray(null));
+    const [eca] = rows("eca_entry");
+    fireEvent.click(within(eca as HTMLElement).getByText(/In a sulphur ECA/));
+    expect(picked).toEqual([1]);
+    rerender(inTray(1));
+    expect(rows("eca_entry")[0]?.getAttribute("aria-current")).toBe("true");
+  });
 });

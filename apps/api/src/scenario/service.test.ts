@@ -100,6 +100,8 @@ describe.skipIf(!sql)("demo scenario (Postgres)", () => {
       waveDirDeg: 270,
       windSpeedKn: 30,
       windDirDeg: 270,
+      from: "2026-11-14T08:00:00.000Z",
+      until: "2026-11-30T00:00:00.000Z",
     };
     await refused(addWeatherArea(deps, area), 422, /No forecast point lies inside this area/);
   });
@@ -115,12 +117,35 @@ describe.skipIf(!sql)("demo scenario (Postgres)", () => {
       waveDirDeg: 270,
       windSpeedKn: 45,
       windDirDeg: 280,
+      from: "2026-11-14T08:00:00.000Z",
+      until: "2026-11-30T00:00:00.000Z",
     });
     const after = await plan();
     const meets =
       (after.plan.stormCells ?? []).length > 0 ||
       after.response.result.options.some((o) => o.reasons.includes("heavy_weather"));
     expect(meets).toBe(true);
+  });
+
+  it("a gale that is over before the route gets there is not steered round", async () => {
+    await resetScenario(deps);
+    await addWeatherArea(deps, {
+      label: "Short gale off Angola",
+      center: { lat: -10.87, lon: -1.18 },
+      radiusNm: 300,
+      waveHeightM: 12,
+      waveDirDeg: 200,
+      windSpeedKn: 55,
+      windDirDeg: 210,
+      from: "2026-11-14T08:00:00.000Z",
+      until: "2026-11-16T00:00:00.000Z",
+    });
+    const planned = await planRouteSpeed(
+      { sql: db, now: clock.now },
+      { vessel: "Atlantic Meridian" },
+    );
+    expect((planned.plan.stormCells ?? []).some((c) => c.center.lat < -5)).toBe(false);
+    await resetScenario(deps);
   });
 
   it("a gale the route meets after the forecast still turns it", async () => {
@@ -134,12 +159,15 @@ describe.skipIf(!sql)("demo scenario (Postgres)", () => {
       waveDirDeg: 200,
       windSpeedKn: 55,
       windDirDeg: 210,
+      // On all the while she is at sea: the Cape route meets it, weeks past the forecast.
+      from: "2026-11-14T08:00:00.000Z",
+      until: "2027-01-31T00:00:00.000Z",
     });
     const planned = await planRouteSpeed(
       { sql: db, now: clock.now },
       { vessel: "Atlantic Meridian" },
     );
-    const gale = (planned.plan.stormCells ?? []).filter((c) => c.stationary && c.center.lat < -5);
+    const gale = (planned.plan.stormCells ?? []).filter((c) => c.scenario && c.center.lat < -5);
     expect(gale.length).toBeGreaterThan(0);
     // Round the Cape, the route now keeps clear of every cell of the gale (it went straight
     // through when the gale vanished at the forecast's end).

@@ -1,9 +1,9 @@
 /**
  * Heavy weather on the map: the forecast grid squares over the wave limit around the time the
  * plan's ship would be there, drawn in the storm purple as one area (adjacent squares tile, and a
- * single outline runs round the whole area: edges two squares share are left out). One callout, at
- * the area's north-east corner, cites the worst square's highest wave and when it is over the
- * limit, and the recommended
+ * single outline runs round the whole area: edges two squares share are left out). One callout per
+ * storm (squares that touch), at its north-east corner, cites its worst square's highest wave and
+ * when it is over the limit, and the recommended
  * route's highest wave, so a route through the area reads as "ahead of the storm". Every number is
  * a fact chip; the geometry is the API's (`stormCells[k].box`).
  */
@@ -53,6 +53,30 @@ export function stormArea(boxes: Box[]): { squares: Position[][][]; outline: Pos
   return { squares, outline };
 }
 
+/** Cells whose squares touch (an edge or a corner) belong to one storm: their indexes, grouped. */
+export function stormsOf(cells: readonly Cell[]): number[][] {
+  const eps = 1e-6;
+  const touch = (a: Box, b: Box) =>
+    a.minLon <= b.maxLon + eps &&
+    b.minLon <= a.maxLon + eps &&
+    a.minLat <= b.maxLat + eps &&
+    b.minLat <= a.maxLat + eps;
+  const group = cells.map((_, i) => i);
+  const root = (i: number): number => (group[i] === i ? i : root(group[i] as number));
+  for (let i = 0; i < cells.length; i++) {
+    for (let j = i + 1; j < cells.length; j++) {
+      const a = cells[i]?.box;
+      const b = cells[j]?.box;
+      if (a && b && touch(a, b)) group[root(j)] = root(i);
+    }
+  }
+  const out = new Map<number, number[]>();
+  cells.forEach((_, i) => {
+    out.set(root(i), [...(out.get(root(i)) ?? []), i]);
+  });
+  return [...out.values()];
+}
+
 /** Where the callout hangs: the area's north-east corner, so the area itself stays in view. */
 function cornerOf(cells: Cell[]): { lat: number; lon: number } {
   const boxes = cells.flatMap((c) => (c.box ? [c.box] : []));
@@ -68,15 +92,15 @@ function StormCallout({
   index,
   at,
   synthetic,
-  stationary,
+  scenario,
 }: {
   plan: RoutePlanView;
   index: number;
   at: { lat: number; lon: number };
   /** The labelled synthetic demo storm, tagged as the demo hazard is. */
   synthetic: boolean;
-  /** A demo scenario weather area: it holds for the whole voyage, so it has no pass times. */
-  stationary: boolean;
+  /** A demo scenario storm: its window is the presenter's, not the forecast's. */
+  scenario: boolean;
 }) {
   const { ref, flip, below } = useFlipLabel<HTMLDivElement>(at.lon, at.lat);
   // Stored inputs of the calculation are cited as its row's fields (`inputs.stormCells.k.*`).
@@ -98,9 +122,10 @@ function StormCallout({
             </span>
             {synthetic ? <DataTag kind="synthetic" /> : null}
           </span>
-          {stationary ? (
+          {scenario ? (
             <span className="text-text-2">
-              Scenario weather: it holds for the whole voyage, so routes go round it
+              Scenario weather, <FactCell fact={fact("from")} kind="time" /> to{" "}
+              <FactCell fact={fact("to")} kind="time" />: a route meeting it then goes round it
             </span>
           ) : (
             <span className="text-text-2">
@@ -146,11 +171,9 @@ export function StormLayer({ plan, colors }: { plan: RoutePlanView | null; color
     [area],
   );
   if (!plan || cells.length === 0) return null;
-  // The worst cell carries the callout (first of the highest, in the plan's order).
-  const worst = cells.reduce(
-    (w, c, i) => (c.maxWaveHeightM > (cells[w]?.maxWaveHeightM ?? 0) ? i : w),
-    0,
-  );
+  // One callout per storm (cells whose squares touch), carried by its worst cell (first of the
+  // highest, in the plan's order), so two storms never share one callout's figures.
+  const storms = stormsOf(cells);
   return (
     <>
       <Source id="storm-squares" type="geojson" data={squares}>
@@ -167,15 +190,23 @@ export function StormLayer({ plan, colors }: { plan: RoutePlanView | null; color
           paint={{ "line-color": colors.storm, "line-width": 1.5, "line-opacity": 0.9 }}
         />
       </Source>
-      {cells[worst] ? (
-        <StormCallout
-          plan={plan}
-          index={worst}
-          at={cornerOf(cells)}
-          synthetic={cells.some((c) => c.synthetic)}
-          stationary={cells[worst].stationary === true}
-        />
-      ) : null}
+      {storms.map((storm) => {
+        const worst = storm.reduce(
+          (w, i) => ((cells[i]?.maxWaveHeightM ?? 0) > (cells[w]?.maxWaveHeightM ?? 0) ? i : w),
+          storm[0] as number,
+        );
+        const members = storm.map((i) => cells[i] as Cell);
+        return (
+          <StormCallout
+            key={cells[worst]?.id}
+            plan={plan}
+            index={worst}
+            at={cornerOf(members)}
+            synthetic={members.some((c) => c.synthetic)}
+            scenario={cells[worst]?.scenario === true}
+          />
+        );
+      })}
     </>
   );
 }

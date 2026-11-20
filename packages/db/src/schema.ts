@@ -572,8 +572,8 @@ export const worldMeta = pgTable("world_meta", {
 });
 
 /**
- * Demo scenario weather (the Scenario panel): stationary waves and wind laid over every forecast
- * step inside a circle when the latest snapshot is read. Directions are where they come from.
+ * Demo scenario weather (the Scenario panel): waves and wind inside a circle from a start to an end,
+ * laid over the latest snapshot when it is read. Directions are where they come from.
  */
 export const scenarioWeatherAreas = pgTable("scenario_weather_areas", {
   id: id(),
@@ -585,5 +585,8 @@ export const scenarioWeatherAreas = pgTable("scenario_weather_areas", {
   waveDirDeg: integer().notNull(),
   windSpeedKn: doublePrecision().notNull(),
   windDirDeg: integer().notNull(),
+  /** When it starts and ends (null: open on that side, as for an area made before windows). */
+  activeFrom: ts(),
+  activeUntil: ts(),
   createdAt: ts().notNull(),
 });

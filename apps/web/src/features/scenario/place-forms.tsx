@@ -13,7 +13,19 @@ import { useEffect, useState } from "react";
 import { DataTag } from "@/components/source-badge";
 import { Button } from "@/components/ui/button";
 import { UntrustedText } from "@/components/untrusted-text";
-import { coordText, NumberField, num, PickOnMap, type PickRequest, TextField } from "./fields";
+import { formatUtc } from "@/lib/format";
+import { useSimClock } from "@/lib/queries";
+import {
+  coordText,
+  DateTimeField,
+  fromUtcInput,
+  NumberField,
+  num,
+  PickOnMap,
+  type PickRequest,
+  TextField,
+  utcInput,
+} from "./fields";
 import type { ScenarioPreview } from "./scenario-data";
 
 interface PlaceProps {
@@ -160,6 +172,17 @@ export function WeatherForm({
   const [waveDir, setWaveDir] = useState("270");
   const [wind, setWind] = useState("40");
   const [windDir, setWindDir] = useState("270");
+  // From the simulated now, for five days, until the presenter says otherwise.
+  const clock = useSimClock();
+  const [from, setFrom] = useState("");
+  const [until, setUntil] = useState("");
+  useEffect(() => {
+    const now = clock.data?.now;
+    if (!now || from !== "") return;
+    const start = Math.floor(Date.parse(now) / 3_600_000) * 3_600_000;
+    setFrom(utcInput(new Date(start).toISOString()));
+    setUntil(utcInput(new Date(start + 5 * 24 * 3_600_000).toISOString()));
+  }, [clock.data?.now, from]);
   const [picking, setPicking] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   usePreview("weather", lat, lon, radius, place.onPreview);
@@ -172,6 +195,10 @@ export function WeatherForm({
             <DataTag kind="synthetic" />
             <span className="min-w-0 flex-1 truncate text-text-1">
               <UntrustedText text={a.label} />
+              <span className="block text-2xs text-text-2">
+                {a.from ? formatUtc(a.from) : "From the start"} to{" "}
+                {a.until ? formatUtc(a.until) : "no end set"}
+              </span>
             </span>
             <Button
               variant="ghost"
@@ -198,6 +225,8 @@ export function WeatherForm({
             waveDirDeg: num(waveDir),
             windSpeedKn: num(wind),
             windDirDeg: num(windDir),
+            from: fromUtcInput(from),
+            until: fromUtcInput(until),
           });
           if (!parsed.success) return setProblem(firstIssue(parsed.error.issues));
           setProblem(null);
@@ -216,6 +245,10 @@ export function WeatherForm({
         <NumberField label="Wind speed (kn)" value={wind} onChange={setWind} />
         <NumberField label="Wind from (°)" value={windDir} onChange={setWindDir} step="1" />
         <span />
+        <div className="col-span-3 grid grid-cols-2 gap-2">
+          <DateTimeField label="Starts (UTC)" value={from} onChange={setFrom} />
+          <DateTimeField label="Ends (UTC)" value={until} onChange={setUntil} />
+        </div>
         <PickOnMap
           picking={picking}
           onPickingChange={setPicking}
@@ -226,8 +259,8 @@ export function WeatherForm({
           }}
         />
         <p className="col-span-3 text-2xs text-text-3">
-          The weather holds for the whole voyage, past the forecast too. Waves over the
-          heavy-weather limit make routes go round it.
+          It holds from its start to its end, past the forecast too. A route meeting waves over the
+          heavy-weather limit while it is on goes round it; one passing after it ends is told so.
         </p>
         <Problem text={problem} />
         <Button type="submit" size="sm" className="col-span-3 w-fit" disabled={place.saving}>

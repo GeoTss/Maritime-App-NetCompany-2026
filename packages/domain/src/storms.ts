@@ -1,12 +1,12 @@
 /**
  * Storm cells: forecast grid points over the heavy-weather limit around the time a walked track
- * passes them. They seed a detour candidate and the map; feasibility is decided per option from
+ * passes them, and demo scenario storms the track meets while they are on (past the forecast too). They seed a detour candidate and the map; feasibility is decided per option from
  * its own sampled waves (`heavy_weather`). Pure.
  */
 import type { Box, LatLon, StormCell, WeatherGrid } from "@pharos/shared";
 import { HEAVY_WEATHER_MAX_WAVE_M, STORM_CELL_RADIUS_NM, STORM_WINDOW_HOURS } from "./constants.js";
 import { greatCircleNm } from "./geo.js";
-import { forecastStepAt } from "./weather-effect.js";
+import { forecastStepAt, scenarioOn } from "./weather-effect.js";
 
 const HOUR_MS = 3_600_000;
 
@@ -64,6 +64,29 @@ export function stormCells(
         if (h > max) max = h;
       });
     }
+    // A demo scenario storm: met when the walk is near while it is on, past the forecast too.
+    const sc = pt.scenario;
+    if (sc && sc.waveHeightM > HEAVY_WEATHER_MAX_WAVE_M) {
+      const met = walked.filter(
+        (w) => greatCircleNm(w.mid, pt) <= STORM_CELL_RADIUS_NM && scenarioOn(sc, w.startAt),
+      );
+      const firstMet = met[0];
+      const lastMet = met[met.length - 1];
+      if (firstMet && lastMet) {
+        cells.push({
+          id: `storm:${pt.lat},${pt.lon}`,
+          center: { lat: pt.lat, lon: pt.lon },
+          radiusNm: STORM_CELL_RADIUS_NM,
+          maxWaveHeightM: Math.max(max, sc.waveHeightM),
+          from: sc.from ?? firstMet.startAt.toISOString(),
+          to: sc.until ?? lastMet.startAt.toISOString(),
+          box: squareOf(pt, half),
+          ...(pt.synthetic ? { synthetic: true as const } : {}),
+          scenario: true,
+        });
+        continue;
+      }
+    }
     if (first < 0) continue;
     cells.push({
       id: `storm:${pt.lat},${pt.lon}`,
@@ -79,31 +102,59 @@ export function stormCells(
   return cells.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 }
 
+/** A storm on the grid wherever a route goes: where, how heavy, and when it is over the limit. */
+export interface StormArea {
+  id: string;
+  center: LatLon;
+  radiusNm: number;
+  maxWaveHeightM: number;
+  from: string;
+  /** Null: a scenario storm with no end set. */
+  until: string | null;
+  synthetic: boolean;
+}
+
 /**
- * The demo scenario's weather areas over the heavy-weather limit: every stationary grid point whose
- * wave height exceeds `HEAVY_WEATHER_MAX_WAVE_M` at some step. Its weather holds for the whole
- * voyage, so a route steers round it wherever it meets it, not only where the planned route does,
- * and not only inside the forecast. `from` and `to` span the forecast; sorted by id.
+ * Every grid point over the heavy-weather limit at some time: a forecast storm is on from its first
+ * to its last step over the limit; a demo scenario storm through its window (an open start is the
+ * forecast's start). For the voyage timeline, which says whether a route passes while it is on.
  */
-export function stationaryStormCells(weather: WeatherGrid | null): StormCell[] {
+export function stormAreas(weather: WeatherGrid | null): StormArea[] {
   if (!weather) return [];
-  const half = gridHalfSteps(weather);
-  const cells: StormCell[] = [];
+  const areas: StormArea[] = [];
   for (const pt of weather.points) {
-    if (!pt.stationary) continue;
-    const max = Math.max(0, ...pt.waveHeightM.map((h) => h ?? 0));
-    if (max <= HEAVY_WEATHER_MAX_WAVE_M) continue;
-    cells.push({
+    const base = {
       id: `storm:${pt.lat},${pt.lon}`,
       center: { lat: pt.lat, lon: pt.lon },
       radiusNm: STORM_CELL_RADIUS_NM,
+      synthetic: pt.synthetic === true,
+    };
+    const sc = pt.scenario;
+    if (sc && sc.waveHeightM > HEAVY_WEATHER_MAX_WAVE_M) {
+      areas.push({
+        ...base,
+        maxWaveHeightM: sc.waveHeightM,
+        from: sc.from ?? weather.startAt,
+        until: sc.until,
+      });
+      continue;
+    }
+    let first = -1;
+    let last = -1;
+    let max = 0;
+    pt.waveHeightM.forEach((h, k) => {
+      if (h === null || h <= HEAVY_WEATHER_MAX_WAVE_M) return;
+      if (first < 0) first = k;
+      last = k;
+      max = Math.max(max, h);
+    });
+    if (first < 0) continue;
+    areas.push({
+      ...base,
       maxWaveHeightM: max,
-      from: forecastStepAt(weather, 0).toISOString(),
-      to: forecastStepAt(weather, Math.max(pt.waveHeightM.length - 1, 0)).toISOString(),
-      box: squareOf(pt, half),
-      ...(pt.synthetic ? { synthetic: true as const } : {}),
-      stationary: true,
+      from: forecastStepAt(weather, first).toISOString(),
+      until: forecastStepAt(weather, last).toISOString(),
     });
   }
-  return cells.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  return areas.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 }

@@ -74,7 +74,7 @@ the fuel changeover at each sulphur-ECA line (it starts an hour before), where h
 may go overboard (more than 12 nm from land at 4 kn or more), danger areas with the armed team
 boarding and leaving, the storms passed and how far off, the notices due before a call, and the
 arrival with the provisions left. A switch per kind hides what you do not need; the same events are
-pins on the map, and a pin brings its row into view.
+pins on the map. Pick a row and its pin is ringed and brought into view; pick a pin and its row is.
 
 Planning stores a calculation. Nothing is sent or changed.
 
@@ -91,8 +91,10 @@ Routes are planning-grade. They are not for navigation.
 
 **Demo scenario.** On the pinned demo, the Scenario button beside Needs you opens a panel to change
 the demo world: a fleet vessel's fuel on board, tanks, speeds and consumption, costs and stores; a
-hazard; or weather (wave height and direction, wind speed and direction) over a circle. Scenario
-weather holds for the whole voyage, past the forecast too, and routes go round it wherever they meet it. Type a
+hazard; or weather (wave height and direction, wind speed and direction) over a circle, from a start
+to an end you set (it may run past the forecast). A route that would meet it while it is on goes
+round it; when a route passes where a storm was after it ended, or before it starts, the voyage
+timeline says so. Type a
 position or use "Pick on map"; the circle shows dashed until you add it. The top bar then says
 "scenario edited", and an open route plan says it was made before the edit, with Plan again.
 "Reset the demo world" puts everything back, chats, approvals and the inbox included. The

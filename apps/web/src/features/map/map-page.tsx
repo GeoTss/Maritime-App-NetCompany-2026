@@ -203,11 +203,16 @@ export function MapPage() {
   }, [plan]);
   const stalePlan = plan !== null && editedAfter === plan.calculationId;
 
+  // Picked in the list, the map also eases to the event's pin (picked on the map, it is in view).
   const timelineControls = {
     groups: timelineGroups,
     onGroupsChange: setTimelineGroups,
     selected: selectedEvent,
-    onSelect: selectEvent,
+    onSelect: (index: number) => {
+      selectEvent(index);
+      const event = plan?.timeline?.events[index];
+      if (event) setFocus({ ...event.position, key: `e${index}-${Date.now()}` });
+    },
   };
   const stopNames = useStopNames((plan?.result.stopPlans.length ?? 0) > 0);
   const securityTeams = useSecurityTeams(
@@ -493,7 +498,7 @@ export function MapPage() {
         aisMode={aisMode}
         onSelectVessel={(v) => selectVessel(v.id)}
         onSelectShip={(mmsi) => selectShip(mmsi)}
-        timeline={timelineControls}
+        timeline={{ ...timelineControls, onSelect: selectEvent }}
         pick={pick}
         preview={preview}
       />

@@ -421,7 +421,6 @@ function recordedStop(
 function storedTimeline(
   row: { id: number; inputs: unknown },
   result: RouteSpeedResult,
-  stormCells: StormCell[],
   subject: string,
 ): VoyageTimeline | null {
   const input = z.object({ optimiser: RouteSpeedInput }).safeParse(row.inputs);
@@ -429,7 +428,6 @@ function storedTimeline(
   return planTimeline({
     input: input.data.optimiser,
     result,
-    stormCells,
     calculationId: row.id,
     subject,
   });
@@ -473,7 +471,7 @@ async function routePlan(sql: Sql, id: Id): Promise<RoutePlanView | null> {
     candidates: viewCandidates(plan.input.candidates, stored.stops),
     result,
     stormCells: plan.stormCells ?? [],
-    timeline: storedTimeline(row, result, plan.stormCells ?? [], plan.subject),
+    timeline: storedTimeline(row, result, plan.subject),
     facts: routePlanFacts({
       response: { calculationId: row.id, result },
       plan,

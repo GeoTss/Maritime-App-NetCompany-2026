@@ -301,7 +301,6 @@ export async function planRouteSpeed(
       timeline: planTimeline({
         input: plan.input,
         result,
-        stormCells: plan.stormCells ?? [],
         calculationId,
         subject: subjectLabel(plan, mmsi),
       }),
