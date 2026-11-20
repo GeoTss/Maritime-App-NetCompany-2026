@@ -1,5 +1,5 @@
 /**
- * A route option's security in the route tray (Track 3): the danger areas it crosses with the
+ * A route option's or a bunker stop plan's security in the route tray (Track 3): the danger areas it crosses with the
  * hours inside each, the armed team its plan chose (provider and ports from the quote list, days
  * and boarding times as fact chips), and the cost lines and convoy wait, every number a fact chip
  * from the plan. Also the Suez-or-Cape line: the canal route's total beside the Cape's.
@@ -24,19 +24,34 @@ export function SecurityBlock({
   plan,
   index,
   names,
+  kind = "route",
 }: {
   plan: RoutePlanView;
   index: number;
   names?: SecurityNames;
+  /** `route`: `options[index]`; `stop`: `stopPlans[index]`, each with its own security plan. */
+  kind?: "route" | "stop";
 }) {
-  const sec = plan.result.options[index]?.security;
+  const at = kind === "route" ? `options[${index}]` : `stopPlans[${index}]`;
+  const sec =
+    kind === "route"
+      ? plan.result.options[index]?.security
+      : plan.result.stopPlans[index]?.security;
+  const id =
+    kind === "route"
+      ? plan.result.options[index]?.candidateId
+      : plan.result.stopPlans[index]?.optionId;
   if (!sec || sec.spans.length === 0) return null;
-  const f = (field: string) => factAtPath(plan.facts, `options[${index}].security.${field}`);
+  const f = (field: string) => factAtPath(plan.facts, `${at}.security.${field}`);
   const team = sec.quoteId === null ? undefined : names?.teams.get(sec.quoteId);
   return (
     <dl
-      className="mt-1 grid gap-0.5 pl-7 text-xs text-text-2"
-      data-testid={`security-${plan.result.options[index]?.candidateId}`}
+      className={
+        kind === "route"
+          ? "mt-1 grid gap-0.5 pl-7 text-xs text-text-2"
+          : "mt-1 grid gap-0.5 text-xs text-text-2"
+      }
+      data-testid={`security-${id}`}
     >
       <div className="flex flex-wrap items-baseline gap-x-1.5">
         <dt className="text-text-3">Danger areas</dt>

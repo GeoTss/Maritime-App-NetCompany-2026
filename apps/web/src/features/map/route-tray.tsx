@@ -85,7 +85,7 @@ export function RouteComparison({
       {fuelAware ? (
         <div className="grid gap-x-6 gap-y-4 border-b border-line pb-4 @4xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
           <div className="flex min-w-0 flex-col gap-4">
-            <PlanSummary plan={plan} names={names} />
+            <PlanSummary plan={plan} names={names} security={security} />
             <FuelBlindBest plan={plan} />
           </div>
           <FuelCurve plan={plan} />

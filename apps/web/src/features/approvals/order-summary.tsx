@@ -127,11 +127,11 @@ export function instructionFacts(rec: RecommendationView) {
   };
 }
 
-const SECURITY_PATH = /^options\[\d+\]\.security\.(.+)$/;
+const SECURITY_PATH = /^(?:options|stopPlans)\[\d+\]\.security\.(.+)$/;
 
 /**
- * A security order's facts (Track 3): its route option's `security.*` facts, which the API filters
- * to the one option the order is for. The team cost is the cost line the plan names the team.
+ * A security order's facts (Track 3): its route option's or bunker stop plan's `security.*` facts,
+ * which the API filters to the one option the order is for. The team cost is the cost line the plan names the team.
  */
 export function securityFacts(rec: RecommendationView) {
   const byField = new Map<string, Fact>();

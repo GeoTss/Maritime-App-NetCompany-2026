@@ -1,7 +1,7 @@
 import type { Fact, RoutePlanView } from "@pharos/shared";
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { makePlan } from "./map-fixtures";
+import { makeFuelPlan, makePlan } from "./map-fixtures";
 import { SecurityBlock, SuezOrCape } from "./security-block";
 
 afterEach(cleanup);
@@ -82,6 +82,19 @@ describe("SecurityBlock", () => {
   it("is absent for a route that crosses no danger area", () => {
     render(<SecurityBlock plan={securePlan()} index={0} />);
     expect(screen.queryByTestId("security-A")).toBeNull();
+  });
+
+  it("shows a bunker stop plan's own team, cited from its stopPlans path", () => {
+    const plan = makeFuelPlan();
+    const stop = plan.result.stopPlans[0];
+    const sec = securePlan().result.options[1]?.security;
+    if (!stop || !sec) throw new Error("fixture changed");
+    stop.security = { ...sec, teamDays: 5 };
+    plan.facts.push(calc("stopPlans[0].security.teamDays", 5, "days"));
+    render(<SecurityBlock plan={plan} index={0} kind="stop" />);
+    const block = screen.getByTestId(`security-${stop.optionId}`);
+    expect(block.textContent).toContain("Armed team");
+    expect(block.textContent).toContain("5.0 days");
   });
 });
 

@@ -711,17 +711,18 @@ async function pushAndFinish(deps: ExecutorDeps, recId: Id): Promise<void> {
 }
 
 /** The parts of a stored route calculation's outputs a security order reads. */
+const SecurityOf = z
+  .object({ quoteId: z.number().nullable(), teamDays: z.number().int() })
+  .nullable()
+  .optional();
 const SecurityOutputs = z.object({
   options: z.array(
-    z.object({
-      candidateId: z.string(),
-      feasible: z.boolean(),
-      security: z
-        .object({ quoteId: z.number().nullable(), teamDays: z.number().int() })
-        .nullable()
-        .optional(),
-    }),
+    z.object({ candidateId: z.string(), feasible: z.boolean(), security: SecurityOf }),
   ),
+  // Track 3: a bunker stop plan has its own security plan, over its own track.
+  stopPlans: z
+    .array(z.object({ optionId: z.string(), feasible: z.boolean(), security: SecurityOf }))
+    .default([]),
 });
 
 /**
@@ -739,7 +740,9 @@ async function createSecurityOrder(tx: Tx, rec: RecommendationRow, now: Date): P
     select outputs from calculations where id = ${rec.calculation_id}`;
   const parsed = SecurityOutputs.safeParse(calc?.outputs);
   if (!parsed.success) refuse(`calculation ${rec.calculation_id} is unreadable.`);
-  const option = parsed.data?.options.find((o) => o.candidateId === rec.option_id);
+  const option =
+    parsed.data?.options.find((o) => o.candidateId === rec.option_id) ??
+    parsed.data?.stopPlans.find((s) => s.optionId === rec.option_id);
   const quoteId = option?.security?.quoteId ?? null;
   if (!option || quoteId === null || !option.security) {
     return refuse(`route ${rec.option_id} has no security team to order.`);

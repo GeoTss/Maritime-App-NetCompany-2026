@@ -112,6 +112,12 @@ What the worker keeps fresh. All read-only.
 | `GET /api/hazards` | Active navigational hazards with their keep-out radius: `id`, `kind`, `source`, `label`, `lat`, `lon`, `observedAt`, `zoneRadiusNm` |
 | `GET /api/congestion` | The latest observation per port: `anchoredCount`, `waitingHours`, `observedAt`, `source` (`seed` or `ais`) |
 | `GET /api/weather?step=N` | One forecast step of the latest weather snapshot |
+| `GET /api/security-areas` | The danger areas, most-needed first: `id`, `name`, `level` (`CRITICAL`, `SEVERE`, `SUBSTANTIAL`, `MODERATE`, `LOW` or `LISTED`), `policy` (`guards`, `premium`, `measures`, `escort` or `avoid`), `boxes` (approximate lat/lon boxes), `asOf`, `source` (the citation) and `note` |
+| `GET /api/security-quotes` | Security providers' quotes for an armed team: `id`, `providerName`, `embarkPortName`, `disembarkPortName`, `teamSize`, `dayRate`, `fixedFees`, `minDays`, `currency`, `validUntil`, `status` (`received`, `needs_review`, `accepted`, `rejected` or `expired`), `receivedAt` |
+
+A danger area's `policy` is what the planner does there: `guards` needs an armed team, `premium`
+pays the war-risk premium, `measures` asks for reporting and protective measures only, `escort` is
+shown only (navy escorts, no private guards), and `avoid` means no transit.
 
 AIS ship names, destinations and hazard labels are untrusted text from third parties. Render them
 as text only.
@@ -344,14 +350,25 @@ routes with their points, and `result`:
 
 | Field | Meaning |
 | --- | --- |
-| `options` | Each route at its best speed: distance, hours, weather delay, ETA, fuel, CO₂, fuel, ETS, FuelEU and time cost, total cost, whether it is feasible, meets the berth window or crosses a hazard |
+| `options` | Each route at its best speed: distance, hours, weather delay, ETA, fuel, CO₂, fuel, ETS, FuelEU and time cost, total cost, whether it is feasible, meets the berth window or crosses a hazard, the `reasons` it is blocked, and its `security` plan (armed team, war-risk premium, canal dues) when it crosses a danger area |
 | `baseline` | The current plan, costed the same way |
 | `bestCandidateId` | The best route ignoring fuel on board |
 | `savingVsBaselineUsd`, `fuelSavingVsBaselineMt` | The best route against the current plan |
 | `stopPlans` | For a fleet vessel: a route through each quote's port with the fuel bought there |
 | `plan` | The recommended plan: a route, or a bunker stop, with the hours and dollars a stop adds |
 | `facts` | Every number above as a citable fact |
-| `timeline` | The voyage timeline for the console: `events` in time order (departure, port calls with what each does, ECA changeover, sewage discharge windows, danger areas and the armed team, storms passed, notices due, arrival) and their own `facts`. `plan_route_speed` returns `facts`, never this |
+| `timeline` | The voyage timeline for the console: `events` in time order (departure, port calls with what each does, including the fuel bought and why, a provisions restock, ECA changeover, sewage discharge windows, danger areas and the armed team, storms passed, notices due, arrival) and their own `facts`. `plan_route_speed` returns `facts`, never this |
+
+An option's `reasons` are the codes that block it: `insufficient_fuel` (runs below the fuel safety
+margin), `insufficient_provisions` (arrives with less than the 7-day provisions reserve),
+`heavy_weather` (meets waves over the limit where and when it is there), `crosses_hazard`,
+`misses_arrive_by` (the berth window), `security_unavailable` (needs an armed team no quote
+covers) and `avoid_area` (enters an area with no transit). A blocked option is kept and ranked
+last. A stop plan that buys the fuel or restocks the provisions can clear the first two.
+
+`stopPlans[]` carry their own `reasons`, a list that also has `security_unavailable` and
+`avoid_area`, and, through a danger area, their own `security` plan worked out over the stop
+plan's track; its facts sit under `stopPlans[i].security`.
 
 | Status | `error` | When |
 | --- | --- | --- |
@@ -386,9 +403,15 @@ board above its tanks, minimum speed above the reference, an area holding no for
 
 ## Recommendations and approvals
 
-A recommendation is a proposal to act: a `purchase_order` or a `voyage_instruction`. It points at a
-stored plan (`calculationId`) and one of its options (`optionId`); it holds no quantity or price of
-its own.
+A recommendation is a proposal to act: a `purchase_order`, a `voyage_instruction` or a
+`security_order` (the armed team a route's or bunker stop plan's security plan chose). It points
+at a stored plan (`calculationId`) and one of its options (`optionId`); it holds no quantity or
+price of its own.
+
+A voyage instruction may wait for two orders: the purchase order for its bunker stop's quote, and
+the security order for the team its route or stop plan needs. `dependsOn` names the one it waits
+for now (the first not yet approved, purchase order first), and `dependsOn.orderType` says which
+(`purchase_order` when absent).
 
 ```mermaid
 stateDiagram-v2
@@ -438,12 +461,14 @@ Lets a plan screen avoid offering a second order or instruction.
 {
   "purchaseOrder": { "recommendationId": 2, "status": "executed" },
   "voyageInstruction": { "recommendationId": 1, "status": "executed" },
+  "securityOrder": null,
   "instructionInForce": null
 }
 ```
 
-`instructionInForce` is the voyage's current instruction when it belongs to a different option; a
-new instruction from this plan would replace it.
+`securityOrder` is the option's security order, or `null` (absent on a plan with no security
+data). `instructionInForce` is the voyage's current instruction when it belongs to a different
+option; a new instruction from this plan would replace it.
 
 ### `POST /api/recommendations/:id/approve` and `…/reject`
 
@@ -475,14 +500,22 @@ an HTTP error; read `status` and `erpSyncStatus`.
 | 404 | `not_found` | No such recommendation |
 | 409 | `already_rejected` | Approving a rejected recommendation |
 | 409 | `not_pending` | Rejecting one that is no longer pending |
-| 409 | `dependency_unmet` | A voyage instruction with a bunker stop, before the purchase order for that stop is approved |
+| 409 | `dependency_unmet` | A voyage instruction before every order it waits for (the bunker stop's purchase order, the route's or stop plan's security order) is approved |
 | 409 | `not_executable` | The stored plan or quote cannot be turned into the order or instruction; `message` says why |
 | 409 | `illegal_transition` | Any other move the state machine does not allow |
 
 ### `GET /api/recommendations/:id/drafts`
 
-The messages drafted on approval: `kind` (`supplier_confirmation` or `master_instruction`), `to`,
-`subject`, `body`, `status` (always `draft`), `createdAt`. Read-only. Pharos never sends them.
+The messages drafted on approval: `kind`, `to`, `subject`, `body`, `status` (always `draft`),
+`createdAt`. Read-only. Pharos never sends them.
+
+| `kind` | Drafted when |
+| --- | --- |
+| `supplier_confirmation` | A purchase order is approved |
+| `security_confirmation` | A security order is approved: the provider's confirmation |
+| `master_instruction` | A voyage instruction is approved |
+| `agent_request` | A voyage instruction whose port call has jobs: the port agent's request (provisions, charts by number and edition, sludge to deliver) |
+| `pre_arrival_notice` | A voyage instruction with a port call: one message to the agent listing the notices due before arrival (agent appointment, ship security pre-arrival information, and the EU waste notification at an EU port), each with its due time |
 
 ### `GET /api/audit`
 
@@ -511,8 +544,9 @@ is its only caller. State is in memory and is lost on restart.
 | `POST /orders` | Takes a purchase order; needs an `Idempotency-Key` header |
 | `GET /orders/:poNumber` | The stored order |
 
-`POST /orders` body: `supplierErpCode`, `vesselImo`, `port` (UN/LOCODE), `currency`, `lines`
-(`grade`, `qtyMt`, `pricePerMt`), `bargeFee`, `reference`.
+`POST /orders` body: `supplierErpCode`, `vesselImo`, `port` (UN/LOCODE), `currency`, `lines`,
+`bargeFee`, `reference`. A line is fuel (`grade`, `qtyMt`, `pricePerMt`) or, for a security
+order, a service (`service: "security_team"`, `days`, `dayRate`).
 
 | Status | Body | When |
 | --- | --- | --- |

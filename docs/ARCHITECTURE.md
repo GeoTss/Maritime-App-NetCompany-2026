@@ -108,6 +108,11 @@ flowchart TD
 
 The code is `apps/api/src/ingest/workflow.ts`; the checks are the pure function in `evaluate.ts`.
 
+- **Two kinds of quote.** A fuel supplier's quote (grades, quantities, prices, barge fee), or a
+  security provider's quote for an armed team (embarkation and disembarkation ports, team size, day
+  rate, fixed fees, minimum days). Both go through the same workflow and the same kind of checks. A
+  security quote is accepted automatically only when each value is written once; a team written
+  "4/6 guards" goes to review, because a team size is never guessed.
 - **The model only transcribes.** It returns each value as written (value, unit, currency) and the
   sentence it read it from, in a Zod-constrained structured output. Conversion and totals happen in
   `packages/domain` (`normalise.ts`, `dates.ts`, `price-band.ts`).
@@ -160,13 +165,13 @@ The code is `apps/api/src/ai/agent.ts`. The agent has nine tools (`ai/tools/regi
 | --- | --- |
 | `list_fleet` | Every fleet vessel with IMO, type and current voyage |
 | `get_vessel_status` | Fuel on board per grade, the projection along the current plan, shortfalls, next port call |
-| `list_quotes` | Supplier quotes on record, by vessel, port or grade |
+| `list_quotes` | Fuel quotes on record, by vessel, port or grade; and security providers' quotes for an armed team |
 | `plan_bunkering` | Quotes ranked by total delivered cost (fuel, barge fee, deviation, delay, EU ETS, FuelEU exposure) with feasibility checks; stored as a calculation |
 | `get_emissions` | CO₂ still to burn, its EU ETS cost, and the voyage's CII rating; stored as a calculation |
-| `plan_route_speed` | Routes compared with the weather forecast and hazards; for a fleet vessel, the bunker stop planned with the route; stored as a calculation |
+| `plan_route_speed` | Routes compared with the weather forecast, hazards and danger areas; for a fleet vessel, the bunker stop planned with the route as a whole port call; through a danger area, each route's and stop plan's security plan (armed team, war-risk premium, canal dues); stored as a calculation |
 | `get_port_congestion` | Ships at anchor at a port and the expected wait |
 | `calculate` | Arithmetic over fact IDs (never typed numbers); returns one derived fact |
-| `propose_action` | The only write-capable tool: creates a *pending* recommendation that points at a stored calculation |
+| `propose_action` | The only write-capable tool: creates a *pending* purchase order, voyage instruction or security order that points at a stored calculation |
 
 Every tool input is a strict Zod schema, so a number typed by the model has nowhere to go. A tool
 only loads data and calls `packages/domain`; it computes nothing itself.
@@ -242,11 +247,19 @@ stateDiagram-v2
     pushed to the ERP after the commit with an idempotency key, so a retry after an outage cannot
     create a second order. If the ERP cannot be reached, the order is kept, marked not synced, and
     the recommendation is `failed`; approving it again retries with the same key.
+  - A **security order** takes the team days from the approved route option's or stop plan's
+    security plan, and the day rate, fixed fees and currency from the security quote it chose. It goes to the ERP as
+    one service line (`security_team`), with the same idempotency and retry rules.
   - A **voyage instruction** records the approved route, speed, ETA and bunker stop from the stored
-    route calculation. It makes no external call. An instruction with a bunker stop cannot be
-    approved until the purchase order for that stop's quote is approved (`dependency_unmet`).
-- **Drafts and audit.** Approval drafts the supplier confirmation and the master's instruction.
-  They are stored as drafts and never sent. Every step writes an audit event.
+    route calculation. It makes no external call. It waits for each order its plan needs
+    (`approvals/dependency.ts`): the purchase order for its bunker stop's quote, and the security
+    order for the team its route or stop plan needs. Until each is approved, approving the
+    instruction is refused (`dependency_unmet`).
+- **Drafts and audit.** Approval drafts the messages a person would send: the supplier's
+  confirmation, the security provider's confirmation, the master's instruction and, for a plan
+  with a port call, the port agent's request (provisions, charts by number and edition, sludge to
+  deliver) and the list of pre-arrival notices for the agent to file, each with its due time. They are stored as drafts and never
+  sent. Every step writes an audit event.
 
 ## Deterministic maths
 
@@ -263,6 +276,11 @@ bytes out. `npm run check:purity` (part of `npm run verify`, and a hook on every
 | `fob.ts`, `track-fuel.ts` | Fuel on board along the plan, per grade, with an optional bunker stop |
 | `bunker-planner.ts` | Quotes ranked by total cost of ownership; infeasible options kept and ranked last |
 | `stop-plan.ts`, `bunker-stop.ts` | A route through a bunker port: the stop's timeline, cost and feasibility |
+| `port-call.ts` | What a call has to do: provisions under the 7-day reserve, sludge over 90 % of its tank, sewage, charts and publications out of date for the areas ahead; whether the port can do it, what it costs and how long it takes, and the notices due before arrival |
+| `storms.ts` | The heavy-weather limit (waves over 6 m where and when the ship is there) and the storm cells a detour goes round |
+| `security.ts`, `areas.ts` | Where a route crosses a danger area and for how long; the security plan: armed team, war-risk premium, canal dues, convoy wait |
+| `timeline.ts`, `coast.ts` | The voyage timeline, from the optimiser's own walk; distance from land for the sewage windows |
+| `voyage.ts` | Where a vessel is along its plan at a given time, and what it burned |
 | `emissions.ts`, `fueleu.ts`, `eca.ts` | CO₂, CII, EU ETS cost, FuelEU exposure, planning-grade emission-control areas |
 | `congestion.ts`, `hazards.ts` | Ships at anchor and the implied wait; hazards as keep-out circles |
 | `normalise.ts`, `dates.ts`, `price-band.ts` | As-written email values to structured fields; the market-band check |
@@ -271,17 +289,39 @@ bytes out. `npm run check:purity` (part of `npm run verify`, and a hook on every
 A normaliser returns `null` on text it does not recognise. `null` means "needs a person", never
 zero.
 
+**When a plan is blocked.** The route optimiser ranks every option, then marks the ones that cannot
+be sailed, each with its reasons: it runs short of fuel (`insufficient_fuel`), arrives with less
+than the 7-day provisions reserve (`insufficient_provisions`), meets waves over the limit at the
+time it is there (`heavy_weather`), crosses a hazard (`crosses_hazard`), misses the berth window
+(`misses_arrive_by`), needs an armed team that no security quote covers (`security_unavailable`),
+or enters an area with no transit (`avoid_area`). Blocked options are kept and ranked last, so the console
+can say why. A bunker stop that buys the fuel, or restocks the provisions, can make a route
+feasible; a stop whose port cannot do a job the voyage needs cannot.
+
+A bunker stop plan through a danger area is security-planned as a route is (`stop-plan.ts`, with
+the same `securityPlan`), over its own track with the call's stay included: the armed team and
+its days, the war-risk premium, the canal dues and convoy wait in its total, and the same two
+danger-area reasons. Security data is attached only when the voyage's planned route crosses a
+danger area, so plans that cross none come out exactly as before.
+
 ## Live data and recorded modes
 
 | Source | Live | Recorded |
 | --- | --- | --- |
 | AIS | AISStream WebSocket (`AIS_MODE=live`) | A capture replayed from `fixtures/recorded/ais-capture.jsonl` |
-| Weather | Open-Meteo marine and forecast APIs (`WEATHER_MODE=live`) | A stored snapshot of a real forecast |
+| Weather | Open-Meteo marine and forecast APIs (`WEATHER_MODE=live`) | A stored snapshot of a real forecast: the Mediterranean and north-west Europe from 15 Nov, with the lanes round Africa, the Red Sea, the Arabian Sea and the Atlantic west of Europe added from 19 Nov (`fixtures/recorded/README.md`) |
 | Model | Anthropic API (`LLM_MODE=live`) | Recorded replies in `fixtures/llm-recordings/` (`LLM_MODE=replay`) |
 
 The worker writes a `source_status` row per source, and the console shows "live" or "recorded" for
 each. A live source that fails falls back to its recording and says so. Sea routes are open data
 loaded once into the route graph; there is no routing API.
+
+**Synthetic weather on the demo.** Two kinds of labelled demo weather can lie over the recorded
+snapshot, and both are marked synthetic wherever they show. With `DEMO_STORM=on` (the Compose
+default) the worker lays a stationary storm west of Crete (`fixtures/recorded/synthetic-storm.json`).
+The Scenario panel's weather areas are stored in `scenario_weather_areas` and laid over the
+forecast each time it is read, from their start to their end, past the forecast's last step too.
+Neither exists in live weather or in the evaluation world.
 
 **Model replay.** The gateway keys each request by the sha256 of its canonical JSON (method, path
 and body). `replay` serves only recordings and fails loudly on a miss; `record` is replay-first and
@@ -294,6 +334,28 @@ times. With `DEMO_ANCHOR` set, the world is seeded at that instant and every req
 clock frozen at anchor + 5 minutes (`apps/api/src/clock.ts`), so the recorded demo is reproducible.
 With it empty, the clock is the wall clock. `/api/clock` reports which.
 
+## The voyage timeline and the demo scenario
+
+Two features exist for the console and the presenter, not for the assistant. Both were built so
+that no recorded model reply changed.
+
+- **Voyage timeline.** `packages/domain/src/timeline.ts` lists what a planned voyage does, in time
+  order: departure, each port call and its jobs (the fuel it buys and why, provisions, charts,
+  sludge and sewage ashore, clearance, dues), the fuel changeover at each sulphur-ECA line, where
+  sewage may go overboard (beyond 12 nm from land at 4 kn or more), danger areas with the armed
+  team boarding and leaving, storms passed, notices due, and arrival with the provisions left. It
+  is computed from the optimiser's own walk over the chosen route, so its times agree with the
+  plan. `apps/api/src/routing/timeline.ts` attaches it, with its own facts, to the route plan the
+  console reads (`POST /api/route-plan`, `GET /api/route-plans/:id`). It is kept out of
+  `plan_route_speed`'s output: adding it changed no request bytes, but the assistant cannot cite a
+  timeline event.
+- **Demo scenario.** `apps/api/src/scenario/` lets a presenter edit the pinned demo world: a fleet
+  vessel's fuel on board, tanks, speeds, consumption, costs and stores; synthetic hazards; and
+  weather areas. Edits are refused unless `DEMO_CONTROLS=on` (set by `npm run demo:reset`), the
+  clock is pinned and the weather is recorded. No agent tool reaches these routes. A reset reseeds
+  the world as a boot with `SEED_ON_BOOT=reset` does. The recorded replies cover the unedited
+  demo only, so asking about an edited world needs a live model.
+
 ## Data model
 
 One Postgres database; the schema is `packages/db/src/schema.ts`, with migrations in
@@ -301,12 +363,13 @@ One Postgres database; the schema is `packages/db/src/schema.ts`, with migration
 
 | Group | Tables |
 | --- | --- |
-| Reference world | `ports`, `route_legs`, `suppliers`, `port_fuel_prices`, `reference_rates`, `world_meta` |
-| Fleet and voyages | `vessels`, `voyages`, `port_calls`, `noon_reports`, `bunker_requirements`, `vessel_positions` |
+| Reference world | `ports` (with each port's call terms), `route_legs`, `suppliers`, `port_fuel_prices`, `reference_rates`, `nautical_items` (the chart and publication catalogue), `security_areas`, `security_providers`, `world_meta` |
+| Fleet and voyages | `vessels` (with their stores: crew, provisions, sludge, sewage, charts), `voyages`, `port_calls`, `noon_reports`, `bunker_requirements`, `vessel_positions` |
 | Live observations | `ais_traffic`, `nav_hazards`, `port_congestion`, `weather_snapshots`, `source_status` |
-| Documents and quotes | `documents`, `extractions`, `quotes`, `quote_lines` |
+| Documents and quotes | `documents`, `extractions`, `quotes`, `quote_lines`, `security_quotes` |
 | Agent | `conversations`, `messages`, `calculations`, `llm_calls` |
-| Decisions | `recommendations`, `purchase_orders`, `order_lines`, `voyage_instructions`, `drafted_messages`, `audit_events` |
+| Decisions | `recommendations`, `purchase_orders`, `order_lines`, `security_orders`, `voyage_instructions`, `drafted_messages`, `audit_events` |
+| Demo scenario | `scenario_weather_areas` |
 
 Two tables carry the guarantees. `calculations` stores each plan as it was computed, so an answer,
 a proposal and an order all read the same stored result. `messages` stores each tool result with
@@ -325,6 +388,8 @@ seed and anchor always give the same world.
   so it cannot approve, reject or upload.
 - **Offline by policy.** The built console ships a Content-Security-Policy that allows only its own
   origin.
+- **Demo controls stay on the demo.** The scenario routes edit the world only on the pinned,
+  recorded demo with `DEMO_CONTROLS=on`; anywhere else they answer `403`.
 - **Secrets.** Keys come from the environment through a validated loader. Error messages name a
   variable, never its value, and keys are never logged.
 - **No authentication.** The API trusts its caller; it is a prototype for a developer's machine.
@@ -340,10 +405,14 @@ seed and anchor always give the same world.
 | Doubt decided by code checks, not model confidence | The reasons are named and testable | Some good quotes go to review (11 of 117 on the held-out set) |
 | Recorded replies keyed by the full request | Free, deterministic tests and demo; a stale recording fails loudly | Any prompt or tool change means re-recording |
 | Postgres as the only store and the worker hand-off | One thing to run and to reset | Not built for scale |
+| Heavy weather as a limit, checked where and when the ship is there, plus one detour round the storm cells | Blocks only the seas a storm holds when the ship passes, so the speed choice can pass before or after it; reuses the optimiser's walk | Not a weather-routing solver: a storm that fills a whole sea is passed by timing, not routed round |
+| A bunker stop planned as a whole port call | The cheapest fuel is not the cheapest call once dues, stores, waste and time alongside are counted | More inputs per port, all synthetic in the demo |
+| The voyage timeline outside `plan_route_speed`'s output | No request bytes changed, so no recorded reply did | The assistant cannot cite a timeline event; only the console shows them |
 | Claude Haiku 5.5 for both prompts | Lowest cost, and every published result was measured on it | Other models are unmeasured here; `EXTRACT_MODEL` and `AGENT_MODEL` switch it |
 
 ## Known limits
 
 Routes are planning-grade; the weather model is simplified; congestion waits and FuelEU exposure
-are illustrative; private data is synthetic. The full list, with what each one means for the
+are illustrative; port-call costs, security rates and premiums are illustrative; danger areas are
+dated planning boxes; private data is synthetic. The full list, with what each one means for the
 numbers, is under ["Honest limits" in `APPROACH.md`](APPROACH.md#honest-limits).

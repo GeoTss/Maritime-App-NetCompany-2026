@@ -47,22 +47,23 @@ function speedOf(outputs: unknown, optionId: string): number | null {
 
 type Row = { id: number; status: RecommendationStatus };
 
+const QuoteRef = z.object({ quoteId: z.number().nullable() }).nullable().optional();
 const Security = z.object({
-  options: z
-    .array(
-      z.object({
-        candidateId: z.string(),
-        security: z.object({ quoteId: z.number().nullable() }).nullable().optional(),
-      }),
-    )
-    .default([]),
+  options: z.array(z.object({ candidateId: z.string(), security: QuoteRef })).default([]),
+  stopPlans: z.array(z.object({ optionId: z.string(), security: QuoteRef })).default([]),
 });
 
-/** The security quote a route plan's option buys its team from; null when none. */
+/**
+ * The security quote a route plan's option buys its team from: a route option's or a bunker stop
+ * plan's (each worked out over its own track); null when none.
+ */
 export function securityQuoteOf(outputs: unknown, optionId: string): Id | null {
   const parsed = Security.safeParse(outputs);
   if (!parsed.success) return null;
-  return parsed.data.options.find((o) => o.candidateId === optionId)?.security?.quoteId ?? null;
+  const { options, stopPlans } = parsed.data;
+  const option = options.find((o) => o.candidateId === optionId);
+  if (option) return option.security?.quoteId ?? null;
+  return stopPlans.find((s) => s.optionId === optionId)?.security?.quoteId ?? null;
 }
 const found = (row: Row | undefined): PlanProposal | null =>
   row ? { recommendationId: row.id, status: row.status } : null;

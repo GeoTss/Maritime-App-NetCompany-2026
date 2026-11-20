@@ -41,6 +41,7 @@ import {
   type TrackRef,
   trackFact,
 } from "./route-facts";
+import { SecurityBlock, type SecurityNames } from "./security-block";
 
 /** "Kestrel Marine Fuels at Marsaxlokk", or the port's UN/LOCODE alone when the quote is unknown. */
 function StopName({ stop, names }: { stop: StopPlanResult; names?: StopNames }) {
@@ -244,7 +245,16 @@ function NoFeasiblePlan({ plan, names }: { plan: RoutePlanView; names?: StopName
   );
 }
 
-export function PlanSummary({ plan, names }: { plan: RoutePlanView; names?: StopNames }) {
+export function PlanSummary({
+  plan,
+  names,
+  security,
+}: {
+  plan: RoutePlanView;
+  names?: StopNames;
+  /** Each security quote's team and each danger area's name (Track 3). */
+  security?: SecurityNames;
+}) {
   const id = useId();
   const titleId = useId();
   if (!knowsFuel(plan)) return null;
@@ -306,10 +316,13 @@ export function PlanSummary({ plan, names }: { plan: RoutePlanView; names?: Stop
         calculationId={plan.calculationId}
         plan={result.plan}
         securityTeam={
-          result.plan.kind === "route" &&
-          result.options.some(
-            (o) => o.candidateId === result.plan?.optionId && o.security?.quoteId != null,
-          )
+          result.plan.kind === "route"
+            ? result.options.some(
+                (o) => o.candidateId === result.plan?.optionId && o.security?.quoteId != null,
+              )
+            : result.stopPlans.some(
+                (s) => s.optionId === result.plan?.optionId && s.security?.quoteId != null,
+              )
         }
       />
       <AddsAndNext plan={plan} names={names} />
@@ -317,6 +330,7 @@ export function PlanSummary({ plan, names }: { plan: RoutePlanView; names?: Stop
       {stop ? (
         <PortCallBlock plan={plan} index={track.index} destination={plan.destination} />
       ) : null}
+      {stop ? <SecurityBlock plan={plan} index={track.index} names={security} kind="stop" /> : null}
     </section>
   );
 }

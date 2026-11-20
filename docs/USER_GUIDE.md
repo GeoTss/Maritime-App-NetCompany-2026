@@ -49,7 +49,8 @@ titles.
 
 **Less on screen.** The top bar's switches hide the Needs you column and the assistant; the arrow at
 the end of the layer switches folds them into one Layers button; focus mode (the top bar, or F)
-puts all of it away at once. The console remembers these in your browser. Zoomed out, the map
+puts all of it away at once. The console remembers the column and assistant switches in your
+browser; focus mode is not remembered. Zoomed out, the map
 draws every other weather dart, port queues show their figures on hover, and danger areas their
 level on hover.
 
@@ -67,6 +68,19 @@ forecast and the reported hazards. The route tray then shows two answers side by
 
 ![The route tray with the recommended plan and the bunker stop on the map](screenshots/phase-6/story-4-route-plan.png)
 
+**Why a route is blocked.** The route table keeps every route and says why one cannot be sailed:
+it runs below the fuel margin, its provisions fall below the company reserve (7 days) before
+arrival, it meets waves over the heavy-weather limit, it crosses the reported hazard, it arrives
+after the berth window closes, it needs an armed security team that no valid quote covers, or it
+crosses an area to avoid. A bunker stop that buys the fuel or restocks the provisions can make a
+route possible again.
+
+**Suez or the Cape.** For a voyage that could pass a danger area, each route lists the areas it
+crosses and the hours inside, the armed team its plan chose and where the team boards and leaves,
+and its cost lines: team, war-risk premium and canal dues. The tray sets the canal route's total
+beside the route round the Cape. A bunker stop on such a voyage is planned the same way: the
+recommended stop lists its own team and costs under its port call, in the plan total.
+
 **Voyage timeline.** Under the plan, the tray lists what the voyage does, in time order: departure,
 each port call with what it does there (bunkers, provisions when they run low, charts and
 publications, sludge or sewage ashore, clearance, port dues; open it for the quantities and costs),
@@ -75,6 +89,12 @@ may go overboard (more than 12 nm from land at 4 kn or more), danger areas with 
 boarding and leaving, the storms passed and how far off, the notices due before a call, and the
 arrival with the provisions left. A switch per kind hides what you do not need; the same events are
 pins on the map. Pick a row and its pin is ringed and brought into view; pick a pin and its row is.
+
+Opened, a bunker call states the grade and amount it buys, the fuel cost and barge fee, why the
+fuel was needed (what the best route without a stop was short of to keep the margin), and that
+grade on board on arrival, after bunkering and at the destination, against its margin. A call
+that restocks provisions says how many person-days it buys and how many days are left at the
+destination. Each figure is a fact chip.
 
 Planning stores a calculation. Nothing is sent or changed.
 
@@ -131,6 +151,11 @@ confirm with "Save corrected quote". Nothing is saved until you accept.
 
 ![An email held for review, with the failed checks and the correction form](screenshots/phase-6/story-2-inbox.png)
 
+**Security quotes.** A security company's email offering an armed team becomes a security quote:
+the provider, where the team boards and leaves, the team size, the day rate, fixed fees and the
+minimum days charged. The same checks apply. A team written two ways, such as "4/6 guards", is
+held for review; Pharos never guesses a team size.
+
 ## The assistant
 
 The assistant sits in the panel on the right of every screen. Ask in plain language about a
@@ -156,10 +181,12 @@ numbers had no source, and none of its text. Ask again, or rephrase.
 it creates a proposal and tells you so. A card links to it. Ask it only to compare or to look
 something up, and it proposes nothing.
 
-**What it can answer.** Fuel on board and where a vessel runs short; the quotes on record; where
-and from whom to bunker, ranked by total delivered cost; the best route and speed for a berth
-window; CO₂, EU ETS cost, FuelEU exposure and the CII rating of a voyage; how busy a port is; and
-arithmetic over figures it has already given ("how much more is that?").
+**What it can answer.** Fuel on board and where a vessel runs short; the fuel and security quotes
+on record; where and from whom to bunker, ranked by total delivered cost; the best route and speed
+for a berth window, with the port call, the weather and, through a danger area, the armed team,
+war-risk premium and canal dues; CO₂, EU ETS cost, FuelEU exposure and the CII rating of a voyage;
+how busy a port is; and arithmetic over figures it has already given ("how much more is that?").
+The voyage timeline is the console's: the assistant does not cite its events.
 
 **What it will not do.** It does not order, send or change anything. It does not act on
 instructions written inside an email or an AIS message. It abstains when it has no data, rather
@@ -180,17 +207,23 @@ one to see what it would do, the facts behind it, and the plan it came from.
 
 - Approving a **purchase order** creates the order from the stored plan and the supplier's quote
   and pushes it to the ERP simulator, which returns a PO number.
+- Approving a **security order** orders the armed team the route's plan chose, for the days it
+  charges, at the security quote's rates. The card shows the team, the days charged, when it
+  boards and the team cost. The ERP simulator returns an order number.
 - Approving a **voyage instruction** records the route, speed, ETA and any bunker stop as the plan
   in force. It sends nothing to the vessel.
 - Rejecting is final.
 
-**Order first, then instruction.** A voyage instruction that calls at a port to bunker depends on
-the purchase order for that fuel. Approve stays disabled, and says why, until the order is
+**Orders first, then instruction.** A voyage instruction that calls at a port to bunker depends on
+the purchase order for that fuel; one whose route or bunker stop needs an armed team depends on
+the security order too. Approve stays disabled, and says which order it waits for, until each is
 approved.
 
-**Drafted messages and the audit trail.** After an approval, open the proposal to read the drafted
-confirmation to the supplier and the instruction to the master. Each is marked "draft, not sent".
-The audit trail lists every step with who took it and when.
+**Drafted messages and the audit trail.** After an approval, open the proposal to read what was
+drafted: the confirmation to the supplier or to the security provider, the instruction to the
+master and, for a port call, the request to the port agent (provisions, the charts by number and
+edition, the sludge to deliver) and the pre-arrival notices with their due times. Each is marked
+"draft, not sent". The audit trail lists every step with who took it and when.
 
 ![An approved purchase order with its drafted messages and the audit trail](screenshots/phase-6/story-5-approvals-po.png)
 
@@ -230,4 +263,16 @@ The console is operable by keyboard throughout, with visible focus. Ctrl+K or Cm
 | FuelEU Maritime | An EU rule that penalises fuel above a greenhouse-gas intensity limit. Pharos shows it as an exposure: the penalty if nothing offsets it |
 | CII | Carbon Intensity Indicator: a yearly rating, A to E, of a ship's CO₂ per unit of transport work |
 | Laden, ballast | Carrying cargo, or sailing empty. A ship in ballast burns less at the same speed |
+| Port call | Everything a stop does: clearance, bunkering, provisions, charts and publications, sludge and sewage ashore, port dues and the notices due before arrival |
+| Port agent | The local company that arranges a port call for the ship. Pharos drafts the request to them |
+| Pre-arrival notice | Information a port needs before a ship arrives, by a due time (agent appointment, security information, the EU waste notification) |
+| Provisions reserve | The days of food and stores the crew must still have on arrival. Pharos uses a 7-day company reserve |
+| Sludge | Oily residue from the fuel purifiers, kept in a tank and delivered ashore |
+| Heavy-weather limit | The wave height a route must not meet where and when the ship is there. Pharos uses 6 m |
+| Danger area | Waters with a security threat. Pharos shows the JMIC threat level and what the area asks of a ship |
+| JMIC | Joint Maritime Information Center: publishes threat levels for the Red Sea, Gulf of Aden and nearby waters |
+| Listed area | Waters the London insurance market's Joint War Committee lists as high risk; transits pay a war-risk premium |
+| Armed team | Private armed security guards who board for a danger area and leave after it |
+| War-risk premium | An extra insurance charge for a transit of a listed area, a share of the hull value |
+| Canal dues | The toll for a canal transit, such as Suez |
 | kn, nm, mt | Knots, nautical miles, metric tonnes |

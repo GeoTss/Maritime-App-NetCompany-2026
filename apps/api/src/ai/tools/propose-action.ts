@@ -23,9 +23,10 @@ import {
   RouteSpeedResult,
   type ToolResult,
 } from "@pharos/shared";
-import { orderDependencyOf } from "../../approvals/dependency.js";
+import { orderDependenciesOf } from "../../approvals/dependency.js";
 import { existingProposal } from "../../approvals/existing.js";
 import { dbFact } from "../../facts/core.js";
+import { optionSecurityOf } from "../../routing/option-security.js";
 import { json, runTool, type ToolContext } from "./common.js";
 import { defineTool } from "./define.js";
 
@@ -90,17 +91,19 @@ export function checkedOption(
   }
   const result = RouteSpeedResult.parse(outputs);
   if (action.type === "security_order") {
-    // A security order buys the team a route option's security plan chose (Track 3).
-    const option = result.options.find((o) => o.candidateId === action.optionId);
+    // A security order buys the team a route option's, or a bunker stop plan's, security plan
+    // chose (Track 3).
+    const option = optionSecurityOf(result, action.optionId);
     if (!option) throw new Error(`Calculation ${id} has no route ${action.optionId}.`);
+    const what = option.kind === "route" ? "Route" : "Bunker stop";
     if (!option.security?.needsTeam || option.security.quoteId === null) {
       throw new Error(
-        `Route ${action.optionId} ${option.security?.needsTeam ? "has no security quote that covers it" : "needs no security team"}; no security order can be proposed.`,
+        `${what} ${action.optionId} ${option.security?.needsTeam ? "has no security quote that covers it" : "needs no security team"}; no security order can be proposed.`,
       );
     }
     if (!option.feasible) {
       throw new Error(
-        `Route ${action.optionId} is not feasible (${option.reasons.join(", ")}); it cannot be proposed.`,
+        `${what} ${action.optionId} is not feasible (${option.reasons.join(", ")}); it cannot be proposed.`,
       );
     }
     return { expectedSavingUsd: null };
@@ -262,19 +265,27 @@ export async function proposeAction(ctx: ToolContext, input: unknown): Promise<T
           : `Proposal ${id} for this was already made and is ${status}. Nothing new was proposed.`,
     };
     if (action.type === "voyage_instruction") {
-      // A bunker stop's instruction waits for the purchase order for its quote (never made here).
-      const dependency = await orderDependencyOf(ctx.sql, {
+      // An instruction waits for the purchase order for its bunker stop's quote and for the
+      // security order for its team, when it has either (neither is ever made here).
+      const dependencies = await orderDependenciesOf(ctx.sql, {
         type: action.type,
         calculation_id: action.calculationId,
         option_id: action.optionId,
       });
-      data.dependsOnRecommendationId = dependency?.recommendationId ?? null;
-      if (status === "pending" && dependency && !dependency.satisfied) {
-        const what =
-          dependency.orderType === "security_order" ? "security order" : "purchase order";
-        data.note = `${NOTE.voyage_instruction} Needs an approved ${what} for ${dependency.optionLabel} before it can be approved.`;
+      const first = dependencies.find((d) => !d.satisfied) ?? dependencies[0] ?? null;
+      data.dependsOnRecommendationId = first?.recommendationId ?? null;
+      const unmet = dependencies.filter((d) => !d.satisfied);
+      if (status === "pending" && unmet.length > 0) {
+        const needs = unmet
+          .map((d) => {
+            const what = d.orderType === "security_order" ? "security order" : "purchase order";
+            return `an approved ${what} for ${d.optionLabel}`;
+          })
+          .join(" and ");
+        data.note = `${NOTE.voyage_instruction} Needs ${needs} before it can be approved.`;
       }
-      if (dependency?.recommendationId != null) {
+      for (const dependency of dependencies) {
+        if (dependency.recommendationId == null) continue;
         facts.push(
           dbFact(
             TOOL,

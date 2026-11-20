@@ -118,6 +118,8 @@ const STOP_REASON: Record<StopPlanReason, string> = {
   waste_reception_unavailable: "the port cannot take the waste the voyage must deliver",
   notice_overdue: "a pre-arrival notice is already overdue",
   heavy_weather: "meets waves over the heavy-weather limit",
+  security_unavailable: "needs an armed security team no valid quote covers",
+  avoid_area: "crosses an area to avoid",
 };
 
 /** Why a stop plan cannot be proposed, in words (lower case: it follows the quote's name). */

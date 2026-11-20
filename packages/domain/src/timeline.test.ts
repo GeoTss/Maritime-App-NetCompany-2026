@@ -270,4 +270,45 @@ describe("voyageTimeline", () => {
     expect(passed?.timing).toBe("after");
     expect(passed?.activeUntil).toBe("2026-11-14T14:00:00.000Z");
   });
+
+  it("a stop plan through a guarded area lists the area and the team boarding", () => {
+    const guarded = {
+      id: "guarded",
+      name: "Guarded",
+      level: "SUBSTANTIAL" as const,
+      policy: "guards" as const,
+      boxes: [{ minLat: 34, maxLat: 36, minLon: 21, maxLon: 23 }],
+      asOf: "2026-11-09",
+      source: "test",
+      note: "test",
+    };
+    const team = {
+      quoteId: 7,
+      providerId: 7,
+      embark: { portId: 107, position: ll(35.4, 20.5) },
+      disembark: { portId: 207, position: ll(35, 24.5) },
+      teamSize: 4,
+      dayRateUsd: 1000,
+      fixedFeesUsd: 5000,
+      minDays: 3,
+      validUntil: null,
+    };
+    const input = routeInput(MED, {
+      fuel: {
+        robMt: { LSMGO: 50, VLSFO: 0, HSFO: 0 },
+        safetyMarginDays: 2,
+        tankCapacityMt: PLENTY,
+      },
+      stops: [stop()],
+      security: { areas: [guarded], quotes: [team], hullValueUsd: 45_000_000, canal: null },
+    });
+    const result = optimiseRouteSpeed(input);
+    expect(result.plan?.kind).toBe("stop");
+    const events = voyageTimeline({ input, result, coast: null });
+    const [entry] = ofKind(events, "danger_area_entry");
+    expect(entry?.areaId).toBe("guarded");
+    expect(entry?.guarded).toBe(true);
+    expect(ofKind(events, "guards_embark")[0]?.portId).toBe(107);
+    expect(ofKind(events, "guards_disembark")[0]?.portId).toBe(207);
+  });
 });

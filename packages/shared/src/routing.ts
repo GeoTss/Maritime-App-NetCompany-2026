@@ -340,6 +340,8 @@ export const StopPlanReason = z.enum([
   "waste_reception_unavailable",
   "notice_overdue",
   "heavy_weather",
+  "security_unavailable",
+  "avoid_area",
 ]);
 export type StopPlanReason = z.infer<typeof StopPlanReason>;
 
@@ -375,6 +377,8 @@ export const StopPlanResult = z
     portCall: PortCallResult.nullable(),
     feasible: z.boolean(),
     reasons: z.array(StopPlanReason),
+    /** The stop plan's security plan, over its own walk; absent when the input has no security data. */
+    security: SecurityPlanResult.optional(),
   })
   .strict();
 export type StopPlanResult = z.infer<typeof StopPlanResult>;

@@ -99,8 +99,8 @@ Say: the route is costed with what it takes to sail it safely. Where the threat 
 
 Run it after the six steps (it moves calculation ids, so the scripted stories need `npm run demo:reset` afterwards).
 
-1. **Timeline.** With Aegean Pioneer's plan open, scroll the tray to "Voyage timeline": the call at Marsaxlokk (open "What the call does"), the ECA exit at Gibraltar and the changeover before the Channel, the sewage windows, the synthetic storm passed. Switch "Sewage discharge" off and on; press a pin on the map.
-2. **Scenario.** Open Scenario (beside Needs you). Lower Aegean Pioneer's LSMGO on board and save: the tray says the plan predates the edit; Plan again shows the new answer. On Weather, pick a point on her track, set 8 m and add it: storm-purple darts appear and the route goes round. Turn on Wind for the wind darts.
+1. **Timeline.** With Aegean Pioneer's plan open, scroll the tray to "Voyage timeline": the call at Marsaxlokk (open "What the call does": the LSMGO it buys from Kestrel, the fuel cost and barge fee, why it was needed, and the LSMGO on board on arrival, after bunkering and at Rotterdam against the margin; and the provisions restock, since she has 12 days on board and would end under the 7-day reserve), the ECA exit at Gibraltar and the changeover before the Channel, the sewage windows, the synthetic storm passed. Switch "Sewage discharge" off and on; press a pin on the map.
+2. **Scenario.** Open Scenario (beside Needs you). Lower Aegean Pioneer's LSMGO on board and save: the tray says the plan predates the edit; Plan again shows the new answer. On Weather, pick a point on her track, set 8 m and add it (it starts at the current hour and ends five days later unless you change "Starts" and "Ends"): storm-purple darts appear and the route goes round. Set it to end before she gets there and plan again: the route goes through, and the timeline says she passes where the storm was after it ended. Turn on Wind for the wind darts.
 3. **Reset** from the panel (it asks first), or run `npm run demo:reset`.
 
 Say: the planner reads the world as it stands; change the world and every number follows, each still cited.

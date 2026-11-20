@@ -18,6 +18,15 @@ delay, weather and carbon cost are counted. Pharos then proposes a purchase orde
 instruction. A person approves: the order goes to a local ERP simulator and comes back with a PO
 number, and the messages are drafted, never sent. ([MASTER_PLAN §1](MASTER_PLAN.md#1-scenario-bunker-to-berth))
 
+After the measurement the plan grew. A bunker stop is planned as a whole port call (provisions,
+charts and publications, sludge and sewage, dues, the notices due before arrival), and a route
+whose provisions would fall below the 7-day reserve is blocked unless a call restocks them. Heavy
+weather blocks a route where and when the ship would meet it. A route through a danger area
+carries an armed team, a war-risk premium and canal dues, set against the route round the Cape,
+and the security order is approved like a fuel order (Track 3). A voyage timeline lists what the
+voyage does, and on the pinned demo a Scenario panel changes the world the plan reads.
+([MASTER_PLAN §13](MASTER_PLAN.md#13-change-log))
+
 ## The approach, and why
 
 On a desk where one fuel order is a large sum, the failure that matters is a plausible number that
@@ -150,6 +159,12 @@ limits.
 
 **The measurement**
 
+- **The published figures predate the later work.** The held-out pass ran on 16 Nov on frozen code
+  (`27a38c2`). The port call and the heavy-weather limit (Phase 9), Track 3 (Phase 10), and the
+  timeline, the Scenario panel and the provisions rule (Phase 11 and after) came later. They were
+  checked with dev record passes (on 19 Nov, `agent-system/v6`: answers 25/27, grounded 35/35,
+  unauthorised 0/35) and with both demo stories in replay. A record pass is not a live
+  measurement, so the published dev and held-out figures stay those of 16 Nov.
 - **Two grader limits, parked before the run** (Phase 7 plan, R6). For comparison questions the
   grader checks the two cited values but not the verdict word, so an answer that names the wrong
   side as larger would still pass (held-out comparison-02, -04, -05, -08 and congestion-03). For a
@@ -207,6 +222,16 @@ limits.
   draught counts as laden, the cautious side.
 - **No real hazard.** Three 600 s AIS captures carried no safety, aid-to-navigation or
   search-and-rescue message, so the demo's hazard is synthetic and labelled so on the map.
+- **Port calls are costed from synthetic terms.** Each port's dues, stores and waste fees, the EU
+  waste fee, clearance and service times, and each vessel's stores (crew, provisions, sludge,
+  sewage) are synthetic. The chart and publication editions follow a supplier checklist of
+  16 Nov 2026.
+- **Heavy weather is one threshold.** A route is blocked where its significant wave height, at the
+  ship's position and time, is over 6 m. There is one detour candidate round the cells over the
+  limit; it is not a weather-routing search, so a storm that fills a whole sea is passed by timing,
+  not routed round.
+- **The demo storm and the scenario edits are synthetic.** Both are labelled on the map, and
+  neither is in the evaluation world. The recorded model replies cover the unedited demo only.
 
 **The live demo**
 

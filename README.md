@@ -52,6 +52,9 @@ the images are built. The recorded model replies answer only the three scripted 
 three demo emails; any other question shows a "no recorded reply" message. To ask anything you
 like, [go live](#go-live).
 
+Run `npm run demo:reset` once the stack is up to also allow the Scenario panel's edits (see
+[change the world](#a-six-minute-tour)); a plain `docker compose up` shows the panel read-only.
+
 ## A six-minute tour
 
 The demo story has six steps. The full script, with what to click and what to say, is in
@@ -80,13 +83,22 @@ an armed team, war-risk premium and canal dues, beside the route round the Cape.
 is approved like a fuel order, and the voyage instruction waits for it
 (`e2e/security.spec.ts`, and the optional act in the demo script).
 
+**Change the world.** Under a plan, the voyage timeline lists what the voyage does in time order:
+each port call and its jobs (the fuel it buys and why, a provisions restock), the fuel changeover
+at each ECA line, sewage windows, danger areas with the armed team, storms passed, notices due. The
+same events are pins on the map. On the pinned demo, the Scenario panel edits the world (a vessel's
+fuel, tanks, speeds, costs and stores; hazards; weather over a circle from a start to an end) and
+every plan follows, each number still cited. A route whose provisions would fall below the 7-day
+reserve is blocked unless a call restocks them.
+
 | Inbox: a quote held for a human fix | Assistant: an answer with its facts | Approvals: order approved, drafts never sent |
 | --- | --- | --- |
 | ![Inbox with the review form](docs/screenshots/phase-6/story-2-inbox.png) | ![Bunker answer with fact chips and the options table](docs/screenshots/phase-6/story-3-bunker-answer.png) | ![Approved purchase order with drafted messages and audit trail](docs/screenshots/phase-6/story-5-approvals-po.png) |
 
 ### Run the story automatically
 
-The same six steps run through the real console with Playwright. With the stack up:
+The six steps (`e2e/demo.spec.ts`) and the Suez or the Cape act (`e2e/security.spec.ts`) run
+through the real console with Playwright. With the stack up:
 
 ```bash
 npm ci
@@ -100,9 +112,9 @@ npx playwright install chromium
 npm run demo:reset && npx playwright test
 ```
 
-This is the recorded story: free, about 17 seconds. `npm run demo:reset` recreates the api, erp,
-worker and web containers pinned, reseeded and on recorded sources, and waits until they are ready
-(about 15 seconds when measured; it waits up to 3 minutes).
+These are the recorded stories: free, on recorded model replies. `npm run demo:reset` recreates the api,
+erp, worker and web containers pinned, reseeded and on recorded sources, and waits until they are
+ready (about 15 seconds when measured; it waits up to 3 minutes).
 
 ## Go live
 
@@ -210,15 +222,15 @@ on the console's Evaluation page, and every pass is logged in
 | Path | What |
 | --- | --- |
 | `packages/shared` | Zod contracts shared by every service |
-| `packages/domain` | Pure maths: routing, route and speed optimiser, weather effect, consumption, bunker planner, emissions, congestion |
+| `packages/domain` | Pure maths: routing, route and speed optimiser, weather effect, consumption, bunker planner, port calls, storms, security, voyage timeline, emissions, congestion |
 | `packages/db` | Drizzle schema, migrations, synthetic world seed |
 | `packages/integrations` | AIS, weather and sea-route providers, each live and recorded |
-| `apps/api` | Hono API: ingestion, ops agent and tools, release gate, approvals, executor |
+| `apps/api` | Hono API: ingestion, ops agent and tools, release gate, approvals, executor, demo scenario |
 | `apps/worker` | Keeps the live-data tables fresh (AIS, weather, hazards, congestion) |
 | `apps/web` | React ops console |
-| `services/erp-sim` | ERP simulator: purchase-order intake with idempotency |
+| `services/erp-sim` | ERP simulator: fuel and security order intake with idempotency |
 | `evals/`, `fixtures/` | Golden sets, graders, runners, reports; recorded AIS, weather and model replies |
-| `e2e/` | The six-step demo story |
+| `e2e/` | The six-step demo story and the Suez or the Cape act |
 
 ## Common commands
 
@@ -258,6 +270,7 @@ Pharos is a prototype, not a product. Routes are planning-grade and not for navi
 effect is a simplified parametric model; congestion waiting times and the FuelEU figure are
 illustrative; extraction accuracy is measured on synthetic emails, not real supplier mail. Danger
 areas are boxes approximating published limits as reported in early to mid November 2026, not a
-security assessment; security day rates and premiums are illustrative. The API
+security assessment; security day rates and premiums are illustrative. Port dues, stores and waste
+fees are illustrative, and the demo's storm and scenario edits are labelled synthetic data. The API
 has no authentication and is meant to run on a developer's machine. The complete list is under
 "Honest limits" in [`docs/APPROACH.md`](docs/APPROACH.md#honest-limits).

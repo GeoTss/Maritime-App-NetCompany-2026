@@ -1053,5 +1053,77 @@ describe.skipIf(!sql)("executor (Postgres)", () => {
       // The instruction now goes through.
       expect((await approveRecommendation(deps, viId, "alice")).status).toBe("executed");
     });
+
+    it("a bunker stop on the Suez track carries its team: its instruction waits for the fuel and the security order", async () => {
+      const [tridentis] = await insertSecurityQuotes();
+      // Reopen Atlantic Meridian's VLSFO requirement with a fresh quote at Sines (past Suez).
+      const [req] = await db<{ id: number; supplier_id: number; port_id: number }[]>`
+        update bunker_requirements br set status = 'open'
+        from voyages v, quotes q
+        where v.id = br.voyage_id and v.voyage_no = 'AM-2612' and q.requirement_id = br.id
+          and q.port_id = (select id from ports where unlocode = 'PTSIE')
+        returning br.id, q.supplier_id, q.port_id`;
+      const [quote] = await db<{ id: number }[]>`
+        insert into quotes (supplier_id, port_id, requirement_id, delivery_from, delivery_to,
+                            valid_until, currency, barge_fee, status, extraction_id, received_at)
+        values (${req?.supplier_id ?? 0}, ${req?.port_id ?? 0}, ${req?.id ?? 0}, null, null, null,
+                'USD', 2200, 'received', null, ${NOW.toISOString()}::timestamptz)
+        returning id`;
+      await db`insert into quote_lines (quote_id, grade, qty_mt, price_per_mt)
+               values (${quote?.id ?? 0}, 'VLSFO', 400, 588)`;
+
+      const ctx = createToolContext({ sql: db, now: () => ASK_FIXTURE_NOW });
+      const out = await planRouteSpeedFacts(ctx, { vessel: "Atlantic Meridian" });
+      const id = (out.data as { calculationId: number }).calculationId;
+      const [calc] = await db<{ outputs: unknown }[]>`
+        select outputs from calculations where id = ${id}`;
+      const result = RouteSpeedResult.parse(calc?.outputs);
+      const stop = result.stopPlans.find((s) => s.quoteId === quote?.id);
+      expect(stop?.reasons).toEqual([]);
+      expect(stop?.security?.needsTeam).toBe(true);
+      expect(stop?.security?.quoteId).toBe(tridentis);
+      // Its team and costs are cited.
+      const cited = out.facts.some(
+        (f) =>
+          f.provenance.source === "calculation" &&
+          f.provenance.path.startsWith("stopPlans[0].security."),
+      );
+      expect(cited).toBe(true);
+      const cite =
+        out.facts.find(
+          (f) => f.provenance.source === "calculation" && f.provenance.path === "bestCandidateId",
+        )?.id ?? "";
+      const propose = async (type: "voyage_instruction" | "purchase_order" | "security_order") =>
+        (
+          (
+            await proposeAction(ctx, {
+              type,
+              calculationId: id,
+              optionId: stop?.optionId ?? "",
+              factRefs: [cite],
+              rationale: "Bunker at Sines; Suez with an armed team.",
+            })
+          ).data as { recommendationId: number }
+        ).recommendationId;
+      const viId = await propose("voyage_instruction");
+      const poId = await propose("purchase_order");
+      const secId = await propose("security_order");
+
+      const blocked = async () =>
+        (
+          (await approveRecommendation(deps, viId, "alice").catch(
+            (e: unknown) => e,
+          )) as DecisionError
+        ).code;
+      expect(await blocked()).toBe("dependency_unmet");
+      expect((await approveRecommendation(deps, poId, "olga")).status).toBe("executed");
+      // The fuel is ordered, the team is not: still blocked.
+      expect(await blocked()).toBe("dependency_unmet");
+      expect((await approveRecommendation(deps, secId, "olga")).status).toBe("executed");
+      const [order] = await db<{ team_days: number }[]>`
+        select team_days from security_orders where recommendation_id = ${secId}`;
+      expect(order?.team_days).toBe(stop?.security?.teamDays);
+      expect((await approveRecommendation(deps, viId, "alice")).status).toBe("executed");
+    });
   });
 });

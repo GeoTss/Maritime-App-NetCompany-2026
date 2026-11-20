@@ -26,6 +26,7 @@ import { co2Tonnes, etsCost } from "./emissions.js";
 import { fuelEuCost } from "./fueleu.js";
 import { polylineNm } from "./geo.js";
 import { outdatedItems, portCallPlan } from "./port-call.js";
+import { securityPlan } from "./security.js";
 import { hazardIdsOfSteps, subSteps, type WalkedStep, walkSteps } from "./track.js";
 import { projectFuelAlongTrack } from "./track-fuel.js";
 
@@ -210,11 +211,27 @@ export function evaluateStopPlan(
   const stayHours = t
     ? t.waitingHours + t.clearanceHours + t.weatherDelayHours + t.serviceHours
     : 0;
+  // Track 3, as for a route option: the danger areas on the stop plan's own walk (the call's stay
+  // included, so a team aboard across it is paid for it), its team, premium and canal dues.
+  const walked = input.security ? walkStopPlan(input, stop.optionId, speedKn, t) : null;
+  const sec =
+    input.security && walked
+      ? securityPlan({
+          steps: walked.steps,
+          areas: input.security.areas,
+          quotes: input.security.quotes,
+          hullValueUsd: input.security.hullValueUsd,
+          canal: input.security.canal,
+        })
+      : null;
+  const convoyWaitHours = sec?.result.convoyWaitHours ?? 0;
   const startMs = Date.parse(input.startAt);
   const end = fuel.breakpoints[fuel.breakpoints.length - 1];
-  const etaMs = end ? Date.parse(end.at) : startMs;
+  const walkEndMs = end ? Date.parse(end.at) : startMs;
+  // The wait for the canal convoy adds to the voyage (the walk's later weather is not shifted).
+  const etaMs = walkEndMs + Math.round(convoyWaitHours * HOUR_MS);
   const hours = (etaMs - startMs) / HOUR_MS;
-  const steamingHours = hours - stayHours;
+  const steamingHours = (walkEndMs - startMs) / HOUR_MS - stayHours;
   const route = subSteps(stop.points, input.stepNm);
 
   const stayFuel = zero();
@@ -272,6 +289,7 @@ export function evaluateStopPlan(
   ) {
     reasons.push("outside_delivery_window");
   }
+  if (sec) for (const r of sec.reasons) reasons.push(r);
 
   return {
     optionId: stop.optionId,
@@ -294,7 +312,12 @@ export function evaluateStopPlan(
     voyageCostUsd,
     bunkerFuelCostUsd,
     bargeFeeUsd,
-    totalCostUsd: voyageCostUsd + bunkerFuelCostUsd + bargeFeeUsd + (call?.extraCostUsd ?? 0),
+    totalCostUsd:
+      voyageCostUsd +
+      bunkerFuelCostUsd +
+      bargeFeeUsd +
+      (call?.extraCostUsd ?? 0) +
+      (sec?.result.extraCostUsd ?? 0),
     qtyMt: stop.qtyMt,
     hazardIds,
     maxWaveHeightM: fuel.maxWaveHeightM,
@@ -312,6 +335,7 @@ export function evaluateStopPlan(
       : null,
     feasible: reasons.length === 0,
     reasons,
+    ...(sec ? { security: sec.result } : {}),
   };
 }
 

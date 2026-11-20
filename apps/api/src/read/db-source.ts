@@ -60,6 +60,7 @@ import {
   routeSpeedFactRows,
   subjectLabel,
 } from "../routing/facts.js";
+import { optionSecurityOf } from "../routing/option-security.js";
 import { viewCandidates } from "../routing/plan.js";
 import { planTimeline } from "../routing/timeline.js";
 import type { ReadSource } from "./source.js";
@@ -314,20 +315,23 @@ function securityOrderView(
   labels: ReadonlyMap<Id, string>,
 ): { summary: string; optionLabel: string; facts: Fact[] } | null {
   const { plan, result, mmsi } = stored;
-  const index = result.options.findIndex((o) => o.candidateId === optionId);
+  const option = optionSecurityOf(result, optionId);
+  const quoteId = option?.security?.quoteId ?? null;
+  if (!option || quoteId === null) return null;
+  // A route option is described by its candidate's label; a stop plan by its option id.
   const at = plan.input.candidates.findIndex((c) => c.id === optionId);
-  const quoteId = result.options[index]?.security?.quoteId ?? null;
-  if (index < 0 || at < 0 || quoteId === null) return null;
+  if (option.kind === "route" && at < 0) return null;
   const team = labels.get(quoteId) ?? `security quote ${quoteId}`;
   const facts = routeSpeedFactRows(plan, result, null, { mmsi })
     .filter(
       (row) =>
-        row.path.startsWith(`options[${index}].security.`) ||
-        row.path === `inputs.optimiser.candidates.${at}.label`,
+        row.path.startsWith(`${option.path}.`) ||
+        (option.kind === "route" && row.path === `inputs.optimiser.candidates.${at}.label`),
     )
     .map((row) => routeFactOfRow(calculationId, row));
+  const where = option.kind === "route" ? `route ${optionId}` : `the plan through ${optionId}`;
   return {
-    summary: `Order an armed security team for ${subjectLabel(plan, mmsi)} on route ${optionId}: ${team}.`,
+    summary: `Order an armed security team for ${subjectLabel(plan, mmsi)} on ${where}: ${team}.`,
     optionLabel: team,
     facts,
   };

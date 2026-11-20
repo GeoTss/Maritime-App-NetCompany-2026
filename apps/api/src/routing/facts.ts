@@ -473,7 +473,12 @@ function optionFuelRows(
  * timeline, costs, and the bought grade on board at the stop and at the destination. A fleet
  * vessel only: an AIS ship has no fuel check, stop plans or recommended plan.
  */
-function planRows(result: RouteSpeedResult, S: string, D: string): RouteFactRow[] {
+function planRows(
+  result: RouteSpeedResult,
+  S: string,
+  D: string,
+  areas: readonly SecurityArea[],
+): RouteFactRow[] {
   const rows: RouteFactRow[] = [];
   const rec = result.plan;
   if (rec) {
@@ -530,6 +535,9 @@ function planRows(result: RouteSpeedResult, S: string, D: string): RouteFactRow[
       rows.push({ path: `${p}.${field}`, label: `${P}: ${f.text(D)}`, value, unit: f.unit });
     }
     if (sp.portCall) rows.push(...portCallRows(sp.portCall, p, P, D));
+    if (sp.security) {
+      rows.push(...securityRows(sp.security, `${p}.security`, (t) => `${P}: ${t}`, areas));
+    }
     if (stop.beyondForecast) {
       rows.push({
         path: `${p}.stop.beyondForecast`,
@@ -703,7 +711,7 @@ export function routeSpeedFactRows(
       unit: "%",
     });
   }
-  rows.push(...planRows(result, S, D));
+  rows.push(...planRows(result, S, D, plan.input.security?.areas ?? []));
   (plan.stormCells ?? []).forEach((cell, k) => {
     // A synthetic demo cell says so in its label, as the synthetic hazard does.
     const kind = cell.synthetic ? "synthetic demo storm cell" : "storm cell";

@@ -371,3 +371,55 @@ describe("provisions must last the voyage", () => {
     expect(call?.jobs.find((j) => j.kind === "provisions")?.done).toBe(true);
   });
 });
+
+describe("a stop plan through a danger area is security-planned", () => {
+  // The stop route runs (35,15) -> Marsaxlokk at (35.5,20) -> (35,25); the area covers lon 21-23,
+  // after the stop. The team boards before it and leaves after it, both on the track.
+  const guarded = {
+    id: "guarded",
+    name: "Guarded",
+    level: "SUBSTANTIAL" as const,
+    policy: "guards" as const,
+    boxes: [{ minLat: 34, maxLat: 36, minLon: 21, maxLon: 23 }],
+    asOf: "2026-11-09",
+    source: "test",
+    note: "test",
+  };
+  const team = {
+    quoteId: 7,
+    providerId: 7,
+    embark: { portId: 107, position: ll(35.4, 20.5) },
+    disembark: { portId: 207, position: ll(35, 24.5) },
+    teamSize: 4,
+    dayRateUsd: 1000,
+    fixedFeesUsd: 5000,
+    minDays: 3,
+    validUntil: null,
+  };
+  const secured = (quotes: (typeof team)[]) =>
+    input({ security: { areas: [guarded], quotes, hullValueUsd: 45_000_000, canal: null } });
+
+  it("carries the team the quote covers and adds its cost to the total", () => {
+    const s = stop();
+    const withTeam = evaluateStopPlan(secured([team]), s, 12);
+    const without = evaluateStopPlan(input(), s, 12);
+    expect(withTeam.security?.needsTeam).toBe(true);
+    expect(withTeam.security?.quoteId).toBe(7);
+    expect(withTeam.security?.teamDays).toBeGreaterThanOrEqual(3);
+    const teamUsd = withTeam.security?.costLines.find((l) => l.kind === "security_team")?.usd;
+    expect(teamUsd).toBe((withTeam.security?.teamDays ?? 0) * 1000 + 5000);
+    expect(withTeam.totalCostUsd).toBeCloseTo(without.totalCostUsd + (teamUsd ?? 0), 6);
+    expect(withTeam.reasons).not.toContain("security_unavailable");
+  });
+
+  it("is blocked when no quote covers the team, as a route is", () => {
+    const p = evaluateStopPlan(secured([]), stop(), 12);
+    expect(p.reasons).toContain("security_unavailable");
+    expect(p.feasible).toBe(false);
+  });
+
+  it("without security data has no security key, so today's plans are unchanged", () => {
+    const p = evaluateStopPlan(input(), stop(), 12);
+    expect("security" in p).toBe(false);
+  });
+});

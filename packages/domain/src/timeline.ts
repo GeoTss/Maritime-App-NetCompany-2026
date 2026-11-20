@@ -301,7 +301,8 @@ export function voyageTimeline(a: {
     }
   }
 
-  const security = option?.security ?? null;
+  // A route option's or a stop plan's: both are worked out over the walk this timeline reads.
+  const security = option?.security ?? stopPlan?.security ?? null;
   if (security) {
     for (const span of security.spans) {
       const enter = at.atNm(span.enterNm);

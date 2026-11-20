@@ -216,7 +216,9 @@ export function MapPage() {
   };
   const stopNames = useStopNames((plan?.result.stopPlans.length ?? 0) > 0);
   const securityTeams = useSecurityTeams(
-    plan?.result.options.some((o) => o.security?.quoteId != null) ?? false,
+    (plan?.result.options.some((o) => o.security?.quoteId != null) ||
+      plan?.result.stopPlans.some((s) => s.security?.quoteId != null)) ??
+      false,
   );
   const securityNames = useMemo(
     () => ({

@@ -79,6 +79,12 @@ npm run dev:web
 Vite serves <http://localhost:5173> and proxies `/api` to `http://localhost:4000`. Set
 `API_PROXY_TARGET` to point it somewhere else.
 
+To keep the built console running beside it, start the dev server on another port instead:
+
+```bash
+npm run dev -w @pharos/web -- --port 5174 --strictPort
+```
+
 ### The API from source
 
 Run Postgres and the ERP simulator in Docker, stop the `api` container to free port 4000, and
@@ -124,9 +130,13 @@ Use the two scripts instead of setting these by hand:
 
 | Command | Result |
 | --- | --- |
-| `npm run demo:reset` | Recorded model, recorded AIS and weather, pinned clock, reseeded. Free |
+| `npm run demo:reset` | Recorded model, recorded AIS and weather, pinned clock, reseeded, the synthetic storm laid on, and the Scenario panel's edits allowed. Free |
 | `npm run demo:live` | Live model, live AIS, live weather, wall clock. Needs both keys; paid |
 | `LLM_MODE=replay npm run demo:live` | Live AIS and weather with recorded model replies: a free rehearsal of the live sources |
+| `LLM_MODE=live npm run demo:reset` | The pinned demo with a live model, to ask about a world edited in the Scenario panel. Needs `ANTHROPIC_API_KEY`; paid |
+
+A plain `docker compose up` comes up as the recorded demo too, but with `DEMO_CONTROLS=off`: the
+Scenario panel shows the world and refuses edits until you run `npm run demo:reset`.
 
 A recording is keyed by the sha256 of the whole request. Change a prompt, a tool description, the
 order of the tools or anything a tool returns, and the old recordings no longer match. Re-record
@@ -160,7 +170,9 @@ Open-Meteo needs no key.
 | `EXTRACT_EFFORT`, `AGENT_EFFORT` | `medium` | `low`, `medium`, `high`, `xhigh` or `max` |
 | `LLM_FALLBACKS` | `off` | Server-side refusal fallbacks, `on` or `off` |
 | `RECORDINGS_DIR` | `fixtures/llm-recordings` | Where model recordings are read and written |
-| `ERP_BASE_URL` | `http://localhost:4100` | Where approved purchase orders are pushed |
+| `ERP_BASE_URL` | `http://localhost:4100` | Where approved purchase and security orders are pushed |
+| `DEMO_CONTROLS` | `off` (`off` in Compose; `npm run demo:reset` sets `on`) | `on` lets the Scenario panel edit the world. Edits also need the pinned clock and recorded weather |
+| `DEMO_STORM` | `off` (`on` in Compose) | A scenario reset lays the labelled synthetic storm over the recorded weather, as the worker does. Keep it equal to the worker's |
 
 **Worker** (`apps/worker/src/config.ts`; more in [`apps/worker/README.md`](../apps/worker/README.md))
 
@@ -170,6 +182,7 @@ Open-Meteo needs no key.
 | `AIS_MODE` | `replay` | See [Modes](#modes) |
 | `WEATHER_MODE` | `recorded` | See [Modes](#modes) |
 | `DEMO_HAZARDS` | `off` (`on` in Compose) | Load the labelled synthetic hazard with live AIS. Replay always loads it |
+| `DEMO_STORM` | `off` (`on` in Compose) | Lay the labelled synthetic storm west of Crete over the recorded weather (`fixtures/recorded/synthetic-storm.json`). Ignored with live weather |
 | `DEMO_ANCHOR` | unset (pinned in Compose) | Pinned: load the recorded sources once at that instant |
 
 **Other services and tools**
@@ -211,8 +224,10 @@ Notes:
 
 ## The demo story, end to end
 
-`e2e/demo.spec.ts` drives the six-step story through the real console. There is no `webServer`
-block: bring the stack up first.
+Two stories drive the real console: `e2e/demo.spec.ts`, the six steps, and
+`e2e/security.spec.ts`, the optional "Suez or the Cape" act (security quotes, Atlantic Meridian's
+route, the security order and the instruction that waits for it). There is no `webServer` block:
+bring the stack up first.
 
 ```bash
 npx playwright install chromium
@@ -222,8 +237,9 @@ npx playwright install chromium
 npm run demo:reset && npx playwright test
 ```
 
-About 17 seconds on recorded replies, with no replay miss. The recorded replies depend on the same
-actions in the same order, so reset before each run.
+Both run on recorded replies, free, and must finish with no replay miss. The recorded replies
+depend on the same actions in the same order, so reset before each run. Run one story with
+`npx playwright test e2e/security.spec.ts`.
 
 | Variant | Command |
 | --- | --- |
@@ -277,7 +293,7 @@ Rules that the tooling enforces:
 | `npm run db:seed` | Seeds the synthetic world |
 | `npm run routes:network` | Rebuilds the sea-route network from the Eurostat data |
 | `npm run record:ais` | Records a new AIS capture (needs `AISSTREAM_API_KEY`) |
-| `npm run record:weather` | Records a new weather snapshot |
+| `npm run record:weather` | Records a new weather snapshot (`-- --region added` fetches only the points added for Track 3, round Africa and through the Red Sea and Arabian Sea, and merges them in) |
 | `npm run smoke:ais`, `npm run smoke:weather` | Check that the live feeds answer |
 | `npm run map:basemap` | Rebuilds the bundled Natural Earth basemap |
 | `npm run smoke:pdf` | PDF text extraction smoke check |
@@ -311,7 +327,10 @@ too, under "UI rules".
 | `replay_miss` in tests after a code change | A prompt, tool description or tool output changed | Re-record under the `eval-bench` protocol |
 | The AIS badge reads "recorded" in live mode | `AISSTREAM_API_KEY` is missing, or the feed is down | Add the key, check with `npm run smoke:ais -- --seconds 20` |
 | A code change does not show in the console | The containers run the image built earlier | `docker compose up -d --build` |
-| `npm run dev:web` fails because port 5173 is in use | The `web` container holds the port | `docker compose stop web` |
+| `npm run dev:web` fails because port 5173 is in use | The `web` container holds the port | `docker compose stop web`, or run the dev server on 5174 |
+| The Scenario panel shows the world but refuses edits | `DEMO_CONTROLS` is off (a plain `docker compose up`), the clock is not pinned, or the weather is live | `npm run demo:reset` |
+| "No recorded reply" after a Scenario edit | The recorded replies cover the unedited demo only | Reset from the panel, or ask with a live model: `LLM_MODE=live npm run demo:reset` (paid) |
+| An open route plan says it was made before an edit | The world changed after it was planned | Plan again |
 | Database tests are skipped | Postgres is not on `localhost:5432` | `docker compose up -d db` |
 | `npm run verify` fails on a guard test in a fresh copy | Shallow clone or zip: the test reads an earlier commit | Use a full `git clone` |
 | A container is stuck or the state is odd | Varies | `npm run demo:reset` recreates api, erp, worker and web, reseeds and waits |

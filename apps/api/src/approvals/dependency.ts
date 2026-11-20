@@ -1,8 +1,9 @@
 /**
- * The one place a voyage instruction's link to its purchase order is resolved (spec §5). The link is
+ * The one place a voyage instruction's links to its orders are resolved (spec §5). The links are
  * derived, never stored: an instruction on a route plan's bunker stop depends on a purchase order
- * of the same voyage for the stop's quote. `propose_action`, the approval views and the executor
- * all call `orderDependencyOf`, so they agree on it.
+ * of the same voyage for the stop's quote, and one whose route or stop plan needs an armed team on
+ * the security order for that team's quote (Track 3). `propose_action`, the approval views and the
+ * executor all call this module, so they agree on it.
  *
  * The matching order is the latest non-rejected purchase-order proposal of the voyage whose option
  * buys from that quote (a bunker plan option or a route plan's stop plan), preferring one that is
@@ -53,22 +54,46 @@ export function orderQuoteOf(calc: StoredCalculation, optionId: string): Id | nu
   return parsed.data.options.find((o) => o.optionId === optionId)?.quoteId ?? null;
 }
 
+type Rec = { type: string; calculation_id: Id; option_id: string };
+
 /**
- * The purchase order a recommendation waits for, or null when it waits for none: a purchase order,
- * an instruction on a route with no stop, a stop without a received quote, or a plan with no
+ * Every order a voyage instruction waits for, purchase order first: the purchase order for its
+ * bunker stop's quote, and the security order for the team its route or stop plan needs. Empty
+ * for anything else: a purchase or security order, an option with neither, or a plan with no
  * voyage of ours.
+ */
+export async function orderDependenciesOf(sql: Db, rec: Rec): Promise<RecommendationDependency[]> {
+  if (rec.type !== "voyage_instruction") return [];
+  const [calc] = await sql<{ kind: string; outputs: unknown; voyage_id: number | null }[]>`
+    select kind, outputs, voyage_id from calculations where id = ${rec.calculation_id}`;
+  if (calc?.kind !== "route_speed" || calc.voyage_id === null) return [];
+  const out: RecommendationDependency[] = [];
+  const quoteId = stopQuoteOf(calc.outputs, rec.option_id);
+  if (quoteId !== null) out.push(await purchaseDependencyOf(sql, calc.voyage_id, quoteId));
+  const security = await securityDependencyOf(sql, calc, rec.option_id);
+  if (security) out.push(security);
+  return out;
+}
+
+/**
+ * The order a recommendation waits for now: the first unmet one, else the first. Null when it
+ * waits for none. Approving is refused while this is unmet, so an instruction with both orders
+ * waits for both.
  */
 export async function orderDependencyOf(
   sql: Db,
-  rec: { type: string; calculation_id: Id; option_id: string },
+  rec: Rec,
 ): Promise<RecommendationDependency | null> {
-  if (rec.type !== "voyage_instruction") return null;
-  const [calc] = await sql<{ kind: string; outputs: unknown; voyage_id: number | null }[]>`
-    select kind, outputs, voyage_id from calculations where id = ${rec.calculation_id}`;
-  if (calc?.kind !== "route_speed" || calc.voyage_id === null) return null;
-  const quoteId = stopQuoteOf(calc.outputs, rec.option_id);
-  if (quoteId === null) return securityDependencyOf(sql, calc, rec.option_id);
+  const all = await orderDependenciesOf(sql, rec);
+  return all.find((d) => !d.satisfied) ?? all[0] ?? null;
+}
 
+/** The purchase-order proposal of the voyage for a bunker stop's quote. */
+async function purchaseDependencyOf(
+  sql: Db,
+  voyageId: number,
+  quoteId: Id,
+): Promise<RecommendationDependency> {
   const [names] = await sql<{ supplier: string; port: string }[]>`
     select s.name as supplier, p.name as port
     from quotes q join suppliers s on s.id = q.supplier_id join ports p on p.id = q.port_id
@@ -78,7 +103,7 @@ export async function orderDependencyOf(
   >`
     select r.id, r.status, r.option_id, c.kind, c.inputs, c.outputs
     from recommendations r join calculations c on c.id = r.calculation_id
-    where r.type = 'purchase_order' and c.voyage_id = ${calc.voyage_id}
+    where r.type = 'purchase_order' and c.voyage_id = ${voyageId}
     order by r.id desc`;
   const matching = orders.filter((o) => orderQuoteOf(o, o.option_id) === quoteId);
   // An approved (or executing, executed) order wins; else the latest live one; else the latest
@@ -98,8 +123,9 @@ export async function orderDependencyOf(
 }
 
 /**
- * Track 3: an instruction on a route whose security plan needs a team waits for the security
- * order of the same voyage for that quote. Null when the route needs no team or has no quote.
+ * Track 3: an instruction on a route or bunker stop plan whose security plan needs a team waits
+ * for the security order of the same voyage for that quote. Null when it needs no team or has no
+ * quote.
  */
 async function securityDependencyOf(
   sql: Db,
