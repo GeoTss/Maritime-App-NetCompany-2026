@@ -14,6 +14,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
+  type FuelGrade,
   type PortAction,
   type RoutePlanView,
   TIMELINE_GROUP,
@@ -240,7 +241,62 @@ function scrollWithin(row: HTMLElement) {
   if (!fits) box.scrollTo?.({ top: top - box.clientHeight / 3, behavior: "smooth" });
 }
 
-function PortCallDetails({ plan, stopIndex }: { plan: RoutePlanView; stopIndex: number }) {
+/**
+ * The bunkering at a call: the grade and amount bought, what it costs, what the voyage needed
+ * (the best route without a stop's shortfall to keep the margin), and that grade on board on
+ * arrival, after bunkering and at the destination. Every number is the plan's own fact.
+ */
+function Bunkering({
+  plan,
+  stopIndex,
+  grade,
+}: {
+  plan: RoutePlanView;
+  stopIndex: number;
+  grade: FuelGrade;
+}) {
+  const s = `stopPlans[${stopIndex}]`;
+  const at = (path: string) => factAtPath(plan.facts, path);
+  const kinds = plan.result.stopPlans[stopIndex]?.fuel?.breakpoints.map((b) => b.kind) ?? [];
+  const robAt = (k: number) =>
+    k < 0 ? undefined : at(`${s}.fuel.breakpoints[${k}].robMt.${grade}`);
+  const best = plan.result.options.findIndex((o) => o.candidateId === plan.result.bestCandidateId);
+  const shortfall = best < 0 ? undefined : at(`options[${best}].fuel.grades.${grade}.shortfallMt`);
+  return (
+    <div className="flex flex-col gap-0.5 text-text-2" data-testid="timeline-bunkers">
+      <p className="text-text-1">
+        {grade} bought: <FactCell fact={at(`${s}.qtyMt`)} />
+      </p>
+      <p>
+        Fuel <FactCell fact={at(`${s}.bunkerFuelCostUsd`)} />, barge fee{" "}
+        <FactCell fact={at(`${s}.bargeFeeUsd`)} />
+      </p>
+      {shortfall ? (
+        <p>
+          Needed: without a stop the best route runs <FactCell fact={shortfall} /> short of its{" "}
+          {grade} margin
+        </p>
+      ) : null}
+      <p>
+        {grade} on board: <FactCell fact={robAt(kinds.indexOf("stop_arrival"))} /> on arrival,{" "}
+        <FactCell fact={robAt(kinds.indexOf("stop_departure"))} /> after bunkering,{" "}
+        <FactCell fact={robAt(kinds.lastIndexOf("end"))} /> at{" "}
+        <UntrustedText text={plan.destination} /> (margin{" "}
+        <FactCell fact={at(`${s}.fuel.grades.${grade}.marginMt`)} />)
+      </p>
+    </div>
+  );
+}
+
+function PortCallDetails({
+  plan,
+  stopIndex,
+  grade,
+}: {
+  plan: RoutePlanView;
+  stopIndex: number;
+  grade: FuelGrade;
+}) {
   return (
     <Collapsible className="mt-1">
       <CollapsibleTrigger asChild>
@@ -249,9 +305,7 @@ function PortCallDetails({ plan, stopIndex }: { plan: RoutePlanView; stopIndex: 
         </Button>
       </CollapsibleTrigger>
       <CollapsibleContent className="flex flex-col gap-2 pt-1">
-        <p className="text-text-2" data-testid="timeline-bunkers">
-          Bunkers <FactCell fact={factAtPath(plan.facts, `stopPlans[${stopIndex}].qtyMt`)} />
-        </p>
+        <Bunkering plan={plan} stopIndex={stopIndex} grade={grade} />
         <PortCallBlock plan={plan} index={stopIndex} destination={plan.destination} />
       </CollapsibleContent>
     </Collapsible>
@@ -362,7 +416,11 @@ export function VoyageTimelineSection({
                   <div className="min-w-0 text-text-1">
                     <EventBody event={event} ctx={{ plan, index, names, security }} />
                     {event.kind === "port_arrival" ? (
-                      <PortCallDetails plan={plan} stopIndex={event.stopIndex} />
+                      <PortCallDetails
+                        plan={plan}
+                        stopIndex={event.stopIndex}
+                        grade={event.bunkerGrade}
+                      />
                     ) : null}
                   </div>
                 </li>

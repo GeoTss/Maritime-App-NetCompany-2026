@@ -7,7 +7,7 @@
 import { z } from "zod";
 import { Fact } from "./facts.js";
 import { PreArrivalNoticeKind } from "./port-call.js";
-import { Id, IsoDateTime, LatLon } from "./primitives.js";
+import { FuelGrade, Id, IsoDateTime, LatLon } from "./primitives.js";
 
 const NonNeg = z.number().nonnegative();
 
@@ -39,6 +39,8 @@ export const VoyageEvent = z.discriminatedUnion("kind", [
       stopIndex: z.number().int().nonnegative(),
       unlocode: z.string().min(1),
       actions: z.array(PortAction),
+      /** The grade the call bunkers (the quote's): its amounts are the stop plan's facts. */
+      bunkerGrade: FuelGrade,
     })
     .strict(),
   z

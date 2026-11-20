@@ -278,7 +278,8 @@ export function voyageTimeline(a: {
         stopIndex: stopPlanIndex,
         unlocode: stopPlan.unlocode,
       };
-      events.push({ kind: "port_arrival", at: timeline.arriveAt, ...where, actions });
+      const bunkerGrade = input.stops.find((st) => st.optionId === optionId)?.grade ?? "LSMGO";
+      events.push({ kind: "port_arrival", at: timeline.arriveAt, ...where, actions, bunkerGrade });
       // Provisions bought here get their own entry: the voyage would run short without them.
       const jobIndex = call?.jobs.findIndex((j) => j.kind === "provisions" && j.done) ?? -1;
       if (jobIndex >= 0) {

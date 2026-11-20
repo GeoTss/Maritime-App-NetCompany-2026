@@ -892,6 +892,7 @@ export const TIMELINE_EVENTS: VoyageTimeline["events"] = [
     stopIndex: 0,
     unlocode: "MTMLA",
     actions: ["bunkering", "provisions", "charts", "port_dues"],
+    bunkerGrade: "LSMGO",
   },
   {
     kind: "port_departure",

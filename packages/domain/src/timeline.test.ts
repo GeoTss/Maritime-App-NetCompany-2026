@@ -225,6 +225,8 @@ describe("voyageTimeline", () => {
     expect(arrival?.actions).toEqual(
       expect.arrayContaining(["bunkering", "provisions", "sewage", "clearance", "port_dues"]),
     );
+    // It names the grade it bunkers (the quote's).
+    expect(arrival?.bunkerGrade).toBe("LSMGO");
     // The restock is its own entry, at the call, pointing at the provisions job.
     const events = timelineOf(input);
     const [restock] = ofKind(events, "provisions_restock");

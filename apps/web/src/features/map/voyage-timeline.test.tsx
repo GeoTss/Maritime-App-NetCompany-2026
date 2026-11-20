@@ -30,7 +30,14 @@ describe("VoyageTimelineSection", () => {
     );
     fireEvent.click(within(arrival).getByRole("button", { name: /what the call does/i }));
     expect(within(arrival).getByTestId("port-call")).toBeTruthy();
-    expect(within(arrival).getByTestId("timeline-bunkers").textContent).toMatch(/300/);
+    const bunkers = within(arrival).getByTestId("timeline-bunkers").textContent ?? "";
+    // What is bought, what it costs, and what is on board through the call.
+    expect(bunkers).toMatch(/LSMGO bought: 300(\.0)? mt/);
+    expect(bunkers).toMatch(/Fuel USD 221,400(\.00)?, barge fee USD 3,000(\.00)?/);
+    expect(bunkers).toMatch(
+      /82(\.0)? mt on arrival, 381(\.0)? mt after bunkering, 172\.4 mt at Rotterdam/,
+    );
+    expect(bunkers).toMatch(/margin 31(\.0)? mt/);
   });
 
   it("no number without a fact", () => {
@@ -100,5 +107,30 @@ describe("VoyageTimelineSection", () => {
     const [row] = rows("provisions_restock");
     expect(row?.textContent).toMatch(/Restocks provisions: 1,115\.75 person-days/);
     expect(row?.textContent).toMatch(/51\.6 days left at the destination/);
+  });
+
+  it("the call says what the voyage needed: the best route without a stop's shortfall", () => {
+    const p = plan();
+    const best = p.result.options.findIndex((o) => o.candidateId === p.result.bestCandidateId);
+    const shortfall = {
+      id: `f_plan_options.${best}.fuel.grades.LSMGO.shortfallMt`,
+      label: "MV Aegean Pioneer, best route: LSMGO shortfall to keep the margin",
+      value: 68.5,
+      unit: "mt",
+      provenance: {
+        source: "calculation" as const,
+        calculationId: 1,
+        calculator: "optimiseRouteSpeed",
+        path: `options[${best}].fuel.grades.LSMGO.shortfallMt`,
+      },
+    };
+    renderSection({ ...p, facts: [...p.facts, shortfall] });
+    const [arrival] = rows("port_arrival");
+    fireEvent.click(
+      within(arrival as HTMLElement).getByRole("button", { name: /what the call does/i }),
+    );
+    expect(within(arrival as HTMLElement).getByTestId("timeline-bunkers").textContent).toMatch(
+      /Needed: without a stop the best route runs 68\.5 mt short of its LSMGO margin/,
+    );
   });
 });

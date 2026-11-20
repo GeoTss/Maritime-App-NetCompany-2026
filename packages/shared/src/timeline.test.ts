@@ -12,6 +12,7 @@ describe("VoyageEvent", () => {
       stopIndex: 0,
       unlocode: "MTMAR",
       actions: ["bunkering", "provisions", "sewage", "port_dues"],
+      bunkerGrade: "LSMGO",
     });
     expect(e.kind).toBe("port_arrival");
   });
