@@ -21,8 +21,10 @@ import {
 } from "@/components/ui/table";
 import { UntrustedText } from "@/components/untrusted-text";
 import { type AttentionItem, acknowledgeHazard } from "@/lib/attention";
+import { setLayout, useLayout } from "@/lib/layout";
 import { cn } from "@/lib/utils";
 import { DangerAreas } from "./danger-areas";
+import { FoldSection } from "./fold-section";
 import { alertText } from "./vessel-panel";
 
 const KEY: { flag: FlagKind; word: string; code: string }[] = [
@@ -163,13 +165,17 @@ function FleetTable({
   selectedId: number | null;
   onShowVessel: (id: number) => void;
 }) {
+  const layout = useLayout();
   if (vessels.length === 0) return null;
   return (
-    <section aria-label="Managed fleet" className="border-b border-line px-3 py-3">
-      <div className="mb-1 flex items-center gap-2">
-        <h3 className="text-xs font-medium text-text-2">Fuel on board</h3>
-        <DataTag kind="simulated" className="ml-auto" />
-      </div>
+    <FoldSection
+      label="Managed fleet"
+      title="Fuel on board"
+      open={layout.fuel}
+      onOpenChange={(fuel) => setLayout({ fuel })}
+      aside={<DataTag kind="simulated" className="ml-auto" />}
+      className="border-b border-line"
+    >
       <Table>
         <TableHeader>
           <TableRow>
@@ -210,7 +216,7 @@ function FleetTable({
           })}
         </TableBody>
       </Table>
-    </section>
+    </FoldSection>
   );
 }
 

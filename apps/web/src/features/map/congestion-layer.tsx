@@ -33,23 +33,32 @@ function PortLabel({
   const { ref, flip, offscreen } = useFlipLabel<HTMLDivElement>(position.lon, position.lat, 6);
   return (
     <Marker longitude={position.lon} latitude={position.lat} anchor="center">
-      <div className="relative size-0">
+      <div className="group relative size-0">
         <span
           aria-hidden
           className="absolute size-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-text-2"
         />
+        {/* Zoomed out the label waits for a hover or focus on the port, so the map stays clear;
+            the port's figures are always in its accessible name. */}
+        <span
+          role="img"
+          // biome-ignore lint/a11y/noNoninteractiveTabindex: focus reveals the label, as hover does.
+          tabIndex={0}
+          aria-label={`${c.portName}: ${formatDigits(c.anchoredCount, null)} ships at anchor, ${formatDigits(c.waitingHours, "h")} hours wait`}
+          title={`${c.portName}: observed ${formatUtc(c.observedAt)}`}
+          className="absolute size-4 -translate-x-1/2 -translate-y-1/2 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-beacon/60"
+        />
         <div
           ref={ref}
-          role="img"
-          aria-label={`${c.portName}: ${formatDigits(c.anchoredCount, null)} ships at anchor, ${formatDigits(c.waitingHours, "h")} hours wait`}
+          aria-hidden
           data-testid={`port-${c.unlocode}`}
           data-label-side={flip ? "left" : "right"}
           data-map-label={LABEL_PRIORITY.port}
-          title={`${c.portName}: observed ${formatUtc(c.observedAt)}`}
           className={cn(
-            "absolute top-0 flex w-max -translate-y-1/2 flex-col rounded-sm border border-line bg-ink-950/85 px-1.5 py-1 text-xs data-decluttered:invisible",
+            "pointer-events-none absolute top-0 flex w-max -translate-y-1/2 flex-col rounded-sm border border-line bg-ink-950/85 px-1.5 py-1 text-xs data-decluttered:invisible",
             flip ? "right-1.5" : "left-1.5",
             offscreen && "invisible",
+            compact && "invisible group-focus-within:visible group-hover:visible",
           )}
         >
           <span className="flex items-center gap-1.5 text-text-1">

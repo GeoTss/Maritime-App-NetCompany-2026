@@ -9,7 +9,8 @@
  * stored route plan, and a different selection discards the previous route plan. A bunker plan
  * stays until its own Clear.
  */
-import { MapsIcon, Radar01Icon, ShipIcon } from "@hugeicons/core-free-icons";
+import { Layers01Icon, MapsIcon, Radar01Icon, ShipIcon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import type { LatLon, PlanRouteSpeedInput, TimelineGroup } from "@pharos/shared";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePanelRef } from "react-resizable-panels";
@@ -24,8 +25,10 @@ import type { PickRequest } from "@/features/scenario/fields";
 import type { ScenarioPreview } from "@/features/scenario/scenario-data";
 import { ScenarioLauncher } from "@/features/scenario/scenario-panel";
 import { useAttention } from "@/lib/attention";
+import { getLayout, setLayout, useLayout } from "@/lib/layout";
 import { useMediaQuery } from "@/lib/motion";
 import { useSourceStatus } from "@/lib/queries";
+import { cn } from "@/lib/utils";
 import { BunkerPlanLegend } from "./bunker-plan-layer";
 import {
   DEFAULT_LAYERS,
@@ -106,8 +109,36 @@ export function MapPage() {
   const [snap, setSnap] = useState<number | string | null>(TRAY_SNAPS[1]);
   const attention = useAttention();
   const needsPanel = usePanelRef();
-  const [needsOpen, setNeedsOpen] = useState(true);
+  // The Needs you column and the map controls follow the shared layout (the top bar opens them
+  // too); focus mode puts both away without forgetting how they were.
+  const layout = useLayout();
+  const showNeeds = layout.needs && !layout.focus;
   const [needsDrawer, setNeedsDrawer] = useState(false);
+  useEffect(() => {
+    const panel = needsPanel.current;
+    if (!wide || !panel) return;
+    if (showNeeds && panel.isCollapsed()) panel.expand();
+    else if (!showNeeds && !panel.isCollapsed()) panel.collapse();
+  }, [wide, showNeeds, needsPanel]);
+  // F toggles focus mode (not while typing); leaving the map ends it.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== "f" || e.metaKey || e.ctrlKey || e.altKey || e.defaultPrevented)
+        return;
+      const t = e.target;
+      if (
+        t instanceof HTMLElement &&
+        (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))
+      )
+        return;
+      setLayout({ focus: !getLayout().focus });
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      setLayout({ focus: false });
+    };
+  }, []);
 
   const vessels = useVessels();
   const traffic = useTraffic();
@@ -397,10 +428,7 @@ export function MapPage() {
       setNeedsDrawer((o) => !o);
       return;
     }
-    const panel = needsPanel.current;
-    if (!panel) return;
-    if (panel.isCollapsed()) panel.expand();
-    else panel.collapse();
+    setLayout({ needs: !showNeeds, focus: false });
   };
   const flyToHazard = (id: string) => {
     const h = hazards.data?.items.find((x) => x.id === id);
@@ -436,7 +464,7 @@ export function MapPage() {
       }}
     />
   );
-  const needsOpenNow = wide ? needsOpen : needsDrawer;
+  const needsOpenNow = wide ? showNeeds : needsDrawer;
 
   const mapScreen = (
     <div ref={setContainer} className="relative h-full min-h-[24rem] overflow-hidden bg-ink-950">
@@ -473,39 +501,56 @@ export function MapPage() {
       <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-start gap-1.5 p-2">
         <div
           ref={setToggles}
-          className="flex max-w-full flex-wrap items-start gap-1.5"
+          className={cn("flex max-w-full flex-wrap items-start gap-1.5", layout.focus && "hidden")}
           style={topRowStyle}
         >
-          <Button
-            variant="outline"
-            size="sm"
-            className="pointer-events-auto h-8 bg-ink-900"
-            aria-expanded={needsOpenNow}
-            onClick={toggleNeeds}
-          >
-            <StateFlag kind="K" />
-            {wide && needsOpen ? "Hide Needs you" : "Needs you"}
-            {attention.items.length > 0 ? (
-              <b className="font-semibold">{attention.items.length}</b>
-            ) : null}
-          </Button>
+          {/* On a wide screen the top bar opens and closes the column; on a phone it is a drawer. */}
+          {wide ? null : (
+            <Button
+              variant="outline"
+              size="sm"
+              className="pointer-events-auto h-8 bg-ink-900"
+              aria-expanded={needsOpenNow}
+              onClick={toggleNeeds}
+            >
+              <StateFlag kind="K" />
+              Needs you
+              {attention.items.length > 0 ? (
+                <b className="font-semibold">{attention.items.length}</b>
+              ) : null}
+            </Button>
+          )}
           <ScenarioLauncher
             container={container}
             onPickRequest={requestPick}
             onPreview={setPreview}
             onEdited={markEdited}
           />
-          <LayerToggles
-            className="pointer-events-auto"
-            layers={layers}
-            onToggle={toggleLayer}
-            trafficCount={traffic.data ? trafficItems.length : null}
-            weatherStatus={weatherStatus}
-            weather={weather.data}
-            step={step}
-            onStepCommit={setStep}
-            squeezed={squeezed}
-          />
+          {layout.controls ? (
+            <LayerToggles
+              className="pointer-events-auto"
+              layers={layers}
+              onToggle={toggleLayer}
+              trafficCount={traffic.data ? trafficItems.length : null}
+              weatherStatus={weatherStatus}
+              weather={weather.data}
+              step={step}
+              onStepCommit={setStep}
+              squeezed={squeezed}
+              onHide={() => setLayout({ controls: false })}
+            />
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              className="pointer-events-auto h-8 bg-ink-900 text-text-1"
+              aria-expanded={false}
+              onClick={() => setLayout({ controls: true })}
+            >
+              <HugeiconsIcon icon={Layers01Icon} strokeWidth={1.75} data-icon="inline-start" />
+              Layers
+            </Button>
+          )}
           {chips.length > 0 ? (
             <div className="pointer-events-auto flex max-w-full flex-col items-start gap-1.5">
               {chips.map((chip) => (
@@ -617,7 +662,10 @@ export function MapPage() {
         maxSize="40%"
         collapsible
         collapsedSize={0}
-        onResize={(size) => setNeedsOpen(size.inPixels > 0)}
+        // Dragged shut or open by hand: remembered (focus mode's own collapse is not).
+        onResize={(size) => {
+          if (!getLayout().focus) setLayout({ needs: size.inPixels > 0 });
+        }}
       >
         <div className="h-full min-w-0 overflow-hidden border-r border-line">{needs}</div>
       </ResizablePanel>

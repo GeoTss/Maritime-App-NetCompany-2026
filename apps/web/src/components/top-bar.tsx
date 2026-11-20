@@ -1,6 +1,12 @@
-import { Search01Icon, SidebarRight01Icon } from "@hugeicons/core-free-icons";
+import {
+  ArrowShrink02Icon,
+  Maximize01Icon,
+  Search01Icon,
+  SidebarLeft01Icon,
+  SidebarRight01Icon,
+} from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { NavLink } from "react-router";
+import { NavLink, useLocation } from "react-router";
 import { SCREENS, useCommandMenu } from "@/components/command-menu";
 import { StateFlag } from "@/components/primitives/state-flag";
 import { SimClock } from "@/components/sim-clock";
@@ -11,6 +17,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useScenario } from "@/features/scenario/scenario-data";
 import { useAttention } from "@/lib/attention";
+import { setLayout, useLayout } from "@/lib/layout";
+import { useMediaQuery } from "@/lib/motion";
 import { useSourceStatus } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 
@@ -97,6 +105,65 @@ function ScenarioEditedTag() {
   ) : null;
 }
 
+/** A panel switch in the top bar: an icon whose label says what pressing it does. */
+function PanelToggle({
+  icon,
+  pressed,
+  label,
+  onClick,
+}: {
+  icon: typeof SidebarLeft01Icon;
+  pressed: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-pressed={pressed}
+          aria-label={label}
+          onClick={onClick}
+          className={pressed ? "text-text-1" : "text-text-3"}
+        >
+          <HugeiconsIcon icon={icon} strokeWidth={1.75} />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent side="bottom">{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+/**
+ * On the map, on a wide screen: the Needs you column's switch (as the assistant's) and focus mode,
+ * which puts both columns and the map controls away at once (also F).
+ */
+function MapPanelToggles() {
+  const onMap = useLocation().pathname === "/";
+  const wide = useMediaQuery("(min-width: 768px)", true);
+  const layout = useLayout();
+  if (!onMap || !wide) return null;
+  const needsShown = layout.needs && !layout.focus;
+  return (
+    <>
+      <PanelToggle
+        icon={SidebarLeft01Icon}
+        pressed={needsShown}
+        label={needsShown ? "Hide Needs you" : "Show Needs you"}
+        onClick={() => setLayout({ needs: !needsShown, focus: false })}
+      />
+      <PanelToggle
+        icon={layout.focus ? ArrowShrink02Icon : Maximize01Icon}
+        pressed={layout.focus}
+        label={layout.focus ? "Leave focus mode (F)" : "Focus on the map (F)"}
+        onClick={() => setLayout({ focus: !layout.focus })}
+      />
+    </>
+  );
+}
+
 export function TopBar({
   dockOpen,
   onToggleDock,
@@ -126,6 +193,7 @@ export function TopBar({
           <span className="hidden lg:inline">Go to</span>
           <Kbd className="hidden sm:inline-flex">⌘K</Kbd>
         </Button>
+        <MapPanelToggles />
         <Tooltip>
           <TooltipTrigger asChild>
             <Button

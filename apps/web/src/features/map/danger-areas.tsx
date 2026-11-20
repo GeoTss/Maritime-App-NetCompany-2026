@@ -6,7 +6,9 @@
 import type { SecurityArea } from "@pharos/shared";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { setLayout, useLayout } from "@/lib/layout";
 import { cn } from "@/lib/utils";
+import { FoldSection } from "./fold-section";
 import { LEVEL_TEXT, LEVEL_TONE, POLICY_TEXT, TONE_SWATCH, TONE_TEXT } from "./security-text";
 
 export function DangerAreas({
@@ -16,10 +18,16 @@ export function DangerAreas({
   areas: readonly SecurityArea[];
   onFly: (id: string) => void;
 }) {
+  const layout = useLayout();
   if (areas.length === 0) return null;
   return (
-    <section aria-label="Danger areas" className="border-t border-line px-3 py-2">
-      <h3 className="pb-1 text-xs font-medium text-text-1">Danger areas</h3>
+    <FoldSection
+      label="Danger areas"
+      title={`Danger areas (${areas.length})`}
+      open={layout.danger}
+      onOpenChange={(danger) => setLayout({ danger })}
+      className="border-t border-line"
+    >
       <ol className="grid">
         {areas.map((a) => {
           const tone = LEVEL_TONE[a.level];
@@ -62,6 +70,6 @@ export function DangerAreas({
           );
         })}
       </ol>
-    </section>
+    </FoldSection>
   );
 }

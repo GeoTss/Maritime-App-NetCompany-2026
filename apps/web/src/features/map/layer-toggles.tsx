@@ -7,7 +7,7 @@
  * day ticks show; the wave legend and the snapshot's source open from Legend. On a phone, or when
  * an open panel leaves the switches too little room for one row, they fold into a Layers menu.
  */
-import { Layers01Icon, Tick02Icon } from "@hugeicons/core-free-icons";
+import { ArrowUp01Icon, Layers01Icon, Tick02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { WeatherView } from "@pharos/shared";
 import { type Ref, useState } from "react";
@@ -105,6 +105,21 @@ function DartSample({ kind, size, tone }: { kind: "wave" | "wind"; size: number;
 
 export type WeatherStatus = "loading" | "ready" | "none" | "error";
 
+function HideButton({ onHide }: { onHide: () => void }) {
+  return (
+    <Button
+      variant="ghost"
+      size="icon-sm"
+      className="text-text-2"
+      aria-label="Hide the map controls"
+      title="Hide the map controls"
+      onClick={onHide}
+    >
+      <HugeiconsIcon icon={ArrowUp01Icon} strokeWidth={1.75} />
+    </Button>
+  );
+}
+
 export function LayerToggles({
   layers,
   onToggle,
@@ -116,7 +131,10 @@ export function LayerToggles({
   squeezed = false,
   className,
   ref,
+  onHide,
 }: {
+  /** Puts the whole strip away behind a single Layers button. */
+  onHide?: () => void;
   /** The switches have too little room for one row (a panel is open): they fold into a menu. */
   squeezed?: boolean;
   ref?: Ref<HTMLElement>;
@@ -145,31 +163,34 @@ export function LayerToggles({
       )}
     >
       {compact ? (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="text-text-1">
-              <HugeiconsIcon icon={Layers01Icon} strokeWidth={1.75} data-icon="inline-start" />
-              Layers
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            {(Object.keys(LAYER_LABEL) as LayerKey[]).map((key) => {
-              const disabled = isWeather(key) && weatherOff;
-              return (
-                <DropdownMenuCheckboxItem
-                  key={key}
-                  checked={layers[key] && !disabled}
-                  disabled={disabled}
-                  onCheckedChange={(on) => onToggle(key, on === true)}
-                  onSelect={(e) => e.preventDefault()}
-                >
-                  {LAYER_LABEL[key]}
-                  {disabled ? <span className="text-2xs text-text-3">no snapshot</span> : null}
-                </DropdownMenuCheckboxItem>
-              );
-            })}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="flex items-center gap-1">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="text-text-1">
+                <HugeiconsIcon icon={Layers01Icon} strokeWidth={1.75} data-icon="inline-start" />
+                Layers
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              {(Object.keys(LAYER_LABEL) as LayerKey[]).map((key) => {
+                const disabled = isWeather(key) && weatherOff;
+                return (
+                  <DropdownMenuCheckboxItem
+                    key={key}
+                    checked={layers[key] && !disabled}
+                    disabled={disabled}
+                    onCheckedChange={(on) => onToggle(key, on === true)}
+                    onSelect={(e) => e.preventDefault()}
+                  >
+                    {LAYER_LABEL[key]}
+                    {disabled ? <span className="text-2xs text-text-3">no snapshot</span> : null}
+                  </DropdownMenuCheckboxItem>
+                );
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {onHide ? <HideButton onHide={onHide} /> : null}
+        </div>
       ) : (
         <div className="flex flex-wrap items-center gap-1">
           {(Object.keys(LAYER_LABEL) as LayerKey[]).map((key) => {
@@ -208,6 +229,7 @@ export function LayerToggles({
               </Toggle>
             );
           })}
+          {onHide ? <HideButton onHide={onHide} /> : null}
         </div>
       )}
 

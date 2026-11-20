@@ -11,6 +11,7 @@ import { EmptyState } from "@/components/empty-state";
 import { TopBar } from "@/components/top-bar";
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/drawer";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
+import { getLayout, setLayout, useLayout } from "@/lib/layout";
 import { useMediaQuery } from "@/lib/motion";
 
 /** Stands in until the assistant screen mounts its dock here. */
@@ -47,26 +48,32 @@ function typingInField(target: EventTarget | null): boolean {
 export function AppShell({ dock }: { dock?: ReactNode }) {
   const wide = useMediaQuery("(min-width: 768px)", true);
   const dockPanel = usePanelRef();
-  const [dockOpen, setDockOpen] = useState(true);
+  const layout = useLayout();
+  // Focus mode puts the dock away without forgetting whether it was open.
+  const showDock = layout.dock && !layout.focus;
   const [drawerOpen, setDrawerOpen] = useState(false);
   const dockContent = dock ?? <AssistantDockPlaceholder />;
+
+  useEffect(() => {
+    const panel = dockPanel.current;
+    if (!wide || !panel) return;
+    if (showDock && panel.isCollapsed()) panel.expand();
+    else if (!showDock && !panel.isCollapsed()) panel.collapse();
+  }, [wide, showDock, dockPanel]);
 
   const toggleDock = useCallback(() => {
     if (!wide) {
       setDrawerOpen((o) => !o);
       return;
     }
-    const panel = dockPanel.current;
-    if (!panel) return;
-    if (panel.isCollapsed()) panel.expand();
-    else panel.collapse();
-  }, [wide, dockPanel]);
+    setLayout({ dock: !showDock, focus: false });
+  }, [wide, showDock]);
 
   const openDock = useCallback(() => {
     if (!wide) setDrawerOpen(true);
-    else if (dockPanel.current?.isCollapsed()) dockPanel.current.expand();
+    else setLayout({ dock: true, focus: false });
     focusAskBox();
-  }, [wide, dockPanel]);
+  }, [wide]);
 
   // `/` jumps to the question box unless the operator is already typing somewhere.
   useEffect(() => {
@@ -93,7 +100,7 @@ export function AppShell({ dock }: { dock?: ReactNode }) {
         Skip to the assistant
       </a>
       <div className="grid h-dvh grid-cols-[minmax(0,1fr)] grid-rows-[auto_1fr] overflow-hidden bg-ink-950 text-text-1">
-        <TopBar dockOpen={wide ? dockOpen : drawerOpen} onToggleDock={toggleDock} />
+        <TopBar dockOpen={wide ? showDock : drawerOpen} onToggleDock={toggleDock} />
         <div className="flex min-h-0">
           {wide ? (
             <ResizablePanelGroup orientation="horizontal" className="min-w-0 flex-1">
@@ -111,7 +118,10 @@ export function AppShell({ dock }: { dock?: ReactNode }) {
                 maxSize="50%"
                 collapsible
                 collapsedSize={0}
-                onResize={(size) => setDockOpen(size.inPixels > 0)}
+                // Dragged shut or open by hand: remembered (focus mode's own collapse is not).
+                onResize={(size) => {
+                  if (!getLayout().focus) setLayout({ dock: size.inPixels > 0 });
+                }}
               >
                 <aside
                   aria-label="Assistant"

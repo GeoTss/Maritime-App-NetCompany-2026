@@ -31,7 +31,7 @@ describe("dartFeatures", () => {
   it("dart points where waves travel", () => {
     const fc = dartFeatures(view([point({ waveHeightM: 2.5, waveDirDeg: 270 })]), "waves");
     expect(fc.features).toHaveLength(1);
-    expect(fc.features[0]?.properties).toEqual({ v: 2.5, dir: 90 });
+    expect(fc.features[0]?.properties).toMatchObject({ v: 2.5, dir: 90 });
     expect(fc.features[0]?.geometry.coordinates).toEqual([20, 36]);
   });
 
@@ -45,6 +45,20 @@ describe("dartFeatures", () => {
       view([point({ waveHeightM: 1, waveDirDeg: 0, windSpeedKn: 34, windDirDeg: 10 })]),
       "wind",
     );
-    expect(fc.features[0]?.properties).toEqual({ v: 34, dir: 190 });
+    expect(fc.features[0]?.properties).toMatchObject({ v: 34, dir: 190 });
+  });
+
+  it("zoomed out, every other point is kept, in a checkerboard of the grid", () => {
+    const grid = [];
+    for (const lat of [30, 32, 34])
+      for (const lon of [10, 12, 14]) grid.push(point({ lat, lon, waveHeightM: 1, waveDirDeg: 0 }));
+    const kept = dartFeatures(view(grid), "waves").features.filter((f) => f.properties.keep);
+    expect(kept.map((f) => f.geometry.coordinates)).toEqual([
+      [10, 30],
+      [14, 30],
+      [12, 32],
+      [10, 34],
+      [14, 34],
+    ]);
   });
 });

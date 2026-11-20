@@ -84,13 +84,24 @@ export function SecurityLayer({
         const t = LEVEL_TONE[a.level];
         return (
           <Marker key={a.id} longitude={at.lon} latitude={at.lat} anchor="center">
+            {/* The name only; the threat level and what it asks of a ship show on hover or focus
+                (the side column lists them all). */}
             <div
               data-testid={`danger-label-${a.id}`}
               data-map-label={LABEL_PRIORITY.port}
-              className="flex w-max max-w-40 flex-col items-center rounded-sm bg-ink-950/70 px-1 py-0.5 text-center text-2xs leading-tight"
+              role="img"
+              // biome-ignore lint/a11y/noNoninteractiveTabindex: focus reveals the level, as hover does.
+              tabIndex={0}
+              aria-label={`${a.name}: ${LEVEL_TEXT[a.level]}, ${POLICY_SHORT[a.policy]}`}
+              className="group flex w-max max-w-40 flex-col items-center rounded-sm bg-ink-950/70 px-1 py-0.5 text-center text-2xs leading-tight outline-none focus-visible:ring-2 focus-visible:ring-beacon/60"
             >
               <span className="text-text-1">{a.name}</span>
-              <span className={cn("font-medium", TONE_TEXT[t])}>
+              <span
+                className={cn(
+                  "hidden font-medium group-hover:block group-focus-visible:block",
+                  TONE_TEXT[t],
+                )}
+              >
                 {LEVEL_TEXT[a.level]} · {POLICY_SHORT[a.policy]}
               </span>
             </div>

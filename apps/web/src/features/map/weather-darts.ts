@@ -11,7 +11,8 @@ export type DartField = "waves" | "wind";
 export interface DartFeature {
   type: "Feature";
   geometry: { type: "Point"; coordinates: [number, number] };
-  properties: { v: number; dir: number };
+  /** `keep`: drawn when zoomed out too (every other grid point, as a checkerboard). */
+  properties: { v: number; dir: number; keep: boolean };
 }
 export interface DartCollection {
   type: "FeatureCollection";
@@ -20,8 +21,21 @@ export interface DartCollection {
 
 export const DART_IMAGE = { wave: "dart-wave", wind: "dart-wind" } as const;
 
+/** The grid's spacing (degrees): the smallest gap between two distinct latitudes or longitudes. */
+function gridStep(points: WeatherView["points"]): number {
+  let step = Number.POSITIVE_INFINITY;
+  for (const axis of ["lat", "lon"] as const) {
+    const values = [...new Set(points.map((p) => p[axis]))].sort((a, b) => a - b);
+    for (let i = 1; i < values.length; i++) {
+      step = Math.min(step, (values[i] as number) - (values[i - 1] as number));
+    }
+  }
+  return Number.isFinite(step) && step > 0 ? step : 1;
+}
+
 export function dartFeatures(weather: WeatherView, field: DartField): DartCollection {
   const features: DartFeature[] = [];
+  const step = gridStep(weather.points);
   for (const p of weather.points) {
     const v = field === "waves" ? p.waveHeightM : p.windSpeedKn;
     const from = field === "waves" ? p.waveDirDeg : p.windDirDeg;
@@ -29,7 +43,11 @@ export function dartFeatures(weather: WeatherView, field: DartField): DartCollec
     features.push({
       type: "Feature",
       geometry: { type: "Point", coordinates: [p.lon, p.lat] },
-      properties: { v, dir: (from + 180) % 360 },
+      properties: {
+        v,
+        dir: (from + 180) % 360,
+        keep: (Math.round(p.lat / step) + Math.round(p.lon / step)) % 2 === 0,
+      },
     });
   }
   return { type: "FeatureCollection", features };

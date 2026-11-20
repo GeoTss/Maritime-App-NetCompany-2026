@@ -6,6 +6,7 @@ import { MemoryRouter, useLocation } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CommandMenuProvider } from "@/components/command-menu";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { getLayout, resetLayout } from "@/lib/layout";
 import { createQueryClient } from "@/lib/queries";
 import { CongestionLayer, congestionSourceText } from "./congestion-layer";
 import {
@@ -144,9 +145,44 @@ beforeEach(() => stubApi());
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  resetLayout();
 });
 
 describe("MapPage", () => {
+  it("F puts the map controls away (focus mode) and brings them back; typing an F does not", async () => {
+    renderPage();
+    const traffic = await screen.findByRole("button", { name: /AIS traffic/ });
+    const row = traffic.closest("section")?.parentElement as HTMLElement;
+    fireEvent.keyDown(window, { key: "f" });
+    await waitFor(() => expect(row.className).toContain("hidden"));
+    expect(getLayout().focus).toBe(true);
+    fireEvent.keyDown(window, { key: "f" });
+    await waitFor(() => expect(row.className).not.toContain("hidden"));
+    const input = document.createElement("input");
+    document.body.append(input);
+    fireEvent.keyDown(input, { key: "f" });
+    expect(getLayout().focus).toBe(false);
+    input.remove();
+  });
+
+  it("Fuel on board starts folded and opens on its title, remembered", async () => {
+    renderPage();
+    const fleet = await screen.findByRole("region", { name: "Managed fleet" });
+    expect(within(fleet).queryByRole("table")).toBeNull();
+    fireEvent.click(within(fleet).getByRole("button", { name: "Fuel on board" }));
+    expect(await within(fleet).findByRole("table")).toBeTruthy();
+    expect(getLayout().fuel).toBe(true);
+  });
+
+  it("the map controls fold behind a Layers button and come back", async () => {
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: "Hide the map controls" }));
+    expect(screen.queryByRole("button", { name: /AIS traffic/ })).toBeNull();
+    expect(getLayout().controls).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "Layers" }));
+    expect(await screen.findByRole("button", { name: /AIS traffic/ })).toBeTruthy();
+  });
+
   it("the weather-forecast slider is named and speaks the step time; days are ticked", async () => {
     renderPage();
     const thumb = await screen.findByRole("slider", { name: "Weather forecast time" });

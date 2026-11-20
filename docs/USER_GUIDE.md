@@ -44,7 +44,14 @@ both through the forecast; Legend shows the scale.
 
 **Needs you.** The column on the left lists what is waiting: proposals awaiting your decision,
 vessel alerts, and reported hazards. Each has a shortcut, for example "Ask where to bunker" or
-"Show on map". Below it, a table shows fuel on board for every fleet vessel.
+"Show on map". Below it, "Fuel on board" (every fleet vessel) and "Danger areas" open from their
+titles.
+
+**Less on screen.** The top bar's switches hide the Needs you column and the assistant; the arrow at
+the end of the layer switches folds them into one Layers button; focus mode (the top bar, or F)
+puts all of it away at once. The console remembers these in your browser. Zoomed out, the map
+draws every other weather dart, port queues show their figures on hover, and danger areas their
+level on hover.
 
 **A fleet vessel.** Select a vessel to open its panel: alerts, fuel on board per grade against tank
 capacity, position, voyage, next port and ETA, and a curve of fuel on board along the current plan.
