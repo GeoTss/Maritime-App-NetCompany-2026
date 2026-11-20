@@ -226,8 +226,8 @@ export function WeatherForm({
           }}
         />
         <p className="col-span-3 text-2xs text-text-3">
-          The weather holds at every forecast step. Waves over the heavy-weather limit make routes
-          go round.
+          The weather holds for the whole voyage, past the forecast too. Waves over the
+          heavy-weather limit make routes go round it.
         </p>
         <Problem text={problem} />
         <Button type="submit" size="sm" className="col-span-3 w-fit" disabled={place.saving}>

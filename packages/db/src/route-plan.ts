@@ -17,6 +17,7 @@ import {
   routeHazardIds,
   SHIP_EU_COVERAGE,
   sailedNmAt,
+  stationaryStormCells,
   stormCells,
   subSteps,
   walkSteps,
@@ -138,7 +139,20 @@ const SPEED_STEP_KN = 0.5;
 const STEP_NM = 20;
 
 /**
- * The storm cells the baseline meets (walked at its speed from `startAt`), and, when there are
+ * The storm cells to steer round: those the walk meets inside the forecast, and every stationary
+ * one (a demo scenario weather area holds for the whole voyage, so routes go round it wherever
+ * they meet it, past the forecast too). One per grid point, sorted by id.
+ */
+function cellsToAvoid(weather: WeatherGrid, walked: Parameters<typeof stormCells>[1]): StormCell[] {
+  const byId = new Map<string, StormCell>();
+  for (const c of stormCells(weather, walked)) byId.set(c.id, c);
+  for (const c of stationaryStormCells(weather)) byId.set(c.id, c);
+  return [...byId.values()].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+}
+
+/**
+ * The storm cells the baseline meets (walked at its speed from `startAt`) and the stationary ones
+ * (`cellsToAvoid`), and, when there are
  * any, one more candidate "S" ("Around the storm") routed round them and the hazards, unless the
  * graph can't or it repeats a candidate already there.
  */
@@ -156,7 +170,7 @@ export function withStormDetour(
     input.baseline.speedKn,
     input.weather,
   );
-  const cells = stormCells(input.weather, walked);
+  const cells = cellsToAvoid(input.weather, walked);
   if (cells.length === 0) return { candidates: input.candidates, stormCells: [] };
   const avoid: HazardZone[] = [
     ...input.hazards,
@@ -334,10 +348,11 @@ export function fleetRoutePlan(
   const position = planned[0] as LatLon;
   const destination = path.destination;
   const baselineKn = clampSpeed(path.curve, voyage.plannedSpeedKn, SPEED_STEP_KN);
-  // The storm cells the planned route meets at its planned speed: the sea routes and the routes
-  // through a bunker port steer round them as round the hazards (the planned route stays as it is).
+  // The storm cells the planned route meets at its planned speed, and every stationary demo
+  // scenario cell: the sea routes and the routes through a bunker port steer round them as round
+  // the hazards (the planned route stays as it is).
   const cells = weather
-    ? stormCells(
+    ? cellsToAvoid(
         weather,
         walkSteps(subSteps(planned, STEP_NM).steps, report.ts, baselineKn, weather),
       )

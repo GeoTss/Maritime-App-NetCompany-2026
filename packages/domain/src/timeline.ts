@@ -22,9 +22,10 @@ import {
   SEWAGE_DISCHARGE_MIN_LAND_NM,
   SEWAGE_DISCHARGE_MIN_SOG_KN,
   SEWAGE_MIN_WINDOW_HOURS,
+  STORM_PASS_NEAR_NM,
 } from "./constants.js";
 import { inSulphurEca } from "./eca.js";
-import { nearestAlongNm } from "./geo.js";
+import { greatCircleNm, nearestAlongNm } from "./geo.js";
 import { provisionsDaysLeft } from "./port-call.js";
 import { walkRouteOption } from "./route-optimiser.js";
 import { walkStopPlan } from "./stop-plan.js";
@@ -162,23 +163,44 @@ function sewageEvents(legs: Leg[], coast: CoastIndex | null): VoyageEvent[] {
   return out;
 }
 
+/**
+ * The storms the route passes near: one event per storm (neighbouring grid cells of one storm
+ * merged, as their circles touch), at its closest approach, and only when that is within
+ * `STORM_PASS_NEAR_NM` of its edge. Waves are the storm's highest.
+ */
 function stormEvents(
   points: LatLon[],
   cells: StormCell[],
   at: ReturnType<typeof along>,
 ): VoyageEvent[] {
-  return cells.map((cell) => {
-    const near = nearestAlongNm(points, cell.center);
-    const p = at.atNm(near.nm);
+  const near = cells
+    .map((cell) => ({ cell, pass: nearestAlongNm(points, cell.center) }))
+    .map((c) => ({ ...c, clearanceNm: c.pass.offNm - c.cell.radiusNm }))
+    .filter((c) => c.clearanceNm <= STORM_PASS_NEAR_NM);
+  // Cells of one storm: circles that touch (a quarter of slack takes in diagonal neighbours).
+  const group = near.map((_, i) => i);
+  const root = (i: number): number => (group[i] === i ? i : root(group[i] as number));
+  for (const [i, a] of near.entries()) {
+    for (const [j, b] of near.entries()) {
+      if (j <= i) continue;
+      const touch = (a.cell.radiusNm + b.cell.radiusNm) * 1.25;
+      if (greatCircleNm(a.cell.center, b.cell.center) <= touch) group[root(j)] = root(i);
+    }
+  }
+  const storms = new Map<number, typeof near>();
+  for (const [i, c] of near.entries()) storms.set(root(i), [...(storms.get(root(i)) ?? []), c]);
+  return [...storms.values()].map((storm) => {
+    const closest = storm.reduce((m, c) => (c.clearanceNm < m.clearanceNm ? c : m));
+    const p = at.atNm(closest.pass.nm);
     return {
       kind: "storm_passed" as const,
       at: iso(p.ms),
       position: p.position,
       alongNm: p.nm,
-      stormId: cell.id,
-      clearanceNm: near.offNm - cell.radiusNm,
-      maxWaveHeightM: cell.maxWaveHeightM,
-      synthetic: cell.synthetic === true,
+      stormId: closest.cell.id,
+      clearanceNm: closest.clearanceNm,
+      maxWaveHeightM: Math.max(...storm.map((c) => c.cell.maxWaveHeightM)),
+      synthetic: storm.some((c) => c.cell.synthetic === true),
     };
   });
 }

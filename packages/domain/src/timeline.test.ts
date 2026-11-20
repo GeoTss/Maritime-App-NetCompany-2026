@@ -238,4 +238,24 @@ describe("voyageTimeline", () => {
     expect(passed?.synthetic).toBe(true);
     expect(passed?.position.lon).toBeCloseTo(20, 1);
   });
+
+  it("one event per storm it passes near; far storms left off", () => {
+    const cell = (id: string, lat: number, lon: number): StormCell => ({
+      id,
+      center: ll(lat, lon),
+      radiusNm: 80,
+      maxWaveHeightM: 9,
+      from: START,
+      to: "2026-11-15T08:00:00.000Z",
+      stationary: true,
+    });
+    // Two neighbouring cells of one gale 40 and 70 nm off the track, and one 1,500 nm away.
+    const cells = [
+      cell("storm:35.67,20", 35 + 40 / 60, 20),
+      cell("storm:36.17,21", 35 + 70 / 60, 21),
+      cell("storm:10,20", 10, 20),
+    ];
+    const passed = ofKind(timelineOf(routeInput(MED), { stormCells: cells }), "storm_passed");
+    expect(passed.map((e) => e.stormId)).toEqual(["storm:35.67,20"]);
+  });
 });

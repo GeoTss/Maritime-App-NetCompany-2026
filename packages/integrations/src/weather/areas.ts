@@ -1,7 +1,8 @@
 /**
  * Demo scenario weather: stationary waves and wind laid over a forecast grid inside circles, the
  * way the labelled synthetic storm is (`withSyntheticStorm`). A grid point within an area's radius
- * takes its four values at every step and is marked synthetic; a later area wins where two overlap.
+ * takes its four values at every step and is marked synthetic and stationary (it holds for the whole
+ * voyage, past the forecast too); a later area wins where two overlap.
  */
 
 import type { Sql } from "@pharos/db";
@@ -33,6 +34,8 @@ export function withWeatherAreas(
         windSpeedKn: p.windSpeedKn.map(() => area.windSpeedKn),
         windDirDeg: p.windDirDeg.map(() => area.windDirDeg),
         synthetic: true as const,
+        // It holds for the whole voyage: past the forecast's last step too.
+        stationary: true as const,
       };
     }),
   };

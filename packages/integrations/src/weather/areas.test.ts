@@ -39,6 +39,8 @@ describe("withWeatherAreas", () => {
       expect(p?.windDirDeg).toEqual([280, 280, 280]);
       expect(p?.currentSpeedKn).toEqual([0.2, 0.2, 0.2]);
       expect(p?.synthetic).toBe(true);
+      // It holds for the whole voyage, past the forecast too.
+      expect(p?.stationary).toBe(true);
     }
     expect(c).toEqual(grid.points[2]);
   });

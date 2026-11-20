@@ -376,7 +376,7 @@ clock is pinned and the weather is recorded; otherwise `GET` says why (`enabled:
 | `PATCH /api/scenario/vessels/:id` | Any of `robMt`, `tankCapacityMt`, `consumption`, `dailyCostUsd`, `hullValueUsd`, `stores` (crew, provisions, sludge, sewage). Fuel on board goes on the vessel's latest noon report |
 | `POST /api/scenario/hazards` | `{ label, lat, lon, radiusNm }`: a synthetic hazard, observed now |
 | `DELETE /api/scenario/hazards/:id` | Removes a synthetic hazard (AIS hazards stay) |
-| `POST /api/scenario/weather-areas` | `{ label, center, radiusNm, waveHeightM, waveDirDeg, windSpeedKn, windDirDeg }`: stationary weather over every forecast step inside the circle (directions are where it comes from) |
+| `POST /api/scenario/weather-areas` | `{ label, center, radiusNm, waveHeightM, waveDirDeg, windSpeedKn, windDirDeg }`: stationary weather inside the circle for the whole voyage, past the forecast's last step too; routes steer round its points over the heavy-weather limit wherever they meet them (directions are where it comes from) |
 | `DELETE /api/scenario/weather-areas/:id` | Removes a weather area |
 | `POST /api/scenario/reset` | Back to the recorded demo: reseeds as `SEED_ON_BOOT=reset` does (chats, approvals and the inbox too) and reloads the recorded sources |
 

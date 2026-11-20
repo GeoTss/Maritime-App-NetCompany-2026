@@ -1,7 +1,7 @@
 import type { RouteCandidate, RouteSpeedInput, WeatherGrid } from "@pharos/shared";
 import { describe, expect, it } from "vitest";
 import { evaluateRoute, optimiseRouteSpeed } from "./route-optimiser.js";
-import { stormCells } from "./storms.js";
+import { stationaryStormCells, stormCells } from "./storms.js";
 import { subSteps, walkSteps } from "./track.js";
 
 const START = "2026-11-14T00:00:00.000Z";
@@ -102,5 +102,43 @@ describe("synthetic storm cells", () => {
     const cells = stormCells(synthetic, walked);
     expect(cells.find((c) => c.id === "storm:0,5")?.synthetic).toBe(true);
     expect(cells.find((c) => c.id === "storm:0,4.5")?.synthetic).toBeUndefined();
+  });
+});
+
+describe("stationary storm cells (a demo scenario weather area)", () => {
+  /** The passing storm's grid with one stationary 8 m point at 5° E (it holds for the whole voyage). */
+  const held = (): WeatherGrid => {
+    const g = passingStorm();
+    return {
+      ...g,
+      points: g.points.map((pt) =>
+        pt.lon === 5
+          ? {
+              ...pt,
+              waveHeightM: pt.waveHeightM.map(() => 8),
+              synthetic: true as const,
+              stationary: true as const,
+            }
+          : pt,
+      ),
+    };
+  };
+
+  it("lists every stationary point over the limit, wherever a route goes", () => {
+    const cells = stationaryStormCells(held());
+    expect(cells.map((c) => c.id)).toEqual(["storm:0,5"]);
+    expect(cells[0]?.stationary).toBe(true);
+    expect(cells[0]?.maxWaveHeightM).toBe(8);
+    expect(stationaryStormCells(passingStorm())).toEqual([]);
+    expect(stationaryStormCells(null)).toEqual([]);
+  });
+
+  it("a route that reaches it after the forecast still meets it", () => {
+    // Starting 30 days late: every step of the forecast is long past when the route gets there.
+    const late = { ...input(held()), startAt: "2026-12-14T00:00:00.000Z" };
+    expect(evaluateRoute(late, A, 12).reasons).toContain("heavy_weather");
+    expect(evaluateRoute({ ...late, weather: passingStorm() }, A, 12).reasons).not.toContain(
+      "heavy_weather",
+    );
   });
 });

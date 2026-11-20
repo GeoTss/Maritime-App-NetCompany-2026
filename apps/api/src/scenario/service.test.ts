@@ -1,5 +1,6 @@
 import { DEFAULT_WORLD_SEED, generateWorld, type Sql } from "@pharos/db";
 import { connectTestDb, testDbLabel } from "@pharos/db/testing";
+import { greatCircleNm } from "@pharos/domain";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prepareAskFixture } from "../ask/demo-fixture.js";
 import { createClock } from "../clock.js";
@@ -120,6 +121,38 @@ describe.skipIf(!sql)("demo scenario (Postgres)", () => {
       (after.plan.stormCells ?? []).length > 0 ||
       after.response.result.options.some((o) => o.reasons.includes("heavy_weather"));
     expect(meets).toBe(true);
+  });
+
+  it("a gale the route meets after the forecast still turns it", async () => {
+    // The case from the console: Atlantic Meridian (Fujairah to Rotterdam) reaches the South
+    // Atlantic weeks after the 10-day forecast ends; a 12 m gale off Angola must still count.
+    await addWeatherArea(deps, {
+      label: "Gale off Angola",
+      center: { lat: -10.87, lon: -1.18 },
+      radiusNm: 300,
+      waveHeightM: 12,
+      waveDirDeg: 200,
+      windSpeedKn: 55,
+      windDirDeg: 210,
+    });
+    const planned = await planRouteSpeed(
+      { sql: db, now: clock.now },
+      { vessel: "Atlantic Meridian" },
+    );
+    const gale = (planned.plan.stormCells ?? []).filter((c) => c.stationary && c.center.lat < -5);
+    expect(gale.length).toBeGreaterThan(0);
+    // Round the Cape, the route now keeps clear of every cell of the gale (it went straight
+    // through when the gale vanished at the forecast's end).
+    const cape = planned.plan.input.candidates.find((c) => c.id === "K");
+    expect(cape).toBeDefined();
+    for (const cell of gale) {
+      const closest = Math.min(...(cape?.points ?? []).map((p) => greatCircleNm(p, cell.center)));
+      expect(closest, cell.id).toBeGreaterThan(cell.radiusNm - 5);
+    }
+    // Whatever still goes through heavy weather is flagged, past the forecast or not.
+    for (const o of planned.response.result.options) {
+      if (o.maxWaveHeightM > 6) expect(o.reasons).toContain("heavy_weather");
+    }
   });
 
   it("routes answer 422 for a bad body and 200 with the view", async () => {

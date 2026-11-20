@@ -50,9 +50,12 @@ export function sampleWeather(grid: WeatherGrid, p: LatLon, at: Date): WeatherSa
   if (!best || bestNm > WEATHER_MAX_NM) return null;
   const stepMs = grid.stepHours * HOUR_MS;
   const offset = at.getTime() - new Date(grid.startAt).getTime();
-  const k = Math.round(offset / stepMs);
-  if (!Number.isFinite(k) || k < 0 || k >= best.waveHeightM.length) return null;
-  if (Math.abs(offset - k * stepMs) > stepMs / 2) return null;
+  const last = best.waveHeightM.length - 1;
+  let k = Math.round(offset / stepMs);
+  if (!Number.isFinite(k) || k < 0) return null;
+  // A stationary point (a demo scenario weather area) holds its last step for the whole voyage.
+  if (best.stationary && k > last) k = last;
+  else if (k > last || Math.abs(offset - k * stepMs) > stepMs / 2) return null;
   const at0 = (s: (number | null)[]): number => s[k] ?? 0;
   return {
     waveHeightM: at0(best.waveHeightM),

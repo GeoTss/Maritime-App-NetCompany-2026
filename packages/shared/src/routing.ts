@@ -62,6 +62,11 @@ export const WeatherPoint = z
     currentDirDeg: Series,
     /** Set on a labelled synthetic demo point (the demo storm); absent on real forecasts. */
     synthetic: z.literal(true).optional(),
+    /**
+     * Set on a demo scenario weather area's point: its weather holds for the whole voyage, past
+     * the forecast's last step too (a forecast point has no weather after it).
+     */
+    stationary: z.literal(true).optional(),
   })
   .strict();
 export type WeatherPoint = z.infer<typeof WeatherPoint>;

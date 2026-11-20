@@ -78,3 +78,32 @@ export function stormCells(
   }
   return cells.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 }
+
+/**
+ * The demo scenario's weather areas over the heavy-weather limit: every stationary grid point whose
+ * wave height exceeds `HEAVY_WEATHER_MAX_WAVE_M` at some step. Its weather holds for the whole
+ * voyage, so a route steers round it wherever it meets it, not only where the planned route does,
+ * and not only inside the forecast. `from` and `to` span the forecast; sorted by id.
+ */
+export function stationaryStormCells(weather: WeatherGrid | null): StormCell[] {
+  if (!weather) return [];
+  const half = gridHalfSteps(weather);
+  const cells: StormCell[] = [];
+  for (const pt of weather.points) {
+    if (!pt.stationary) continue;
+    const max = Math.max(0, ...pt.waveHeightM.map((h) => h ?? 0));
+    if (max <= HEAVY_WEATHER_MAX_WAVE_M) continue;
+    cells.push({
+      id: `storm:${pt.lat},${pt.lon}`,
+      center: { lat: pt.lat, lon: pt.lon },
+      radiusNm: STORM_CELL_RADIUS_NM,
+      maxWaveHeightM: max,
+      from: forecastStepAt(weather, 0).toISOString(),
+      to: forecastStepAt(weather, Math.max(pt.waveHeightM.length - 1, 0)).toISOString(),
+      box: squareOf(pt, half),
+      ...(pt.synthetic ? { synthetic: true as const } : {}),
+      stationary: true,
+    });
+  }
+  return cells.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+}

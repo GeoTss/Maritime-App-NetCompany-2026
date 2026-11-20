@@ -329,3 +329,6 @@ export const ECA_CHANGEOVER_LEAD_HOURS = 1;
 
 /** Bucket size (degrees) of the coastline index behind the distance-from-land check. */
 export const COAST_CELL_DEG = 1;
+
+/** A storm passed farther than this (nm) from its edge is not on the voyage timeline. */
+export const STORM_PASS_NEAR_NM = 160;

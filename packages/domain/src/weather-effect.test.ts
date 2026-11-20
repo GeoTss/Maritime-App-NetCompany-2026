@@ -117,6 +117,16 @@ describe("sampleWeather", () => {
   it("returns null when the nearest point is over 120 nm away", () => {
     expect(sampleWeather(grid, { lat: 36, lon: 0 }, new Date(grid.startAt))).toBeNull();
   });
+  it("a stationary point holds its last step past the forecast; a forecast point does not", () => {
+    const held = {
+      ...grid,
+      points: grid.points.map((pt, i) => (i === 1 ? { ...pt, stationary: true as const } : pt)),
+    };
+    const weeksLater = new Date("2026-12-10T00:00:00.000Z");
+    expect(sampleWeather(held, { lat: 40.1, lon: 5.1 }, weeksLater)?.waveHeightM).toBe(9);
+    expect(sampleWeather(held, p, weeksLater)).toBeNull();
+    expect(sampleWeather(grid, { lat: 40.1, lon: 5.1 }, weeksLater)).toBeNull();
+  });
 });
 
 describe("no data means calm", () => {

@@ -84,7 +84,8 @@ Routes are planning-grade. They are not for navigation.
 
 **Demo scenario.** On the pinned demo, the Scenario button beside Needs you opens a panel to change
 the demo world: a fleet vessel's fuel on board, tanks, speeds and consumption, costs and stores; a
-hazard; or weather (wave height and direction, wind speed and direction) over a circle. Type a
+hazard; or weather (wave height and direction, wind speed and direction) over a circle. Scenario
+weather holds for the whole voyage, past the forecast too, and routes go round it wherever they meet it. Type a
 position or use "Pick on map"; the circle shows dashed until you add it. The top bar then says
 "scenario edited", and an open route plan says it was made before the edit, with Plan again.
 "Reset the demo world" puts everything back, chats, approvals and the inbox included. The

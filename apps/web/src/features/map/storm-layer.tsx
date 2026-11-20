@@ -68,12 +68,15 @@ function StormCallout({
   index,
   at,
   synthetic,
+  stationary,
 }: {
   plan: RoutePlanView;
   index: number;
   at: { lat: number; lon: number };
   /** The labelled synthetic demo storm, tagged as the demo hazard is. */
   synthetic: boolean;
+  /** A demo scenario weather area: it holds for the whole voyage, so it has no pass times. */
+  stationary: boolean;
 }) {
   const { ref, flip, below } = useFlipLabel<HTMLDivElement>(at.lon, at.lat);
   // Stored inputs of the calculation are cited as its row's fields (`inputs.stormCells.k.*`).
@@ -95,10 +98,16 @@ function StormCallout({
             </span>
             {synthetic ? <DataTag kind="synthetic" /> : null}
           </span>
-          <span className="text-text-2">
-            Over the limit as the route passes, <FactCell fact={fact("from")} kind="time" /> to{" "}
-            <FactCell fact={fact("to")} kind="time" />
-          </span>
+          {stationary ? (
+            <span className="text-text-2">
+              Scenario weather: it holds for the whole voyage, so routes go round it
+            </span>
+          ) : (
+            <span className="text-text-2">
+              Over the limit as the route passes, <FactCell fact={fact("from")} kind="time" /> to{" "}
+              <FactCell fact={fact("to")} kind="time" />
+            </span>
+          )}
           {bestWave ? (
             <span className="text-text-2" data-testid="storm-best-route">
               Route {plan.result.bestCandidateId} meets at most{" "}
@@ -164,6 +173,7 @@ export function StormLayer({ plan, colors }: { plan: RoutePlanView | null; color
           index={worst}
           at={cornerOf(cells)}
           synthetic={cells.some((c) => c.synthetic)}
+          stationary={cells[worst].stationary === true}
         />
       ) : null}
     </>
