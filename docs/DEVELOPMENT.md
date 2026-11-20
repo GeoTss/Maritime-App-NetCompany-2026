@@ -6,7 +6,6 @@ and why, read [`ARCHITECTURE.md`](ARCHITECTURE.md) first.
 - [Prerequisites](#prerequisites)
 - [First run](#first-run)
 - [Ways to run it](#ways-to-run-it)
-- [Modes](#modes)
 - [Configuration reference](#configuration-reference)
 - [Tests and checks](#tests-and-checks)
 - [The demo story](#the-demo-story-end-to-end)
@@ -23,7 +22,7 @@ and why, read [`ARCHITECTURE.md`](ARCHITECTURE.md) first.
 | Node | 22.12 or later | Scripts, tests, the dev servers |
 | git | a full clone | One guard test reads an earlier commit, so a shallow clone or a zip fails `npm run verify` |
 
-No API key is needed for the recorded demo, the tests or a replay evaluation.
+No API key is needed for the recorded demo, the tests or a free evaluation run.
 
 ## First run
 
@@ -48,76 +47,16 @@ curl http://localhost:4000/api/health
 
 ## Ways to run it
 
-### Everything in Docker (the default)
+Every mode (the recorded demo, the free live rehearsal, fully live, the demo world with a live
+model, record mode, mixed sources) and every developer setup (the console with hot reload, the API
+from source) is a step-by-step section in [`RUNNING.md`](RUNNING.md). What matters while coding:
 
-`docker compose up -d --build` starts `db`, `erp`, `api`, `worker` and `web`. The API migrates the
-database and reseeds the synthetic world on every boot (`SEED_ON_BOOT=reset`), so restarting the
-`api` container gives you a clean world.
-
-All Node services share one image, and the console is built into that image. After you change
-code, rebuild:
-
-```bash
-docker compose up -d --build
-```
-
-`npm run demo:reset` recreates the containers but does not rebuild the image.
-
-### The console with hot reload
-
-Keep the backend in Docker and run the console from source. The dev server uses the same port as
-the `web` container, so stop that one first:
-
-```bash
-docker compose stop web
-```
-
-```bash
-npm run dev:web
-```
-
-Vite serves <http://localhost:5173> and proxies `/api` to `http://localhost:4000`. Set
-`API_PROXY_TARGET` to point it somewhere else.
-
-To keep the built console running beside it, start the dev server on another port instead:
-
-```bash
-npm run dev -w @pharos/web -- --port 5174 --strictPort
-```
-
-### The API from source
-
-Run Postgres and the ERP simulator in Docker, stop the `api` container to free port 4000, and
-start the API with `tsx watch`:
-
-```bash
-docker compose up -d db erp
-```
-
-```bash
-docker compose stop api worker
-```
-
-```bash
-DATABASE_URL=postgres://pharos:pharos@localhost:5432/pharos LLM_MODE=replay DEMO_ANCHOR=2026-11-14T08:00:00Z npm run dev:api
-```
-
-`npm run dev:api` reads its configuration from the process environment; it does not load `.env`
-for you. The three variables above are the minimum for the recorded demo:
-
-- `DATABASE_URL` is required.
-- `LLM_MODE` defaults to `live` outside Compose, and `live` refuses to start without
-  `ANTHROPIC_API_KEY`.
-- `DEMO_ANCHOR` pins the clock. Without it the recorded model replies do not match.
-
-Outside Compose `SEED_ON_BOOT` defaults to `if-empty`, so the API keeps a world that is already
-there. Pass `SEED_ON_BOOT=reset` to start clean. `npm run dev:erp` runs the ERP simulator from
-source in the same way.
-
-## Modes
-
-Three independent switches decide where data comes from. The recorded demo is all three on their
-recorded side with the clock pinned; `npm run demo:live` flips all of them.
+- All Node services share one image, and the console is built into it. `npm run demo:reset`
+  recreates the containers but does not rebuild, so after a code change run
+  `docker compose build && npm run demo:reset`.
+- The API migrates the database and reseeds the synthetic world on every boot in Compose
+  (`SEED_ON_BOOT=reset`), so recreating the `api` container gives you a clean world.
+- Four variables decide the mode. Set them with the scripts, not by hand:
 
 | Switch | Values | Default in Compose | Effect |
 | --- | --- | --- | --- |
@@ -126,21 +65,10 @@ recorded side with the clock pinned; `npm run demo:live` flips all of them.
 | `WEATHER_MODE` | `live`, `recorded` | `recorded` | Live Open-Meteo, or the stored snapshot |
 | `DEMO_ANCHOR` | an ISO instant, or empty | `2026-11-14T08:00:00Z` | Set: the world is seeded at that instant and the clock is frozen at anchor + 5 minutes. Empty: wall clock |
 
-Use the two scripts instead of setting these by hand:
-
-| Command | Result |
-| --- | --- |
-| `npm run demo:reset` | Recorded model, recorded AIS and weather, pinned clock, reseeded, the synthetic storm laid on, and the Scenario panel's edits allowed. Free |
-| `npm run demo:live` | Live model, live AIS, live weather, wall clock. Needs both keys; paid |
-| `LLM_MODE=replay npm run demo:live` | Live AIS and weather with recorded model replies: a free rehearsal of the live sources |
-| `LLM_MODE=live npm run demo:reset` | The pinned demo with a live model, to ask about a world edited in the Scenario panel. Needs `ANTHROPIC_API_KEY`; paid |
-
-A plain `docker compose up` comes up as the recorded demo too, but with `DEMO_CONTROLS=off`: the
-Scenario panel shows the world and refuses edits until you run `npm run demo:reset`.
-
 A recording is keyed by the sha256 of the whole request. Change a prompt, a tool description, the
 order of the tools or anything a tool returns, and the old recordings no longer match. Re-record
-under the protocol in the `eval-bench` and `demo-e2e` skills (`.claude/skills/`).
+in [record mode](RUNNING.md#5-record-mode-refreshing-the-recorded-replies), under the protocol in
+the `eval-bench` and `demo-e2e` skills (`.claude/skills/`).
 
 ## Configuration reference
 
@@ -161,11 +89,11 @@ Open-Meteo needs no key.
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `DATABASE_URL` | none (required) | Postgres URL |
-| `LLM_MODE` | `live` (`replay` in Compose) | See [Modes](#modes) |
+| `LLM_MODE` | `live` (`replay` in Compose) | See [Ways to run it](#ways-to-run-it) |
 | `API_PORT` | `4000` | Port the API listens on |
 | `SEED_ON_BOOT` | `if-empty` (`reset` in Compose) | `reset` wipes and reseeds; `if-empty` seeds an empty database; `off` does nothing |
 | `WORLD_SEED` | `20261114` | Seed of the synthetic world |
-| `DEMO_ANCHOR` | unset (pinned in Compose) | See [Modes](#modes) |
+| `DEMO_ANCHOR` | unset (pinned in Compose) | See [Ways to run it](#ways-to-run-it) |
 | `EXTRACT_MODEL`, `AGENT_MODEL` | `claude-haiku-5-5` | Model per prompt. A model must have an entry in `apps/api/src/ai/pricing.ts` |
 | `EXTRACT_EFFORT`, `AGENT_EFFORT` | `medium` | `low`, `medium`, `high`, `xhigh` or `max` |
 | `LLM_FALLBACKS` | `off` | Server-side refusal fallbacks, `on` or `off` |
@@ -179,8 +107,8 @@ Open-Meteo needs no key.
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `DATABASE_URL` | none (required) | Postgres URL |
-| `AIS_MODE` | `replay` | See [Modes](#modes) |
-| `WEATHER_MODE` | `recorded` | See [Modes](#modes) |
+| `AIS_MODE` | `replay` | See [Ways to run it](#ways-to-run-it) |
+| `WEATHER_MODE` | `recorded` | See [Ways to run it](#ways-to-run-it) |
 | `DEMO_HAZARDS` | `off` (`on` in Compose) | Load the labelled synthetic hazard with live AIS. Replay always loads it |
 | `DEMO_STORM` | `off` (`on` in Compose) | Lay the labelled synthetic storm west of Crete over the recorded weather (`fixtures/recorded/synthetic-storm.json`). Ignored with live weather |
 | `DEMO_ANCHOR` | unset (pinned in Compose) | Pinned: load the recorded sources once at that instant |
@@ -218,6 +146,9 @@ Notes:
 
 - **Database tests** need Postgres on `localhost:5432` (`docker compose up -d db`) and are skipped
   without it. Each test file gets its own database, `pharos_test_<name>`, so files run in parallel.
+- **One test run at a time.** Two runs at once (say `npm run verify` in the background while you
+  run a file, or another session's run) share those databases and fail with missing rows or odd
+  counts. Rerun a failing database test alone before you believe it.
 - **Tests never call the model.** They run in replay or with a scripted client.
 - **Tests sit beside the code** as `*.test.ts`. Domain code is written test-first.
 - Run one file with `npx vitest run path/to/file.test.ts`.
@@ -243,7 +174,7 @@ depend on the same actions in the same order, so reset before each run. Run one 
 
 | Variant | Command |
 | --- | --- |
-| Live story (paid, about $0.01) | `npm run demo:live && STORY_MODE=live npx playwright test` |
+| Live story (paid, about $0.01 to $0.03) | `npm run demo:live && STORY_MODE=live npx playwright test` |
 | Refresh the committed screenshots | `npm run demo:reset && STORY_SCREENSHOTS=docs npx playwright test` |
 
 ## Evaluation
@@ -253,22 +184,29 @@ method and the results are in [`APPROACH.md`](APPROACH.md); the runner details a
 [`evals/extraction/README.md`](../evals/extraction/README.md) and
 [`evals/qa/README.md`](../evals/qa/README.md).
 
-Free runs, no key:
+Every way to run a suite:
 
-```bash
-npm run eval -- --suite extraction --split dev --mode replay
-```
+| Run | Command (add `--suite qa` or `--suite extraction`) | Cost | What it tells you |
+| --- | --- | --- | --- |
+| Oracle | `npm run eval -- --suite qa --split dev --oracle` | free | The truth fed through the graders scores about 100 %: the graders work |
+| Empty | `npm run eval -- --suite qa --split dev --empty` | free | An empty result scores about 0 %: the graders are not too lenient |
+| Replay | `npm run eval -- --suite qa --split dev --mode replay` | free | The current code on recorded model replies; a request with no recording is listed as a `replay_miss` error, not a wrong answer |
+| Live | `npm run eval -- --suite qa --split dev --mode live` | paid, ledgered | A real measurement. Only live runs are published |
+| Record | `npm run eval -- --suite qa --split dev --mode record` | paid for misses only | Like replay, but a miss calls the model and saves the reply |
 
-```bash
-npm run eval -- --suite qa --split dev --mode replay
-```
+Run the oracle and the empty runs before any paid pass. `--limit n` and `--offset n` run a chunk;
+`--label x` names the report in `evals/reports/`.
 
-```bash
-npm run eval -- --suite extraction --split dev --oracle
-```
+**State of the recordings (20 Nov 2026).** The dev replays are partly stale, so a replay run is not
+yet a clean check:
 
-`--oracle` feeds the truth through the graders (about 100 %) and `--empty` an empty result (about
-0 %). Run both before any paid pass: they prove the graders work.
+| Suite | Replay result now | Why |
+| --- | --- | --- |
+| Extraction, dev | 92 of 114 cases are a `replay_miss`; the 22 re-recorded on 20 Nov replay | The other recordings are for an earlier extraction prompt; the `extract-quote/v4` dev pass of 19 Nov ran live, without recording, and the 20 Nov re-record pass was stopped after 22 cases |
+| Q&A, dev | 7 of 35 are `replay_miss` (`compliance-01`, `-02`, `route-speed-01`, `-02`, `-03`, `-09`, `-10`); the other 28 run, every metric at 100 % | Those plans changed with the provisions rule of 20 Nov; only the demo story's replies were re-recorded |
+
+The oracle and empty runs are unaffected. A record pass of each suite fixes the replays (paid,
+under the `eval-bench` protocol).
 
 Rules that the tooling enforces:
 

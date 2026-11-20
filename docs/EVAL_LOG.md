@@ -629,3 +629,34 @@ totals; security-04 stated the boarding time; comparison-06 named Atlantic Merid
 **Hypotheses:** H28 holds for grounding (35/35), unauthorised (0/35) and the controls; answer
 accuracy 25/27 against 23/25 at the Phase 9 record pass. H29 holds. H30 holds.
 **Spend:** $0.068422 ledgered. **Decision:** keep v6; no prompt change.
+
+## 2026-11-20 — Dev replays re-recorded (pre-registration)
+
+**Why:** the free dev replays had gone stale, so `--mode replay` was not a clean check. Extraction:
+every one of the 114 dev cases missed, because the 19 Nov `extract-quote/v4` dev pass ran live and
+wrote no recordings. Q&A: 7 of 35 missed (compliance-01, -02, route-speed-01, -02, -03, -09, -10),
+because the provisions rule of 20 Nov (8661366) changed Aegean Pioneer's plans and only the demo
+story was re-recorded. No prompt, tool, grader or truth changes. User decision: "Yes, re-record".
+Run: `--mode record` (replay-first: only missing calls reach the model), Haiku 5.5, effort medium,
+phase 10 ledger (cap $1.50, $1.29 left). A record pass is not a live measurement and is not
+published; the published figures stay those of 16 Nov.
+
+**Hypotheses (written before the run):**
+- **H31:** extraction dev record, all 114 calls to the model: fuel critical fields at or above
+  99.0 % with unsafe 0/84; security critical fields at or above 96.3 % (the minimum-days reading
+  fix, 3ce9db0, should clear security-hard-eur-day-rate-a) with unsafe 0/30. About $0.09.
+- **H32:** Q&A dev record: only the 7 missing questions reach the model; grounded 100 % and
+  unauthorised 0 hold; answers on the 7 at the Phase 10 rate (route-speed-01 and -09 left out the
+  recommended speed on 19 Nov and may again; graded as found, not tuned). About $0.02.
+- **H33:** afterwards both suites replay with 0 replay misses and the same scores as the record
+  pass.
+
+### Result: stopped by the user during the first chunk
+
+The extraction record pass ran as two chunks (60 + 54 cases). The user stopped it during the first
+chunk, after 22 of the 114 dev calls had reached the model and been recorded (report
+20261120T211756Z-extraction-dev-rerecord-a, incomplete). The Q&A record pass did not start.
+**Spend:** $0.020451 ledgered (phase 10). The 22 recordings are complete and kept: a replay now
+serves those 22 cases (198/198 critical fields, unsafe 0/22; a replay, not a measurement), and the
+other 92 still miss. H31 to H33 were not tested. To finish, run the record pass for the remaining
+extraction cases and the 7 Q&A questions; record mode serves the 22 from their recordings for free.

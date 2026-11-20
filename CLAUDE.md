@@ -4,6 +4,7 @@ Hackathon prototype: a GenAI assistant for the bunker-to-berth desk. It reads su
 
 - **Approved design:** `docs/MASTER_PLAN.md` (read §3 and §6 before any AI or maths work)
 - **Phase plans:** `docs/superpowers/plans/` · **Current phase:** `.claude/state/status.json`
+- **Run modes** (recorded, live, rehearsal, record, from source), step by step: `docs/RUNNING.md`
 
 ## Non-negotiable rules
 

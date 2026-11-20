@@ -40,3 +40,4 @@
 {"phase":10,"at":"2026-11-19T12:48:10.933Z","run":"eval-qa","label":"record","costUsd":0.06842248499999999}
 {"phase":10,"at":"2026-11-20T19:18:15.937Z","run":"demo-story-record","label":"phase11-provisions-story-run1-est","costUsd":0.009304}
 {"phase":10,"at":"2026-11-20T19:18:16.219Z","run":"demo-story-record","label":"phase11-provisions-story-run2","costUsd":0.007769}
+{"phase":10,"at":"2026-11-20T21:20:24.631Z","run":"eval-extraction","label":"rerecord-a","costUsd":0.020451485000000002}

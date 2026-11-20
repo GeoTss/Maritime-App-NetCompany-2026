@@ -7,7 +7,9 @@ Phase 4 has 46 (7 categories, reviewed in `REVIEW-QA.md`); Phase 5 adds 15: `rou
 Maritime exposure, the load assumed for an AIS ship, one abstention), and regenerates every truth on
 the load-condition and FuelEU numbers (`REVIEW-QA-P6.md` lists each moved value against the Phase 5
 gate commit `b49da3f`). A test compares the 61 older truths with that commit: same ids, split
-membership, question text, tags, kind and proposed options; only fact values may move.
+membership, question text, tags, kind and proposed options; only fact values may move. Track 3
+(19 Nov) adds 4 `security` questions, 2 dev and 2 held-out (not run: the held-out pass is closed),
+so there are 69 in all, dev 35 / held-out 34.
 
 The route and congestion truths come from the recorded fixtures (`fixtures/recorded/`) through the
 same domain and db functions the tools call: `recordedLiveData` for traffic, weather, hazards and

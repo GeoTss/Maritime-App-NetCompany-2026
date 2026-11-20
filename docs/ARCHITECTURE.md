@@ -312,8 +312,8 @@ danger area, so plans that cross none come out exactly as before.
 | Weather | Open-Meteo marine and forecast APIs (`WEATHER_MODE=live`) | A stored snapshot of a real forecast: the Mediterranean and north-west Europe from 15 Nov, with the lanes round Africa, the Red Sea, the Arabian Sea and the Atlantic west of Europe added from 19 Nov (`fixtures/recorded/README.md`) |
 | Model | Anthropic API (`LLM_MODE=live`) | Recorded replies in `fixtures/llm-recordings/` (`LLM_MODE=replay`) |
 
-The worker writes a `source_status` row per source, and the console shows "live" or "recorded" for
-each. A live source that fails falls back to its recording and says so. Sea routes are open data
+How to switch between them, step by step, is [`RUNNING.md`](RUNNING.md). The worker writes a
+`source_status` row per source, and the console shows "live" or "recorded" for each. A live source that fails falls back to its recording and says so. Sea routes are open data
 loaded once into the route graph; there is no routing API.
 
 **Synthetic weather on the demo.** Two kinds of labelled demo weather can lie over the recorded

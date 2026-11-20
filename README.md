@@ -49,11 +49,16 @@ Open the console at <http://localhost:5173>.
 With no `.env` the stack comes up as the **recorded demo**: recorded model replies, recorded AIS
 and weather, and the clock pinned to 14 Nov 2026 08:00 UTC. It is free and needs no network once
 the images are built. The recorded model replies answer only the three scripted questions and the
-three demo emails; any other question shows a "no recorded reply" message. To ask anything you
+six demo emails; any other question shows a "no recorded reply" message. To ask anything you
 like, [go live](#go-live).
 
-Run `npm run demo:reset` once the stack is up to also allow the Scenario panel's edits (see
-[change the world](#a-six-minute-tour)); a plain `docker compose up` shows the panel read-only.
+Run `npm run demo:reset` once the stack is up (it needs `npm ci` first) to also allow the Scenario
+panel's edits (see [change the world](#a-six-minute-tour)); a plain `docker compose up` shows the
+panel read-only.
+
+**Every way to run it**, step by step (the recorded demo, a free rehearsal of the live feeds,
+fully live, the demo world with a live model, re-recording, and the developer setups), with how to
+check which mode you are in: [`docs/RUNNING.md`](docs/RUNNING.md).
 
 ## A six-minute tour
 
@@ -139,7 +144,11 @@ Go back to the recorded demo at any point:
 npm run demo:reset
 ```
 
-The live story is `npm run demo:live && STORY_MODE=live npx playwright test` (about $0.01).
+The live story is `npm run demo:live && STORY_MODE=live npx playwright test` (about $0.01 to
+$0.03). To check the live feeds without paying for the model, run
+`LLM_MODE=replay npm run demo:live`. To ask your own questions about the demo world, run
+`LLM_MODE=live npm run demo:reset`. Both, and what to do when the live stack does not come up, are
+in [`docs/RUNNING.md`](docs/RUNNING.md).
 
 ## How it works
 
@@ -243,7 +252,7 @@ on the console's Evaluation page, and every pass is logged in
 | `npm run test` | Vitest |
 | `npm run dev:web` | Console dev server on :5173 with hot reload |
 | `npx playwright test` | The six-step demo story |
-| `npm run eval -- --suite extraction --split dev --mode replay` | Extraction benchmark on recorded replies (free) |
+| `npm run eval -- --suite qa --split dev --oracle` | Checks the Q&A graders with the truth (free); the replay runs need fresh recordings, see [`docs/RUNNING.md`](docs/RUNNING.md#running-the-checks) |
 
 `npm run verify` needs a full git clone: one guard test reads an earlier commit from history, so a
 shallow clone or a zip fails. Database tests need the `db` container (Postgres on `localhost:5432`)
@@ -253,6 +262,7 @@ and are skipped without it. More in [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)
 
 | Document | Read it for |
 | --- | --- |
+| [`docs/RUNNING.md`](docs/RUNNING.md) | Every way to run Pharos, step by step: recorded, live, in between, and from source |
 | [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md) | The console screen by screen, and a glossary of the shipping terms |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Services, the two AI paths, facts and the release gate, approvals, data model, decisions |
 | [`docs/API.md`](docs/API.md) | The HTTP API: every endpoint, with requests, responses and errors |

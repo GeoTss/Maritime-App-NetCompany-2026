@@ -4,7 +4,8 @@ A guide to the ops console for the person at the bunker-to-berth desk, and for a
 demo. It explains each screen, what the assistant will and will not do, and the shipping terms the
 console uses.
 
-To start the console, see the [quick start](../README.md#quick-start-no-keys). To present the
+To start the console, see the [quick start](../README.md#quick-start-no-keys); every other way to run
+it is in [`RUNNING.md`](RUNNING.md). To present the
 six-minute demo, follow [`DEMO_SCRIPT.md`](DEMO_SCRIPT.md).
 
 ## Three things to know first
@@ -194,7 +195,8 @@ than estimate.
 
 **In the recorded demo** the assistant can answer only the three suggested questions, in order.
 Any other question shows "This question has no recorded reply." Use "New conversation" and pick a
-suggested question, or switch to [live mode](../README.md#go-live).
+suggested question, or switch to a mode with a live model: the [demo world with a live
+model](RUNNING.md#4-the-pinned-demo-with-a-live-model) or [fully live](RUNNING.md#3-fully-live).
 
 ## Approvals
 

@@ -5,6 +5,9 @@ party: drafted messages are marked "draft, not sent" and the ERP is a local simu
 
 ## Preflight checklist
 
+Each mode named here (recorded, live, the free rehearsal) is explained step by step, with how to
+check you are in it, in [`RUNNING.md`](RUNNING.md).
+
 The day before:
 
 - [ ] Build the images once, on good network: `docker compose build`. Never rebuild on stage.
