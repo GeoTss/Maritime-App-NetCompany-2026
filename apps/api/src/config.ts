@@ -29,6 +29,10 @@ export interface AppConfig {
   recordingsDir: string;
   /** Base URL of the ERP that approved purchase orders are pushed to (the simulator by default). */
   erpBaseUrl: string;
+  /** The Scenario panel's edits are allowed (env DEMO_CONTROLS=on; the pinned demo stack only). */
+  demoControls: boolean;
+  /** A scenario reset lays the labelled synthetic storm over the recorded weather, as the worker does (env DEMO_STORM). */
+  demoStorm: boolean;
   /**
    * DEMO_ANCHOR: the instant the demo world is pinned to (the boot seed uses it and the request
    * clock is frozen at anchor + 5 min), or null for today's behaviour (boot time, wall clock).
@@ -90,6 +94,8 @@ const EnvSchema = z.object({
   ),
   // An ISO instant with Z or an offset; a bare date or a local time would be ambiguous.
   DEMO_ANCHOR: z.preprocess(blankToUndefined, z.string().trim().pipe(IsoDateTime).optional()),
+  DEMO_CONTROLS: z.preprocess(blankToUndefined, z.enum(["on", "off"]).default("off")),
+  DEMO_STORM: z.preprocess(blankToUndefined, z.enum(["on", "off"]).default("off")),
 });
 
 /**
@@ -129,6 +135,8 @@ export function loadConfig(env: Record<string, string | undefined>): AppConfig {
         : resolve(REPO_ROOT, e.RECORDINGS_DIR)
       : DEFAULT_RECORDINGS_DIR,
     erpBaseUrl: e.ERP_BASE_URL,
+    demoControls: e.DEMO_CONTROLS === "on",
+    demoStorm: e.DEMO_STORM === "on",
     demoAnchor: e.DEMO_ANCHOR === undefined ? null : new Date(e.DEMO_ANCHOR),
   };
 }

@@ -314,3 +314,18 @@ export const WAR_RISK_PREMIUM_PCT = 0.5;
 
 /** A security quote's embark or disembark port covers a route only within this distance (nm) of it. */
 export const SECURITY_POINT_MAX_NM = 250;
+
+/** Holding-tank sewage goes overboard only this far (nm) from the nearest land (MARPOL Annex IV reg. 11.1.1). */
+export const SEWAGE_DISCHARGE_MIN_LAND_NM = 12;
+
+/** …and only while en route at this speed over ground (kn) or more (same regulation). */
+export const SEWAGE_DISCHARGE_MIN_SOG_KN = 4;
+
+/** A discharge window shorter than this (h) is not shown on the timeline. */
+export const SEWAGE_MIN_WINDOW_HOURS = 1;
+
+/** The changeover to LSMGO starts this many hours before the sulphur-ECA line (illustrative). */
+export const ECA_CHANGEOVER_LEAD_HOURS = 1;
+
+/** Bucket size (degrees) of the coastline index behind the distance-from-land check. */
+export const COAST_CELL_DEG = 1;

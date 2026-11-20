@@ -10,6 +10,12 @@
     {
       "name": "web-stack",
       "url": "http://localhost:5173"
+    },
+    {
+      "name": "web-dev-5174",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "-w", "@pharos/web", "--", "--port", "5174", "--strictPort"],
+      "port": 5174
     }
   ]
 }

@@ -4,7 +4,7 @@
  * calculation.
  */
 import type { CongestionMode, Sql } from "@pharos/db";
-import { activeHazardZones, forecastStepAt } from "@pharos/domain";
+import { activeHazardZones, forecastStepAt, HEAVY_WEATHER_MAX_WAVE_M } from "@pharos/domain";
 import { latestWeatherSnapshot } from "@pharos/integrations";
 import {
   type AisTrafficList,
@@ -226,6 +226,7 @@ export function createLiveRoutes(deps: LiveDeps) {
       step,
       validAt: stepTimes[step] as string,
       stepTimes,
+      heavyWeatherWaveM: HEAVY_WEATHER_MAX_WAVE_M,
       points: grid.points.map((p) => ({
         lat: p.lat,
         lon: p.lon,

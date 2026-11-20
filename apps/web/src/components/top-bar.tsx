@@ -4,11 +4,12 @@ import { NavLink } from "react-router";
 import { SCREENS, useCommandMenu } from "@/components/command-menu";
 import { StateFlag } from "@/components/primitives/state-flag";
 import { SimClock } from "@/components/sim-clock";
-import { SourceBadge, SourceSummary } from "@/components/source-badge";
+import { DataTag, SourceBadge, SourceSummary } from "@/components/source-badge";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useScenario } from "@/features/scenario/scenario-data";
 import { useAttention } from "@/lib/attention";
 import { useSourceStatus } from "@/lib/queries";
 import { cn } from "@/lib/utils";
@@ -88,6 +89,14 @@ function Sources() {
 }
 
 /** The 48 px top bar: the wordmark, the four screens, what the data is, the world's clock. */
+/** Says the demo world was edited, while it is (the Scenario panel; the pinned demo only). */
+function ScenarioEditedTag() {
+  const scenario = useScenario();
+  return scenario.data?.edited ? (
+    <DataTag kind="scenario-edited" className="hidden sm:inline-flex" />
+  ) : null;
+}
+
 export function TopBar({
   dockOpen,
   onToggleDock,
@@ -104,6 +113,7 @@ export function TopBar({
       <ScreenTabs />
       <div className="ml-auto flex min-w-0 items-center gap-1.5">
         <Sources />
+        <ScenarioEditedTag />
         <SimClock className="hidden min-[420px]:inline-flex" />
         <Button
           variant="ghost"

@@ -11,6 +11,8 @@ import { createLlmCallRoutes, type LlmCallDeps } from "./llm-calls/routes.js";
 import { createReadRoutes } from "./read/routes.js";
 import type { ReadSource } from "./read/source.js";
 import { createReviewRoutes, type ReviewRouteDeps } from "./review/routes.js";
+import { createScenarioRoutes } from "./scenario/routes.js";
+import type { ScenarioDeps } from "./scenario/service.js";
 import { createUiRoutes } from "./ui/routes.js";
 
 export interface AppDeps {
@@ -35,6 +37,8 @@ export interface AppDeps {
   clock: Clock;
   /** The published evaluation summary behind GET /api/eval/summary; omitted, not mounted. */
   evalSummary?: EvalRouteDeps;
+  /** The demo Scenario panel behind /api/scenario; omitted, not mounted. */
+  scenario?: ScenarioDeps;
 }
 
 export function createApp(deps: AppDeps) {
@@ -61,6 +65,7 @@ export function createApp(deps: AppDeps) {
   if (deps.llmCalls) app.route("/api/llm-calls", createLlmCallRoutes(deps.llmCalls));
   if (deps.live) app.route("/api", createLiveRoutes(deps.live));
   if (deps.evalSummary) app.route("/api/eval", createEvalRoutes(deps.evalSummary));
+  if (deps.scenario) app.route("/api/scenario", createScenarioRoutes(deps.scenario));
   app.route("/api", createReadRoutes(deps.read, deps.clock));
 
   return app;

@@ -133,12 +133,17 @@ direction, wind speed and direction for that step.
   "step": 0,
   "validAt": "2026-11-14T08:00:00.000Z",
   "stepTimes": ["2026-11-14T08:00:00.000Z", "…"],
+  "heavyWeatherWaveM": 6,
   "points": [
     { "lat": 36, "lon": 20, "waveHeightM": 1, "waveDirDeg": 214, "windSpeedKn": 2.6, "windDirDeg": 36 },
     "…"
   ]
 }
 ```
+
+`heavyWeatherWaveM` is the planning limit on wave height; the map draws heavier seas as storm.
+When the demo scenario has weather areas, their points carry the areas' values at every step,
+are marked synthetic, and `source` ends in `+ scenario areas`.
 
 `404 not_found` when there is no snapshot yet; `400 invalid_request` for a step out of range.
 
@@ -346,6 +351,7 @@ routes with their points, and `result`:
 | `stopPlans` | For a fleet vessel: a route through each quote's port with the fuel bought there |
 | `plan` | The recommended plan: a route, or a bunker stop, with the hours and dollars a stop adds |
 | `facts` | Every number above as a citable fact |
+| `timeline` | The voyage timeline for the console: `events` in time order (departure, port calls with what each does, ECA changeover, sewage discharge windows, danger areas and the armed team, storms passed, notices due, arrival) and their own `facts`. `plan_route_speed` returns `facts`, never this |
 
 | Status | `error` | When |
 | --- | --- | --- |
@@ -356,6 +362,27 @@ routes with their points, and `result`:
 
 A stored plan by its calculation ID, served as it was computed. `404 not_found` when the ID is not
 a plan of that kind.
+
+## Demo scenario
+
+The console's Scenario panel: a presenter's direct edits to the pinned demo world. No agent tool
+reaches these routes. Edits work only when `DEMO_CONTROLS=on` (set by `npm run demo:reset`), the
+clock is pinned and the weather is recorded; otherwise `GET` says why (`enabled: false`,
+`reason`) and every edit answers `403 forbidden`. Each edit answers with the whole view again.
+
+| Route | Does |
+| --- | --- |
+| `GET /api/scenario` | `{ enabled, reason, edited, editedAt, vessels: [{ id, name, values }], hazards, weatherAreas }` |
+| `PATCH /api/scenario/vessels/:id` | Any of `robMt`, `tankCapacityMt`, `consumption`, `dailyCostUsd`, `hullValueUsd`, `stores` (crew, provisions, sludge, sewage). Fuel on board goes on the vessel's latest noon report |
+| `POST /api/scenario/hazards` | `{ label, lat, lon, radiusNm }`: a synthetic hazard, observed now |
+| `DELETE /api/scenario/hazards/:id` | Removes a synthetic hazard (AIS hazards stay) |
+| `POST /api/scenario/weather-areas` | `{ label, center, radiusNm, waveHeightM, waveDirDeg, windSpeedKn, windDirDeg }`: stationary weather over every forecast step inside the circle (directions are where it comes from) |
+| `DELETE /api/scenario/weather-areas/:id` | Removes a weather area |
+| `POST /api/scenario/reset` | Back to the recorded demo: reseeds as `SEED_ON_BOOT=reset` does (chats, approvals and the inbox too) and reloads the recorded sources |
+
+A route plan reads the edited world on its next request. `404 not_found` for an unknown vessel,
+hazard or area; `422 invalid` when a value is out of bounds or does not fit the vessel (fuel on
+board above its tanks, minimum speed above the reference, an area holding no forecast point).
 
 ## Recommendations and approvals
 

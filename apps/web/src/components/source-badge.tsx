@@ -123,9 +123,16 @@ export type DataKind =
   | "live-run"
   | "model-recorded"
   | "model-recording"
-  | "model-live";
+  | "model-live"
+  | "scenario-edited";
 
 const TAG: Record<DataKind, { text: string; title: string; tone: string }> = {
+  "scenario-edited": {
+    text: "scenario edited",
+    title:
+      "The demo world was changed in the Scenario panel. The console recalculates from it; the assistant's recorded replies cover the unedited demo only.",
+    tone: "border-caution/50 text-caution",
+  },
   simulated: {
     text: "simulated data",
     title: "Fleet, quotes and orders are generated for the demo; no real company's data.",

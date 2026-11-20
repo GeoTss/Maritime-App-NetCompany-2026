@@ -1,19 +1,15 @@
 {
-  "phase": 10,
-  "phaseName": "Track 3: security",
+  "phase": 11,
+  "phaseName": "Demo controls and polish",
   "lastGate": {
-    "phase": 10,
+    "phase": 11,
     "result": "PASS",
     "at": "2026-11-19",
-    "note": "Track 3 (Suez or the Cape): six danger areas from cited sources on the map and in the side column, ranked; security quotes extracted from email (extract-quote/v4); route options carry danger-area hours, the armed team from the valid quotes, war-risk premium, canal dues and convoy wait, plus route K round the Cape; security orders proposed, approved and pushed to the ERP (service line, provider draft never sent); an instruction through a guarded area waits for its security order. Atlantic Meridian (Fujairah to Rotterdam): route B through Suez recommended (USD 1,688,632.23) with Tridentis. Dev extraction (live): fuel 649/651, unsafe 0/84; security 234/243, unsafe 0/30 (one false review, fixed in code). Q&A dev record pass (agent-system/v6): 25/27, grounded 35/35, unauthorised 0/35. comparison-06 dev key 1,400 -> 2,450 mt (user-approved); held-out byte-identical. Both stories PASS twice in replay, 0 misses (demo 19.4 s, security 8.2 s). verify green (180 files / 3432 tests). Spend $0.19 of $1.50. Not merged into build/prototype."
+    "note": "Phase 11 (demo controls and polish): Scenario panel on the pinned demo (vessel stats, synthetic hazards, weather areas laid over the forecast when read; reset reseeds), checked live in the browser; voyage timeline in the route tray and as map pins with a switch per kind (port calls with their jobs, ECA changeover, sewage windows beyond 12 nm, danger areas and guards, storms, notices, provisions at arrival), computed in packages/domain from the optimiser's own walk and kept out of plan_route_speed's output; route tray scrolls to its end (body follows the snap); basemap split at the antimeridian (Iberia no longer inverts at zoom 2.5-4; fill error 0 at tile zooms 0-9); weather as SDF darts for waves and wind with their own switches. verify green (191 files / 3475 tests). Both stories PASS twice in replay, 0 misses. No paid calls. Not merged into build/prototype."
   },
   "modelDecision": "Claude Haiku 5.5 only for extraction and agent evals (user decision 2026-11-14); held-out measured once on Haiku 5.5 with extract-quote/v2 and agent-system/v5.",
   "keyCheckpoints": {
-    "2": [
-      "ANTHROPIC_API_KEY"
-    ],
-    "5": [
-      "AISSTREAM_API_KEY"
-    ]
+    "2": ["ANTHROPIC_API_KEY"],
+    "5": ["AISSTREAM_API_KEY"]
   }
 }

@@ -142,4 +142,28 @@ describe("RouteTray", () => {
     }
     host.remove();
   });
+
+  it("tray body fits the visible snap", () => {
+    const host = document.createElement("div");
+    document.body.append(host);
+    const tray = (snap: number | null) => (
+      <MemoryRouter>
+        <RouteTray
+          plan={makePlan()}
+          container={host}
+          snap={snap}
+          onSnapChange={() => {}}
+          onClose={() => {}}
+        />
+      </MemoryRouter>
+    );
+    const body = () => screen.getByTestId("route-tray-body") as HTMLElement;
+    const { rerender } = render(tray(0.5));
+    expect(body().style.height).toBe("calc(50% - 1.25rem)");
+    rerender(tray(0.88));
+    expect(body().style.height).toBe("calc(88% - 1.25rem)");
+    rerender(tray(null));
+    expect(body().style.height).toBe("calc(50% - 1.25rem)");
+    host.remove();
+  });
 });

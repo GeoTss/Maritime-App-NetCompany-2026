@@ -160,9 +160,9 @@ describe("drizzle schema mirrors the shared entities", () => {
     expect(sqlText).toMatch(/CREATE UNIQUE INDEX "voyage_instructions_recommendation_id_uq"/);
   });
 
-  it("world_meta carries the seed bookkeeping columns", () => {
+  it("world_meta carries the seed bookkeeping columns and the last scenario edit", () => {
     expect(Object.keys(getTableColumns(schema.worldMeta)).sort()).toEqual(
-      ["anchor", "id", "seed", "seedVersion", "seededAt"].sort(),
+      ["anchor", "id", "scenarioEditedAt", "seed", "seedVersion", "seededAt"].sort(),
     );
   });
 });

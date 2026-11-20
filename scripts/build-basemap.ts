@@ -7,10 +7,16 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { feature } from "topojson-client";
 import type { GeometryCollection, Topology } from "topojson-specification";
+import { type Ring, splitAtAntimeridian } from "./basemap-geometry.js";
 
 // Europe and the Mediterranean, the Red Sea and Arabian Sea, and Africa down to the Cape (Track 3).
 const BBOX = { minLon: -30, maxLon: 75, minLat: -40, maxLat: 66 } as const;
 const OUT = new URL("../apps/web/public/basemap.generated.geojson", import.meta.url);
+/** The same rings for the domain's distance-from-land check (sewage discharge windows). */
+const COAST_OUT = new URL(
+  "../packages/integrations/src/routes/coastline.generated.json",
+  import.meta.url,
+);
 
 const require = createRequire(import.meta.url);
 const topo = JSON.parse(
@@ -18,7 +24,6 @@ const topo = JSON.parse(
 ) as Topology;
 const land = feature(topo, topo.objects.land as GeometryCollection);
 
-type Ring = [number, number][];
 const inBox = ([lon, lat]: [number, number]) =>
   lon >= BBOX.minLon - 5 &&
   lon <= BBOX.maxLon + 5 &&
@@ -42,10 +47,13 @@ for (const f of land.features) {
   const g = f.geometry;
   const polys =
     g.type === "Polygon" ? [g.coordinates] : g.type === "MultiPolygon" ? g.coordinates : [];
-  for (const poly of polys as Ring[][]) {
-    if (!poly[0]?.some(inBox)) continue;
-    const rings = poly.map(simplifyRing).filter((ring) => ring.length >= 4);
-    if (rings.length > 0) polygons.push(rings);
+  for (const whole of polys as Ring[][]) {
+    // Split first: a ring over the antimeridian has 360° edges the map's tiler fills wrongly.
+    for (const poly of splitAtAntimeridian(whole)) {
+      if (!poly[0]?.some(inBox)) continue;
+      const rings = poly.map(simplifyRing).filter((ring) => ring.length >= 4);
+      if (rings.length > 0) polygons.push(rings);
+    }
   }
 }
 
@@ -59,3 +67,7 @@ const out = {
 };
 writeFileSync(OUT, `${JSON.stringify(out)}\n`);
 console.log(`map:basemap: ${polygons.length} land polygons written to ${OUT.pathname}`);
+
+const coast = { source: out.source, rings: polygons.flat() };
+writeFileSync(COAST_OUT, `${JSON.stringify(coast)}\n`);
+console.log(`map:basemap: ${coast.rings.length} coastline rings written to ${COAST_OUT.pathname}`);

@@ -13,6 +13,7 @@ import type {
   RoutePlanView,
   SecurityArea,
   SourceMode,
+  TimelineGroup,
   VesselSummary,
   WeatherView,
 } from "@pharos/shared";
@@ -46,7 +47,11 @@ import { StormLayer } from "./storm-layer";
 
 const NO_AREAS: readonly SecurityArea[] = [];
 
+import type { ScenarioPreview } from "@/features/scenario/scenario-data";
+import { ScenarioPreviewLayer } from "./scenario-preview-layer";
+import { TimelineMarkers } from "./timeline-markers";
 import { drawShipArrow, SHIP_ARROW_IMAGE, TRAFFIC_LAYER_IDS, TrafficLayer } from "./traffic-layer";
+import { DART_IMAGE, drawDart } from "./weather-darts";
 import { WeatherLayer } from "./weather-layer";
 
 // The worker is bundled with the app (offline, same origin); MapLibre otherwise looks for it
@@ -89,6 +94,16 @@ export interface MapViewProps {
   aisMode: SourceMode | null;
   onSelectVessel: (vessel: VesselSummary) => void;
   onSelectShip: (mmsi: string) => void;
+  /** The Scenario panel waits for a point: the next click on the map gives it, not a selection. */
+  pick?: ((p: LatLon) => void) | null;
+  /** The hazard or weather area being placed, drawn dashed. */
+  preview?: ScenarioPreview | null;
+  /** The voyage timeline's pins: the groups shown, the picked event and how to pick one. */
+  timeline?: {
+    groups: readonly TimelineGroup[];
+    selected: number | null;
+    onSelect: (index: number) => void;
+  };
 }
 
 /** Below this canvas width the demo view cuts off the fleet, so the first view frames it. */
@@ -137,6 +152,9 @@ export function MapView(props: MapViewProps) {
     ready,
     aisMode,
     onSelectVessel,
+    timeline,
+    pick = null,
+    preview = null,
     onSelectShip,
   } = props;
   const ref = useRef<MapRef>(null);
@@ -153,9 +171,16 @@ export function MapView(props: MapViewProps) {
   const onLoad = useCallback(() => {
     setLoaded(true);
     const map = ref.current?.getMap();
-    if (!map || map.hasImage(SHIP_ARROW_IMAGE)) return;
-    const image = drawShipArrow();
-    if (image) map.addImage(SHIP_ARROW_IMAGE, image, { sdf: true });
+    if (!map) return;
+    if (!map.hasImage(SHIP_ARROW_IMAGE)) {
+      const image = drawShipArrow();
+      if (image) map.addImage(SHIP_ARROW_IMAGE, image, { sdf: true });
+    }
+    for (const kind of ["wave", "wind"] as const) {
+      if (map.hasImage(DART_IMAGE[kind])) continue;
+      const dart = drawDart(kind);
+      if (dart) map.addImage(DART_IMAGE[kind], dart, { sdf: true, pixelRatio: 2 });
+    }
   }, []);
 
   // The first view: on a narrow canvas the demo view cuts off the flagged vessel and the hazard,
@@ -229,10 +254,14 @@ export function MapView(props: MapViewProps) {
 
   const onClick = useCallback(
     (e: MapLayerMouseEvent) => {
+      if (pick) {
+        pick({ lat: e.lngLat.lat, lon: e.lngLat.lng });
+        return;
+      }
       const mmsi = pickShipMmsi(e);
       if (mmsi) onSelectShip(mmsi);
     },
-    [onSelectShip],
+    [onSelectShip, pick],
   );
 
   // A plan's frame: clear of the layer switches, the tray and the panel.
@@ -347,7 +376,7 @@ export function MapView(props: MapViewProps) {
         dragRotate={false}
         touchPitch={false}
         interactiveLayerIds={interactive}
-        cursor={cursor}
+        cursor={pick ? "crosshair" : cursor}
         onLoad={onLoad}
         onMoveEnd={(e) => {
           setZoom(e.viewState.zoom);
@@ -358,13 +387,28 @@ export function MapView(props: MapViewProps) {
         style={{ width: "100%", height: "100%" }}
       >
         <NavigationControl position="bottom-left" showCompass={false} />
-        {layers.weather && weather ? <WeatherLayer weather={weather} colors={colors} /> : null}
+        {(layers.waves || layers.wind) && weather ? (
+          <WeatherLayer
+            weather={weather}
+            colors={colors}
+            show={{ waves: layers.waves, wind: layers.wind }}
+          />
+        ) : null}
         {layers.hazards ? (
           <HazardLayer hazards={hazards} colors={colors} showId={hazardShown(focus)} />
         ) : null}
         {layers.hazards ? <StormLayer plan={plan} colors={colors} /> : null}
         {layers.security ? <SecurityLayer areas={dangerAreas} colors={colors} /> : null}
         <RouteLayer plan={plan} track={track} colors={colors} ports={ports} />
+        {preview ? <ScenarioPreviewLayer preview={preview} colors={colors} /> : null}
+        {timeline ? (
+          <TimelineMarkers
+            plan={plan}
+            groups={timeline.groups}
+            selected={timeline.selected}
+            onSelect={timeline.onSelect}
+          />
+        ) : null}
         {layers.traffic ? (
           <TrafficLayer traffic={traffic} colors={colors} selectedMmsi={selectedMmsi} />
         ) : null}

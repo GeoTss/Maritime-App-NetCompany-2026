@@ -27,6 +27,7 @@ export function composeEnv(base: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
     WEATHER_MODE: "recorded",
     DEMO_HAZARDS: "on",
     DEMO_STORM: "on",
+    DEMO_CONTROLS: "on",
   };
 }
 

@@ -33,6 +33,7 @@ import {
   type RecommendationView,
   RouteCandidate,
   type RoutePlanView,
+  RouteSpeedInput,
   RouteSpeedResult,
   SecurityInput,
   ShipType,
@@ -40,6 +41,7 @@ import {
   StormCell,
   type TrackFuel,
   type VoyageInstructionView,
+  type VoyageTimeline,
 } from "@pharos/shared";
 import { z } from "zod";
 import { orderDependencyOf } from "../approvals/dependency.js";
@@ -59,6 +61,7 @@ import {
   subjectLabel,
 } from "../routing/facts.js";
 import { viewCandidates } from "../routing/plan.js";
+import { planTimeline } from "../routing/timeline.js";
 import type { ReadSource } from "./source.js";
 import { buildVessels, buildVoyages } from "./world-views.js";
 
@@ -411,6 +414,27 @@ function recordedStop(
  * only: the calculation's inputs and outputs, and the forecast start of the snapshot stored with
  * it. Null for another kind of calculation, an unreadable one, or an AIS ship's plan (ruling U5).
  */
+/**
+ * The timeline of a stored route calculation, from its full optimiser input; null when that input
+ * no longer parses (a plan stored by older code).
+ */
+function storedTimeline(
+  row: { id: number; inputs: unknown },
+  result: RouteSpeedResult,
+  stormCells: StormCell[],
+  subject: string,
+): VoyageTimeline | null {
+  const input = z.object({ optimiser: RouteSpeedInput }).safeParse(row.inputs);
+  if (!input.success) return null;
+  return planTimeline({
+    input: input.data.optimiser,
+    result,
+    stormCells,
+    calculationId: row.id,
+    subject,
+  });
+}
+
 async function routePlan(sql: Sql, id: Id): Promise<RoutePlanView | null> {
   const [row] = await sql<
     {
@@ -449,6 +473,7 @@ async function routePlan(sql: Sql, id: Id): Promise<RoutePlanView | null> {
     candidates: viewCandidates(plan.input.candidates, stored.stops),
     result,
     stormCells: plan.stormCells ?? [],
+    timeline: storedTimeline(row, result, plan.stormCells ?? [], plan.subject),
     facts: routePlanFacts({
       response: { calculationId: row.id, result },
       plan,

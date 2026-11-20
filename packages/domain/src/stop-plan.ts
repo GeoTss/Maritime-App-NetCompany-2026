@@ -8,6 +8,7 @@ import {
   FUEL_GRADES,
   type FuelGrade,
   type GradeAmounts,
+  type LatLon,
   type RecommendedPlan,
   type RouteOptionResult,
   type RouteSpeedInput,
@@ -25,7 +26,7 @@ import { co2Tonnes, etsCost } from "./emissions.js";
 import { fuelEuCost } from "./fueleu.js";
 import { polylineNm } from "./geo.js";
 import { outdatedItems, portCallPlan } from "./port-call.js";
-import { hazardIdsOfSteps, subSteps } from "./track.js";
+import { hazardIdsOfSteps, subSteps, type WalkedStep, walkSteps } from "./track.js";
 import { projectFuelAlongTrack } from "./track-fuel.js";
 
 const HOUR_MS = 3_600_000;
@@ -60,6 +61,32 @@ function noSeaRoute(input: RouteSpeedInput, stop: StopCandidate, speedKn: number
     portCall: null,
     feasible: false,
     reasons: ["no_sea_route"],
+  };
+}
+
+/**
+ * The walk a stop plan's fuel projection makes (`projectFuelAlongTrack`): the same sub-steps,
+ * start and weather, paused at the port for the stay its timeline gives (`stay`: departure minus
+ * arrival; none without one). For whatever needs the times and positions along it (the voyage
+ * timeline). Null when the input has no such stop, or the stop has no sea route.
+ */
+export function walkStopPlan(
+  input: RouteSpeedInput,
+  optionId: string,
+  speedKn: number,
+  stay: StopTimeline | null,
+): { points: LatLon[]; steps: WalkedStep[]; stopPointIndex: number } | null {
+  const stop = input.stops.find((s) => s.optionId === optionId);
+  if (!stop || stop.routeError !== null) return null;
+  const stayHours = stay ? (Date.parse(stay.departAt) - Date.parse(stay.arriveAt)) / HOUR_MS : 0;
+  const { steps } = subSteps(stop.points, input.stepNm);
+  return {
+    points: stop.points,
+    stopPointIndex: stop.stopPointIndex,
+    steps: walkSteps(steps, new Date(Date.parse(input.startAt)), speedKn, input.weather, {
+      pointIndex: stop.stopPointIndex,
+      hours: () => stayHours,
+    }),
   };
 }
 

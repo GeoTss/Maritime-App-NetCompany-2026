@@ -35,7 +35,8 @@ import type {
 import { findVessel, insertCalculation } from "../ai/tools/common.js";
 import { approvedOrderFor } from "../approvals/orders.js";
 import { resolvePort } from "../ingest/resolve.js";
-import { routeCalculationLoad } from "./facts.js";
+import { routeCalculationLoad, subjectLabel } from "./facts.js";
+import { planTimeline } from "./timeline.js";
 
 /**
  * The route candidates a plan view draws: the optimiser's routes, then each bunker stop's route
@@ -296,6 +297,14 @@ export async function planRouteSpeed(
       candidates: viewCandidates(plan.input.candidates, plan.input.stops),
       result,
       stormCells: plan.stormCells,
+      // For the console only (`plan_route_speed` returns `facts` and `data`, never this).
+      timeline: planTimeline({
+        input: plan.input,
+        result,
+        stormCells: plan.stormCells ?? [],
+        calculationId,
+        subject: subjectLabel(plan, mmsi),
+      }),
       computeMs,
     },
     plan,
